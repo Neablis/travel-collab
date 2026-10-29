@@ -129,6 +129,35 @@ describe("requireTripAccess", () => {
     expect(access.error.status).toBe(403);
   });
 
+  // KI-2026-10-28-c: the stored doc's parse threw before membership was asked,
+  // so a stranger was told `malformed-trip` (500) where a missing id is 404 and
+  // a healthy trip 403 — confirming the trip exists. Members, from the log and
+  // granted, still learn their trip is broken.
+  it("403s a stranger to a trip whose stored doc will not parse, and 500s its members", async () => {
+    const { tripId } = await seedDay();
+    const member = `trip-access-member-${randomUUID().slice(0, 8)}`;
+    await grantMembership(db, { tripId, userId: member, role: "viewer", invitedBy: OWNER, now: new Date().toISOString() });
+    const [row] = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
+    await db
+      .update(tripDetails)
+      .set({ doc: { ...row!.doc, name: 7 } as unknown as TripDetail })
+      .where(eq(tripDetails.tripId, tripId));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const statusFor = async (userId: string) => {
+        currentUserId = userId;
+        const access = await requireTripAccess(tripId, "viewer");
+        if (!("error" in access)) throw new Error(`${userId} should not have read a malformed trip`);
+        return access.error.status;
+      };
+      expect(await statusFor(STRANGER)).toBe(403);
+      expect(await statusFor(OWNER)).toBe(500);
+      expect(await statusFor(member)).toBe(500);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
   // PR #71 review §2. `getTripDetail` returns the stored doc RAW, so typing it
   // `TripDetail` without parsing was a claim nothing checked — the defaults
   // that make a pre-M18 doc legal only exist inside a parse.

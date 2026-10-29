@@ -12,7 +12,7 @@ import { dayPath } from "@/lib/playbookUrls";
 import { grantMembership } from "@/server/access/members";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
-import { apiIdempotencyKeys } from "@/server/db/schema";
+import { apiIdempotencyKeys, tripDetails } from "@/server/db/schema";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
@@ -300,6 +300,26 @@ describe("a trip the caller cannot read", () => {
     expect(missing).toMatchObject({ isError: true, text: "No such trip. (not-found)" });
     const stranger = await call(name, input(tripId));
     expect(stranger.result).toEqual(missing.result);
+  });
+
+  // A broken stored doc used to fail before membership was asked, so a stranger
+  // got v1's 500 where a missing id gets not-found (KI-2026-10-28-c).
+  it("answers a stranger's trip that will not parse as it answers an id that does not exist", async () => {
+    const call = await connect(ALL);
+    const { tripId } = await strangersTrip();
+    const [row] = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
+    await db
+      .update(tripDetails)
+      .set({ doc: { ...row!.doc, name: 7 } as never })
+      .where(eq(tripDetails.tripId, tripId));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const missing = await call("get_trip", { tripId: randomUUID() });
+      const stranger = await call("get_trip", { tripId });
+      expect(stranger.result).toEqual(missing.result);
+    } finally {
+      errors.mockRestore();
+    }
   });
 
   // A member short of the role can read the trip, so it learns nothing new and keeps the reason.

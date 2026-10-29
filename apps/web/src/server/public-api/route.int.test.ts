@@ -532,9 +532,10 @@ describe("the answers a caller cannot fix, and the ones they can", () => {
     const tripId = await seedTrip(owner, "Kyoto");
     const secret = await tokenFor(owner);
 
+    // Members kept readable: only a member is told the trip is broken (KI-2026-10-28-c).
     await db
       .update(tripDetails)
-      .set({ doc: { tripId, name: 7 } as unknown as never })
+      .set({ doc: { tripId, name: 7, members: [{ userId: owner, role: "owner" }] } as unknown as never })
       .where(eq(tripDetails.tripId, tripId));
 
     const res = await GET_TRIP(get("http://localhost/api/v1/trips/x", secret), withTrip(tripId));
