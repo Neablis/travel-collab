@@ -13,8 +13,10 @@ import type { savedDayCovers, tripCovers } from "./db/schema";
 // columns, or a `url` with an optional credit. Every mapping between the two
 // shapes is here, so a table read anywhere else never decides which is which.
 // So is minting a URL cover's `proxySrc`: every read that hands a cover to a
-// client comes through `coverJson` or `coverOf`, and a URL cover without one
-// shows as none.
+// client comes through `coverJson`, `coverOf` or `withProxySrc`, and a URL
+// cover without one shows as none. `coverJson` mints it in `mapWith`, which
+// only a query builder's select runs — a raw `db.execute` read gets the bare
+// jsonb, so it calls `withProxySrc` on the cover itself.
 
 type UrlCover = Extract<TripCover, { source: "url" }>;
 
@@ -29,8 +31,11 @@ let unsignedLogged = false;
  * unset) the cover goes without one and shows as none: a listing that threw
  * would cost the page over a decoration. Logged once per process, not per row;
  * the proxy route itself still refuses with a 500.
+ *
+ * Exported for raw `db.execute` reads, which never run `coverJson`'s
+ * `mapWith`: Discover's cards (`playbooks.ts`) sign their covers with this.
  */
-function withProxySrc(cover: TripCover): TripCover {
+export function withProxySrc(cover: TripCover): TripCover {
   if (cover.source !== "url") return cover;
   try {
     return { ...cover, proxySrc: coverProxySrc(cover.url) };

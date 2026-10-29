@@ -25,6 +25,7 @@ import { users } from "./db/schema";
 import { isUuid } from "./ids";
 import { LIBRARY_TAG, libraryCached } from "./libraryCache";
 import { SAVED_DAY_COVER_JOIN, SAVED_DAY_COVER_JSON } from "./savedDayCovers";
+import { withProxySrc } from "./coverRows";
 import { isoOf, toDiscoverDay, type DiscoverRow, type OwnerNames } from "./discoverDay";
 import { parseSavedDayColumns } from "./savedDayRow";
 
@@ -518,6 +519,20 @@ const discoverColumns = sql`
       ${ownerNames(sql`d.owner_id`)}`;
 
 /**
+ * A row read with `discoverColumns` as its Discover card, with a URL cover's
+ * `proxySrc` minted. `db.execute` returns the cover's jsonb as Postgres built
+ * it — `SAVED_DAY_COVER_JSON`'s `mapWith` never runs on a raw read — so
+ * without this a URL cover reached the card with no `proxySrc` and showed as
+ * none, while the day's own page, read through `coverOf`, showed it.
+ * `toDiscoverDay` stays unsigned because the landing builds its card from a
+ * bundle with no signing key (`scripts/landing-demo.ts`).
+ */
+function discoverCard(...args: Parameters<typeof toDiscoverDay>): DiscoverDay | null {
+  const day = toDiscoverDay(...args);
+  return day === null || day.cover === null ? day : { ...day, cover: withProxySrc(day.cover) };
+}
+
+/**
  * One page of Discover, `after` the card a previous page ended on (null for
  * page one), and what the page says about the whole match: sibling cities,
  * the shared currency, the count.
@@ -552,7 +567,7 @@ export async function discoverDays(query: DiscoverQuery, after: string | null = 
   const windowFull = rows.rows.length === CANDIDATE_LIMIT;
 
   const candidates = [...rows.rows]
-    .map((row) => toDiscoverDay(row, query.cities, query.readerId, pageTags))
+    .map((row) => discoverCard(row, query.cities, query.readerId, pageTags))
     .filter((day): day is DiscoverDay => day !== null);
 
   // The one currency every matched day agrees on, or null. Decided over the
@@ -718,7 +733,7 @@ export async function discoverPage(
       limit ${want}
     `);
     for (const row of rows.rows) {
-      const day = toDiscoverDay(row, query.cities, query.readerId, pageTags);
+      const day = discoverCard(row, query.cities, query.readerId, pageTags);
       if (day !== null && keeps(full, day)) out.push(day);
       // Stop at the page: the next one starts after its last card, not after
       // the last row this read happened to fetch.
@@ -1269,7 +1284,7 @@ export async function publishedDaysPage(
   // link — shared with the tag pages' nav through the cache.
   const pageTags = await globalPageTags();
   const readable = [...rows.rows]
-    .map((row) => toDiscoverDay(row, query.cities, null, pageTags))
+    .map((row) => discoverCard(row, query.cities, null, pageTags))
     .filter(
       (day): day is DiscoverDay =>
         day !== null && keeps(query, day) && (within === null || day.cities.some((city) => within.has(city))),
