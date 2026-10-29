@@ -44,7 +44,7 @@ const SEA_BRANCH = { file: "components/playbooks/DiscoverCard.tsx", condition: "
 // design handoff's 10-11.5px label as an inline style, each with its own
 // eslint-disable citing `dc.html`, on tight surfaces (the map's rail and strip,
 // the day chips, the calendar's cells, the rack) where 12px needs a layout
-// walk this wall did not do. Their classes are still checked here; a new
+// walk this wall did not do (KI-2026-10-29-a). Their classes are still checked here; a new
 // inline size anywhere else fails. Taking a file off the list is the fix.
 const GRANDFATHERED_INLINE = new Set([
   "components/AccountMenu.tsx",
