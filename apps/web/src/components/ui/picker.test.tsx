@@ -252,6 +252,16 @@ describe("Picker", () => {
     // One group named by the question, not a second holding only "None of these".
     expect(screen.getAllByRole("group", { name: "What pace?" })).toHaveLength(1);
   });
+
+  // Mitchell on production, 2026-10-30: equal squares in a grid, not chips
+  // each as wide as its own label.
+  it("lays the tag tiles out as a grid of equal squares", () => {
+    render(<Harness onChange={vi.fn()} options={[]} multi other={{ kind: "tags", label: "What it is about" }} />);
+    expect([...screen.getByRole("group", { name: "What pace?" }).classList]).toEqual(expect.arrayContaining(["grid", "grid-cols-3"]));
+    const tiles = screen.getAllByRole("checkbox");
+    expect(tiles).toHaveLength(12);
+    for (const tile of tiles) expect([...tile.classList]).toContain("aspect-square");
+  });
 });
 
 // Mitchell, 2026-10-30: in the docked assistant (~360px) a place offered with
