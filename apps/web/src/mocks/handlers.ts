@@ -190,6 +190,10 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
       next.budget = command.budget;
       rerollup(next);
       break;
+    case "SetTripStyle":
+      next.pace = command.pace;
+      next.tags = [...command.tags];
+      break;
     case "UndoLastChange":
     case "RedoChange":
     case "RevertToState":

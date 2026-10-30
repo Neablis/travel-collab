@@ -31,7 +31,7 @@ function tripOf(days: Array<Array<{ start: string; end: string } | null>>): Trip
   });
   return {
     tripId: "1c2d3e4f-0000-4000-8000-000000000032", name: "Property", status: "active", startDate: null,
-    currency: "USD", budget: null, members: [{ userId: "u1", role: "owner" }], forkedFrom: null, days: dayRows,
+    currency: "USD", budget: null, members: [{ userId: "u1", role: "owner" }], forkedFrom: null, pace: null, tags: [], days: dayRows,
     backlog: [], activities, conflicts: [], dismissedConflictIds: [], createdAt: "2026-10-04T00:00:00.000Z",
     unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
   } as TripDetail;

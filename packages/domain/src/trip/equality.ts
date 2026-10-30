@@ -155,6 +155,8 @@ export function tripStatesEqual(a: TripState, b: TripState): boolean {
   if (a.tripId !== b.tripId || a.name !== b.name || a.startDate !== b.startDate) return false;
   if (a.status !== b.status) return false;
   if (a.currency !== b.currency || !moneyEqual(a.budget, b.budget)) return false;
+  // Absent reads as null and [] (state.ts). Tags positionally, like a stop's.
+  if ((a.pace ?? null) !== (b.pace ?? null) || !sameList(a.tags ?? [], b.tags ?? [])) return false;
   if (
     a.members.length !== b.members.length ||
     !a.members.every((m, i) => m.userId === b.members[i]!.userId && m.role === b.members[i]!.role)
