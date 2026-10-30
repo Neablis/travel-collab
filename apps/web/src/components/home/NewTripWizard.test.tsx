@@ -194,6 +194,16 @@ describe("NewTripWizard — the pages", () => {
     expect(hasFocus(nextButton())).toBe(true);
   });
 
+  // The next page starts unanswered, so its Next renders disabled under the
+  // focus that pressed it: the browser drops focus to the body.
+  it("moves focus onto the next page's first choice, off the Next it disables", async () => {
+    renderWizard();
+    await pickWhere("Lis", /^Lisbon/);
+    await user.keyboard("{Enter}");
+    expect(screen.getByText("Step 2 of 5")).not.toBeNull();
+    expect(hasFocus(within(screen.getByTestId("new-trip-page")).getAllByRole("radio")[0]!)).toBe(true);
+  });
+
   it("takes the first result on Enter", async () => {
     renderWizard();
     await user.type(screen.getByLabelText("Where are you going?"), "Lis");
@@ -466,6 +476,8 @@ describe("NewTripWizard — published days on Review", () => {
     await user.click(screen.getByRole("button", { name: /^Alfama at dusk/ }));
     await user.click(screen.getByRole("button", { name: "Just create it" }));
     expect(await screen.findByText(/Alfama at dusk could not be added — it is still in Playbooks\./)).not.toBeNull();
+    // The pressed button is gone; the page holding that line takes focus.
+    expect(hasFocus(screen.getByTestId("new-trip-page")), "the could-not-be-added line").toBe(true);
     expect(onCreated).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Open the trip" }));
     expect(onCreated).toHaveBeenCalledWith(expect.any(String), { navigate: true });

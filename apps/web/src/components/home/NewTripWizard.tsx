@@ -297,11 +297,9 @@ type PagesProps = {
   /**
    * An id for the current page, so a control outside this component can focus
    * it with `focusNewTripPage`: the empty Home's page-head "New trip" button,
-   * which would otherwise put a second copy of this flow on one screen. On
-   * page one that lands in Where's search, hence the name. It is on the page,
-   * not the field, because the field is on no other page.
+   * which would otherwise put a second copy of this flow on one screen.
    */
-  whereFieldId?: string;
+  pageId?: string;
   /**
    * Holds the controls that write while another trip-start is in flight —
    * Home's `cloningDemo` (CodeRabbit, PR 104). Picking costs nothing and sends
@@ -326,7 +324,7 @@ const FIRST_CONTROL = 'input:not([disabled]), button:not([disabled]):not([tabind
 /**
  * **Focus a page of the flow**: a question page's first control, or Review
  * itself, whose first line says what Review is. Exported for the empty Home's
- * "New trip", which finds the inline flow's page by `whereFieldId`.
+ * "New trip", which finds the inline flow's page by `pageId`.
  */
 export function focusNewTripPage(page: HTMLElement | null) {
   if (page === null) return;
@@ -362,7 +360,7 @@ function Pages({
   dispatch,
   onDone,
   firstRun = false,
-  whereFieldId,
+  pageId,
   disabled = false,
   otherStarts,
   firstName,
@@ -399,7 +397,7 @@ function Pages({
     if (target === "page") focusNewTripPage(pageRef.current);
     else if (target === "next") nextRef.current?.focus();
     else pageRef.current?.querySelector<HTMLElement>(`[data-change="${target.change}"]`)?.focus();
-  }, [state]);
+  }, [state, missed]);
 
   /**
    * **The published days for a picked place** (M27 D13, now Review's card,
@@ -430,8 +428,12 @@ function Pages({
   }
 
   function goNext() {
-    if (page !== "review" && next(state).page === REVIEW) refocus.current = state.fromReview ? { change: page } : "page";
-    setState(next);
+    const to = next(state);
+    if (to === state) return;
+    // Every move refocuses: a question page opens unanswered, so its Next
+    // would render disabled under the focus that pressed it.
+    refocus.current = page !== "review" && state.fromReview && to.page === REVIEW ? { change: page } : "page";
+    setState(to);
   }
 
   function goBack() {
@@ -492,6 +494,9 @@ function Pages({
     const result = await run(true);
     if (result === null) return;
     if (result.missedDays.length > 0) {
+      // Open the trip replaces the pressed button; the page holds the line
+      // that says which day failed.
+      refocus.current = "page";
       setMissed(setupOf(state).savedDays.filter((day) => result.missedDays.includes(day.savedDayId)).map((day) => day.name));
       return;
     }
@@ -543,7 +548,7 @@ function Pages({
         key={state.page}
         ref={pageRef}
         tabIndex={-1}
-        {...(whereFieldId === undefined ? {} : { id: whereFieldId })}
+        {...(pageId === undefined ? {} : { id: pageId })}
         data-page={page}
         data-step-enter
         data-testid="new-trip-page"

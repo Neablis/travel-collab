@@ -780,7 +780,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
             <FirstTripStart
               createTrip={createTripApi}
               dispatch={sendTripCommand}
-              whereFieldId={FIRST_TRIP_PAGE_ID}
+              pageId={FIRST_TRIP_PAGE_ID}
               disabled={cloningDemo}
               showConversation={!newTripOpen}
               importHandle={importPicker}
