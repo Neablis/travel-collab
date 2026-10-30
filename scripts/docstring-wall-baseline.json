@@ -281,7 +281,6 @@
   "apps/web/src/server/ai/gateway.ts::aiModel",
   "apps/web/src/server/ai/geocodeEnrichment.ts::hasCityLevelLocations",
   "apps/web/src/server/ai/geocodeEnrichment.ts::hasUnverifiedLocations",
-  "apps/web/src/server/ai/geocodeNameMatch.ts::candidateOwnName",
   "apps/web/src/server/ai/geocodeNameMatch.ts::distinctiveTokens",
   "apps/web/src/server/ai/geocodeNameMatch.ts::nameTokens",
   "apps/web/src/server/ai/geocodeNameMatch.ts::placeNameVerdict",

@@ -141,6 +141,24 @@ describe("LocationIQ geocoder adapter", () => {
     ]);
   });
 
+  // One rule for "this display_name names nothing": it reads the string alone,
+  // so it holds whether or not the row carries a house_number component, and
+  // it is the same rule the name-match verdict reads (geocodeNameMatch.ts).
+  it("names nothing led by a house number, with or without the address breakdown", async () => {
+    vi.stubGlobal("fetch", async () =>
+      new Response(
+        JSON.stringify([
+          { lat: "1", lon: "2", display_name: "930, Tchoupitoulas Street, New Orleans, USA" },
+          { lat: "1", lon: "2", display_name: "12-14, Rue de Rivoli, Paris, France" },
+          { lat: "1", lon: "2", display_name: "3331 Arts Chiyoda, 6-11-14, Sotokanda, Tokyo, Japan" },
+        ]),
+        { status: 200 },
+      ),
+    );
+    const results = await createLocationIQGeocoder("k").forward("q");
+    expect(results.map((r) => r.name)).toEqual([undefined, undefined, "3331 Arts Chiyoda"]);
+  });
+
   it("throws on a non-OK response", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 429 })));
     await expect(createLocationIQGeocoder("K").forward("x")).rejects.toThrow(/429/);

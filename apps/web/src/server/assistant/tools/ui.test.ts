@@ -28,6 +28,27 @@ describe("show_options", () => {
     });
   });
 
+  // A city or district result is named by itself, and a line under it saying
+  // the same word again tells the person nothing.
+  it("leaves out an area or city that only repeats the card's name", async () => {
+    const deps = turn();
+    deps.placeCache.add([
+      { name: "New Orleans", lat: 29.95, lng: -90.07, city: "New Orleans" },
+      { name: "Warehouse District", lat: 29.94, lng: -90.07, area: "Warehouse District", city: "New Orleans" },
+    ]);
+    await showOptionsTool.invoke({ prompt: "Where to stay", places: [2, 3] }, deps);
+    expect(deps.uiOutcome.outcome()).toEqual({
+      options: {
+        id: "ask",
+        prompt: "Where to stay",
+        cards: [
+          { kind: "place", id: "place-2", name: "New Orleans" },
+          { kind: "place", id: "place-3", name: "Warehouse District", city: "New Orleans" },
+        ],
+      },
+    });
+  });
+
   it("shows a published day only as search_playbooks returned it", async () => {
     const deps = turn();
     await showOptionsTool.invoke({ prompt: "Days like it", days: ["day-food", "day-made-up"] }, deps);

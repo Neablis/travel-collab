@@ -218,6 +218,9 @@ describe("the place search port", () => {
     const [lookup] = await port.search({ queries: ["cochon new orleans"], region: null, userId: "asker" });
     const [cochon, museum] = lookup!.places;
     expect(cochon!.name).toBe("Cochon");
+    // The street stays with the model: it is what tells two branches of one
+    // name apart, and it is never what gets stored.
+    expect(cochon!.address).toBe("Cochon, 930, Tchoupitoulas Street, Warehouse District, New Orleans, Orleans Parish, Louisiana, 70130, USA");
     expect([cochon!.area, cochon!.city].join(", ")).toBe("Warehouse District, New Orleans");
     expect(museum!.name).toBe("The National World War II Museum");
   });
