@@ -88,7 +88,7 @@ function clamp(n: number, min: number, max: number): number {
 // A native date input can fire `change` on a half-typed value in some
 // browsers, and `min` only steers its picker (`TripDateControl` records both).
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const dateAnswer = (raw: string, min: string | undefined): string | null =>
+export const dateAnswer = (raw: string, min: string | undefined): string | null =>
   ISO_DATE_RE.test(raw) && (min === undefined || raw >= min) ? raw : null;
 
 /**
@@ -264,15 +264,7 @@ function OtherInput({
     case "number":
       return <NumberStepper other={other} value={value?.kind === "number" ? value.value : null} onChange={onChange} />;
     case "date":
-      return (
-        <Input
-          type="date"
-          aria-label={other.label}
-          min={other.min}
-          value={value?.kind === "date" ? (value.value ?? "") : ""}
-          onChange={(e) => onChange({ kind: "date", value: dateAnswer(e.target.value, other.min) })}
-        />
-      );
+      return <DateOther other={other} value={value?.kind === "date" ? value.value : null} onChange={onChange} />;
     case "tags":
       return (
         <TagTiles
@@ -283,6 +275,39 @@ function OtherInput({
         />
       );
   }
+}
+
+function DateOther({
+  other,
+  value,
+  onChange,
+}: {
+  other: Extract<PickerOther, { kind: "date" }>;
+  value: string | null;
+  onChange: (next: PickerOtherAnswer) => void;
+}) {
+  // The input shows what was typed, not the answer: Chrome passes a year typed
+  // digit by digit through 0002-11-05, which is no answer under `min`, and
+  // binding the input to the null answer would empty it mid-entry.
+  const [draft, setDraft] = useState(value ?? "");
+  const [seen, setSeen] = useState(value);
+  // Re-seeded only by an answer this input did not send, as `TripDateControl` is.
+  if (value !== seen) {
+    setSeen(value);
+    if (value !== dateAnswer(draft, other.min)) setDraft(value ?? "");
+  }
+  return (
+    <Input
+      type="date"
+      aria-label={other.label}
+      min={other.min}
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        onChange({ kind: "date", value: dateAnswer(e.target.value, other.min) });
+      }}
+    />
+  );
 }
 
 function NumberStepper({

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { Picker, type PickerAnswer, type PickerOption, type PickerOther } from "./picker";
+import { dateAnswer, Picker, type PickerAnswer, type PickerOption, type PickerOther } from "./picker";
 
 // The picker is the only way New trip (M56 part 2) and the assistant's
 // `ask_user` (part 5) take an answer, and neither has a text box behind it to
@@ -144,8 +144,13 @@ describe("Picker", () => {
     render(<Harness onChange={onChange} other={LENGTH} />);
     await user.click(screen.getByRole("radio", { name: "Another length" }));
     expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 2 } });
-    await user.click(screen.getByRole("button", { name: "More days" }));
+    const more = screen.getByRole<HTMLButtonElement>("button", { name: "More days" });
+    await user.click(more);
     expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 3 } });
+    // Held, not disabled: jsdom keeps focus on a disabled button, so the
+    // keyboard steps below cannot tell the two apart. A browser does not.
+    expect(more.disabled).toBe(false);
+    expect(more.getAttribute("aria-disabled")).toBe("true");
     // At the bound a press does nothing, and focus is still on More: the
     // next Shift+Tab reaches Fewer.
     onChange.mockClear();
@@ -184,6 +189,25 @@ describe("Picker", () => {
     // `min` is only a hint to the native picker: a typed earlier day is no answer.
     fireEvent.change(day, { target: { value: "2026-11-02" } });
     expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "date", value: null } });
+  });
+
+  it("keeps a typed day in the date input while it is not an answer yet", async () => {
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} options={[]} other={{ kind: "date", label: "Pick a day", min: "2026-11-05" }} />);
+    const day = screen.getByLabelText<HTMLInputElement>("Pick a day", { selector: "input" });
+    // Chrome sends each digit of a typed year: 0002-11-05 is on the way to 2026-11-05.
+    fireEvent.change(day, { target: { value: "0002-11-05" } });
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "date", value: null } });
+    expect(day.value).toBe("0002-11-05");
+    fireEvent.change(day, { target: { value: "2026-11-05" } });
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "date", value: "2026-11-05" } });
+  });
+
+  // jsdom empties a non-ISO value before `change` fires, so the shape half of
+  // the guard is only reachable here.
+  it("answers a date only from a whole YYYY-MM-DD", () => {
+    expect(dateAnswer("2026-11-0", undefined)).toBeNull();
+    expect(dateAnswer("2026-11-05", undefined)).toBe("2026-11-05");
   });
 
   it("answers a place other with the place its slot commits", async () => {
