@@ -21,12 +21,16 @@ Format:
   but the id filled by the server), and `handOff` (`AssistantHandOff`: `task`, `to` from
   `HandOffTo` — `new_trip`, `plan_page`, `upgrade`, `nowhere` — and a `plan_page`'s `command`,
   dropped unless `isAssistantCommandId` allows it).
-- **New:** `AskAnswer` (`answeredAsk`, `optionIds`, `other` or null) and `ASK_ANSWER_PART`
-  (`"ask-answer"`): what the person picked, sent as a `data-ask-answer` part on their message.
+- **New:** `AskAnswer` (`answeredAsk`, an optional `question`, `optionIds`, `other` or null) and
+  `ASK_ANSWER_PART` (`"ask-answer"`): what the person picked, sent as a `data-ask-answer` part on
+  their message. `question` is the words answered (the question, or the cards' prompt), since the
+  asking turn often sends no text back as history; optional, so an answer stored without it reads.
+- `AskOther`'s `number` refuses `min` above `max`, a range no answer fits.
 - Why: ADR-084 §2. A turn that cannot do a task ends in a sentence and a button rather than prose
   alone, and a closed question's answer comes back as data, not text the model re-reads.
 - Consumers updated: `apps/web` — `server/ai/handleAskRequest.ts` builds the outcomes and
-  validates the data part on both ask doors; `lib/apiClient.ts` reads them into events;
+  validates the data part on both ask doors and puts `question` into the model's text;
+  `lib/apiClient.ts` reads them into events;
   `components/assistant/useAskThread.ts`, `Transcript.tsx` and `TurnWidget.tsx` draw them and
   send the answer; `server/ai/eval/grade.ts` grades them — in this same PR.
 - Public API: no change. The ask stream is session-only and not in `openapi.json`.

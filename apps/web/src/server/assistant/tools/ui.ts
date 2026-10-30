@@ -10,6 +10,8 @@ import { z } from "zod";
 import { AskOption, AskOther, HandOffTo, type AssistantOptionCard } from "@tc/contracts";
 import { currentCallId } from "@/server/assistant/callScope";
 import { defineTool } from "@/server/assistant/defineTool";
+import { searchPlacesTool } from "@/server/assistant/tools/places";
+import { searchPlaybooksTool } from "@/server/assistant/tools/read";
 
 export const ASK_USER_TOOL_NAME = "ask_user";
 export const SHOW_OPTIONS_TOOL_NAME = "show_options";
@@ -22,6 +24,9 @@ const UiOutput = z.union([
 type UiOutput = z.infer<typeof UiOutput>;
 
 const ALREADY = "This turn already ends in a question, cards or a hand-off. Say your last sentence instead.";
+// A drafted change is the turn's outcome (`withUiOutcome`), so a widget after
+// it would never render: refused here, so the last sentence does not point at it.
+const DRAFTED = "This turn already drafts a change, on a card under your answer. Say your last sentence about that instead.";
 
 // Where the id comes from when a call has none: a test calling `run` outside
 // a tool call. A real turn always has one.
@@ -45,6 +50,7 @@ export const askUserTool = defineTool({
   needs: ["uiOutcome"] as const,
   minimumRole: "viewer",
   run: (input, deps): UiOutput => {
+    if (deps.uiOutcome.drafting()) return { shown: false, refused: DRAFTED };
     const ask = { id: callId(), question: input.question, options: input.options, multi: input.multi ?? false, allowNone: input.allowNone ?? false, ...(input.other && { other: input.other }) };
     if (!deps.uiOutcome.set({ ask })) return { shown: false, refused: ALREADY };
     return { shown: true, note: "The question and its choices are under your answer. Do not repeat them; say nothing more than a short lead-in, and wait for their answer." };
@@ -68,7 +74,9 @@ export const showOptionsTool = defineTool({
   output: UiOutput,
   needs: ["uiOutcome", "placeCache"] as const,
   minimumRole: "viewer",
+  fedBy: [searchPlacesTool.name, searchPlaybooksTool.name],
   run: (input, deps): UiOutput => {
+    if (deps.uiOutcome.drafting()) return { shown: false, refused: DRAFTED };
     const cards: AssistantOptionCard[] = [];
     const dropped: string[] = [];
     for (const ref of input.places ?? []) {
@@ -104,6 +112,7 @@ export const handOffTool = defineTool({
   needs: ["uiOutcome"] as const,
   minimumRole: "viewer",
   run: async (input, deps): Promise<UiOutput> => {
+    if (deps.uiOutcome.drafting()) return { shown: false, refused: DRAFTED };
     if (!deps.uiOutcome.targets.includes(input.to)) {
       return { shown: false, refused: `From here, hand off only to ${deps.uiOutcome.targets.join(", ")}.` };
     }

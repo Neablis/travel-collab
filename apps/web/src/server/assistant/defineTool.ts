@@ -251,6 +251,14 @@ export interface ToolSpec<
    * test does for every tool. Omitted means the model sees the whole input.
    */
   hiddenFromModel?: readonly string[];
+  /**
+   * **The tools whose results this one is made of** (M56): `show_options`
+   * fills its cards only from what `search_places` or `search_playbooks`
+   * returned this turn, so where neither is offered it can never succeed and
+   * its schema would be paid on every step for nothing. `toolsFor` drops it
+   * from any set holding none of these. Omitted means it stands alone.
+   */
+  fedBy?: readonly string[];
   run: (
     input: z.infer<Input>,
     deps: Pick<AssistantDeps, Needs[number]>,

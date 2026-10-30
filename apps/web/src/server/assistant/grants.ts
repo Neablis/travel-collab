@@ -285,7 +285,7 @@ export function toolsFor(
   // one whose phase nobody read.
   phase?: TripPhase,
 ): readonly AnyAssistantTool[] {
-  return ASSISTANT_TOOLS.filter((definition) => {
+  const offered = ASSISTANT_TOOLS.filter((definition) => {
     // The fifth axis (`defineTool`'s `origins`).
     if (definition.origins !== undefined && !definition.origins.includes(origin)) return false;
     // The sixth (`phases`), closed on an unknown phase as the fourth is.
@@ -299,14 +299,7 @@ export function toolsFor(
     // is a thing a person with read access can do in the UI (AGENTS.md
     // invariant 7). Keyed on the tag every tool must declare, so a new tool
     // that is not a pure read cannot reach a viewer by being forgotten.
-    //
-    // **The `ui` widgets are the one exception, by domain** (ADR-084 §2): a
-    // question, cards or a hand-off change nothing and widen nothing, and a
-    // read-only turn is exactly the one that most needs to decline with a
-    // button. Every account turn is read-only (it holds no trip role), and
-    // Home handing off instead of refusing is what M56 is for.
-    const readOnlyAllows = definition.effect === "read" || definition.domain === "ui";
-    if (posture === "read-only" && (!readOnlyAllows || definition.onReadOnlyTurns === false)) return false;
+    if (posture === "read-only" && (!readOnlyAllows(definition) || definition.onReadOnlyTurns === false)) return false;
     // **The fourth axis (`defineTool`'s `postures`), and it does NOT follow the
     // third's "absent argument disables the filter" rule.** That rule exists
     // because a caller who has not classified the turn must not be handed a
@@ -326,6 +319,22 @@ export function toolsFor(
     if (taskClass === undefined || definition.taskClasses === undefined) return true;
     return definition.taskClasses.includes(taskClass);
   });
+  // The seventh axis (`fedBy`), and the one read off the set itself: a tool
+  // that only works on another's results is not offered where none of them is.
+  return offered.filter((definition) => definition.fedBy === undefined || offered.some((tool) => definition.fedBy!.includes(tool.name)));
+}
+
+/**
+ * What a read-only turn may hold: a pure read, or one of the `ui` widgets
+ * (ADR-084 §2-§3). A question, cards or a hand-off change nothing and widen
+ * nothing, and a read-only turn is exactly the one that most needs to decline
+ * with a button: every account turn is read-only, since it holds no trip role.
+ * Keyed on what the tool does as well as its domain, so a `ui` tool that
+ * proposes, writes or spends is withheld like any other.
+ */
+export function readOnlyAllows(definition: Pick<AnyAssistantTool, "domain" | "effect" | "spend">): boolean {
+  if (definition.effect === "read") return true;
+  return definition.domain === "ui" && definition.effect === "steer" && definition.spend === "none";
 }
 
 /**

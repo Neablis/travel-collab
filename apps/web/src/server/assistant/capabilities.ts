@@ -9,7 +9,7 @@
 // DOMAIN added fails `capabilityBlock.test.ts` until it is described here.
 import { HAND_OFF_TARGETS, type HandOffTo } from "@tc/contracts";
 import { EFFECT_LEVEL, type ToolDomain } from "./defineTool";
-import { SURFACES, type SurfaceKind } from "./grants";
+import { SURFACES, grantFor, postureFor, toolsFor, type SurfaceKind } from "./grants";
 import { rule, type PromptBlock } from "./prompt";
 import { ASSISTANT_TOOLS } from "./registry";
 import { GO_TO_TOOL_NAME } from "./tools/navigate";
@@ -24,7 +24,7 @@ export const CHANGE_IN: Readonly<Record<ToolDomain, string | null>> = {
   itinerary: "the trip's plan: its days, stops, times, dates and name",
   library: "a published playbook day added to a trip",
   pages: "a notebook page",
-  playbook: "this playbook taken into a trip",
+  playbook: "a playbook taken into a trip",
   places: null,
   account: null,
   system: null,
@@ -61,10 +61,20 @@ function routeFor(surface: SurfaceKind, domain: ToolDomain): CapabilityRoute[] {
 }
 
 /**
- * The surface's capabilities. `upgradable` is a turn whose plan holds no
- * changes, the one case `upgrade` is a target (ADR-084 §2).
+ * Why a turn changes nothing its surface could: the person's role on this trip
+ * (a viewer or suggester), or a plan without assistant changes. Null when
+ * neither holds it back. The role wins when both do: upgrading a plan gives
+ * nobody edit rights on someone else's trip.
  */
-export function capabilitiesOf(surface: SurfaceKind, upgradable = false): Capabilities {
+export type ChangeLimit = "role" | "plan" | null;
+
+/**
+ * The surface's capabilities, on a turn held back by `limit`. A limited turn
+ * makes none of the surface's changes and sends none elsewhere, since where
+ * they are done is no more open to it; a plan limit is the one case `upgrade`
+ * is a target (ADR-084 §2).
+ */
+export function capabilitiesOf(surface: SurfaceKind, limit: ChangeLimit = null): Capabilities {
   const granted = new Map<ToolDomain, string>(SURFACES[surface].map(({ domain, max }) => [domain, max]));
   const changes: string[] = [];
   const elsewhere: Capabilities["elsewhere"] = [];
@@ -73,6 +83,7 @@ export function capabilitiesOf(surface: SurfaceKind, upgradable = false): Capabi
     // A change domain nobody described: the block would be silent about it, so
     // fail where the test can see it rather than in a prompt.
     if (change === null) throw new Error(`${domain} has a change tool and no line in CHANGE_IN`);
+    if (limit !== null) continue;
     if (granted.get(domain) === "propose") changes.push(change);
     // A playbook is taken into a trip from the trip's own surface by
     // `insert_playbook_day`, so where `library` changes, it is not missing.
@@ -82,9 +93,15 @@ export function capabilitiesOf(surface: SurfaceKind, upgradable = false): Capabi
   }
   const routed = new Set(elsewhere.flatMap((entry) => entry.to));
   const targets = HAND_OFF_TARGETS.filter(
-    (target) => target === "nowhere" || target === "new_trip" || routed.has(target) || (target === "upgrade" && upgradable),
+    (target) => target === "nowhere" || target === "new_trip" || routed.has(target) || (target === "upgrade" && limit === "plan"),
   );
   return { changes, elsewhere, targets };
+}
+
+/** Whether a turn on this surface, so limited, is offered `show_options`: only beside a search that feeds it. */
+function showsOptions(surface: SurfaceKind, limit: ChangeLimit): boolean {
+  const caps = { surface, role: limit === "role" ? "read" : "propose", plan: limit === "plan" ? "read" : "propose", classifier: "propose" } as const;
+  return toolsFor(grantFor(caps), undefined, postureFor(caps)).some((tool) => tool.name === SHOW_OPTIONS_TOOL_NAME);
 }
 
 const ROUTE_WORDS: Readonly<Record<CapabilityRoute, (aboutTrip: boolean) => string>> = {
@@ -96,14 +113,21 @@ const ROUTE_WORDS: Readonly<Record<CapabilityRoute, (aboutTrip: boolean) => stri
 };
 
 /** The block, as rules: what this page changes, where the rest is done, and how a turn ends instead of refusing. */
-export function capabilityBlock(surface: SurfaceKind, upgradable = false): PromptBlock[] {
-  const { changes, elsewhere } = capabilitiesOf(surface, upgradable);
+export function capabilityBlock(surface: SurfaceKind, limit: ChangeLimit = null): PromptBlock[] {
+  const { changes, elsewhere } = capabilitiesOf(surface, limit);
   const aboutTrip = ABOUT_A_TRIP.has(surface);
   return [
     changes.length === 0 ? "From this page you can change nothing." : `From this page you can change ${changes.join("; ")}.`,
     ...elsewhere.map(({ change, to }) => `Not from here: ${change}. For that, ${to.map((route) => ROUTE_WORDS[route](aboutTrip)).join(", or ")}.`),
-    `When you understood a task and cannot do it from here, never just say so: end the turn with ${HAND_OFF_TOOL_NAME}. A trip that does not exist yet is "new_trip". What nobody in this app can do (booking, payments, live prices, visas) is "nowhere", with one sentence.`,
-    ...(upgradable ? [`Their plan does not include changes: for a change they ask for, ${HAND_OFF_TOOL_NAME} to "upgrade".`] : []),
-    `When a few answers would settle what they want, call ${ASK_USER_TOOL_NAME} instead of guessing or asking in prose. To offer places or published days a tool returned this turn, call ${SHOW_OPTIONS_TOOL_NAME}.`,
+    // A viewer's change is not a task done somewhere else: no page in this app
+    // lets them make it, so a hand-off would point at nothing true.
+    ...(limit === "role"
+      ? ["Their role on this trip lets them read it, not change it: when they ask for a change to it, say so plainly in one sentence, with no hand_off."]
+      : []),
+    `When you understood ${limit === "role" ? "any other task" : "a task"} and cannot do it from here, never just say so: end the turn with ${HAND_OFF_TOOL_NAME}. A trip that does not exist yet is "new_trip". What nobody in this app can do (booking, payments, live prices, visas) is "nowhere", with one sentence.`,
+    ...(limit === "plan" ? [`Their plan does not include changes: for a change they ask for, ${HAND_OFF_TOOL_NAME} to "upgrade".`] : []),
+    `When a few answers would settle what they want, call ${ASK_USER_TOOL_NAME} instead of guessing or asking in prose.${
+      showsOptions(surface, limit) ? ` To offer places or published days a tool returned this turn, call ${SHOW_OPTIONS_TOOL_NAME}.` : ""
+    }`,
   ].map(rule);
 }

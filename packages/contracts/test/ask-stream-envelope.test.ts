@@ -533,4 +533,11 @@ describe("asking, showing and handing off (ADR-084 §2)", () => {
     expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: ["Somewhere I have not been"], other: null }).success).toBe(false);
     expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: [], other: { kind: "text", value: "anything" } }).success).toBe(false);
   });
+
+  // M56 part 5 review: `min: 14, max: 3` drew a picker nobody could answer.
+  it("refuses a number whose range holds no value", () => {
+    const number = (min: number, max: number) => ({ ...ASK, other: { kind: "number", label: "Days", min, max, unit: { one: "day", many: "days" } } });
+    expect(AskStreamMetadata.safeParse({ ask: number(3, 3) }).success).toBe(true);
+    expect(AskStreamMetadata.safeParse({ ask: number(14, 3) }).success).toBe(false);
+  });
 });
