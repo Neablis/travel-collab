@@ -1691,6 +1691,11 @@ export const rateLimitCounters = pgTable(
 // trip's length for the same bytes. The key holds only the rounded point, so
 // the table cannot say whose trip asked. Rows are overwritten, never swept.
 //
+// World place search (M56 D3) adds a second family: one row per distinct
+// typed query, keyed `locationiq:autocomplete:<sha256 of the query>` so the
+// key holds no text anyone typed. Those keys rarely recur, so expired rows are
+// not overwritten either, and nothing sweeps them yet (KI-2026-10-30-a).
+//
 // **One writer**: `server/external/cache.ts`. `external.soleWriter.test.ts`
 // sweeps the tree for a second.
 export const externalDataCache = pgTable("external_data_cache", {

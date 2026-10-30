@@ -57,8 +57,8 @@ const KIND_LABEL = { city: "City", country: "Country", world: "Place" } as const
 
 const labelOf = (match: PlaceMatch): string => (match.kind === "city" ? match.city : match.name);
 
-// A world place (a signed-in reader's, M56 D3) filters Discover as a city by
-// its name: the library spells a city the way the vendor's English name does.
+// A world place (M56 D3) picks as a city by its name. Discover never sees one,
+// since this box does not ask for the world, but the type still has the arm.
 const pickOf = (match: PlaceMatch): PlacePick =>
   match.kind === "country" ? { kind: "country", countryCode: match.countryCode } : { kind: "city", city: labelOf(match) };
 
@@ -115,6 +115,9 @@ export function PlaceSearch({
       return;
     }
     setState({ kind: "loading" });
+    // Library only, never `world`: a world place has no published days to
+    // filter Discover by, and each pause in typing would spend the account's
+    // world quota that New trip's Where page depends on (Mitchell, 2026-10-30).
     const result = await searchPlaces(q);
     if (mine !== generation.current) return;
     if (!result.ok) {
@@ -130,6 +133,7 @@ export function PlaceSearch({
   }, [text, run]);
 
   const hasSelection = selected.cities.length > 0 || selected.countries.length > 0;
+  const withWorld = state.kind === "results" && state.places.some((p) => p.kind === "world");
 
   return (
     <div className="flex flex-col gap-2">
@@ -223,6 +227,9 @@ export function PlaceSearch({
             {state.places.map((match) => {
               const label = labelOf(match);
               const taken = isSelected(match);
+              // Only beside world rows does the label tell anything apart: in
+              // a library-only list (Discover's) every row has playbooks.
+              const labelled = match.kind !== "world" && match.hasPlaybooks && withWorld;
               return (
                 <Button
                   key={
@@ -243,11 +250,12 @@ export function PlaceSearch({
                   // the place is the one a listener can skim — and it is the
                   // shape `m11b-playbooks.spec.ts` matches (`^Kyoto · `). A
                   // world place has no days to count; its region says which
-                  // of two same-named places it is.
+                  // of two same-named places it is. The *has Playbooks* label
+                  // is spoken as well as shown (WCAG 2.5.3, label in name).
                   aria-label={
                     match.kind === "world"
                       ? `${label}, ${match.detail} (place)`
-                      : `${label} · ${match.days} (${match.kind})`
+                      : `${label} · ${match.days} (${match.kind})${labelled ? ", has Playbooks" : ""}`
                   }
                   onClick={() => {
                     onAdd(pickOf(match));
@@ -267,7 +275,7 @@ export function PlaceSearch({
                   ) : (
                     <>
                       {label} · {match.days}
-                      {match.hasPlaybooks && <span className="text-xs text-slate">has Playbooks</span>}
+                      {labelled && <span className="text-xs text-slate">has Playbooks</span>}
                     </>
                   )}
                 </Button>

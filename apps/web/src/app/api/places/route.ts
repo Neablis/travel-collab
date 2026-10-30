@@ -18,15 +18,20 @@ export const runtime = "nodejs";
 // Open to a reader with no account (ADR-061): it is Discover's search box, and
 // it only ever counts published, unmoderated days. That reader is charged per
 // IP like the rest of the public library (`publicLibraryLimit.ts`) and gets
-// the library only. A signed-in reader also gets the world (M56 D3), LocationIQ
-// places after the library's, charged to their account's own quota on a cache
-// miss (`worldSearchFor`).
-/** `GET /api/places?q=` — places starting with `q`: the library's with published-day counts, then the world's when signed in. */
+// the library only. A signed-in reader who asks with `world=1` also gets the
+// world (M56 D3), LocationIQ places after the library's, charged to their
+// account's own quota on a cache miss (`worldSearchFor`). Opt-in (Mitchell,
+// 2026-10-30): New trip's Where page asks; Discover does not, because a world
+// place has no published days to filter Discover by, and its typing would
+// spend the quota New trip depends on.
+/** `GET /api/places?q=[&world=1]` — places starting with `q`: the library's with published-day counts, then, if asked and signed in, the world's. */
 export async function GET(request: Request) {
   const reader = await publicLibraryReader(request);
   if ("refused" in reader) return reader.refused;
-  const q = new URL(request.url).searchParams.get("q")?.trim();
+  const params = new URL(request.url).searchParams;
+  const q = params.get("q")?.trim();
   if (!q) return Response.json({ places: [] } satisfies PlaceSearchResponse);
-  const world = reader.readerId === null ? null : worldSearchFor(reader.readerId);
+  const asked = params.get("world") === "1";
+  const world = asked && reader.readerId !== null ? worldSearchFor(reader.readerId) : null;
   return Response.json(PlaceSearchResponse.parse({ places: await searchPlaces(q, world) }));
 }
