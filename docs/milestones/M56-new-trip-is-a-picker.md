@@ -73,6 +73,21 @@ not chat widgets; there is no chat-widget catalogue yet.
   pages dropped) **→ an optional card on Review**: popular days for the chosen place, each with
   *Start from this*; skipping it changes nothing.
 
+### Answered (2026-10-30, by Mitchell, after the preview walk)
+
+- **Ask in the phone bar → everywhere there is an assistant, the same for every plan.** A free
+  person sees Ask too and meets the upgrade gate when they press it (PR 655, PR 658).
+- **Importing a trip file → keeps landing on Overview**, because an import arrives with details.
+  Only a trip made from New trip lands on its Plan (PR 651).
+- **The option cap → 4 everywhere**: `show_options` cards (PR 652) and `ask_user` options (PR 657).
+- **KI-20261030-p stays a known issue** (two paths still store a stop's whole address as its
+  name); it is not fixed in M56.
+- **Same-named places keep the same name for now.**
+- **PENDING Mitchell: Ask on pages with no assistant.** The leaderboard, profile, country,
+  `/account` and `/plans` pages have no assistant, so the bar draws no Ask there today.
+- **PENDING Mitchell: the picker's trade-offs.** Choose stays 44px; the How long page scrolls at
+  375×667; the Playbook row wraps at 375px.
+
 ### Settled in the plan (not Mitchell's to answer; say so if wrong)
 
 - **Pace and tags are set by the picker, not by a new assistant

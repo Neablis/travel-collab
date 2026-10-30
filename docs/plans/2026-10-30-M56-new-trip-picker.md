@@ -22,6 +22,25 @@ and tags only once part 4 is on `main` (if 4 lands second, 4's brief adds the wr
 | 5 | `claude/m56-part5-ask-show-hand-off` | `ask_user`, `show_options`, `hand_off`, capability block | 1 | 15 | no |
 | 6 | `claude/m56-part6-into-a-new-trip` | Plan with AI, Home's hand-off, carried-ask chips | 2, 4, 5 | 8 + e2e | no |
 
+**Added after the first preview walk (2026-10-30).** Each was its own PR on `main`; none has a
+migration.
+
+| Part | Branch | Theme | PR |
+|---|---|---|---|
+| 7 | `claude/m56-part7-tag-grid` | Tag picker tiles are equal squares in a grid | PR 650 |
+| 8 | `claude/m56-part8-choose-button` | Choose keeps its size beside a long place name | PR 648 |
+| 9 | `claude/m56-part9-choice-count` | At most four option cards; one card asks yes or no | PR 652 |
+| 10 | `claude/m56-part10-land-on-plan` | A trip made from New trip lands on its Plan | PR 651 |
+| 11 | `claude/m56-part11-place-name-title`, `…-place-name-address` | Title a place choice by its name; keep its address for the model | PR 649, PR 653 |
+| 12 | `claude/m56-part12-wizard-layout` | Wizard choices split or stack, *other* opens attached, tags fit a small phone | PR 654 |
+| 13 | `claude/m56-part13-playbooks-instant` | Discover's shell the moment Playbooks is tapped | PR 656 |
+| 14 | `claude/m56-part14-shell-cache` | The phone bar's Ask on first paint, from the route | PR 655 |
+| 15 | `claude/m56-part15-ask-user-cap` | `ask_user` options capped at 4 | PR 657 |
+| 16 | `claude/m56-part16-ask-after-merge` | Ask tests after PR 655 and PR 656 both merged | PR 658 |
+
+PR 655 merged before PR 656, so PR 656's loading-frame test ("no Ask on a plan without the
+assistant") was red on `main` at `b376da7`. Part 16 fixed it.
+
 ---
 
 ## Part 1 — the picker widget and the tag icons

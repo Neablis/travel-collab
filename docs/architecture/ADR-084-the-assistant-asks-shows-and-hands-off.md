@@ -51,6 +51,10 @@ New trip, meanwhile, is a fixed script dressed as a chat, whose typed answers ar
      button, and logs **`ai.capability_gap`** (`{ surface, task, to }`, the task through
      `sanitizeForLog`) the way `ai.grant` is logged. That log is the backlog of tools not yet
      built; the `ai-usage` skill reads it.
+   - **Four at most, everywhere.** `show_options` shows at most 4 cards (`MAX_OPTION_CARDS`,
+     `packages/contracts`), and a single card renders as a Yes / No `ConfirmCard` (PR 652). Part
+     15 (PR 657) puts `ask_user`'s text options under the same cap of 4: an over-cap call keeps
+     the first 4 and is metered `repaired`.
 
 3. **The widgets are a `ui` tool domain**, granted on every surface that has an assistant. Its
    effect is `steer` (it changes nothing). Adding a domain is a `ToolDomain` change in
