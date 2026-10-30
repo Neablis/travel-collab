@@ -231,6 +231,22 @@ describe("GET /api/places", () => {
     ]);
   });
 
+  // A library country claims a world row by name AND code (PR 639's review):
+  // the vendor ranking the US state first must not spend the country's claim,
+  // or the state is hidden and the country is offered twice.
+  it("keeps a world place that shares a library country's name but not its code", async () => {
+    await publish(await saveDayAt([{ city: "Tbilisi", countryCode: "GE" }]));
+    forgetCountrySearches();
+    autocomplete.mockImplementationOnce(async () => [
+      { id: "osm:relation:georgia-us", name: "Georgia", detail: "United States", countryCode: "US", lat: 32.68, lng: -83.22 },
+      { id: "osm:relation:georgia-ge", name: "Georgia", detail: "Georgia", countryCode: "GE", lat: 41.68, lng: 44.03 },
+    ]);
+
+    const { places } = await search("Georgia", true);
+    expect(places.filter((p) => p.kind !== "world")).toContainEqual(expect.objectContaining({ kind: "country", countryCode: "GE" }));
+    expect(places.filter((p) => p.kind === "world").map((p) => p.id)).toEqual(["osm:relation:georgia-us"]);
+  });
+
   // One vendor row that fits no `WorldPlaceMatch` (an empty name, a missing
   // coordinate) is dropped, so the library and the vendor's good rows still
   // reach the searcher rather than a 500 (PR 639's review).

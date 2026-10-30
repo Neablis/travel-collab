@@ -318,7 +318,8 @@ describe("LocationIQ geocoder adapter", () => {
   });
 
   // The cache's back-off acts on `UpstreamError` only (`cache.ts`): a plain
-  // `Error` for a 429 would have every next keystroke charged and refused again.
+  // `Error` for a 429 would have a repeat of the same query charged and
+  // refused again.
   it("autocomplete: a refusal is an UpstreamError with its status and when to come back", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 429, headers: { "Retry-After": "30" } })));
     const failure = await createLocationIQGeocoder("KEY123").autocomplete!("Lisb").catch((error: unknown) => error);
