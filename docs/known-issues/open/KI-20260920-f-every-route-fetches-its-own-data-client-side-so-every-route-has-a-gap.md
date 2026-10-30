@@ -91,3 +91,14 @@
   refused while a write to the trip is open, and withdrawn after the first change. Still
   client-side, so the entry stays open: public profiles, the board of saved days, home, the
   notebook routes, `/s/[token]`, `/demo/[slug]`, plans and every `(front)` page.
+
+- **The other side of a server read: a tap holds the page it came from, 2026-10-30 (PR 656).**
+  "Hold the previous page" above turned out to be the problem on Discover. Mitchell, on
+  production: *"when clicking playbook, there's a delay and it seems like page doesn't work."*
+  PR 656 gave `/playbooks` a loading boundary (`playbooks/{live,[copy]}/(discover)/loading.tsx`),
+  in a route group so that it stands in for Discover alone. The other pages that read on the
+  server still have no boundary, so a tap on them holds the page it came from until their read
+  is done: the shared day, public profiles, the board, and the city, country and tag pages under
+  `playbooks/{live,[copy]}/`. A card tap on Discover is the commonest case. Each needs a frame of
+  its own shape (a boundary at `live/` would draw Discover's), so this is left for whoever
+  measures which of those reads is slow enough to be seen.
