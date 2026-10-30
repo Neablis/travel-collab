@@ -87,7 +87,8 @@ change Where on Review and see the re-walk, create.
 
 ## Part 3 — world results in `/api/places` for signed-in callers
 
-**Theme.** D3: anonymous callers unchanged (library, per IP). Signed-in callers also get
+**Theme.** D3: anonymous callers unchanged (library, per IP). Signed-in callers that ask with
+`world=1` (only New trip's Where page; Discover never does, Mitchell 2026-10-30) also get
 LocationIQ autocomplete results, merged after library cities, library ones labelled *has
 Playbooks*. Each world result has a stable id the client commits. Cached through `readThrough`;
 quota charged per account only on a miss.
@@ -106,8 +107,10 @@ quota charged per account only on a miss.
 - `server/external/cache.ts:157` `readThrough` (sole writer, `external.soleWriter.test.ts`).
 - `mocks/handlers.ts:1067` — MSW handler for autocomplete.
 
-**Preview.** Signed in, New trip → Where (or Discover's place search), type a city with no
-playbooks; it appears below library cities.
+**Preview.** Not walkable on its own: world results come only with `world=1`, which New trip's
+Where page sends (part 2); Discover stays library-only (Mitchell, 2026-10-30). Walk it on part
+2's preview: signed in, New trip → Where, type a city with no playbooks; it appears below library
+cities.
 
 ## Part 4 — pace and tags on the trip
 

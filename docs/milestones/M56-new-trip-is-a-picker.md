@@ -58,7 +58,9 @@ not chat widgets; there is no chat-widget catalogue yet.
 - **D3. World place search → yes, as written,** with one detail answered: `/api/places` stays
   public and library-only for anonymous callers; **signed-in callers also get LocationIQ
   autocomplete results**, library cities ranked first and labelled *has Playbooks*, behind a
-  per-account rate limit and the external cache.
+  per-account rate limit and the external cache. **Amended 2026-10-30 at part 3's review:** world results come
+  only when the caller asks (`world=1`), which New trip's Where page does and Discover does not,
+  so Discover stays library-only and spends no world quota.
 - **D4. Pace and tags on the trip → yes.** A contract change (`docs/contracts/CHANGELOG.md`). The
   plan page's assistant reads them.
 - **D5. Carried asks → chips the person presses.** Nothing runs unasked.
