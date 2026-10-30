@@ -46,6 +46,7 @@ describe("the candidate's own name", () => {
     expect(placeNameVerdict("Bakery & Table", "Bakery & Table, Hakone, Kanagawa Prefecture, Japan")).toBe("match");
     expect(placeNameVerdict("Gora Kadan", "Gōra Kadan, 1300, Gora, Hakone, Japan")).toBe("match");
     expect(placeNameVerdict("Cochon", "930, Tchoupitoulas Street, New Orleans, USA")).toBe("mismatch");
+    expect(placeNameVerdict("Hotel 930", "930, Tchoupitoulas Street, New Orleans, USA")).toBe("mismatch");
   });
 
   // A bar named after a year leads its display_name with the number, exactly as
