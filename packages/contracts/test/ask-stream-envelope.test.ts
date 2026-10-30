@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, AskAnswer, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId, MAX_CARRIED_ASKS, NEW_TRIP_DAYS_MAX } from "../src";
+import { ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, AskAnswer, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId, MAX_CARRIED_ASKS, MAX_OPTION_CARDS, NEW_TRIP_DAYS_MAX } from "../src";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const DAY_ID = "22222222-2222-4222-8222-222222222222";
@@ -549,6 +549,14 @@ describe("asking, showing and handing off (ADR-084 §2)", () => {
     expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: [], other: { kind: "number", value: 14 } }).success).toBe(true);
     expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: ["Somewhere I have not been"], other: null }).success).toBe(false);
     expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: [], other: { kind: "text", value: "anything" } }).success).toBe(false);
+  });
+
+  // M56 part 15: Mitchell, 2026-10-30, "same cap everywhere": a question's
+  // options stop where show_options' cards do (PR 652).
+  it("holds a question to as many options as cards, MAX_OPTION_CARDS", () => {
+    const options = (count: number) => Array.from({ length: count }, (_, i) => ({ id: `o${i}`, label: `Option ${i}` }));
+    expect(AskStreamMetadata.safeParse({ ask: { ...ASK, options: options(MAX_OPTION_CARDS) } }).success).toBe(true);
+    expect(AskStreamMetadata.safeParse({ ask: { ...ASK, options: options(5) } }).success).toBe(false);
   });
 
   // M56 part 5 review: `min: 14, max: 3` drew a picker nobody could answer.

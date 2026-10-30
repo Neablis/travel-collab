@@ -393,11 +393,18 @@ export const AskOther = z
   .refine((other) => other.kind !== "number" || other.min <= other.max, "A number's min cannot be above its max.");
 export type AskOther = z.infer<typeof AskOther>;
 
+/**
+ * The most cards, or a question's options, a turn shows: past four the list
+ * reads as a wall. Mitchell, 2026-10-30, on cards, then "same cap everywhere"
+ * for `ask_user` (M56 part 15).
+ */
+export const MAX_OPTION_CARDS = 4;
+
 /** A closed question the turn ended on (`ask_user`). `id` is the server's: the call that asked it. */
 export const AssistantAsk = z.object({
   id: z.string().min(1).max(100),
   question: z.string().min(1).max(200),
-  options: z.array(AskOption).min(2).max(6),
+  options: z.array(AskOption).min(2).max(MAX_OPTION_CARDS),
   multi: z.boolean(),
   allowNone: z.boolean().default(false),
   other: AskOther.optional(),
@@ -459,9 +466,6 @@ export const AssistantOptionCard = z.discriminatedUnion("kind", [
   }),
 ]);
 export type AssistantOptionCard = z.infer<typeof AssistantOptionCard>;
-
-/** The most cards a turn shows: past four the list reads as a wall (Mitchell, 2026-10-30). */
-export const MAX_OPTION_CARDS = 4;
 
 /**
  * The cards in the model's order, and the line above them. `id` is the call's,
