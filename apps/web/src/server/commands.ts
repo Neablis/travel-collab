@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   BatchableCommand,
   CreateTrip,
+  SetTripStyle,
   TripCommand,
   travellerIds,
   type EventEnvelope,
@@ -574,7 +575,7 @@ function decideUnits(
 // finding). Real rejections (day-not-found, activity-already-exists, …) abort.
 function decideInOrder(
   initial: ReturnType<typeof foldEnvelopes>,
-  commands: readonly BatchableCommand[],
+  commands: readonly CreationFollowUp[],
   ctx: DecideContext,
 ): { ok: true; events: TripEvent[] } | CommandFailure {
   let state = initial;
@@ -625,8 +626,14 @@ class RolledBack extends Error {
 //
 // There is no retry loop like the batch's: the trip id is minted by the caller
 // for this request, so nothing else can be writing to its stream.
+//
+// The follow-up also takes `SetTripStyle`, which `BatchableCommand` leaves out
+// so that it is no assistant tool (ADR-084 §6): a copy of a styled trip has to
+// carry its style, and no tool reaches this entry point.
+const CreationFollowUp = z.union([BatchableCommand, SetTripStyle]);
+type CreationFollowUp = z.infer<typeof CreationFollowUp>;
 /**
- * Create a trip and apply `then` (batchable commands on that same trip) in one
+ * Create a trip and apply `then` (batchable commands, or `SetTripStyle`, on that same trip) in one
  * transaction. Returns the trip as the follow-up left it, or a refusal after
  * which no trip exists at all. `then` may be empty.
  */
@@ -640,7 +647,7 @@ export async function executeTripCreation(
   if (!parsedCreate.success) {
     return { ok: false, error: { code: "invalid-command", message: parsedCreate.error.message } };
   }
-  const parsedThen = z.array(BatchableCommand).safeParse(then);
+  const parsedThen = z.array(CreationFollowUp).safeParse(then);
   if (!parsedThen.success) {
     return { ok: false, error: { code: "invalid-command", message: parsedThen.error.message } };
   }
