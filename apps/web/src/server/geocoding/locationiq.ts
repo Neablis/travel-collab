@@ -7,6 +7,22 @@ const FREE_TEXT = "https://us1.locationiq.com/v1/search";
 const STRUCTURED = "https://us1.locationiq.com/v1/search/structured";
 // Reverse answers ONE row, not a list, and takes lat/lon rather than `q`.
 const REVERSE = "https://us1.locationiq.com/v1/reverse";
+// Autocomplete is documented on the `api.` host only, not the regional ones.
+// It answers its own row shape, and takes neither `format` nor `addressdetails`.
+const AUTOCOMPLETE = "https://api.locationiq.com/v1/autocomplete";
+
+type AutocompleteRow = {
+  osm_id?: string;
+  osm_type?: string;
+  place_id: string;
+  lat: string;
+  lon: string;
+  display_name: string;
+  // "Lisbon" and "Lisbon, Portugal": the name and the line under it.
+  display_place?: string;
+  display_address?: string;
+  address?: { country_code?: string };
+};
 
 type LocationIQRow = {
   lat: string;
@@ -136,6 +152,31 @@ export function createLocationIQGeocoder(apiKey: string): Geocoder {
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`reverse geocode failed: ${res.status}`);
       return toResult((await res.json()) as LocationIQRow);
+    },
+    async autocomplete(query, opts) {
+      const url = new URL(AUTOCOMPLETE);
+      url.searchParams.set("key", apiKey);
+      url.searchParams.set("q", query);
+      url.searchParams.set("limit", String(opts?.limit ?? 5));
+      // Places and the boundaries countries and regions are drawn as, never a
+      // street or a café: this box picks where a trip goes.
+      url.searchParams.set("tag", "place,boundary:administrative");
+      url.searchParams.set("dedupe", "1");
+      url.searchParams.set("accept-language", "en");
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (res.status === 404) return [];
+      if (!res.ok) throw new Error(`autocomplete failed: ${res.status}`);
+      const rows = (await res.json()) as AutocompleteRow[];
+      return rows.map((r) => ({
+        // The OSM object, not LocationIQ's `place_id`, which it renumbers when
+        // it reloads its data: an id the client commits has to outlive that.
+        id: r.osm_type && r.osm_id ? `osm:${r.osm_type}:${r.osm_id}` : `locationiq:${r.place_id}`,
+        name: r.display_place ?? r.display_name,
+        detail: r.display_address ?? r.display_name,
+        countryCode: r.address?.country_code?.toUpperCase(),
+        lat: Number(r.lat),
+        lng: Number(r.lon),
+      }));
     },
   };
 }
