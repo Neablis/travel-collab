@@ -36,6 +36,8 @@ import { SessionUserProvider } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID, DEMO_TRIPS } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
 import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { rememberNewTripHandOff, takeNewTripHandOff } from "@/lib/pendingCarriedAsks";
+import { runPaletteCommand } from "@/components/palette/paletteRegistry";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
@@ -622,6 +624,30 @@ describe("Home page head", () => {
     renderHome([tripSummaryFixture()]);
     expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
     expect(window.location.search).toBe("");
+  });
+
+  // M56 part 6 review: a Home with no trips left the hand-off in storage, and
+  // it opened the sheet, prefilled, over the first trip they made later.
+  it("takes a hand-off into the first run on a Home with no trips, and leaves none waiting", async () => {
+    rememberNewTripHandOff({ prefill: { place: "Oaxaca", days: 14 }, asks: [] });
+    window.history.replaceState(null, "", NEW_TRIP_PATH);
+    onTestFinished(() => window.history.replaceState(null, "", "/"));
+    renderHome([]);
+    const firstRun = await screen.findByTestId("first-trip-start");
+    await waitFor(() => expect(within(firstRun).getByLabelText<HTMLInputElement>("Where are you going?").value).toBe("Oaxaca"));
+    expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull();
+    expect(takeNewTripHandOff()).toBeNull();
+  });
+
+  // M56 part 6 review: on a phone the sheet sits under Home's rail, so a
+  // hand-off can arrive while it is open, and its prefill was dropped.
+  it("applies a hand-off taken while New trip is already open", async () => {
+    renderHome([tripSummaryFixture()]);
+    await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
+    const sheet = await screen.findByRole("dialog", { name: /new trip/i });
+    rememberNewTripHandOff({ prefill: { place: "Oaxaca" }, asks: [] });
+    act(() => void runPaletteCommand("new-trip"));
+    expect(within(sheet).getByLabelText<HTMLInputElement>("Where are you going?").value).toBe("Oaxaca");
   });
 
   it("does not invite a next trip while there are other trips to show", async () => {

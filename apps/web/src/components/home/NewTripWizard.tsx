@@ -17,7 +17,8 @@ import { Picker, type PickerAnswer, type PickerOther, type PickerOption } from "
 import { Text } from "@/components/ui/text";
 import { ToggleChip } from "@/components/ui/toggle-chip";
 import { useAiEntitled } from "@/lib/useAiEntitled";
-import { rememberIntoTrip, type CarriedAsk, type NewTripPrefill } from "@/lib/pendingCarriedAsks";
+import type { CarriedAsk, NewTripPrefill } from "@tc/contracts";
+import { rememberIntoTrip, type NewTripHandOff } from "@/lib/pendingCarriedAsks";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 // `…WithYear`: a trip planned eleven months out is the ordinary case here, and
 // the board's weekday-first style drops the year (SPEC §32.3).
@@ -89,11 +90,22 @@ export type NewTripWizardProps = {
    * `ImportTripHandle.pick`. Absent, the link is not drawn.
    */
   onImportFile?: () => void;
-  /** What a hand-off to New trip already knew (ADR-084 §5). Read once per open. */
-  prefill?: NewTripPrefill;
-  /** Asks that need the trip, left for its board as chips once it is made. */
-  carriedAsks?: readonly CarriedAsk[];
+  /** What a hand-off to New trip already knew (ADR-084 §5): see `KeyedHandOff`. */
+  handOff?: KeyedHandOff;
 };
+
+/**
+ * **A hand-off, numbered by the page that took it.** The pages read a prefill
+ * only when they mount, so each hand-off remounts them by its `seq`: one taken
+ * while New trip is already open (on a phone the sheet sits under Home's rail)
+ * starts page one again with its answers, rather than being dropped.
+ */
+export type KeyedHandOff = NewTripHandOff & { seq: number };
+
+/** The pages' props for `handOff`. Their `key` is `handOff?.seq`, set beside these. */
+export function handOffPagesProps(handOff: KeyedHandOff | undefined): { prefill?: NewTripPrefill; carriedAsks?: readonly CarriedAsk[] } {
+  return handOff === undefined ? {} : { prefill: handOff.prefill, carriedAsks: handOff.asks };
+}
 
 export function NewTripWizard({
   open,
@@ -103,8 +115,7 @@ export function NewTripWizard({
   onCreated,
   size = "rail",
   onImportFile,
-  prefill,
-  carriedAsks,
+  handOff,
 }: NewTripWizardProps) {
   return (
     // "New trip" on every path: it is the dialog's accessible NAME, what specs
@@ -113,10 +124,10 @@ export function NewTripWizard({
       {/* A fresh mount, and so fresh answers, every time it opens. */}
       {open && (
         <NewTripPages
+          key={handOff?.seq}
+          {...handOffPagesProps(handOff)}
           createTrip={createTrip}
           dispatch={dispatch}
-          {...(prefill === undefined ? {} : { prefill })}
-          {...(carriedAsks === undefined ? {} : { carriedAsks })}
           onDone={(tripId, navigate) => {
             onOpenChange(false);
             if (tripId !== null) onCreated?.(tripId, { navigate });
