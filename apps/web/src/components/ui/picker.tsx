@@ -245,6 +245,50 @@ function ChoiceButton({
   );
 }
 
+/**
+ * **One offered thing as a row, with its Choose** — the assistant's option
+ * cards (ADR-084 §2). A list item, so the caller draws the `<ul>` and names it.
+ * Without `onChoose` (a question already answered) the row is only read.
+ */
+export function ChoiceRow({
+  name,
+  detail,
+  disabled,
+  onChoose,
+}: {
+  name: string;
+  detail: string;
+  disabled?: boolean;
+  onChoose?: () => void;
+}) {
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-md border border-hairline px-3 py-2">
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-semibold break-words text-ink">{name}</span>
+        <span className="text-xs text-slate">{detail}</span>
+      </span>
+      {/* The name wraps in its own column and Choose keeps its size: a
+          place's whole street address as a name (Mitchell, 2026-10-30) once
+          squeezed the button narrower than its word. `fine:min-w-0` on the
+          base lets a flex item shrink past its content, so `shrink-0` is
+          what holds it. `touch`: 44px in the docked panel on a desktop too. */}
+      {onChoose !== undefined && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="touch"
+          className="shrink-0 whitespace-nowrap"
+          aria-label={`Choose ${name}`}
+          disabled={disabled}
+          onClick={onChoose}
+        >
+          Choose
+        </Button>
+      )}
+    </li>
+  );
+}
+
 function OtherInput({
   other,
   value,
