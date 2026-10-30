@@ -1657,7 +1657,10 @@ describe("POST /api/trips/:id/ask", () => {
 
       const blocks = instructionBlocks({ kind: "trip" }, 3, "read-only", null, false, standing);
       expect(blocks).toContainEqual({ kind: "data", label: "Trip pace and tags", value: { pace: "slow", tags: ["beach", "museum"] } });
-      expect(instructionsFor({ kind: "trip" }, 3, "read-only", null, false, standing)).toContain("slow");
+      const rendered = instructionsFor({ kind: "trip" }, 3, "read-only", null, false, standing);
+      expect(rendered).toContain("slow");
+      // The rule that tells the model what the line is for, not only the data.
+      expect(rendered).toContain("fit what you suggest to it");
     });
 
     // **The other half of KI-12, and the half no prompt can supply.** Being
