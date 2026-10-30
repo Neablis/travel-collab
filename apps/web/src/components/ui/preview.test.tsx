@@ -67,7 +67,7 @@ describe("Preview", () => {
         body
       </Preview>,
     );
-    expect(screen.queryByText(/Preview · M9/)).toBeNull();
+    expect(screen.queryByText(/Preview · /)).toBeNull();
   });
   it("reserves space for the compact badge instead of overlapping the host", () => {
     render(
