@@ -262,7 +262,7 @@ describe("Picker", () => {
     expect([...screen.getByRole("group", { name: "What pace?" }).classList]).toEqual(expect.arrayContaining(["grid", "grid-cols-4"]));
     const tiles = screen.getAllByRole("checkbox");
     expect(tiles).toHaveLength(12);
-    for (const tile of tiles) expect([...tile.classList]).toContain("aspect-[4/3]");
+    for (const tile of tiles) expect([...tile.classList]).toContain("aspect-4/3");
   });
 
   // Mitchell on his phone, 2026-10-30: the tiles were each as wide as their
@@ -296,6 +296,19 @@ describe("Picker", () => {
     expect([...panel.classList]).toEqual(expect.arrayContaining(["border-t-0", "rounded-b-md", "border-brand"]));
     // Inside the group, before "None of these", not after the whole list.
     within(screen.getByRole("radiogroup", { name: "What pace?" })).getByRole("button", { name: "More days" });
+  });
+
+  // PR 654 review: a group named for the date, around an input named the
+  // same, read the label twice on the way in.
+  it("names an attached date panel once, on its input", async () => {
+    render(<Harness onChange={vi.fn()} other={{ kind: "date", label: "Another day" }} />);
+    const choice = screen.getByRole("radio", { name: "Another day" });
+    await user.click(choice);
+    const named = screen.getAllByLabelText("Another day").filter((el) => el !== choice);
+    expect(named).toHaveLength(1);
+    expect(named[0]?.getAttribute("type")).toBe("date");
+    // Still attached: inside the question's group, not after it.
+    expect(within(screen.getByRole("radiogroup", { name: "What pace?" })).getAllByLabelText("Another day")).toContain(named[0]);
   });
 
   it("keeps the keyboard on the other's choice as its disclosure opens", async () => {

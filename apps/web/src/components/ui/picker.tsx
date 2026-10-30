@@ -219,11 +219,13 @@ export function Picker({
             return (
               <div key={choice.key} className="flex flex-col">
                 {button}
+                {/* A date input carries the label itself; a group of the same
+                    name around it would read it twice. */}
                 {otherOpen && (
                   <div
                     id={otherId}
-                    role="group"
-                    aria-label={other.label}
+                    role={other.kind === "date" ? undefined : "group"}
+                    aria-label={other.kind === "date" ? undefined : other.label}
                     className="rounded-b-md border border-t-0 border-brand bg-surface p-3"
                   >
                     {otherInput}
@@ -500,7 +502,7 @@ function TagTiles({
                 toggle(tag);
               }}
               className={cn(
-                "flex aspect-[4/3] min-w-0 flex-col items-center justify-center gap-1 rounded-md p-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand",
+                "flex aspect-4/3 min-w-0 flex-col items-center justify-center gap-1 rounded-md p-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand",
                 TAG_CHIP_CLASS[tag],
                 // The ring, not the tint, says it is picked: every tile is tinted.
                 on && "ring-2 ring-brand ring-inset",
