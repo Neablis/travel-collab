@@ -5,9 +5,15 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { TypingDots } from "@/components/ui/typing-dots";
 import { cn } from "@/lib/cn";
 import { useExitPresence } from "@/lib/useExitPresence";
-import type { AssistantSuggested } from "@tc/contracts";
+import type { AskAnswer, AssistantSuggested } from "@tc/contracts";
 import { CommandCard, ProposalCard, type PaletteOffer, type ProposalState, type ProposalUndo } from "./ProposalCard";
 import { SuggestedNote, suggestedWords } from "./SuggestedNote";
+import { TurnWidget, type OnAnswer, type TurnWidgetState } from "./TurnWidget";
+
+/** The id an answer names a widget by; a hand-off is never answered. */
+function widgetIdOf(widget: TurnWidgetState): string {
+  return widget.kind === "ask" ? widget.ask.id : widget.kind === "options" ? widget.options.id : "";
+}
 
 /** One line of "showing its work" — a tool call, rendered as a sentence. */
 export type ToolNote = { id: string; label: string };
@@ -19,7 +25,13 @@ export type ToolNote = { id: string; label: string };
  * is mounted.
  */
 export type AssistantTurn =
-  | { id: string; role: "user"; text: string }
+  | {
+      id: string;
+      role: "user";
+      text: string;
+      /** What they picked, when this turn answers a question or a card (ADR-084): sent as data, never parsed from `text`. */
+      answer?: AskAnswer;
+    }
   | {
       id: string;
       role: "assistant";
@@ -47,6 +59,11 @@ export type AssistantTurn =
        * History.
        */
       offers?: PaletteOffer[];
+      /**
+       * The question, cards or hand-off the turn ended in (ADR-084), once
+       * the final chunk carried one. One per turn, like the proposal.
+       */
+      widget?: TurnWidgetState | null;
     };
 
 /**
@@ -300,6 +317,8 @@ export function Transcript({
   renderTurnFooter,
   look = "prose",
   example = null,
+  onAnswer,
+  answering = false,
 }: {
   turns: AssistantTurn[];
   /** Commits the turn's proposal as one atomic batch. Keyed by turn id. */
@@ -359,6 +378,10 @@ export function Transcript({
    * frame; and it announces nothing, since nobody asked.
    */
   example?: { review: string; stepsOpen?: boolean } | null;
+  /** Sends an answer to a question or a card the assistant ended on (ADR-084). Without it they are drawn, not sendable. */
+  onAnswer?: OnAnswer;
+  /** True while an answer cannot be sent: a turn in flight, or the composer's own gates shut. */
+  answering?: boolean;
 }) {
   const chat = look === "chat";
   // The turns there when the thread was first shown. Each turn rises in as it
@@ -375,6 +398,9 @@ export function Transcript({
   });
   // A picture holds still.
   const rises = (turn: AssistantTurn) => example === null && !shown.has(turn.id);
+  // The questions and cards a later turn already answered, which stay on
+  // screen and can no longer be sent.
+  const answered = new Set(turns.flatMap((turn) => (turn.role === "user" && turn.answer ? [turn.answer.answeredAsk] : [])));
   return (
     <>
       {/* `aria-live="off"` is explicit and load-bearing: `role="log"` carries
@@ -479,6 +505,14 @@ export function Transcript({
             {/* Its own decision and its own handler, held beside the palette
                 registry, so no surface has to wire an Approve for it. */}
             {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} rise={rises(turn)} />)}
+            {turn.widget != null && (
+              <TurnWidget
+                widget={turn.widget}
+                answered={answered.has(widgetIdOf(turn.widget))}
+                busy={answering}
+                {...(onAnswer === undefined ? {} : { onAnswer })}
+              />
+            )}
             {/* Visible only, and no `role` — a second live region nested
                 inside the log is what finding 4 was about. Once text is
                 arriving the text IS the progress indicator, so this drops away

@@ -18,6 +18,10 @@ import { currentCallId } from "./callScope";
 import { z } from "zod";
 import {
   isAssistantCommandId,
+  type AssistantAsk,
+  type AssistantHandOff,
+  type AssistantOptions,
+  type HandOffTo,
   type AssistantProposal,
   type ChatLink,
   type ChatMessageKind,
@@ -509,6 +513,68 @@ export function newPaletteCommandBuffer(): PaletteCommandBuffer {
   };
 }
 
+/** How a turn ends when it ends in a widget (ADR-084 §2): one of these, never two. */
+export type UiOutcome = { ask: AssistantAsk } | { options: AssistantOptions } | { handOff: AssistantHandOff };
+
+/** A published day a tool returned this turn: what a `show_options` card is filled from. */
+export interface ShownDay {
+  savedDayId: string;
+  name: string;
+  cities: string[];
+  stopCount: number;
+}
+
+/**
+ * **The `ui` tools' per-turn collector** (ADR-084 §2): the one widget the turn
+ * ends in, for the final chunk, and what this surface may hand off to.
+ *
+ * `targets` and `planPage` are the surface's, minted with the buffer, so a
+ * hand-off can only name where this surface's capability block sends it and a
+ * plan page is only ever a trip the asker may open. `noteDays` is fed the
+ * days `search_playbooks` returned, by the turn, so a card cannot name a day no
+ * tool returned.
+ */
+export interface UiOutcomeBuffer {
+  readonly targets: readonly HandOffTo[];
+  /** The palette command for a trip's plan, by the name the person gave, or why not. */
+  planPage(trip: string | undefined): Promise<{ command: string } | { refused: string }>;
+  noteDays(days: readonly ShownDay[]): void;
+  /** A day this turn's tools returned, or null. */
+  day(savedDayId: string): ShownDay | null;
+  /**
+   * Whether the turn has already drafted a change. Its card is the turn's one
+   * outcome, so a widget asked for after it would never be shown, and the
+   * model is told so rather than told it is on screen.
+   */
+  drafting(): boolean;
+  /** Ends the turn on `outcome`. False, keeping the first, when the turn already ends in one. */
+  set(outcome: UiOutcome): boolean;
+  outcome(): UiOutcome | null;
+}
+
+/** One turn's widget. Never shared between turns. */
+export function newUiOutcomeBuffer(
+  targets: readonly HandOffTo[],
+  planPage: UiOutcomeBuffer["planPage"],
+  drafting: () => boolean = () => false,
+): UiOutcomeBuffer {
+  const days = new Map<string, ShownDay>();
+  let held: UiOutcome | null = null;
+  return {
+    targets,
+    planPage,
+    noteDays: (shown) => shown.forEach((day) => days.set(day.savedDayId, { ...day, cities: [...day.cities] })),
+    day: (savedDayId) => days.get(savedDayId) ?? null,
+    drafting,
+    set: (outcome) => {
+      if (held !== null) return false;
+      held = structuredClone(outcome);
+      return true;
+    },
+    outcome: () => (held === null ? null : structuredClone(held)),
+  };
+}
+
 /**
  * One notebook of this trip as the page store lists it — the whole of what the
  * kernel learns about a notebook it is not writing into.
@@ -730,6 +796,8 @@ export interface AssistantDeps {
   trips: AccountTrips;
   /** The palette commands the turn named, for its final chunk (ADR-072). */
   paletteCommands: PaletteCommandBuffer;
+  /** The widget the turn ends in, and where this surface hands off to (ADR-084). */
+  uiOutcome: UiOutcomeBuffer;
   /** The playbook page the turn is asked on (M45 D9) — its tools' only source. */
   playbookPage: PlaybookPageReads;
   /** Where a shared day's write lands (M45 D9). */
@@ -784,6 +852,7 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   readBudget: true,
   trips: true,
   paletteCommands: true,
+  uiOutcome: true,
   playbookPage: true,
   playbookProposal: true,
   chatLog: true,

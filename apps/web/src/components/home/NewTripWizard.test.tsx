@@ -28,7 +28,8 @@ vi.mock("@/lib/useAiEntitled", async (orig) => ({
   useAiEntitled: () => aiEntitled.value,
 }));
 
-import { NewTripWizard } from "./NewTripWizard";
+import { takeIntoTrip } from "@/lib/pendingCarriedAsks";
+import { NewTripWizard, type KeyedHandOff } from "./NewTripWizard";
 
 const PLACES: PlaceMatch[] = [
   { kind: "city", city: "Lisbon", days: 4, hasPlaybooks: true },
@@ -98,7 +99,7 @@ function published(overrides: Partial<DiscoverDay> & Pick<DiscoverDay, "savedDay
 
 type NewTripCreate = (input: { name: string; tripId?: string }) => Promise<ApiResult<{ tripId: string }>>;
 
-function renderWizard(overrides: { createTrip?: NewTripCreate; onImportFile?: () => void } = {}) {
+function renderWizard(overrides: { createTrip?: NewTripCreate; onImportFile?: () => void; handOff?: KeyedHandOff } = {}) {
   // The CLIENT mints the id (KI-2026-09-12-e), so the mock echoes what it sent.
   const createTrip = vi.fn<NewTripCreate>();
   createTrip.mockImplementation(overrides.createTrip ?? (async (input) => ({ ok: true, value: { tripId: input.tripId ?? "trip-1" } })));
@@ -115,6 +116,7 @@ function renderWizard(overrides: { createTrip?: NewTripCreate; onImportFile?: ()
       dispatch={dispatch}
       onCreated={onCreated}
       {...(overrides.onImportFile === undefined ? {} : { onImportFile: overrides.onImportFile })}
+      {...(overrides.handOff === undefined ? {} : { handOff: overrides.handOff })}
     />,
   );
   return { createTrip, dispatch, onOpenChange, onCreated };
@@ -497,6 +499,14 @@ describe("NewTripWizard — the quiet row", () => {
     expect(sent.tripId).toMatch(/^[0-9a-f-]{36}$/);
     expect(onCreated).toHaveBeenCalledWith(sent.tripId, { navigate: false });
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("leaves the asks a hand-off carried for the empty trip it makes", async () => {
+    const asks = [{ said: "add a mezcal tasting", kind: "itinerary" as const }];
+    const { createTrip, onCreated } = renderWizard({ handOff: { seq: 1, prefill: {}, asks } });
+    await user.click(screen.getByRole("button", { name: "create an empty one" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(takeIntoTrip(createTrip.mock.calls[0]![0].tripId!)).toEqual({ kickoff: null, asks });
   });
 
   it("goes to Discover from start from a Playbook, closing the sheet", async () => {

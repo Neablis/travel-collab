@@ -111,26 +111,16 @@ export const PREVIEW_REGISTRY = {
   // minted per click. Neither is a `<Preview>` any more, so neither has an
   // entry here — removed rather than retagged, because there is nothing left
   // to wire.
-  // **This one SURVIVES the four-turn rewrite, and that is the point of the
-  // rule above.** Its three siblings left because the turns they stood in for
-  // became real answer affordances (`wizard-pace-tags`) or because a decision
-  // removed what was unbuilt about them (`wizard-destination-chips` on D-A,
-  // `wizard-longer-chip` on D-B, both 2026-09-16). This one is the ENTITLEMENT
-  // FORK — design §4 — which that slice deliberately does not build. Deleting
-  // its shell would move a false claim rather than remove one.
-  //
-  // `wiredUpBy` restated: "proactive drafting" was never the blocker. What is
-  // outstanding is the fork itself (who gets it) and the generation behind it.
-  // M26 link 9a built the FREE half of §30.3's fork, so this shell is now the
-  // PAID half only: it renders where an entitled account would get a live
-  // composer continuing in the trip's context. A free account gets a real
-  // answer instead (`NewTripPlusNote`), not this.
-  //
-  // **Retagged M9 -> M56 part 6** (PR 642 review): New trip's Review now has
-  // *Plan with AI*, which creates the trip and nothing more. The rail opening
-  // on that trip with a kickoff from the answers is part 6's, so that is the
-  // claim this shell makes.
-  "wizard-assistant-draft": { milestone: "M56 part 6", wiredUpBy: "Plan with AI on New trip's Review opening the assistant on the new trip with a kickoff from the answers (ADR-084, M56 part 6) — the trip is created, the assistant does not open" },
-} as const;
+  // `wizard-assistant-draft` was the last entry, and M56 part 6 wired it up:
+  // *Plan with AI* on New trip's Review opens the assistant on the new trip
+  // with a kickoff from the answers. **The registry is empty now, and that is a
+  // state it is built to hold**: `preview.test.tsx` and the sync test use a
+  // test-only fixture id rather than a real entry, so the next shell gets a
+  // working `<Preview>` and guard. Retiring the Preview system is a separate
+  // decision, not this one.
+} as const satisfies Readonly<Record<string, PreviewEntry>>;
+
+/** A shell's claim: the milestone that wires it up, and what that means. */
+export type PreviewEntry = { milestone: string; wiredUpBy: string };
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;

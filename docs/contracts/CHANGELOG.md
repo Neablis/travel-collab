@@ -13,6 +13,27 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-30 — `AssistantHandOff.prefill` and `.asks`, `NewTripPrefill`, `CarriedAsk` (M56 part 6)
+- **New** (`packages/contracts/src/assistant.ts`): `NewTripPrefill` (`place` as search text, never
+  a pick; `days` 1 to `NEW_TRIP_DAYS_MAX`, 60; `tags` of `ActivityTagDescribed`), `CarriedAsk`
+  (`said`, and `kind` from `CARRIED_ASK_KINDS`: `itinerary`, `library`, `pages`), and `CarriedAsks`,
+  at most `MAX_CARRIED_ASKS` (6).
+- **Changed:** `AssistantHandOff` takes optional `prefill` and `asks`, kept by its transform only
+  when `to` is `new_trip`, as `command` is kept only for `plan_page`.
+- Why: ADR-084 §5, M56 D5. A request Home cannot do ("plan me two weeks of food…, and add a mezcal
+  tasting") hands New trip what it said: length and tags prefill as answers, the place fills
+  Where's search box, and the part only the trip can do waits on it as a chip run only when
+  pressed. The record that carries it through the browser (`lib/pendingCarriedAsks.ts`) is written
+  from model output, so its shapes are the contract's, not the client's.
+- Consumers updated: `apps/web` — `server/assistant/tools/ui.ts` (`hand_off` input and outcome),
+  `server/assistant/capabilities.ts` (the `new_trip` route's words), `server/ai/simulatedModel.ts`
+  (a scripted prefilled hand-off), `components/assistant/TurnWidget.tsx` (banks it on press),
+  `lib/pendingCarriedAsks.ts`, `components/home/newTripScript.ts` (`LENGTH_MAX` is
+  `NEW_TRIP_DAYS_MAX`), `NewTripWizard.tsx`, `FirstTripStart.tsx`, `HomeScreen.tsx`,
+  `AssistantRail.tsx` and `board/TripBoardScreen.tsx` — in this same PR.
+- Public API: no change. The ask stream is session-only and not in `openapi.json`.
+- Breaking? no (optional fields; a reader on the previous build drops them).
+
 ## 2026-10-30 — `SetTripStyle`, `TripStyleSet`, `TripDetail.pace` and `.tags` (M56 part 4; public API 1.31.0)
 - **New** (`packages/contracts/src/trip.ts`): `TripPace` (`"slow" | "balanced" | "packed"`);
   the command `SetTripStyle { tripId, pace: TripPace | null, tags: ActivityTagDescribed[] }`,
@@ -36,6 +57,29 @@ Format:
   fields. No v1 endpoint takes them as input, but undo, redo and revert can change them: they
   write the diff to the earlier state, which now includes `TripStyleSet`.
 - Breaking? no (additive, defaulted).
+
+## 2026-10-30 — `ask`, `options` and `handOff` outcomes, and `AskAnswer` (M56 part 5)
+- **Changed** (`packages/contracts/src/assistant.ts`): `AskStreamMetadata` gains three outcomes,
+  each held to the one-outcome rule: `ask` (`AssistantAsk`: a question, 2–6 `AskOption`s, `multi`,
+  `allowNone`, and an optional `AskOther` of kind `place`, `number`, `date` or `tags`), `options`
+  (`AssistantOptions`: a prompt and 1–6 `AssistantOptionCard`s, a `place` or a `day`, every field
+  but the id filled by the server), and `handOff` (`AssistantHandOff`: `task`, `to` from
+  `HandOffTo` — `new_trip`, `plan_page`, `upgrade`, `nowhere` — and a `plan_page`'s `command`,
+  dropped unless `isAssistantCommandId` allows it).
+- **New:** `AskAnswer` (`answeredAsk`, an optional `question`, `optionIds`, `other` or null) and
+  `ASK_ANSWER_PART` (`"ask-answer"`): what the person picked, sent as a `data-ask-answer` part on
+  their message. `question` is the words answered (the question, or the cards' prompt), since the
+  asking turn often sends no text back as history; optional, so an answer stored without it reads.
+- `AskOther`'s `number` refuses `min` above `max`, a range no answer fits.
+- Why: ADR-084 §2. A turn that cannot do a task ends in a sentence and a button rather than prose
+  alone, and a closed question's answer comes back as data, not text the model re-reads.
+- Consumers updated: `apps/web` — `server/ai/handleAskRequest.ts` builds the outcomes and
+  validates the data part on both ask doors and puts `question` into the model's text;
+  `lib/apiClient.ts` reads them into events;
+  `components/assistant/useAskThread.ts`, `Transcript.tsx` and `TurnWidget.tsx` draw them and
+  send the answer; `server/ai/eval/grade.ts` grades them — in this same PR.
+- Public API: no change. The ask stream is session-only and not in `openapi.json`.
+- Breaking? no (new branches; a reader on the previous build drops a chunk it cannot parse).
 
 ## 2026-10-27 — `ConnectedApp` (M55 part 5)
 - **New** (`packages/contracts/src/publicApi.ts`): `ConnectedApp`, one OAuth grant as Account →

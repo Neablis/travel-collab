@@ -222,6 +222,10 @@ const PLANNING_TOOL_NAMES = planningTools.map((t) => t.name);
 const WITHHELD_FROM_PLAN = ["SetTripCurrency", "SetTripBudget", "DismissConflict"];
 const PLAN_TURN_TOOL_NAMES = PLANNING_TOOL_NAMES.filter((n) => !WITHHELD_FROM_PLAN.includes(n));
 const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
+// The ui widgets (ADR-084), on every surface and so in every set above.
+const UI_TOOL_NAMES: readonly string[] = ["ask_user", "show_options", "hand_off"];
+// A set with no search to feed its cards is not offered `show_options` (`fedBy`).
+const UI_NO_CARDS: readonly string[] = ["ask_user", "hand_off"];
 /** The propose half of a planning turn — what a page turn must not hold. */
 const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
 const { getPage } = await import("@/server/pages");
@@ -287,7 +291,7 @@ async function seedTrip(): Promise<string> {
  * — so a fixed city would make "the day this turn proposes" depend on what
  * every other test in the suite happened to leave behind.
  */
-async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: string }> {
+async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: string; city: string }> {
   const city = `Playbookville-${randomUUID().slice(0, 8)}`;
 
   const sourceTrip = randomUUID();
@@ -338,7 +342,7 @@ async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: stri
     },
     ACTOR_ID,
   );
-  return { tripId, savedDayId: saved.value.savedDayId };
+  return { tripId, savedDayId: saved.value.savedDayId, city };
 }
 
 /** One Notebook page on `tripId`, the way the Notebook's own route makes one. */
@@ -984,7 +988,7 @@ describe("POST /api/trips/:id/ask", () => {
       // nothing can use.
       expect(PAGE_TURN_TOOL_NAMES).not.toContain("search_places");
       expect(PAGE_TURN_TOOL_NAMES).toEqual([
-        ...READ_TOOL_NAMES.filter((name) => name !== "search_places" && name !== "go_to"),
+        ...READ_TOOL_NAMES.filter((name) => name !== "search_places" && name !== "go_to" && !UI_TOOL_NAMES.includes(name)),
         // The widget lookup (ADR-057) — `pages` at `read`, so here and only here.
         "search_widgets",
         "get_widget",
@@ -996,6 +1000,8 @@ describe("POST /api/trips/:id/ask", () => {
         // to turn editing on is `pages`/`propose`, so a notebook's alone.
         "go_to",
         "propose_notebook_editing",
+        // How a turn ends when prose would strand the person (ADR-084).
+        ...UI_TOOL_NAMES,
       ]);
       expect(PLANNING_TOOL_NAMES).not.toContain("insert_widget");
       expect(PLANNING_TOOL_NAMES).not.toContain("switch_intent");
@@ -2014,6 +2020,23 @@ describe("POST /api/trips/:id/ask", () => {
       expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
     });
 
+    // M56 part 5 review: a day card is filled from what `search_playbooks`
+    // returned, read off the SDK's step result. Nothing else crosses that
+    // bridge, so a shape it cannot read would refuse every day card unseen.
+    it("shows a day card for a day the search returned, and drops one it did not", async () => {
+      const { tripId, savedDayId, city } = await tripAndPublishedDay();
+      const model = scriptedStepsModel([
+        [toolCall("search_playbooks", { cities: [city] })],
+        [toolCall("show_options", { prompt: "Pick a day", days: [savedDayId, "invented-day"] })],
+        ["Either suits a slow morning."],
+      ]);
+      const chunks = await chunksOf(
+        await handleAskRequest(req(tripId, { messages: [userMessage("show me a day to add")], scope: { kind: "trip" } }), tripId, model),
+      );
+      const finish = chunks.find((c) => c.type === "finish") as { messageMetadata?: { options?: { cards: unknown[] } } } | undefined;
+      expect(finish?.messageMetadata?.options?.cards).toEqual([{ kind: "day", id: savedDayId, name: "A day in Kyoto", cities: [city], stopCount: 2 }]);
+    });
+
     // **A viewer's assistant is minimal** (ADR-058 decision 9; Mitchell,
     // 2026-09-27: *"minimize the tool call as small as possible"*). Browsing the
     // library is a read, but a viewer cannot insert from it, and a place search
@@ -2027,7 +2050,7 @@ describe("POST /api/trips/:id/ask", () => {
         records.push(r),
       );
       await res.text();
-      expect(records[0]!.offeredTools).toEqual(["read_trip", "read_day"]);
+      expect(records[0]!.offeredTools).toEqual(["read_trip", "read_day", ...UI_NO_CARDS]);
     });
 
     it("carries no proposal when the turn was only a question", async () => {
@@ -2326,7 +2349,7 @@ describe("POST /api/trips/:id/ask", () => {
       // fourteen days to decide which live widgets to insert.
       expect(records[0]!.classification?.taskClass).toBe("compose");
       expect(records[0]!.offeredTools.sort()).toEqual(
-        ["read_trip", "search_widgets", "get_widget", "insert_text", "insert_widget", "switch_intent", "go_to", "propose_notebook_editing"].sort(),
+        ["read_trip", "search_widgets", "get_widget", "insert_text", "insert_widget", "switch_intent", "go_to", "propose_notebook_editing", ...UI_NO_CARDS].sort(),
       );
       for (const name of WRITE_ONLY_NAMES) {
         expect(records[0]!.offeredTools, `a page turn must not be offered ${name}`).not.toContain(name);
@@ -3382,6 +3405,7 @@ describe("POST /api/trips/:id/ask", () => {
         "search_playbooks",
         "search_places",
         "go_to",
+        ...UI_TOOL_NAMES,
         "request_change_tools",
       ]);
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
@@ -3410,6 +3434,7 @@ describe("POST /api/trips/:id/ask", () => {
         "search_playbooks",
         "search_places",
         "go_to",
+        ...UI_TOOL_NAMES,
         "request_change_tools",
       ]);
     });

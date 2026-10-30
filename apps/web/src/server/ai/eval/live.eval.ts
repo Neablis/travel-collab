@@ -50,7 +50,7 @@ import { accountExpectationFor, expectationFor, playbookExpectationFor, type See
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { postMessage } from "@/server/chat/messages";
 import type { TurnOrigin } from "@/server/assistant/defineTool";
-import { grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
+import { endedIn, grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnSpend, unpricedModels, type TurnSpend } from "./spend";
 import { ACCOUNT_TRIPS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands, phaseFor, planningStart, type EvalTripName } from "./trips";
 import { pinClock, type EvalClock } from "./evalClock";
@@ -260,6 +260,7 @@ async function runTurn(
     textBeforeToolCall: textBeforeToolCall(chunks),
     retracted: retractedText(chunks),
     navigations: navigatedTo(chunks),
+    widget: endedIn(chunks),
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
     providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
     generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],

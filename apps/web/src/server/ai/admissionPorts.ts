@@ -21,6 +21,9 @@ import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, reserveAiSteps } fr
 import { classifyAskIntent } from "@/server/ai/askIntent";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import type { AdmissionPorts, AiGrantRecord, AiGrantSink } from "@/server/assistant/admission";
+import { sanitizeForLog } from "@/server/assistant/askAnalytics";
+import type { SurfaceKind } from "@/server/assistant/grants";
+import type { HandOffTo } from "@tc/contracts";
 
 /**
  * The `ai.grant` line — `console.info`, matching `ai.ask` (askAnalytics.ts) and
@@ -54,6 +57,27 @@ export const logAiGrant: AiGrantSink = (record: AiGrantRecord) => {
     console.info("ai.grant", JSON.stringify(record));
   });
 };
+
+/** One task an assistant understood and handed off (ADR-084 §2): the backlog of tools not yet built. */
+export interface CapabilityGapRecord {
+  turnId: string;
+  surface: SurfaceKind;
+  /** What the person asked, in the model's words, so through `sanitizeForLog` and capped. */
+  task: string;
+  to: HandOffTo;
+}
+
+/**
+ * The `ai.capability_gap` line, written as `ai.grant` is and for its reason:
+ * a log line, not a table (M56, settled in the plan), and inside a forked
+ * isolation scope so Sentry's console breadcrumb never carries the task.
+ * The `ai-usage` skill reads it.
+ */
+export function logCapabilityGap(record: CapabilityGapRecord): void {
+  Sentry.withIsolationScope(() => {
+    console.info("ai.capability_gap", JSON.stringify({ ...record, task: sanitizeForLog(record.task, 200) }));
+  });
+}
 
 export const admissionPorts: AdmissionPorts = {
   // No trip is the account door (M45): the session alone says who is asking,

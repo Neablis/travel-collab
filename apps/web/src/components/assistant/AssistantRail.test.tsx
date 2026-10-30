@@ -9,6 +9,7 @@ import { useAssistantVisibility } from "./useAssistantVisibility";
 import { setViewportMatches } from "../../../vitest.setup";
 import { ownedAskName } from "@/lib/askOwnership";
 import { loadAskDraft, saveAskDraft } from "./askThreadStore";
+import type { CarriedAsk } from "@tc/contracts";
 import type { AssistantTurn } from "./Transcript";
 
 // **The hook is mocked so the prop's precedence can actually be tested.**
@@ -1272,5 +1273,77 @@ describe("AssistantRail — focus on open, from useAssistantVisibility", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Palette Ask" }));
     expect(screen.getByPlaceholderText(/ask about this day/i).matches(":focus")).toBe(true);
+  });
+});
+
+// M56 part 5 review: Answer unmounts once the answer is in, and focus fell to
+// `<body>`; it goes to the composer, where the next question is typed.
+describe("an answer pressed under a question", () => {
+  it("is sent with its data, and leaves focus in the composer", async () => {
+    const onAsk = vi.fn();
+    const asked: AssistantTurn = {
+      id: "a1",
+      role: "assistant",
+      text: "",
+      tools: [],
+      pending: false,
+      widget: {
+        kind: "ask",
+        ask: {
+          id: "call-1",
+          question: "Which?",
+          options: [
+            { id: "food", label: "Food" },
+            { id: "sights", label: "Sights" },
+          ],
+          multi: false,
+          allowNone: false,
+        },
+      },
+    };
+    renderRail({ turns: [asked], onAsk });
+    await userEvent.click(screen.getByRole("radio", { name: "Food" }));
+    await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+    expect(onAsk).toHaveBeenCalledWith("Food", expect.objectContaining({ answeredAsk: "call-1", optionIds: ["food"] }));
+    expect(screen.getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(true);
+  });
+});
+
+// M56 D5: an ask carried into a new trip is a chip until pressed. Plan with
+// AI's kickoff is usually the thread's first turn, so the chips outlast it.
+describe("asks carried into a new trip", () => {
+  const MEZCAL: CarriedAsk = { said: "add a mezcal tasting", kind: "itinerary" };
+  const MARKET: CarriedAsk = { said: "find a market morning", kind: "itinerary" };
+  const KICKOFF: AssistantTurn[] = [
+    { id: "u1", role: "user", text: "Plan this trip with me." },
+    { id: "a1", role: "assistant", text: "Here is a start.", tools: [], pending: false },
+  ];
+
+  function CarryingRail({ onAsk }: { onAsk: (text: string) => Promise<boolean> }) {
+    const [carried, setCarried] = useState<readonly CarriedAsk[]>([MEZCAL, MARKET]);
+    return (
+      <AssistantRail
+        {...baseProps}
+        turns={KICKOFF}
+        onAsk={onAsk}
+        carriedAsks={carried}
+        onCarriedAskTaken={(taken) => setCarried((asks) => asks.filter((each) => each !== taken))}
+      />
+    );
+  }
+
+  it("stay offered once the thread has a turn", () => {
+    renderRail({ turns: KICKOFF, carriedAsks: [MEZCAL] });
+    expect(within(screen.getByRole("list", { name: "You also asked" })).getByRole("button", { name: MEZCAL.said })).toBeTruthy();
+  });
+
+  it("sends the one pressed as a turn, drops only its chip, and leaves focus in the composer", async () => {
+    const onAsk = vi.fn(async () => true);
+    render(<CarryingRail onAsk={onAsk} />);
+    await userEvent.click(screen.getByRole("button", { name: MEZCAL.said }));
+    expect(onAsk).toHaveBeenCalledWith(MEZCAL.said);
+    expect(await screen.findByRole("button", { name: MARKET.said })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: MEZCAL.said })).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(true);
   });
 });

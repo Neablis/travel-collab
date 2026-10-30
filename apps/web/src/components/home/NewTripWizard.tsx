@@ -14,10 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Picker, type PickerAnswer, type PickerOther, type PickerOption } from "@/components/ui/picker";
-import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import { ToggleChip } from "@/components/ui/toggle-chip";
 import { useAiEntitled } from "@/lib/useAiEntitled";
+import type { CarriedAsk, NewTripPrefill } from "@tc/contracts";
+import { rememberIntoTrip, type NewTripHandOff } from "@/lib/pendingCarriedAsks";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 // `…WithYear`: a trip planned eleven months out is the ordinary case here, and
 // the board's weekday-first style drops the year (SPEC §32.3).
@@ -89,7 +90,22 @@ export type NewTripWizardProps = {
    * `ImportTripHandle.pick`. Absent, the link is not drawn.
    */
   onImportFile?: () => void;
+  /** What a hand-off to New trip already knew (ADR-084 §5): see `KeyedHandOff`. */
+  handOff?: KeyedHandOff;
 };
+
+/**
+ * **A hand-off, numbered by the page that took it.** The pages read a prefill
+ * only when they mount, so each hand-off remounts them by its `seq`: one taken
+ * while New trip is already open (on a phone the sheet sits under Home's rail)
+ * starts page one again with its answers, rather than being dropped.
+ */
+export type KeyedHandOff = NewTripHandOff & { seq: number };
+
+/** The pages' props for `handOff`. Their `key` is `handOff?.seq`, set beside these. */
+export function handOffPagesProps(handOff: KeyedHandOff | undefined): { prefill?: NewTripPrefill; carriedAsks?: readonly CarriedAsk[] } {
+  return handOff === undefined ? {} : { prefill: handOff.prefill, carriedAsks: handOff.asks };
+}
 
 export function NewTripWizard({
   open,
@@ -99,6 +115,7 @@ export function NewTripWizard({
   onCreated,
   size = "rail",
   onImportFile,
+  handOff,
 }: NewTripWizardProps) {
   return (
     // "New trip" on every path: it is the dialog's accessible NAME, what specs
@@ -107,6 +124,8 @@ export function NewTripWizard({
       {/* A fresh mount, and so fresh answers, every time it opens. */}
       {open && (
         <NewTripPages
+          key={handOff?.seq}
+          {...handOffPagesProps(handOff)}
           createTrip={createTrip}
           dispatch={dispatch}
           onDone={(tripId, navigate) => {
@@ -198,6 +217,29 @@ function said(answers: NewTripAnswers, page: NewTripPageId): string | null {
     case "about":
       return answers.about.length === 0 ? null : answers.about.map((tag) => TAG_LABEL[tag]).join(", ");
   }
+}
+
+/** *Plan with AI*'s first turn: each answer under Review's name for it. */
+function kickoffFor(answers: NewTripAnswers): string {
+  const lines = NEW_TRIP_PAGES.flatMap((page) => {
+    const value = said(answers, page);
+    return value === null ? [] : [`${TERM[page]}: ${value}.`];
+  });
+  return ["Plan this trip with me.", ...lines].join(" ");
+}
+
+/**
+ * **A hand-off's answers, on page one** (ADR-084 §5). Length and tags are
+ * answers; the place is only Where's search, since a place is a pick.
+ */
+function prefilled({ days, tags }: NewTripPrefill): NewTripState {
+  return {
+    ...NEW_TRIP_START,
+    answers: {
+      about: tags ?? [],
+      ...(days === undefined ? {} : { length: { days, other: !Object.values(LENGTH_DAYS).includes(days) } }),
+    },
+  };
 }
 
 /** The progress bar's fill per page: five steps are five fractions, so no inline width. */
@@ -316,6 +358,8 @@ type PagesProps = {
     onStartFromPlaybook: () => void;
     onImportFile?: () => void;
   };
+  prefill?: NewTripPrefill;
+  carriedAsks?: readonly CarriedAsk[];
 };
 
 /** A page's first control a keyboard would reach: the roving radios' unchosen ones are `-1`. */
@@ -364,8 +408,10 @@ function Pages({
   disabled = false,
   otherStarts,
   firstName,
+  prefill,
+  carriedAsks = [],
 }: PagesProps & { firstName: string | null }) {
-  const [state, setState] = useState<NewTripState>(NEW_TRIP_START);
+  const [state, setState] = useState<NewTripState>(() => (prefill === undefined ? NEW_TRIP_START : prefilled(prefill)));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // What a previous attempt got through, carried so a retry neither mints a
@@ -484,15 +530,19 @@ function Pages({
   }
 
   /**
-   * **Create, and go to the trip.** *Plan with AI* does the same for now: the
-   * rail opening on the new trip with a kickoff is part 6's.
+   * **Create, and go to the trip.** *Plan with AI* also leaves the trip a
+   * kickoff, which its board sends with the rail open (M56 D1): written here
+   * from the answers, not by the model, so the first turn says what was picked.
+   * Carried asks ride either way, as chips, and with `createEmpty` too.
    *
    * A chosen day that did not land keeps the sheet up long enough to say
    * which — navigating past the only place that says it would lose it.
    */
-  async function create() {
+  async function create(planWithAi: boolean) {
     const result = await run(true);
     if (result === null) return;
+    const kickoff = planWithAi ? kickoffFor(answers) : null;
+    if (kickoff !== null || carriedAsks.length > 0) rememberIntoTrip(result.latch.tripId, { kickoff, asks: [...carriedAsks] });
     if (result.missedDays.length > 0) {
       // Open the trip replaces the pressed button; the page holds the line
       // that says which day failed.
@@ -503,9 +553,12 @@ function Pages({
     onDone(result.latch.tripId, true);
   }
 
+  /** No kickoff, but a hand-off's carried asks still become the trip's chips (M56 D5). */
   async function createEmpty() {
     const result = await run(false);
-    if (result !== null) onDone(result.latch.tripId, false);
+    if (result === null) return;
+    if (carriedAsks.length > 0) rememberIntoTrip(result.latch.tripId, { kickoff: null, asks: [...carriedAsks] });
+    onDone(result.latch.tripId, false);
   }
 
   const step = stepLabel(state);
@@ -574,6 +627,7 @@ function Pages({
           <PagePicker
             page={page}
             answers={answers}
+            whereQuery={prefill?.place}
             onPlace={pickPlace}
             onAnswer={(patch) => setState((current) => answer(current, patch))}
           />
@@ -591,7 +645,7 @@ function Pages({
             aiEntitled={aiEntitled}
             made={missed !== null}
             busy={disabled || submitting}
-            onCreate={() => void create()}
+            onCreate={(planWithAi) => void create(planWithAi)}
             onOpen={() => onDone(progress?.tripId ?? null, true)}
           />
         ) : (
@@ -644,11 +698,14 @@ function Pages({
 function PagePicker({
   page,
   answers,
+  whereQuery,
   onPlace,
   onAnswer,
 }: {
   page: NewTripPageId;
   answers: NewTripAnswers;
+  /** A hand-off's place, searched for until one is picked. */
+  whereQuery: string | undefined;
   onPlace: (place: NewTripPlace, fromList: boolean) => void;
   onAnswer: (patch: Partial<NewTripAnswers>) => void;
 }) {
@@ -666,7 +723,12 @@ function PagePicker({
           kind: "place",
           label: QUESTION.where,
           slot: ({ labelledBy }) => (
-            <WhereSearch labelledBy={labelledBy} picked={answers.where} onPick={onPlace} />
+            <WhereSearch
+              labelledBy={labelledBy}
+              picked={answers.where}
+              initialQuery={answers.where === undefined ? (whereQuery ?? "") : ""}
+              onPick={onPlace}
+            />
           ),
         }
       : page === "start"
@@ -827,7 +889,8 @@ function ReviewActions({
   aiEntitled: boolean | null;
   made: boolean;
   busy: boolean;
-  onCreate: () => void;
+  /** `true` is *Plan with AI*. */
+  onCreate: (planWithAi: boolean) => void;
   onOpen: () => void;
 }) {
   if (made) {
@@ -842,7 +905,7 @@ function ReviewActions({
   if (aiEntitled === false) {
     return (
       <div className="flex flex-col items-end gap-2">
-        <Button type="button" variant="primary" className={TOUCH} disabled={busy} onClick={onCreate}>
+        <Button type="button" variant="primary" className={TOUCH} disabled={busy} onClick={() => onCreate(false)}>
           Create trip
         </Button>
         {/* "No teaser, no disabled input" (§30.3): a line and a link, never a
@@ -860,20 +923,13 @@ function ReviewActions({
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex flex-wrap justify-end gap-2">
-        <Button type="button" variant="secondary" className={TOUCH} disabled={busy} onClick={onCreate}>
+        <Button type="button" variant="secondary" className={TOUCH} disabled={busy} onClick={() => onCreate(false)}>
           Just create it
         </Button>
-        <Button type="button" variant="primary" className={TOUCH} disabled={busy} onClick={onCreate}>
+        <Button type="button" variant="primary" className={TOUCH} disabled={busy} onClick={() => onCreate(true)}>
           Plan with AI
         </Button>
       </div>
-      {/* What *Plan with AI* does beyond creating — the assistant open on the
-          new trip with a kickoff — is not built yet (part 6). */}
-      <Preview id="wizard-assistant-draft" size="compact">
-        <Text variant="secondary" className="text-xs">
-          The assistant opens on the trip with your answers.
-        </Text>
-      </Preview>
     </div>
   );
 }
@@ -900,13 +956,15 @@ type SearchState =
 function WhereSearch({
   labelledBy,
   picked,
+  initialQuery,
   onPick,
 }: {
   labelledBy: string;
   picked: NewTripPlace | undefined;
+  initialQuery: string;
   onPick: (place: NewTripPlace, fromList: boolean) => void;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialQuery);
   const [state, setState] = useState<SearchState>({ kind: "idle" });
   // Keystrokes race: without this the slower of two searches wins.
   const generation = useRef(0);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import type { ListedTripSummary, TripSummary } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
@@ -18,7 +18,7 @@ import { InstallNudge } from "@/components/install/InstallNudge";
 import { NextTripHeroSkeleton, TripGridSkeleton } from "@/components/home/HomeSkeletons";
 import { RegionError } from "@/components/ui/skeleton";
 import { TripCard } from "@/components/home/TripCard";
-import { NewTripWizard, focusNewTripPage } from "@/components/home/NewTripWizard";
+import { NewTripWizard, focusNewTripPage, type KeyedHandOff } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
 import { NextTripPrompt } from "@/components/home/NextTripPrompt";
 import { ImportTripButton, type ImportTripHandle } from "@/components/home/ImportTripButton";
@@ -33,12 +33,14 @@ import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { pendingPlaybookAddDay } from "@/lib/pendingPlaybookAdd";
+import { takeNewTripHandOff } from "@/lib/pendingCarriedAsks";
 import { plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { newTripCommand } from "@/components/palette/commands";
 import { PAGE_SOURCES, usePaletteSource } from "@/components/palette/paletteRegistry";
 import { AssistantAskButton, BeyondTripAssistant } from "@/components/assistant/BeyondTripAssistant";
 import { clearSignedInHint } from "@/lib/sessionHint";
+import { NEW_TRIP_PARAM } from "@/lib/homePath";
 
 /** Home's assistant answers across every trip you travelled on (M45 D7). */
 const ACCOUNT_SCOPE = { kind: "account" } as const;
@@ -135,8 +137,8 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // (packages/contracts/src/trip.ts) — the wizard's other real fields
   // (dates, budget/currency) apply as separate SetTripDates/SetTripBudget/
   // SetTripCurrency commands against the tripId CreateTrip returns, per the
-  // phase doc's sequence. Everything else the design's wizard shows is
-  // Preview-wrapped (see NewTripWizard.tsx and preview-registry.ts).
+  // phase doc's sequence. Nothing it shows is a Preview shell any more (M56
+  // part 6 wired the last one, `preview-registry.ts`).
   // SPEC §32.2 — the new-trip conversation owns the whole frame on a phone.
   const isPhone = useIsPhone();
   // Who is reading, so a card's menu can offer Delete or *Leave this trip*
@@ -149,6 +151,13 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // settle on the second, which `viewer?.id` would flatten into the first.
   const viewerId = viewer === null ? null : viewer?.id;
   const [newTripOpen, setNewTripOpen] = useState(false);
+  // What an assistant's hand-off to New trip knew (ADR-084 §5), for the open
+  // it was taken by: its prefill, and the asks the new trip shows as chips.
+  // Numbered, so each one taken remounts the pages it fills (`KeyedHandOff`).
+  const [newTripHandOff, setNewTripHandOff] = useState<KeyedHandOff | null>(null);
+  const handOffSeq = useRef(0);
+  // Set when a hand-off remounts the inline first run: focus waits for the new page.
+  const focusFirstRun = useRef(false);
   // True while the "Make this trip mine" copy this page inherited from `/demo`
   // is in flight — see `lib/pendingDemoClone.ts` for why the intent arrives
   // here at all. It also holds the first-run wizard shut — both while it is
@@ -232,8 +241,17 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
    * So here the button moves the cursor into the conversation that exists.
    */
   function startNewTrip() {
+    // A waiting hand-off is taken by whichever New trip this opens, the sheet
+    // or the inline first run, so none is left to fire later (PR 643 review).
+    const handOff = takeNewTripHandOff();
+    const keyed = handOff === null ? null : { ...handOff, seq: ++handOffSeq.current };
+    if (keyed !== null) setNewTripHandOff(keyed);
     if (!hasNoTrips) {
       setNewTripOpen(true);
+      return;
+    }
+    if (keyed !== null) {
+      focusFirstRun.current = true;
       return;
     }
     // `focus()` only — **`scrollIntoView` is banned repo-wide** (SPEC §30.6,
@@ -378,6 +396,13 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
     const savedDayId = pendingPlaybookAddDay();
     if (savedDayId !== null) router.replace(`/playbooks/day/${encodeURIComponent(savedDayId)}`);
   }, [trips, unauthenticated, cloningDemo, router]);
+
+  // The first run remounted with a hand-off's answers: its page is new.
+  useEffect(() => {
+    if (!focusFirstRun.current) return;
+    focusFirstRun.current = false;
+    focusNewTripPage(document.getElementById(FIRST_TRIP_PAGE_ID));
+  }, [newTripHandOff]);
 
   /** Delete's and Leave's optimistic half: off the list now, and a grid card on its way out. */
   function startLeaving(trip: TripSummary) {
@@ -529,6 +554,27 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
     router.replace("/");
   }, [unauthenticated, router]);
 
+  // **Arriving to start a trip** (ADR-084 §2): an assistant hand-off's "Start a
+  // new trip" on a page without New trip links to `NEW_TRIP_PATH`, which opens
+  // it here through the page-head button's own `startNewTrip`. Once the list is
+  // known, since that decides which way it opens, and not while a demo copy
+  // holds it shut. The param goes at once, so a reload or Back does not reopen
+  // it. Read from the router, not `window`: on a client navigation the router
+  // commits the new URL after this tree first renders. The effect has no deps
+  // because `startNewTrip` is a new function every render; the ref opens it
+  // once per arrival, until the param's removal reaches the router.
+  const arrivedToStart = useSearchParams().has(NEW_TRIP_PARAM);
+  const startedOnArrival = useRef(false);
+  useEffect(() => {
+    if (!arrivedToStart) startedOnArrival.current = false;
+    if (!arrivedToStart || startedOnArrival.current || trips === null || unauthenticated || cloningDemo) return;
+    startedOnArrival.current = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete(NEW_TRIP_PARAM);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    startNewTrip();
+  });
+
   // ⌘K's *New trip* is this page's button (ADR-068): the same function, under
   // the same `disabled`.
   usePaletteSource(PAGE_SOURCES.home, unauthenticated || cloningDemo ? [] : [newTripCommand(startNewTrip)]);
@@ -660,7 +706,11 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
           // above. The inline conversation is what yields, because it is not
           // the surface the reader is typing into.
           open={newTripOpen}
-          onOpenChange={setNewTripOpen}
+          onOpenChange={(open) => {
+            setNewTripOpen(open);
+            if (!open) setNewTripHandOff(null);
+          }}
+          {...(newTripHandOff === null ? {} : { handOff: newTripHandOff })}
           createTrip={createTripApi}
           dispatch={sendTripCommand}
           // **Full screen on a phone, the rail above it** (SPEC §32.2: *"the
@@ -784,6 +834,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
               disabled={cloningDemo}
               showConversation={!newTripOpen}
               importHandle={importPicker}
+              {...(newTripHandOff === null ? {} : { handOff: newTripHandOff })}
               // **SPEC §32.1's `ntLand()` is already satisfied here, and
               // widening it would break nine e2e specs.** §32.1 says finishing
               // a first run has to land you in an app. Review's create buttons
@@ -797,6 +848,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
               // with the new trip as its hero, which is an app, and is not
               // "staring at nothing".
               onDone={(tripId, navigate) => {
+                setNewTripHandOff(null);
                 if (tripId !== null && navigate) {
                   router.push(`/trips/${tripId}`);
                 } else {

@@ -8,7 +8,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
-import { NewTripPages, TOUCH, type NewTripWizardProps } from "./NewTripWizard";
+import { NewTripPages, TOUCH, handOffPagesProps, type KeyedHandOff, type NewTripWizardProps } from "./NewTripWizard";
 import { ImportTripButton, type ImportTripHandle } from "./ImportTripButton";
 
 // Somebody's first authenticated screen, and the answer to two pieces of
@@ -51,6 +51,7 @@ import { ImportTripButton, type ImportTripHandle } from "./ImportTripButton";
  * @param disabled - Holds the exits while a demo clone is still in flight.
  * @param showConversation - False while the sheet owns the conversation.
  * @param importHandle - Lets the page open this card's file picker.
+ * @param handOff - What an assistant's hand-off to New trip knew, for the pages.
  * @returns The first-trip screen.
  */
 export function FirstTripStart({
@@ -61,6 +62,7 @@ export function FirstTripStart({
   disabled = false,
   showConversation = true,
   importHandle,
+  handOff,
 }: {
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
@@ -86,6 +88,8 @@ export function FirstTripStart({
   showConversation?: boolean;
   /** Where the page reaches this card's file picker — see `ImportTripHandle`. */
   importHandle?: Ref<ImportTripHandle>;
+  /** A Home with no trips takes a hand-off here, since this is its New trip. */
+  handOff?: KeyedHandOff;
 }) {
   return (
     <Card raised className="flex flex-col gap-5 p-6" data-testid="first-trip-start">
@@ -106,6 +110,8 @@ export function FirstTripStart({
       {showConversation && (
         <div className="flex h-a-thread min-h-0 flex-col" data-testid="first-trip-conversation">
           <NewTripPages
+            key={handOff?.seq}
+            {...handOffPagesProps(handOff)}
             createTrip={createTrip}
             dispatch={dispatch}
             onDone={onDone}

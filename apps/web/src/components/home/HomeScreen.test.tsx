@@ -5,11 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import { ListedTripSummary, type TripSummary } from "@tc/contracts";
 import { tripDetailFixture, historyFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 import { formatMoney } from "@/lib/formatMoney";
+import { NEW_TRIP_PATH } from "@/lib/homePath";
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
+// The router's search params, which a client navigation updates after the new
+// tree has rendered; a test moves them with `arriveAt`.
+let searchParamsMock = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
+  useSearchParams: () => searchParamsMock,
 }));
 
 // Who is reading, which is what decides whether a card's menu offers Delete or
@@ -35,6 +40,8 @@ import { SessionUserProvider } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID, DEMO_TRIPS } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
 import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { rememberNewTripHandOff, takeNewTripHandOff } from "@/lib/pendingCarriedAsks";
+import { runPaletteCommand } from "@/components/palette/paletteRegistry";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
@@ -609,6 +616,59 @@ describe("Home page head", () => {
 
     await userEvent.click(within(prompt).getByRole("button", { name: "Start planning" }));
 
+    expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+
+  // M56 part 5 review: an assistant hand-off's "Start a new trip" on a page
+  // without New trip reloaded the landing page. It links here now.
+  // The URL as the address bar and the router both hold it.
+  function arriveAt(path: string) {
+    window.history.replaceState(null, "", path);
+    searchParamsMock = new URLSearchParams(window.location.search);
+  }
+
+  it("opens New trip when it is arrived at to start one, and drops the ask from the address", async () => {
+    arriveAt(NEW_TRIP_PATH);
+    onTestFinished(() => arriveAt("/"));
+    renderHome([tripSummaryFixture()]);
+    expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    expect(window.location.search).toBe("");
+  });
+
+  // M56 part 6 review: a Home with no trips left the hand-off in storage, and
+  // it opened the sheet, prefilled, over the first trip they made later.
+  it("takes a hand-off into the first run on a Home with no trips, and leaves none waiting", async () => {
+    rememberNewTripHandOff({ prefill: { place: "Oaxaca", days: 14 }, asks: [] });
+    arriveAt(NEW_TRIP_PATH);
+    onTestFinished(() => arriveAt("/"));
+    renderHome([]);
+    const firstRun = await screen.findByTestId("first-trip-start");
+    await waitFor(() => expect(within(firstRun).getByLabelText<HTMLInputElement>("Where are you going?").value).toBe("Oaxaca"));
+    expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull();
+    expect(takeNewTripHandOff()).toBeNull();
+  });
+
+  // M56 part 6 review: on a phone the sheet sits under Home's rail, so a
+  // hand-off can arrive while it is open, and its prefill was dropped.
+  it("applies a hand-off taken while New trip is already open", async () => {
+    renderHome([tripSummaryFixture()]);
+    await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
+    const sheet = await screen.findByRole("dialog", { name: /new trip/i });
+    rememberNewTripHandOff({ prefill: { place: "Oaxaca" }, asks: [] });
+    act(() => void runPaletteCommand("new-trip"));
+    expect(within(sheet).getByLabelText<HTMLInputElement>("Where are you going?").value).toBe("Oaxaca");
+  });
+
+  // M56 part 5 review: from a trip page's rail, the router commits the new
+  // URL after Home has rendered, so a read of the address on the first render
+  // saw the trip page's and New trip never opened.
+  it("opens New trip when the router's URL arrives after Home has rendered", async () => {
+    onTestFinished(() => arriveAt("/"));
+    const { rerender } = renderHome([tripSummaryFixture()]);
+    await screen.findByRole("heading", { name: tripSummaryFixture().name });
+    arriveAt(NEW_TRIP_PATH);
+    rerender(<HomeScreen />);
     expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
