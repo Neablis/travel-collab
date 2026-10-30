@@ -41,7 +41,9 @@ New trip, meanwhile, is a fixed script dressed as a chat, whose typed answers ar
    - **`options`** (from `show_options`): cards for places, published days or palette targets.
      **The model chooses and orders ids from earlier tool results in the same turn; the server
      fills every name, photo and detail**, and drops an id no tool returned. Cards cannot show an
-     invented place or number.
+     invented place or number. Palette-target cards are deferred: the server has no source for a
+     palette target's name, so it cannot fill one (part 5, PR 641). `show_options` is offered only
+     beside a tool that feeds it (`search_places`, `search_playbooks`).
    - **`handOff`** (from `hand_off({ task, to })`): the only way to decline a task the assistant
      understood. `to` is a palette command from ADR-072's allowlist, `new_trip` (the picker,
      optionally prefilled), `plan_page` (an existing trip), `upgrade` (only where a free person
@@ -52,7 +54,9 @@ New trip, meanwhile, is a fixed script dressed as a chat, whose typed answers ar
 
 3. **The widgets are a `ui` tool domain**, granted on every surface that has an assistant. Its
    effect is `steer` (it changes nothing). Adding a domain is a `ToolDomain` change in
-   `server/assistant/defineTool.ts`.
+   `server/assistant/defineTool.ts`. Read-only turns (a viewer, Home) hold the `ui` tools too, as
+   the one exception to the steer rule, keyed on effect `steer`/`none`, never on domain alone;
+   without it Home could not hand off.
 
 4. **Each surface's instruction carries a capability block generated from `SURFACES` and the tool
    registry**: what this surface can change, and for each domain it lacks, the `hand_off` target
