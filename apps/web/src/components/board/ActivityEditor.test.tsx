@@ -340,6 +340,8 @@ describe("ActivityEditor tag picker", () => {
       "Beach", "Shopping", "Show", "Tour", "Wellness", "Sports", "Lodging",
     ]);
     expect(accessibleNames(screen.getByRole("group", { name: "Needs" }), "button")).toEqual(["Ticketed"]);
+    // M56 D8: each pick wears the icon its chip will.
+    expect(screen.getByRole("button", { name: "Outdoors" }).innerHTML).toContain("lucide-trees");
     expect(screen.queryByRole("button", { name: /considering/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /^travel$/i })).toBeNull();
   });

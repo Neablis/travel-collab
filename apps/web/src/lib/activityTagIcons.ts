@@ -1,17 +1,17 @@
 import {
   BedDouble,
-  Camera,
+  Binoculars,
   Drama,
   Flower2,
   Landmark,
   MoonStar,
-  Mountain,
   Route,
   ShoppingBag,
   TicketCheck,
-  TreePalm,
+  Trees,
   Trophy,
   UtensilsCrossed,
+  Waves,
   Wine,
   type LucideIcon,
 } from "lucide-react";
@@ -22,19 +22,21 @@ import type { ActivityTag } from "@tc/contracts";
  *
  * Exhaustive on purpose, as `MODE_DISPLAY` is: a fifteenth tag in the contract
  * fails to compile here rather than rendering a chip with no icon, and
- * `activityTags.test.ts` holds that no two tags share one. `TicketCheck`, not
- * `Ticket`, because the pending reason "To book" already wears that.
+ * `activityTags.test.ts` holds that no two tags share one, nor one with a
+ * person's avatar (`AVATAR_GLYPHS`), whose chips sit beside these on a stop.
+ * `TicketCheck`, not `Ticket`, because the pending reason "To book" already
+ * wears that.
  */
 export const ACTIVITY_TAG_ICON: Record<ActivityTag, LucideIcon> = {
   meal: UtensilsCrossed,
   lodging: BedDouble,
   ticketed: TicketCheck,
-  outdoors: Mountain,
+  outdoors: Trees,
   drinks: Wine,
   nightlife: MoonStar,
   museum: Landmark,
-  sight: Camera,
-  beach: TreePalm,
+  sight: Binoculars,
+  beach: Waves,
   shopping: ShoppingBag,
   show: Drama,
   tour: Route,
