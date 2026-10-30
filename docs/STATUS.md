@@ -21,8 +21,15 @@ general setup.
 
 ## Where the work is right now
 
+**M56 is current, scoped 2026-10-30** (*New trip is a picker, and the assistant never strands
+you*), minted and placed ahead of M43 by Mitchell the same day. Decisions D1–D9 are answered
+(`docs/milestones/M56-new-trip-is-a-picker.md`), ADR-084 is written, and the plan is
+`docs/plans/2026-10-30-M56-new-trip-picker.md`: six parts, each its own PR on `main`, part 1 (the
+picker widget and tag icons) first. Part 0 is this branch, `claude/elegant-maxwell-h4ldi1`, a
+draft that merges last.
+
 **M55 closed 2026-10-28, gate 17 of 17**, by `pnpm milestone close M55 --confirm` on part 0
-(PR 613, `ccr-a54f396f-65ja2i`, prose only), **which waits on Mitchell's merge**. All eleven
+(PR 613, `ccr-a54f396f-65ja2i`, prose only), merged to `main` as `d97e71d`. All eleven
 code parts are on `main`: PRs 614, 615, 616, 617, 618 and 620 as one stack in `1c353dd`
 (2026-10-27 23:26Z, `0069` applied by `migrate-production` run 40604400973), parts 7 to 10 (PRs
 622, 621, 623, 624) as a second stack in `acb7f93` (2026-10-28 02:29Z, no migration), and part 11
@@ -57,8 +64,8 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** Mitchell merges M55's part 0 (PR 613, ready for review). Then M43 is current
-(`docs/milestones/M43-notebooks-keep-up.md`, not scoped). Open follow-ups from M55:
+**Next action:** build M56's parts in the plan's order (part 1 first), then close its gate on
+part 0. M43 follows (`docs/milestones/M43-notebooks-keep-up.md`, not scoped). Open follow-ups from M55:
 KI-2026-10-27-e to -i (KI-2026-10-28-b and -c are resolved by PR 632), and the candidate *Claude
 can search for a cover photo* in `docs/candidates.md`. KI-2026-10-25-w's fix is PR 627, outside
 M55.

@@ -1,8 +1,10 @@
 # New trip: a picker for everyone, a trip builder for paid plans, and an AI that never strands you
 
 **Status:** Design, 2026-10-29. Direction approved by Mitchell in the session that wrote it
-(screens: the "New trip: guided + AI" design canvas from that session). Decisions in §8 are
-open. Not yet a milestone.
+(screens: the "New trip: guided + AI" design canvas from that session). **Became M56 on
+2026-10-30** (`docs/milestones/M56-new-trip-is-a-picker.md`, ADR-084). §8's decisions are
+answered there; **D1 changed to *create first***, so §2, §4, the builder half of §5 and §9's parts
+4, 6 and 7 are superseded: there is no pre-trip builder, `TripDraft` or `new-trip` surface.
 
 Mitchell's asks, in order:
 
