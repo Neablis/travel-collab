@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { AskAnswer, AssistantAsk, AssistantHandOff, AssistantOptions, HandOffTo } from "@tc/contracts";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Picker, type PickerAnswer, type PickerOther } from "@/components/ui/picker";
+import { ChoiceRow, Picker, type PickerAnswer, type PickerOther } from "@/components/ui/picker";
 import { PlaceSearch } from "@/components/places/PlaceSearch";
 import { runPaletteCommand } from "@/components/palette/paletteRegistry";
 import { TAG_LABEL } from "@/lib/activityTags";
@@ -134,28 +134,19 @@ function OptionCards({ options, busy, onAnswer }: { options: AssistantOptions; b
   return (
     <ul aria-label={options.prompt} className="flex flex-col gap-2">
       {options.cards.map((card) => (
-        <li key={card.id} className="flex items-center justify-between gap-3 rounded-md border border-hairline px-3 py-2">
-          <span className="flex min-w-0 flex-col">
-            <span className="text-sm font-semibold text-ink">{card.name}</span>
-            <span className="text-xs text-slate">
-              {card.kind === "place"
-                ? [card.area, card.city].filter(Boolean).join(", ")
-                : `${card.cities.join(", ")}${card.cities.length > 0 ? " · " : ""}${card.stopCount} stop${card.stopCount === 1 ? "" : "s"}`}
-            </span>
-          </span>
-          {onAnswer !== undefined && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              aria-label={`Choose ${card.name}`}
-              disabled={busy}
-              onClick={() => onAnswer(card.name, { answeredAsk: options.id, question: options.prompt, optionIds: [card.id], other: null })}
-            >
-              Choose
-            </Button>
-          )}
-        </li>
+        <ChoiceRow
+          key={card.id}
+          name={card.name}
+          detail={
+            card.kind === "place"
+              ? [card.area, card.city].filter(Boolean).join(", ")
+              : `${card.cities.join(", ")}${card.cities.length > 0 ? " · " : ""}${card.stopCount} stop${card.stopCount === 1 ? "" : "s"}`
+          }
+          disabled={busy}
+          {...(onAnswer !== undefined && {
+            onChoose: () => onAnswer(card.name, { answeredAsk: options.id, question: options.prompt, optionIds: [card.id], other: null }),
+          })}
+        />
       ))}
     </ul>
   );

@@ -46,6 +46,16 @@ import { NEW_TRIP_PARAM } from "@/lib/homePath";
 const ACCOUNT_SCOPE = { kind: "account" } as const;
 
 /**
+ * **Where New trip lands: the trip's Plan.** A bare `/trips/<id>` opens on
+ * Overview (`landingView`), which is read-only, and a trip just made is one to
+ * plan (Mitchell, 2026-10-30). Both New trip surfaces, the sheet and the first
+ * run, go here.
+ */
+function newTripHref(tripId: string): string {
+  return `/trips/${tripId}?view=Plan`;
+}
+
+/**
  * Home's list with its assistant, once opened, docked beside it: a flex row, so the rail
  * takes its width from the list as on the trip page, rather than lying over it.
  */
@@ -741,7 +751,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
           // having already been navigated away from it (CI, PR 32).
           onCreated={(tripId, { navigate }) => {
             if (navigate) {
-              router.push(`/trips/${tripId}`);
+              router.push(newTripHref(tripId));
             } else {
               void load();
             }
@@ -850,7 +860,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
               onDone={(tripId, navigate) => {
                 setNewTripHandOff(null);
                 if (tripId !== null && navigate) {
-                  router.push(`/trips/${tripId}`);
+                  router.push(newTripHref(tripId));
                 } else {
                   void load();
                 }
