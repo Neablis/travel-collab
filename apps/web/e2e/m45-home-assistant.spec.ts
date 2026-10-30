@@ -52,7 +52,7 @@ test("asked to plan a new trip, Home's rail hands off to New trip with a button 
   await composer.fill("help me plan a foodie trip somewhere new");
   await composer.press("Enter");
   const handOff = rail(page).getByRole("group", { name: "Where this is done" });
-  await handOff.getByRole("button", { name: "Start a new trip" }).click();
+  await handOff.getByRole("link", { name: "Start a new trip" }).click();
   await expect(page.getByRole("dialog", { name: "New trip" })).toBeVisible();
 });
 

@@ -224,6 +224,8 @@ const PLAN_TURN_TOOL_NAMES = PLANNING_TOOL_NAMES.filter((n) => !WITHHELD_FROM_PL
 const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
 // The ui widgets (ADR-084), on every surface and so in every set above.
 const UI_TOOL_NAMES: readonly string[] = ["ask_user", "show_options", "hand_off"];
+// A set with no search to feed its cards is not offered `show_options` (`fedBy`).
+const UI_NO_CARDS: readonly string[] = ["ask_user", "hand_off"];
 /** The propose half of a planning turn — what a page turn must not hold. */
 const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
 const { getPage } = await import("@/server/pages");
@@ -2031,7 +2033,7 @@ describe("POST /api/trips/:id/ask", () => {
         records.push(r),
       );
       await res.text();
-      expect(records[0]!.offeredTools).toEqual(["read_trip", "read_day", ...UI_TOOL_NAMES]);
+      expect(records[0]!.offeredTools).toEqual(["read_trip", "read_day", ...UI_NO_CARDS]);
     });
 
     it("carries no proposal when the turn was only a question", async () => {
@@ -2330,7 +2332,7 @@ describe("POST /api/trips/:id/ask", () => {
       // fourteen days to decide which live widgets to insert.
       expect(records[0]!.classification?.taskClass).toBe("compose");
       expect(records[0]!.offeredTools.sort()).toEqual(
-        ["read_trip", "search_widgets", "get_widget", "insert_text", "insert_widget", "switch_intent", "go_to", "propose_notebook_editing", ...UI_TOOL_NAMES].sort(),
+        ["read_trip", "search_widgets", "get_widget", "insert_text", "insert_widget", "switch_intent", "go_to", "propose_notebook_editing", ...UI_NO_CARDS].sort(),
       );
       for (const name of WRITE_ONLY_NAMES) {
         expect(records[0]!.offeredTools, `a page turn must not be offered ${name}`).not.toContain(name);

@@ -40,6 +40,7 @@ import { newTripCommand } from "@/components/palette/commands";
 import { PAGE_SOURCES, usePaletteSource } from "@/components/palette/paletteRegistry";
 import { AssistantAskButton, BeyondTripAssistant } from "@/components/assistant/BeyondTripAssistant";
 import { clearSignedInHint } from "@/lib/sessionHint";
+import { NEW_TRIP_PARAM } from "@/lib/homePath";
 
 /** Home's assistant answers across every trip you travelled on (M45 D7). */
 const ACCOUNT_SCOPE = { kind: "account" } as const;
@@ -549,6 +550,23 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
     clearSignedInHint();
     router.replace("/");
   }, [unauthenticated, router]);
+
+  // **Arriving to start a trip** (ADR-084 §2): an assistant hand-off's "Start a
+  // new trip" on a page without New trip links to `NEW_TRIP_PATH`, which opens
+  // it here through the page-head button's own `startNewTrip`. Once the list is
+  // known, since that decides which way it opens, and not while a demo copy
+  // holds it shut. The param goes at once, so a reload or Back does not reopen
+  // it. Read once, on the first client render; the effect has no deps because
+  // `startNewTrip` is a new function every render and the ref is its guard.
+  const arrivedToStart = useRef(typeof window !== "undefined" && new URLSearchParams(window.location.search).has(NEW_TRIP_PARAM));
+  useEffect(() => {
+    if (!arrivedToStart.current || trips === null || unauthenticated || cloningDemo) return;
+    arrivedToStart.current = false;
+    const url = new URL(window.location.href);
+    url.searchParams.delete(NEW_TRIP_PARAM);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    startNewTrip();
+  });
 
   // ⌘K's *New trip* is this page's button (ADR-068): the same function, under
   // the same `disabled`.

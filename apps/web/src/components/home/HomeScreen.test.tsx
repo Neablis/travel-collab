@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import { ListedTripSummary, type TripSummary } from "@tc/contracts";
 import { tripDetailFixture, historyFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 import { formatMoney } from "@/lib/formatMoney";
+import { NEW_TRIP_PATH } from "@/lib/homePath";
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
@@ -611,6 +612,16 @@ describe("Home page head", () => {
 
     expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+
+  // M56 part 5 review: an assistant hand-off's "Start a new trip" on a page
+  // without New trip reloaded the landing page. It links here now.
+  it("opens New trip when it is arrived at to start one, and drops the ask from the address", async () => {
+    window.history.replaceState(null, "", NEW_TRIP_PATH);
+    onTestFinished(() => window.history.replaceState(null, "", "/"));
+    renderHome([tripSummaryFixture()]);
+    expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    expect(window.location.search).toBe("");
   });
 
   it("does not invite a next trip while there are other trips to show", async () => {

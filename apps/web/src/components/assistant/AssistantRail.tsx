@@ -833,6 +833,15 @@ export function AssistantRail({
     }
   };
 
+  // A question's or a card's answer, through the composer's gates as well, and
+  // focus to the composer: the button pressed is gone once the answer is in.
+  const answerShut = asking || threadFull || upgradeGated;
+  const sendAnswer = (text: string, answer: AskAnswer) => {
+    if (answerShut) return;
+    void onAsk(text, answer);
+    composerRef.current?.focus();
+  };
+
   // ⌘K's hand-off, through the same gate as the Ask button. Unlike a typed
   // question it never clears the box, which may hold a draft of its own: one
   // that has to wait, or is refused, goes in after that draft, not over it.
@@ -1133,7 +1142,8 @@ export function AssistantRail({
               turns={turns}
               onApproveProposal={onApproveProposal}
               onRejectProposal={onRejectProposal}
-              onAnswer={(text, answer) => void onAsk(text, answer)}
+              onAnswer={sendAnswer}
+              answering={answerShut}
               approvalBlockedReason={approvalBlockedReason}
               touch={isSheet}
               {...(onUndoProposal === undefined ? {} : { onUndoProposal })}

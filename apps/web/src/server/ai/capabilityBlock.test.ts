@@ -4,33 +4,32 @@
 // instruction, so a block added to one reaches the others only if checked.
 import { describe, expect, it } from "vitest";
 import { accountInstructionBlocks, instructionsFor, playbookInstructionBlocks } from "@/server/ai/handleAskRequest";
-import { CHANGE_IN, capabilitiesOf, capabilityBlock, changeDomains } from "@/server/assistant/capabilities";
+import { CHANGE_IN, capabilitiesOf, capabilityBlock, changeDomains, type ChangeLimit } from "@/server/assistant/capabilities";
 import { SURFACES, type SurfaceKind } from "@/server/assistant/grants";
 import { renderPrompt } from "@/server/assistant/prompt";
 
 const PAGE_ID = "11111111-1111-4111-8111-111111111111";
 
-const INSTRUCTION: Readonly<Record<SurfaceKind, (upgradable: boolean) => string>> = {
-  trip: (upgradable) => instructionsFor({ kind: "trip" }, 3, "propose", null, false, undefined, "12h", [], [], upgradable),
-  day: (upgradable) => instructionsFor({ kind: "day", dayIndex: 0 }, 3, "propose", null, false, undefined, "12h", [], [], upgradable),
-  page: (upgradable) =>
-    instructionsFor({ kind: "page", pageId: PAGE_ID }, 3, "propose", { title: "Food" }, false, undefined, "12h", [], [], upgradable),
-  account: (upgradable) => renderPrompt(accountInstructionBlocks({ kind: "account" }, "12h", upgradable)),
-  "playbook-day": (upgradable) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "playbook-day", "12h", upgradable)),
-  playbook: (upgradable) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "playbook", "12h", upgradable)),
-  discover: (upgradable) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "discover", "12h", upgradable)),
-  city: (upgradable) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "city", "12h", upgradable)),
-  tag: (upgradable) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "tag", "12h", upgradable)),
+const INSTRUCTION: Readonly<Record<SurfaceKind, (limit: ChangeLimit) => string>> = {
+  trip: (limit) => instructionsFor({ kind: "trip" }, 3, "propose", null, false, undefined, "12h", [], [], limit),
+  day: (limit) => instructionsFor({ kind: "day", dayIndex: 0 }, 3, "propose", null, false, undefined, "12h", [], [], limit),
+  page: (limit) => instructionsFor({ kind: "page", pageId: PAGE_ID }, 3, "propose", { title: "Food" }, false, undefined, "12h", [], [], limit),
+  account: (limit) => renderPrompt(accountInstructionBlocks({ kind: "account" }, "12h", limit)),
+  "playbook-day": (limit) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "playbook-day", "12h", limit)),
+  playbook: (limit) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "playbook", "12h", limit)),
+  discover: (limit) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "discover", "12h", limit)),
+  city: (limit) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "city", "12h", limit)),
+  tag: (limit) => renderPrompt(playbookInstructionBlocks({ kind: "account" }, "tag", "12h", limit)),
 };
 
 const SURFACE_KINDS = Object.keys(SURFACES) as SurfaceKind[];
 
 describe("the capability block", () => {
-  it.each(SURFACE_KINDS.flatMap((surface) => [[surface, false] as const, [surface, true] as const]))(
-    "reaches the instruction on %s (upgradable: %s)",
-    (surface, upgradable) => {
-      const lines = INSTRUCTION[surface](upgradable).split("\n");
-      for (const line of renderPrompt(capabilityBlock(surface, upgradable)).split("\n")) expect(lines, surface).toContain(line);
+  it.each(SURFACE_KINDS.flatMap((surface) => [[surface, null] as const, [surface, "plan"] as const, [surface, "role"] as const]))(
+    "reaches the instruction on %s (limit: %s)",
+    (surface, limit) => {
+      const lines = INSTRUCTION[surface](limit).split("\n");
+      for (const line of renderPrompt(capabilityBlock(surface, limit)).split("\n")) expect(lines, surface).toContain(line);
     },
   );
 
@@ -55,12 +54,32 @@ describe("the capability block", () => {
   it("offers upgrade only to a turn whose plan holds no changes", () => {
     for (const surface of SURFACE_KINDS) {
       expect(capabilitiesOf(surface).targets, surface).not.toContain("upgrade");
-      expect(capabilitiesOf(surface, true).targets, surface).toContain("upgrade");
+      expect(capabilitiesOf(surface, "plan").targets, surface).toContain("upgrade");
+      expect(capabilitiesOf(surface, "role").targets, surface).not.toContain("upgrade");
       expect(capabilitiesOf(surface).targets, surface).toContain("nowhere");
     }
   });
 
+  // M56 part 5 review: a viewer's trip turn was told *"From this page you can
+  // change the trip's plan"* beside *"You can READ this trip and nothing
+  // else"*, and to hand off a change no page lets them make.
+  it("tells a viewer, and a plan without changes, that this turn changes nothing", () => {
+    for (const surface of ["trip", "day", "page"] as const) {
+      for (const limit of ["role", "plan"] as const) {
+        const { changes, elsewhere, targets } = capabilitiesOf(surface, limit);
+        expect({ changes, elsewhere }, `${surface}, ${limit}`).toEqual({ changes: [], elsewhere: [] });
+        expect(targets, `${surface}, ${limit}`).toEqual(limit === "role" ? ["new_trip", "nowhere"] : ["new_trip", "upgrade", "nowhere"]);
+      }
+    }
+    // A read-only trip turn naming no cause is told the role's narrower line.
+    const viewer = instructionsFor({ kind: "trip" }, 3, "read-only");
+    expect(viewer).toContain("From this page you can change nothing.");
+    expect(viewer).not.toContain("you can change the trip's plan");
+    expect(viewer).toContain("Their role on this trip lets them read it, not change it");
+    expect(viewer).not.toContain('"upgrade"');
+  });
+
   it("replaces Home's refusal line", () => {
-    expect(INSTRUCTION.account(false)).not.toContain("changes are made inside a trip");
+    expect(INSTRUCTION.account(null)).not.toContain("changes are made inside a trip");
   });
 });

@@ -6,13 +6,12 @@
         "read_trip",
         "read_day",
         "ask_user",
-        "show_options",
         "hand_off"
       ],
-      "toolChars": 4909,
-      "instructionChars": 2744,
-      "totalChars": 7653,
-      "approxTokens": 2312
+      "toolChars": 4258,
+      "instructionChars": 2637,
+      "totalChars": 6895,
+      "approxTokens": 2083
     },
     "trip · question": {
       "tools": [
@@ -154,13 +153,12 @@
         "go_to",
         "propose_notebook_editing",
         "ask_user",
-        "show_options",
         "hand_off"
       ],
-      "toolChars": 8684,
-      "instructionChars": 4327,
-      "totalChars": 13011,
-      "approxTokens": 3931
+      "toolChars": 8033,
+      "instructionChars": 4324,
+      "totalChars": 12357,
+      "approxTokens": 3733
     },
     "page · question": {
       "tools": [
@@ -177,8 +175,8 @@
         "hand_off"
       ],
       "toolChars": 9618,
-      "instructionChars": 2475,
-      "totalChars": 12093,
+      "instructionChars": 2472,
+      "totalChars": 12090,
       "approxTokens": 3653
     },
     "account · question": {
@@ -189,13 +187,12 @@
         "suggest_next_country",
         "open_trip",
         "ask_user",
-        "show_options",
         "hand_off"
       ],
-      "toolChars": 5660,
-      "instructionChars": 3365,
-      "totalChars": 9025,
-      "approxTokens": 2727
+      "toolChars": 5009,
+      "instructionChars": 3282,
+      "totalChars": 8291,
+      "approxTokens": 2505
     },
     "playbook day · question": {
       "tools": [
@@ -203,25 +200,23 @@
         "add_playbook_to_trip",
         "start_trip_with_playbook",
         "ask_user",
-        "show_options",
         "hand_off"
       ],
-      "toolChars": 4380,
-      "instructionChars": 3153,
-      "totalChars": 7533,
-      "approxTokens": 2276
+      "toolChars": 3729,
+      "instructionChars": 3070,
+      "totalChars": 6799,
+      "approxTokens": 2054
     },
     "playbook list · question": {
       "tools": [
         "search_this_page",
         "ask_user",
-        "show_options",
         "hand_off"
       ],
-      "toolChars": 3221,
-      "instructionChars": 2677,
-      "totalChars": 5898,
-      "approxTokens": 1782
+      "toolChars": 2570,
+      "instructionChars": 2594,
+      "totalChars": 5164,
+      "approxTokens": 1560
     }
   },
   "tools": {
