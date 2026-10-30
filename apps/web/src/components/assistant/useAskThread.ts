@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { STOPPED_EMPTY } from "@tc/contracts";
+import { ASK_ANSWER_PART, AskAnswer, STOPPED_EMPTY } from "@tc/contracts";
 import {
   ASK_ABORTED_CODE,
   askAssistant,
@@ -30,6 +30,16 @@ export function notAppliedNote(skipped: readonly string[]): string {
  */
 export function proposalFailedNote(message: string): string {
   return `\n\n${message}`;
+}
+
+/**
+ * A turn's parts on the wire: its words, and an answer as data beside them
+ * (ADR-084 §2). A stored answer this build cannot read is left off, so an old
+ * thread costs its data, never the whole request.
+ */
+function wireParts(text: string, answer: AskAnswer | undefined): AskWireMessage["parts"] {
+  const parsed = answer === undefined ? null : AskAnswer.safeParse(answer);
+  return [{ type: "text", text }, ...(parsed?.success ? [{ type: `data-${ASK_ANSWER_PART}` as const, data: parsed.data }] : [])];
 }
 
 /** Why a reply's page-leaving command waits while a card above is undecided: the card would not come along. */
@@ -86,7 +96,7 @@ export interface AskThread {
   /** Drops `restoredDraft` once the rail has it, so the next open does not restore it again. */
   clearRestoredDraft: () => void;
   /** Posts a turn. Deliberately not awaited by callers — see the board's own note. */
-  runAsk: (text: string) => Promise<void>;
+  runAsk: (text: string, answer?: AskAnswer) => Promise<void>;
   startNewConversation: () => void;
   /** Aborts the turn in flight and keeps the thread. See the implementation. */
   cancel: () => void;
@@ -328,8 +338,8 @@ export function useAskThread({
     saveAskThread(persistAs, thread);
   }, [persistAs, thread]);
 
-  const runAsk = async (text: string) => {
-    const userTurn: AssistantTurn = { id: nextTurnId("u"), role: "user", text };
+  const runAsk = async (text: string, answer?: AskAnswer) => {
+    const userTurn: AssistantTurn = { id: nextTurnId("u"), role: "user", text, ...(answer !== undefined && { answer }) };
     const answerId = nextTurnId("a");
     // `thread` from this render's closure is the thread the user is looking at:
     // only one turn can be in flight (the composer and the suggestion chips are
@@ -340,8 +350,8 @@ export function useAskThread({
         // a partial one is kept — and an empty `parts` array is not a message
         // the server's validator will accept.
         .filter((turn) => turn.text.trim() !== "")
-        .map((turn) => ({ id: turn.id, role: turn.role, parts: [{ type: "text" as const, text: turn.text }] })),
-      { id: userTurn.id, role: "user" as const, parts: [{ type: "text" as const, text }] },
+        .map((turn) => ({ id: turn.id, role: turn.role, parts: wireParts(turn.text, turn.role === "user" ? turn.answer : undefined) })),
+      { id: userTurn.id, role: "user" as const, parts: wireParts(text, answer) },
     ];
     setThread((current) => [
       ...current,
@@ -433,6 +443,12 @@ export function useAskThread({
           // prepared for approval — text, not a card, because there is nothing
           // to approve.
           patchAnswer((turn) => ({ ...turn, text: `${turn.text}${proposalFailedNote(event.message)}` }));
+        } else if (event.type === "ask") {
+          patchAnswer((turn) => ({ ...turn, widget: { kind: "ask", ask: event.ask } }));
+        } else if (event.type === "options") {
+          patchAnswer((turn) => ({ ...turn, widget: { kind: "options", options: event.options } }));
+        } else if (event.type === "hand-off") {
+          patchAnswer((turn) => ({ ...turn, widget: { kind: "handOff", handOff: event.handOff } }));
         } else if (event.type === "palette") {
           // **Where the reply takes you, run by the page's own commands**
           // (ADR-072). Navigation runs now; a change becomes a card that runs

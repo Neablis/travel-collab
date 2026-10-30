@@ -58,6 +58,7 @@ import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { GO_TO_TOOL_NAME, OPEN_TRIP_TOOL_NAME, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME } from "@/server/assistant/tools/navigate";
 import { READ_CHAT_TOOL_NAME } from "@/server/assistant/tools/chat";
+import { ASK_USER_TOOL_NAME, HAND_OFF_TOOL_NAME } from "@/server/assistant/tools/ui";
 import { FIND_PLACES_NEAR_NOW_TOOL_NAME, type PlaceSearchReadout } from "@/server/assistant/tools/places";
 import {
   ADD_PLAYBOOK_TO_TRIP_TOOL_NAME,
@@ -1006,6 +1007,8 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   // composes, or — when no insert tool was handed over, the page's `question`
   // intent (ADR-058) — reads and answers.
   if (scope.kind === "page") return pageTurn(results, latestUserText(options), options);
+  const widget = uiTurn(results, latestUserText(options), options, scope.kind);
+  if (widget !== null) return widget;
   if (scope.kind === "account") return accountTurn(results, latestUserText(options), options);
   if (scope.kind === "playbook") return playbookTurn(results, latestUserText(options), options);
   const going = navigationTurn(results, latestUserText(options), options, false);
@@ -1092,6 +1095,64 @@ function navigationTurn(
   const done = resultFor<{ queued: boolean; refused?: string }>(results, toolName);
   if (done?.queued !== true) return speak([`I couldn't take you there: ${done?.refused ?? "it isn't on this trip."}`, SIMULATED_ASK_NOTICE]);
   return speak([editing ? "Approve the card below and I'll switch this notebook's editing." : "Taking you there now.", SIMULATED_ASK_NOTICE]);
+}
+
+// ---------------------------------------------------------------------------
+// Asking and handing off (ADR-084): one call, then a sentence
+// ---------------------------------------------------------------------------
+
+// What no surface can do, and a whole new trip from a page about none.
+const NOBODY_CAN = /\b(book|reserve|buy)\b.*\b(flights?|hotels?|tickets?|rooms?)\b/i;
+const NEW_TRIP_REQUEST = /\bplan\b.*\b(?:trip|adventure|holiday|vacation|getaway)\b/i;
+// Asked to choose for them: the one shape the simulated turn asks back.
+const CHOOSE_FOR_ME = /\bhelp me (?:decide|choose|pick)\b/i;
+
+// From Home, a change to one of their trips by name ("add a dinner to my Kyoto trip").
+const CHANGE_A_TRIP = /\b(?:add|move|remove)\b.*\bto my (.+?) trip\b/i;
+
+/** The widget a request ends in, as one call; null for anything else. */
+function uiCallFor(question: string, surface: AskScope["kind"]): ToolCall | null {
+  const aboutATrip = surface === "trip" || surface === "day";
+  if (NOBODY_CAN.test(question)) return call(HAND_OFF_TOOL_NAME, { task: "book travel", to: "nowhere" });
+  const trip = surface === "account" ? CHANGE_A_TRIP.exec(question)?.[1] : undefined;
+  if (trip !== undefined) return call(HAND_OFF_TOOL_NAME, { task: "change a trip", to: "plan_page", trip });
+  if (!aboutATrip && NEW_TRIP_REQUEST.test(question)) return call(HAND_OFF_TOOL_NAME, { task: "plan a new trip", to: "new_trip" });
+  if (CHOOSE_FOR_ME.test(question)) {
+    return call(ASK_USER_TOOL_NAME, {
+      question: "What should the day be about?",
+      options: [
+        { id: "food", label: "Food" },
+        { id: "sights", label: "Sights" },
+        { id: "slow", label: "Somewhere slow" },
+      ],
+    });
+  }
+  return null;
+}
+
+/**
+ * A request only a widget answers: the one call, then a sentence that matches
+ * what came of it. Null when the request is something else or no ui tool was
+ * handed over, so the turn is answered as it would have been.
+ */
+function uiTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike, surface: AskScope["kind"]): SimulatedStep | null {
+  const wanted = uiCallFor(question, surface);
+  if (wanted === null || !offered(options, wanted.toolName)) return null;
+  if (!results.some((result) => result.toolName === wanted.toolName)) {
+    return { content: [wanted], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  const done = resultFor<{ shown: boolean; refused?: string }>(results, wanted.toolName);
+  if (done?.shown !== true) return speak([`I couldn't: ${done?.refused ?? "that isn't something I can do from here."}`, SIMULATED_ASK_NOTICE]);
+  const to = (JSON.parse(wanted.input) as { to?: string }).to;
+  const sentence =
+    wanted.toolName === ASK_USER_TOOL_NAME
+      ? "Pick one and I'll plan around it."
+      : to === "nowhere"
+        ? "Booking isn't something this app can do."
+        : to === "plan_page"
+          ? "That change is made on the trip's plan."
+          : "New trip is where a trip starts.";
+  return speak([sentence, SIMULATED_ASK_NOTICE]);
 }
 
 // ---------------------------------------------------------------------------

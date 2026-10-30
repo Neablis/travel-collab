@@ -45,13 +45,24 @@ import type { AskToolPosture } from "./grants";
 /**
  * What a tool is ABOUT. Six values fixed by ADR-043 decision 2, and two the
  * playbook pages added (M45 D9): `playbook` is the one playbook on screen and
- * taking it into a trip, `playbookList` a list page's own list.
+ * taking it into a trip, `playbookList` a list page's own list. `ui` is how a
+ * turn ends when prose would strand the person (M56, ADR-084 §3): a question
+ * with a picker, cards to choose from, or a hand-off to where a task is done.
  *
  * A set membership rather than a predicate per tool, deliberately: the
  * requirement is auditability, and a set is readable at a glance where a
  * predicate is not.
  */
-export type ToolDomain = "itinerary" | "library" | "pages" | "places" | "account" | "system" | "playbook" | "playbookList";
+export type ToolDomain =
+  | "itinerary"
+  | "library"
+  | "pages"
+  | "places"
+  | "account"
+  | "system"
+  | "playbook"
+  | "playbookList"
+  | "ui";
 
 /**
  * What a tool DOES — five kinds, and there is still no `commit`: the only thing

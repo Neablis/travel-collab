@@ -29,7 +29,7 @@ import {
   phaseFor,
   planningStart,
 } from "./trips";
-import { grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
+import { endedIn, grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
 function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most open.", proposalCommands = 0): EvalTurn {
@@ -491,6 +491,26 @@ describe("reviewedChanges", () => {
 
   it("counts nothing for a turn that proposed nothing", () => {
     expect(reviewedChanges([{ type: "finish" }])).toBe(0);
+  });
+});
+
+// ADR-084: a turn that cannot do a task ends in a widget, and the eval reads
+// which one off the final chunk, never off the prose.
+describe("ended in a widget, and handed off to", () => {
+  const finish = (messageMetadata: unknown) => [{ type: "text-delta", delta: "That starts as a new trip." }, { type: "finish", messageMetadata }];
+
+  it("reads the widget off the final chunk, and none when it carried none", () => {
+    expect(endedIn(finish({ handOff: { task: "plan a trip", to: "new_trip" } }))).toEqual({ kind: "handOff", to: "new_trip" });
+    expect(endedIn(finish({ proposal: undefined }))).toBeNull();
+  });
+
+  it("fails a turn that declined in prose, or handed off somewhere else", () => {
+    const expected = accountExpectationFor("u-plan-new-trip", [], "eval-reader")!;
+    const said = (widget: EvalTurn["widget"]) => failing(grade({ ...turn({ toolCalls: [{ name: "hand_off", input: {} }] }), widget }, expected));
+    expect(said({ kind: "handOff", to: "new_trip" })).toEqual([]);
+    expect(said(null)).toEqual(["ends in a widget", "hands off to new_trip"]);
+    expect(said({ kind: "handOff", to: "nowhere" })).toEqual(["hands off to new_trip"]);
+    expect(said(undefined)).toEqual(["ends in a widget", "hands off to new_trip"]);
   });
 });
 

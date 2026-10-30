@@ -4,7 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { PageSummary, TimeWindow } from "@tc/contracts";
+import type { AskAnswer, PageSummary, TimeWindow } from "@tc/contracts";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
@@ -1163,7 +1163,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // the whole of it is posted back on every turn. It survives hiding the rail
   // (this component stays mounted) and dies with the page, which is the
   // honest lifetime for something the server keeps nothing of.
-  const submitAssistantAsk = async (text: string) => {
+  const submitAssistantAsk = async (text: string, answer?: AskAnswer) => {
     // A viewer's ask is refused here even though /ask itself admits a viewer
     // (ASK_MINIMUM_ROLE) and writes nothing. Kept deliberately, and still a
     // product call about who the assistant is offered to rather than a
@@ -1198,7 +1198,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // Deliberately NOT awaited: the answer streams for seconds, and the rail
     // clears its composer on whatever this resolves to. Accepting the ask is
     // the thing the composer waits for; the answer arrives in `thread`.
-    void ask.runAsk(text);
+    void ask.runAsk(text, answer);
     return true;
   };
 
@@ -1870,7 +1870,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               restoreDraft={ask.restoredDraft}
               onRestoreTaken={ask.clearRestoredDraft}
               onNewConversation={ask.startNewConversation}
-              onAsk={(text) => submitAssistantAsk(text)}
+              onAsk={(text, answer) => submitAssistantAsk(text, answer)}
               onApproveProposal={(turnId) => void approveProposal(turnId)}
               onRejectProposal={rejectProposal}
               onUndoProposal={undoProposal}

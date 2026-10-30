@@ -45,6 +45,11 @@ import {
   UserPreferences,
   type AssistantProposal,
   type AssistantSuggested,
+  ASK_ANSWER_PART,
+  type AskAnswer,
+  type AssistantAsk,
+  type AssistantHandOff,
+  type AssistantOptions,
   type PaletteCommandRef,
   type AdminReportAction,
   type ChangeRoleInput,
@@ -1744,11 +1749,15 @@ function askPath(where: AskWhere): string {
   }
 }
 
-/** An AI SDK v7 UIMessage, narrowed to the one part type this client sends. */
+/**
+ * An AI SDK v7 UIMessage, narrowed to the parts this client sends: its text
+ * first, and on a user message the answer to an `ask` as data after it
+ * (ADR-084 §2).
+ */
 export type AskWireMessage = {
   id: string;
   role: "user" | "assistant";
-  parts: { type: "text"; text: string }[];
+  parts: [{ type: "text"; text: string }, ...{ type: `data-${typeof ASK_ANSWER_PART}`; data: AskAnswer }[]];
 };
 
 // `ProposedChange` and `AssistantProposal` are `@tc/contracts` types since P6
@@ -1818,6 +1827,12 @@ export type AskEvent =
    * the proposal would have been.
    */
   | { type: "proposal-failed"; message: string }
+  /** A closed question the turn ended on (ADR-084 §2), drawn as a picker. */
+  | { type: "ask"; ask: AssistantAsk }
+  /** Cards to choose from, every field the server's. */
+  | { type: "options"; options: AssistantOptions }
+  /** A task this surface cannot do, and where it is done. */
+  | { type: "hand-off"; handOff: AssistantHandOff }
   /**
    * The palette commands the turn named (ADR-072), on the same final chunk and
    * after its outcome. Only ids the assistant may name reach here: the rest,
@@ -1977,6 +1992,9 @@ function outcomeEvent(metadata: AskStreamMetadata): AskEvent | null {
   if ("pageInserts" in metadata) return pageInsertsEvent(metadata.pageInserts.content, metadata.pageInserts.dropped ?? []);
   if ("composeError" in metadata) return { type: "page-error", message: metadata.composeError };
   if ("proposalFailed" in metadata) return { type: "proposal-failed", message: metadata.proposalFailed.message };
+  if ("ask" in metadata) return { type: "ask", ask: metadata.ask };
+  if ("options" in metadata) return { type: "options", options: metadata.options };
+  if ("handOff" in metadata) return { type: "hand-off", handOff: metadata.handOff };
   return null;
 }
 

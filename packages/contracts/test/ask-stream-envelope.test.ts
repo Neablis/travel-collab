@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId } from "../src";
+import { ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, AskAnswer, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId } from "../src";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const DAY_ID = "22222222-2222-4222-8222-222222222222";
@@ -495,5 +495,42 @@ describe("the retraction chunk", () => {
     expect(AskRetractData.safeParse({ ids: ["0", "aitxt-1"] }).success).toBe(true);
     expect(AskRetractData.safeParse({ partIds: ["0"] }).success).toBe(false);
     expect(AskRetractData.safeParse({ ids: [1] }).success).toBe(false);
+  });
+});
+
+describe("asking, showing and handing off (ADR-084 §2)", () => {
+  const ASK = {
+    id: "call-1",
+    question: "What should the trip be about?",
+    options: [
+      { id: "food", label: "Food" },
+      { id: "nightlife", label: "Nightlife" },
+    ],
+    multi: true,
+  };
+
+  it("is three outcomes, each held to the one-outcome rule", () => {
+    expect(AskStreamMetadata.safeParse({ ask: ASK }).success).toBe(true);
+    expect(AskStreamMetadata.safeParse({ handOff: { task: "Book a flight", to: "nowhere" } }).success).toBe(true);
+    const both = AskStreamMetadata.safeParse({ ask: ASK, handOff: { task: "Book a flight", to: "nowhere" } });
+    expect(both.error?.issues[0]?.message).toBe("a chunk carries one outcome, not ask and handOff");
+  });
+
+  it("keeps a plan-page hand-off's command only when the assistant may name it", () => {
+    const tripPlan = `go:trip:${TRIP_ID}:view:Plan`;
+    const read = (command: string, to = "plan_page") => {
+      const parsed = AskStreamMetadata.parse({ handOff: { task: "Add a stop", to, command } });
+      return "handOff" in parsed ? parsed.handOff.command : "no hand-off";
+    };
+    expect(read(tripPlan)).toBe(tripPlan);
+    expect(read("https://example.com/")).toBeUndefined();
+    expect(read(tripPlan, "new_trip")).toBeUndefined();
+  });
+
+  it("takes an answer only as ids and a constrained other, never free text", () => {
+    expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: ["food"], other: null }).success).toBe(true);
+    expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: [], other: { kind: "number", value: 14 } }).success).toBe(true);
+    expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: ["Somewhere I have not been"], other: null }).success).toBe(false);
+    expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: [], other: { kind: "text", value: "anything" } }).success).toBe(false);
   });
 });
