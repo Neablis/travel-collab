@@ -1400,7 +1400,8 @@ export async function handleBeyondTripAskRequest(
   const trips = newAccountTrips(userId, readAccountTrips);
   // The widget the turn ends in (ADR-084). About no trip, so a plan page is a
   // trip the person names, found the way `open_trip` finds one.
-  // No trip role here: a role is the trip's, checked where the plan page opens.
+  // No trip role here: a role is the trip's, so `planPageOf` checks it on the
+  // trip named, and a viewer's change is handed nowhere.
   const limit: ChangeLimit = grant.entitlements.has("ai.command") ? null : "plan";
   const uiOutcome = newUiOutcomeBuffer(
     capabilitiesOf(grant.surface, limit).targets,
@@ -1693,13 +1694,18 @@ function withUiOutcome(
  * matched by name as `open_trip` matches one (`tripsCalled`), but over every
  * trip they can open rather than only those they travel on, since a change
  * belongs on a trip they help plan too. Never chosen for them: no name, or
- * more than one fit, is refused so the model asks.
+ * more than one fit, is refused so the model asks. A trip they may only read
+ * is refused too: its plan page would refuse the change a second time, so the
+ * button would lead nowhere they can act.
  */
 async function planPageOf(trips: AccountTrips, name: string | undefined): Promise<{ command: string } | { refused: string }> {
   if (name === undefined) return { refused: "Name the trip they meant, as they said it, or ask them which." };
   const found = tripsCalled(await trips.load(), name);
   if (found.length === 0) return { refused: `They have no trip called “${name}”.` };
   if (found.length > 1) return { refused: `More than one of their trips is called “${name}”. Ask which.` };
+  if (!hasAtLeast(trips.userId, found[0]!.members, "editor")) {
+    return { refused: `Their role on “${name}” lets them read it, not change it. Say so plainly in one sentence; no page in this app lets them change it.` };
+  }
   return { command: `go:trip:${found[0]!.tripId}:view:Plan` };
 }
 
@@ -2567,7 +2573,9 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief, li
     ...(intent === "compose" ? [data("Widget shapes", WIDGET_SHAPE_WORDS)] : []),
     rule(`Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`),
     rule("Every money amount is an integer in the currency's minor units (cents), never a decimal."),
-    ...capabilityBlock("page", limit),
+    // By intent, since the intent is the turn's class: a compose set holds no
+    // search, so it is never told to show what one found.
+    ...capabilityBlock("page", limit, intent),
     scopeBlock(scope),
   ];
 }

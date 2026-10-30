@@ -412,6 +412,23 @@ describe("POST /api/ask on a playbook page", () => {
     expect(spokenIn(body)).toContain("not edit it");
   });
 
+  // M56 part 5 review: from Home, a viewer's change was handed to a plan page
+  // whose assistant then refused it a second time. No button; the model is told why.
+  it("does not hand a change off to the plan of a trip the asker cannot edit", async () => {
+    const prompts: unknown[] = [];
+    const res = await handleBeyondTripAskRequest(
+      ask("add a dinner to my Rome trip"),
+      scriptedStepsModel(
+        [[{ type: "tool-call", toolCallId: "off", toolName: "hand_off", input: JSON.stringify({ task: "add a dinner", to: "plan_page", trip: "Rome" }) }], ["You can only read Rome."]],
+        prompts,
+      ),
+      () => {},
+    );
+    const handOff = chunksIn(await res.text()).find((chunk) => (chunk.messageMetadata as { handOff?: unknown } | undefined)?.handOff !== undefined);
+    expect(handOff).toBeUndefined();
+    expect(JSON.stringify(prompts[1])).toContain("lets them read it, not change it");
+  });
+
   // D9: "The person names the trip and day." A call naming none is answered
   // with the question to ask, never a card.
   it("answers a write naming no trip with the question to ask, and no card", async () => {

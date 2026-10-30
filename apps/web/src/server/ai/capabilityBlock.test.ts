@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { accountInstructionBlocks, instructionsFor, playbookInstructionBlocks } from "@/server/ai/handleAskRequest";
 import { CHANGE_IN, capabilitiesOf, capabilityBlock, changeDomains, type ChangeLimit } from "@/server/assistant/capabilities";
-import { SURFACES, type SurfaceKind } from "@/server/assistant/grants";
+import { SURFACES, grantFor, postureFor, toolsFor, type SurfaceKind } from "@/server/assistant/grants";
 import { renderPrompt } from "@/server/assistant/prompt";
 
 const PAGE_ID = "11111111-1111-4111-8111-111111111111";
@@ -29,7 +29,9 @@ describe("the capability block", () => {
     "reaches the instruction on %s (limit: %s)",
     (surface, limit) => {
       const lines = INSTRUCTION[surface](limit).split("\n");
-      for (const line of renderPrompt(capabilityBlock(surface, limit)).split("\n")) expect(lines, surface).toContain(line);
+      // A page brief with no intent is a compose turn, so its block is that class's.
+      const block = capabilityBlock(surface, limit, surface === "page" ? "compose" : undefined);
+      for (const line of renderPrompt(block).split("\n")) expect(lines, surface).toContain(line);
     },
   );
 
@@ -77,6 +79,18 @@ describe("the capability block", () => {
     expect(viewer).not.toContain("you can change the trip's plan");
     expect(viewer).toContain("Their role on this trip lets them read it, not change it");
     expect(viewer).not.toContain('"upgrade"');
+  });
+
+  // M56 part 5 review: a notebook compose turn was told to call `show_options`,
+  // which that class's set never holds (no search feeds it there), so the call
+  // came back as a grant refusal and a wasted step.
+  it("names show_options only to a page turn whose class is offered it", () => {
+    const caps = { surface: "page", role: "propose", plan: "propose", classifier: "propose" } as const;
+    const told = (intent: "compose" | "question") =>
+      instructionsFor({ kind: "page", pageId: PAGE_ID }, 3, "propose", { title: "Food", intent }).includes("show_options");
+    const offered = (intent: "compose" | "question") => toolsFor(grantFor(caps), intent, postureFor(caps)).some((tool) => tool.name === "show_options");
+    expect([told("compose"), told("question")]).toEqual([offered("compose"), offered("question")]);
+    expect([told("compose"), told("question")]).toEqual([false, true]);
   });
 
   it("replaces Home's refusal line", () => {
