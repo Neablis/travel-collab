@@ -766,17 +766,17 @@ describe("Home first-run experience", () => {
     render(<HomeScreen />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
-    // The first question, and the field that answers it — no click-through.
-    expect(within(firstRun).getByRole("log", { name: "Conversation" }).textContent).toContain(
-      "Where are you going?",
-    );
+    // The first page, and the search that answers it — no click-through.
+    expect(within(firstRun).getByText("Step 1 of 5")).toBeTruthy();
     expect(within(firstRun).getByLabelText("Where are you going?")).toBeTruthy();
-    // And the opening line, which states the no-generation contract (§31.2)
+    // And the opening line, which states the nothing-made-yet contract (§31.2)
     // in Cass's voice (§35.8). No name to greet with here — the session read
     // below answers with no user — so she does not invent one.
-    expect(within(firstRun).getByRole("log").textContent).toContain(
-      "Hi, I’m Cass. I plan trips here — ask me a few things and I’ll draft your first one. Nothing is made until your last answer.",
-    );
+    expect(
+      within(firstRun).getByText(
+        "Hi, I’m Cass. I plan trips here — five quick picks and I’ll set up your first one. Nothing is made until you say so.",
+      ),
+    ).toBeTruthy();
   });
 
   // §35.8: *"first run: Hi Sam, I'm Cass"* — by the first word of a real name,
@@ -792,9 +792,7 @@ describe("Home first-run experience", () => {
     render(<HomeScreen />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
-    await waitFor(() =>
-      expect(within(firstRun).getByRole("log").textContent).toContain("Hi Sam, I’m Cass."),
-    );
+    expect(await within(firstRun).findByText(/^Hi Sam, I’m Cass\./)).toBeTruthy();
   });
 
   // **One conversation on the screen, not two.** The page head's "New trip"
@@ -858,7 +856,7 @@ describe("Home first-run experience", () => {
   //
   // The sheet wins now and `FirstTripStart` yields its conversation. Both
   // halves of the original concern still hold, and both are asserted here.
-  it("keeps the sheet and what was typed into it when the list lands empty", async () => {
+  it("keeps the sheet and what was picked in it when the list lands empty", async () => {
     const newTripId = "1a2b3c4d-5e6f-4789-9abc-def012345678";
     let resolveList!: (response: Response) => void;
     const listPending = new Promise<Response>((resolve) => {
@@ -872,6 +870,9 @@ describe("Home first-run experience", () => {
       // (CodeRabbit, PR #196). Each test still drives the session through
       // `getSessionMock` exactly as before; only the transport moved.
       if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.includes("/api/places")) {
+        return jsonResponse({ places: [{ kind: "city", city: "Osaka", days: 0, hasPlaybooks: false }] });
+      }
       if (url.endsWith("/api/trips") && init?.method === "POST") {
         return jsonResponse({ tripId: newTripId }, 201);
       }
@@ -891,21 +892,22 @@ describe("Home first-run experience", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
     const sheet = await screen.findByRole("dialog", { name: /new trip/i });
 
-    // Typing starts before the list has resolved, which is the whole point.
+    // Picking starts before the list has resolved, which is the whole point.
     await userEvent.type(within(sheet).getByLabelText("Where are you going?"), "Osaka");
+    await userEvent.click(await within(sheet).findByRole("button", { name: /^Osaka/ }));
 
     resolveList(jsonResponse({ trips: [] }));
     await screen.findByTestId("first-trip-start");
 
-    // The sheet is still here, and so is what was typed into it.
+    // The sheet is still here, and so is what was picked in it.
     expect(screen.getByRole("dialog", { name: /new trip/i })).toBeTruthy();
-    expect(screen.getByLabelText("Where are you going?")).toHaveProperty("value", "Osaka");
-    // Exactly one composer: the first-run screen yielded its conversation
-    // rather than putting a second field with the same name on the page.
+    expect(within(sheet).getByTestId("new-trip-decided").textContent).toBe("Osaka");
+    // Exactly one search: the first-run screen yielded its pages rather than
+    // putting a second field with the same name on the page.
     expect(screen.getAllByLabelText("Where are you going?")).toHaveLength(1);
     expect(screen.queryByTestId("first-trip-conversation")).toBeNull();
 
-    // And it still works: the typed name reaches the create.
+    // And it still works: the picked place names the trip.
     await userEvent.click(within(sheet).getByRole("button", { name: /^create an empty one$/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -943,10 +945,13 @@ describe("Home first-run experience", () => {
   // first-run empty state. CodeRabbit (PR #56, finding 3): the previous
   // version only asserted that *some* POST to /api/trips happened, which a
   // POST with no name, or the wrong name, would also satisfy.
-  it("creates a first trip from a name alone", async () => {
+  it("creates a first trip from a picked place alone", async () => {
     const created = { tripId, name: "Japan" };
     let listCallCount = 0;
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/places")) {
+        return jsonResponse({ places: [{ kind: "country", countryCode: "JP", name: "Japan", days: 0, hasPlaybooks: false }] });
+      }
       if (url.endsWith("/api/trips") && init?.method === "POST") return jsonResponse(created, 201);
       if (url.endsWith("/api/trips")) {
         listCallCount += 1;
@@ -971,8 +976,9 @@ describe("Home first-run experience", () => {
     render(<HomeScreen />);
     await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
     await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
+    await userEvent.click(await screen.findByRole("button", { name: /^Japan/ }));
 
-    // The first turn — *create an empty one* works from the name alone, which is why
+    // The first page — *create an empty one* works from the place alone, which is why
     // M15 needs no separate one-field first-run screen (decision 3).
     await userEvent.click(screen.getByRole("button", { name: "create an empty one" }));
 
