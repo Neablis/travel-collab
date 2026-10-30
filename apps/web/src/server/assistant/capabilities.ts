@@ -106,7 +106,7 @@ function showsOptions(surface: SurfaceKind, limit: ChangeLimit): boolean {
 
 const ROUTE_WORDS: Readonly<Record<CapabilityRoute, (aboutTrip: boolean) => string>> = {
   plan_page: (aboutTrip) => (aboutTrip ? `${HAND_OFF_TOOL_NAME} to "plan_page"` : `${HAND_OFF_TOOL_NAME} to "plan_page" with the trip they named`),
-  new_trip: () => `${HAND_OFF_TOOL_NAME} to "new_trip" for a trip that does not exist yet`,
+  new_trip: () => `${HAND_OFF_TOOL_NAME} to "new_trip" for a trip that does not exist yet, with what they said of it as its prefill and asks`,
   upgrade: () => `${HAND_OFF_TOOL_NAME} to "upgrade"`,
   nowhere: () => `${HAND_OFF_TOOL_NAME} to "nowhere"`,
   [GO_TO_TOOL_NAME]: () => `${GO_TO_TOOL_NAME} with the notebook, and they ask there`,

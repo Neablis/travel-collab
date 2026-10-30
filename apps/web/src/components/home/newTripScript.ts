@@ -1,4 +1,4 @@
-import type { ActivityTagDescribed, TripPace } from "@tc/contracts";
+import { NEW_TRIP_DAYS_MAX, type ActivityTagDescribed, type TripPace } from "@tc/contracts";
 
 /**
  * **New trip's pages, and a pure reducer over them** (M56 part 2, ADR-084 §1).
@@ -128,9 +128,9 @@ export function chipFor(length: NewTripAnswers["length"]): string | null {
   return Object.keys(LENGTH_DAYS).find((chip) => LENGTH_DAYS[chip] === length.days) ?? null;
 }
 
-/** The counter's bounds. No contract caps a trip; two months is past any trip this flow is for. */
+/** The counter's bounds. The top is the contract's, since a hand-off's length is held to it too. */
 export const LENGTH_MIN = 1;
-export const LENGTH_MAX = 60;
+export const LENGTH_MAX = NEW_TRIP_DAYS_MAX;
 
 /** Whether `page` holds an answer the reader may move on from. */
 export function isAnswered(answers: NewTripAnswers, page: NewTripPageId): boolean {

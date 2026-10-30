@@ -52,3 +52,19 @@ describe("a widget after a drafted change", () => {
     expect(deps.uiOutcome.outcome()).toBeNull();
   });
 });
+
+// M56 part 6: what the person already said rides the hand-off to New trip, the
+// fields the picker takes and the asks only the new trip can do.
+describe("hand_off to New trip", () => {
+  it("carries the prefill and asks into the outcome, and only to new_trip", async () => {
+    const prefill = { days: 14, tags: ["meal" as const] };
+    const asks = [{ said: "add a mezcal tasting", kind: "itinerary" as const }];
+    const deps = turn();
+    expect(await handOffTool.invoke({ task: "plan a food trip", to: "new_trip", prefill, asks }, deps)).toMatchObject({ shown: true });
+    expect(deps.uiOutcome.outcome()).toEqual({ handOff: { task: "plan a food trip", to: "new_trip", prefill, asks } });
+
+    const elsewhere = turn();
+    await handOffTool.invoke({ task: "book a flight", to: "nowhere", prefill, asks }, elsewhere);
+    expect(elsewhere.uiOutcome.outcome()).toEqual({ handOff: { task: "book a flight", to: "nowhere" } });
+  });
+});

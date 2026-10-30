@@ -8,10 +8,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 4258,
+      "toolChars": 4927,
       "instructionChars": 2637,
-      "totalChars": 6895,
-      "approxTokens": 2083
+      "totalChars": 7564,
+      "approxTokens": 2285
     },
     "trip · question": {
       "tools": [
@@ -27,10 +27,10 @@
         "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 10260,
+      "toolChars": 10929,
       "instructionChars": 3341,
-      "totalChars": 13601,
-      "approxTokens": 4109
+      "totalChars": 14270,
+      "approxTokens": 4311
     },
     "trip · question · under way": {
       "tools": [
@@ -47,10 +47,10 @@
         "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 11243,
+      "toolChars": 11912,
       "instructionChars": 3756,
-      "totalChars": 14999,
-      "approxTokens": 4531
+      "totalChars": 15668,
+      "approxTokens": 4734
     },
     "trip · edit": {
       "tools": [
@@ -78,10 +78,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 25925,
+      "toolChars": 26594,
       "instructionChars": 4855,
-      "totalChars": 30780,
-      "approxTokens": 9299
+      "totalChars": 31449,
+      "approxTokens": 9501
     },
     "trip · plan": {
       "tools": [
@@ -106,10 +106,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 24866,
+      "toolChars": 25535,
       "instructionChars": 5162,
-      "totalChars": 30028,
-      "approxTokens": 9072
+      "totalChars": 30697,
+      "approxTokens": 9274
     },
     "trip · unsure": {
       "tools": [
@@ -137,10 +137,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 25925,
+      "toolChars": 26594,
       "instructionChars": 4855,
-      "totalChars": 30780,
-      "approxTokens": 9299
+      "totalChars": 31449,
+      "approxTokens": 9501
     },
     "page · compose": {
       "tools": [
@@ -155,10 +155,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 8033,
+      "toolChars": 8702,
       "instructionChars": 4324,
-      "totalChars": 12357,
-      "approxTokens": 3733
+      "totalChars": 13026,
+      "approxTokens": 3935
     },
     "page · question": {
       "tools": [
@@ -174,10 +174,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 9618,
+      "toolChars": 10287,
       "instructionChars": 2472,
-      "totalChars": 12090,
-      "approxTokens": 3653
+      "totalChars": 12759,
+      "approxTokens": 3855
     },
     "account · question": {
       "tools": [
@@ -189,10 +189,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 5009,
-      "instructionChars": 3282,
-      "totalChars": 8291,
-      "approxTokens": 2505
+      "toolChars": 5678,
+      "instructionChars": 3486,
+      "totalChars": 9164,
+      "approxTokens": 2769
     },
     "playbook day · question": {
       "tools": [
@@ -202,10 +202,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 3729,
-      "instructionChars": 3070,
-      "totalChars": 6799,
-      "approxTokens": 2054
+      "toolChars": 4398,
+      "instructionChars": 3223,
+      "totalChars": 7621,
+      "approxTokens": 2302
     },
     "playbook list · question": {
       "tools": [
@@ -213,10 +213,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 2570,
-      "instructionChars": 2594,
-      "totalChars": 5164,
-      "approxTokens": 1560
+      "toolChars": 3239,
+      "instructionChars": 2798,
+      "totalChars": 6037,
+      "approxTokens": 1824
     }
   },
   "tools": {
@@ -235,6 +235,10 @@
     "search_widgets": {
       "chars": 1288,
       "approxTokens": 389
+    },
+    "hand_off": {
+      "chars": 1248,
+      "approxTokens": 377
     },
     "read_day": {
       "chars": 1245,
@@ -303,10 +307,6 @@
     "insert_playbook_day": {
       "chars": 586,
       "approxTokens": 177
-    },
-    "hand_off": {
-      "chars": 579,
-      "approxTokens": 175
     },
     "go_to": {
       "chars": 488,

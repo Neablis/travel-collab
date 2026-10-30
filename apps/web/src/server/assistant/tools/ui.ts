@@ -7,7 +7,7 @@
 // the model what is now on screen so its last sentence matches it. A second
 // widget in the same turn is refused: a turn ends one way.
 import { z } from "zod";
-import { AskOption, AskOther, HandOffTo, type AssistantOptionCard } from "@tc/contracts";
+import { AskOption, AskOther, CarriedAsks, HandOffTo, NewTripPrefill, type AssistantOptionCard } from "@tc/contracts";
 import { currentCallId } from "@/server/assistant/callScope";
 import { defineTool } from "@/server/assistant/defineTool";
 import { searchPlacesTool } from "@/server/assistant/tools/places";
@@ -99,7 +99,7 @@ export const showOptionsTool = defineTool({
 export const handOffTool = defineTool({
   name: HAND_OFF_TOOL_NAME,
   description:
-    "The only way to decline a task you understood: say where it is done, and a button there is shown under your answer. `to` is one of the targets your instructions name for this page. `task` is what they asked, in a few plain words. `trip` names one of their trips, as they said it, for plan_page from a page that is about no trip.",
+    "The only way to decline a task you understood: say where it is done, and a button there is shown under your answer. `to` is one of the targets your instructions name for this page. `task` is what they asked, in a few plain words. `trip` names one of their trips, as they said it, for plan_page from a page that is about no trip. For new_trip: `prefill` is what they said of the place (their words; they pick the result), length and tags, and `asks` each part only the trip can do, in their words, left there for them to press.",
   domain: "ui",
   effect: "steer",
   spend: "none",
@@ -107,6 +107,8 @@ export const handOffTool = defineTool({
     task: z.string().min(1).max(200),
     to: HandOffTo,
     trip: z.string().min(1).max(200).optional(),
+    prefill: NewTripPrefill.optional(),
+    asks: CarriedAsks.optional(),
   }),
   output: UiOutput,
   needs: ["uiOutcome"] as const,
@@ -122,7 +124,9 @@ export const handOffTool = defineTool({
       if ("refused" in found) return { shown: false, refused: found.refused };
       command = found.command;
     }
-    if (!deps.uiOutcome.set({ handOff: { task: input.task, to: input.to, ...(command !== undefined && { command }) } })) {
+    // Only New trip has a picker to fill and a trip to carry asks into.
+    const carried = input.to === "new_trip" ? { ...(input.prefill && { prefill: input.prefill }), ...(input.asks && { asks: input.asks }) } : {};
+    if (!deps.uiOutcome.set({ handOff: { task: input.task, to: input.to, ...(command !== undefined && { command }), ...carried } })) {
       return { shown: false, refused: ALREADY };
     }
     return {

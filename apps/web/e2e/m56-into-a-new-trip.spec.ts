@@ -50,35 +50,27 @@ test.describe("Plan with AI", () => {
   });
 });
 
-test("a hand-off opens New trip prefilled, and its carried ask is a chip on the new trip until pressed", async ({ page }) => {
+// The writer end to end (PR 643): Home's rail hands the request to New trip
+// with what it said of the trip, the picker opens with it, and the part only
+// a trip can do waits on the new trip as a chip, past a reload, until pressed.
+test("Home's rail hands a trip to New trip prefilled, and its other ask is a chip on the new trip until pressed", async ({ page }) => {
   // A Home with trips, whose New trip is the sheet rather than the first run.
-  // Banked from a page that takes no hand-off: a Home already open would take
-  // it as soon as its list showed the new trip.
-  await page.goto("/playbooks");
+  await page.goto("/home");
   await createMappedTrip(page, e2eTripName("M56Carry seed"), 1);
-
-  // What an assistant's hand-off banks (`rememberNewTripHandOff`), as it banks it.
-  const place = e2eTripName("M56Carry");
-  const mezcal = "add a mezcal tasting";
-  await page.evaluate(
-    ({ place, mezcal }) =>
-      window.localStorage.setItem(
-        "pending_new_trip_hand_off",
-        JSON.stringify({ prefill: { place, days: 14, tags: ["meal"] }, asks: [{ said: mezcal, kind: "itinerary" }], at: Date.now() }),
-      ),
-    { place, mezcal },
-  );
-  await page.route(/\/api\/places\?/, (route) =>
-    route.fulfill({
-      json: { places: [{ kind: "world", id: `e2e-${place}`, name: place, detail: "Test place", lat: 0, lng: 0, hasPlaybooks: false }] },
-    }),
-  );
   await page.goto("/home");
 
-  // The place is searched for, not picked: Where still takes only a result.
+  const mezcal = "add a mezcal tasting";
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
+  const composer = rail(page).getByPlaceholder("Ask about your trips…");
+  await composer.fill(`plan me two weeks of food somewhere I haven't been, and ${mezcal}`);
+  await composer.press("Enter");
+  await rail(page).getByRole("group", { name: "Where this is done" }).getByRole("link", { name: "Start a new trip" }).click();
+
+  // Length and tags are answers already; the place is still the person's pick.
   const sheet = page.getByRole("dialog", { name: "New trip" });
-  await expect(sheet.getByLabel("Where are you going?")).toHaveValue(place);
-  await sheet.getByRole("button", { name: `${place}, Test place`, exact: true }).click();
+  await expect(sheet.getByLabel("Where are you going?")).toHaveValue("");
+  const place = e2eTripName("M56Carry");
+  await pickNewTripPlace(sheet, place);
   await expect(sheet.getByTestId("new-trip-decided")).toHaveText(`${place} · 2 weeks · Food`);
   const next = sheet.getByRole("button", { name: "Next" });
   await next.click();
@@ -100,11 +92,18 @@ test("a hand-off opens New trip prefilled, and its carried ask is a chip on the 
   const chips = rail(page).getByRole("list", { name: "You also asked" });
   const chip = chips.getByRole("button", { name: mezcal });
   await expect(chip).toBeVisible();
-  // Nothing runs unasked (D5): the chip is there and no turn has been sent.
-  expect(asks).toEqual([]);
+  // Kept beside the thread, so a reload offers it again.
+  await page.reload();
+  await page.getByTestId("ask-pill").click();
+  await expect(chip).toBeVisible();
 
   await chip.click();
   await expect(rail(page).getByRole("log", { name: "Conversation" })).toContainText(mezcal);
+  // Nothing ran unasked (D5): the one turn sent is the press.
   expect(asks).toEqual([mezcal]);
+  await expect(chips).toBeHidden();
+  await page.reload();
+  await page.getByTestId("ask-pill").click();
+  await expect(rail(page).getByRole("log", { name: "Conversation" })).toContainText(mezcal);
   await expect(chips).toBeHidden();
 });

@@ -1110,13 +1110,33 @@ const CHOOSE_FOR_ME = /\bhelp me (?:decide|choose|pick)\b/i;
 // From Home, a change to one of their trips by name ("add a dinner to my Kyoto trip").
 const CHANGE_A_TRIP = /\b(?:add|move|remove)\b.*\bto my (.+?) trip\b/i;
 
+// "plan me two weeks of food somewhere I haven't been, and add a mezcal
+// tasting": a new trip with a length and a theme said, and a part only the
+// trip can do. No place: none was named, and the hand-off carries only what was.
+const PLAN_ME_WEEKS = /\bplan me (one|two|three|\d+) weeks? of food\b/i;
+const AND_ALSO = /,\s*and (add .+?)[.!]?$/i;
+const WEEK_COUNT: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3 };
+
+/** The hand-off to New trip, with whatever the request said of the trip. */
+function newTripCall(question: string): ToolCall {
+  const weeks = PLAN_ME_WEEKS.exec(question)?.[1]?.toLowerCase();
+  if (weeks === undefined) return call(HAND_OFF_TOOL_NAME, { task: "plan a new trip", to: "new_trip" });
+  const also = AND_ALSO.exec(question)?.[1];
+  return call(HAND_OFF_TOOL_NAME, {
+    task: "plan a food trip",
+    to: "new_trip",
+    prefill: { days: 7 * (WEEK_COUNT[weeks] ?? Number(weeks)), tags: ["meal"] },
+    ...(also === undefined ? {} : { asks: [{ said: also, kind: "itinerary" }] }),
+  });
+}
+
 /** The widget a request ends in, as one call; null for anything else. */
 function uiCallFor(question: string, surface: AskScope["kind"]): ToolCall | null {
   const aboutATrip = surface === "trip" || surface === "day";
   if (NOBODY_CAN.test(question)) return call(HAND_OFF_TOOL_NAME, { task: "book travel", to: "nowhere" });
   const trip = surface === "account" ? CHANGE_A_TRIP.exec(question)?.[1] : undefined;
   if (trip !== undefined) return call(HAND_OFF_TOOL_NAME, { task: "change a trip", to: "plan_page", trip });
-  if (!aboutATrip && NEW_TRIP_REQUEST.test(question)) return call(HAND_OFF_TOOL_NAME, { task: "plan a new trip", to: "new_trip" });
+  if (!aboutATrip && (NEW_TRIP_REQUEST.test(question) || PLAN_ME_WEEKS.test(question))) return newTripCall(question);
   if (CHOOSE_FOR_ME.test(question)) {
     return call(ASK_USER_TOOL_NAME, {
       question: "What should the day be about?",

@@ -9,6 +9,7 @@ import { PlaceSearch } from "@/components/places/PlaceSearch";
 import { runPaletteCommand } from "@/components/palette/paletteRegistry";
 import { TAG_LABEL } from "@/lib/activityTags";
 import { NEW_TRIP_PATH } from "@/lib/homePath";
+import { rememberNewTripHandOff } from "@/lib/pendingCarriedAsks";
 
 /** The widget a turn ended in (ADR-084 §2): a question, cards, or a hand-off. */
 export type TurnWidgetState =
@@ -171,7 +172,8 @@ const HAND_OFF_COPY: Readonly<Record<HandOffTo, { says: string; button: string |
 /**
  * A decline with a way forward. Each button is a person pressing it, through
  * the page's own command or link. New trip is the palette's `new-trip` where
- * this page has one (Home), and otherwise a link to Home that opens it there.
+ * this page has one (Home), and otherwise a link to Home that opens it there,
+ * with what the hand-off knew of the trip (`lib/pendingCarriedAsks.ts`).
  */
 function HandOffCard({ handOff }: { handOff: AssistantHandOff }) {
   const { says, button } = HAND_OFF_COPY[handOff.to];
@@ -192,6 +194,9 @@ function HandOffCard({ handOff }: { handOff: AssistantHandOff }) {
             href={NEW_TRIP_PATH}
             className={buttonVariants({ variant: "secondary", size: "sm" })}
             onClick={(event) => {
+              // Banked first, on either path: the palette's open reads it at
+              // once, and Home's `?new=trip` reads it on arrival.
+              rememberNewTripHandOff({ prefill: handOff.prefill ?? {}, asks: handOff.asks ?? [] });
               if (runPaletteCommand("new-trip")) event.preventDefault();
             }}
           >

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { notebookEditingCommand } from "@/components/palette/commands";
 import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
 import { NEW_TRIP_PATH } from "@/lib/homePath";
+import { takeNewTripHandOff } from "@/lib/pendingCarriedAsks";
 import { offerPaletteCommand } from "./runPaletteCommands";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "./Transcript";
 
@@ -644,6 +645,19 @@ describe("a turn that ends in a widget", () => {
     render(<Transcript turns={NEW_TRIP_TURNS} />);
     await userEvent.click(screen.getByRole("link", { name: "Start a new trip" }));
     expect(startNewTrip).toHaveBeenCalledOnce();
+  });
+
+  // M56 part 6: what the person said of the trip is banked before New trip
+  // opens, so the open that the press runs finds it.
+  it("banks the hand-off's prefill and asks before New trip opens", async () => {
+    const prefill = { days: 14, tags: ["meal" as const] };
+    const asks = [{ said: "add a mezcal tasting", kind: "itinerary" as const }];
+    let found: unknown = "not opened";
+    onTestFinished(registerPaletteCommands("test", [{ id: "new-trip", action: "Add", type: "Trip", nearness: "global", run: () => void (found = takeNewTripHandOff()) }]));
+    const handOff: AssistantTurn = { id: "a2", role: "assistant", text: "", tools: [], pending: false, widget: { kind: "handOff", handOff: { task: "plan a food trip", to: "new_trip", prefill, asks } } };
+    render(<Transcript turns={[NEW_TRIP_TURNS[0]!, handOff]} />);
+    await userEvent.click(screen.getByRole("link", { name: "Start a new trip" }));
+    expect(found).toEqual({ prefill, asks });
   });
 
   // M56 part 5 review: off Home there is no `new-trip` command, and the

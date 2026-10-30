@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { ActivityTagDescribed } from "@tc/contracts";
+import { CarriedAsks, NewTripPrefill, type CarriedAsk } from "@tc/contracts";
+import { ASK_THREAD_PREFIX } from "./askOwnership";
 
 /**
  * **What rides the navigation into a new trip** (ADR-084 §5, M56 D5).
@@ -25,26 +26,10 @@ const INTO_TRIP_KEY = "pending_into_trip";
 /** Ten minutes, `pendingPlaybookAdd`'s budget: a create is seconds, a walk of the picker a few minutes. */
 export const PENDING_CARRIED_ASKS_MAX_AGE_MS = 10 * 60 * 1000;
 
-const CarriedAsk = z.object({ said: z.string().min(1).max(200), kind: z.string().min(1).max(40) });
-/** An ask a surface could not do before the trip existed: what was said, and what it needs. */
-export type CarriedAsk = z.infer<typeof CarriedAsk>;
-const Asks = z.array(CarriedAsk).max(6);
-
-/**
- * The picker's fields a hand-off may fill. `place` is a search, never a pick:
- * Where still takes only a result the person chooses (ADR-084 §7).
- */
-const NewTripPrefill = z.object({
-  place: z.string().min(1).max(200).optional(),
-  days: z.number().int().min(1).max(60).optional(),
-  tags: z.array(ActivityTagDescribed).max(12).optional(),
-});
-export type NewTripPrefill = z.infer<typeof NewTripPrefill>;
-
-const HandOffRecord = z.object({ prefill: NewTripPrefill, asks: Asks, at: z.number() });
+const HandOffRecord = z.object({ prefill: NewTripPrefill, asks: CarriedAsks, at: z.number() });
 export type NewTripHandOff = Omit<z.infer<typeof HandOffRecord>, "at">;
 
-const IntoTripRecord = z.object({ tripId: z.string(), kickoff: z.string().min(1).max(500).nullable(), asks: Asks, at: z.number() });
+const IntoTripRecord = z.object({ tripId: z.string(), kickoff: z.string().min(1).max(500).nullable(), asks: CarriedAsks, at: z.number() });
 export type IntoTrip = Omit<z.infer<typeof IntoTripRecord>, "at" | "tripId">;
 
 /** Every access is wrapped: Safari's private mode throws on `localStorage`. */
@@ -112,4 +97,37 @@ export function rememberIntoTrip(tripId: string, into: IntoTrip, now: number = D
 export function takeIntoTrip(tripId: string, now: number = Date.now()): IntoTrip | null {
   const record = take(INTO_TRIP_KEY, IntoTripRecord, now);
   return record === null || record.tripId !== tripId ? null : { kickoff: record.kickoff, asks: record.asks };
+}
+
+/**
+ * **The chips a new trip's rail still offers, kept beside its thread.** The
+ * kickoff is the thread's first turn and survives a reload there, so the asks
+ * that rode in with it must too, until each is pressed. Under the thread's own
+ * prefix and owned name (`thread`, `useOwnedAskName`'s), so sign-out's
+ * `forgetAskConversationsOf` forgets them with it.
+ */
+function carriedKey(thread: string): string {
+  return `${ASK_THREAD_PREFIX}:${thread}:carried`;
+}
+
+/** The asks still offered on conversation `thread`; none when nothing parses. Never throws. */
+export function loadCarriedAsks(thread: string): CarriedAsk[] {
+  try {
+    const raw = storage()?.getItem(carriedKey(thread)) ?? null;
+    if (raw === null) return [];
+    const asks = CarriedAsks.safeParse(JSON.parse(raw));
+    return asks.success ? asks.data : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Keeps `asks` as conversation `thread`'s chips; none left removes the key. Never throws. */
+export function saveCarriedAsks(thread: string, asks: readonly CarriedAsk[]): void {
+  try {
+    if (asks.length === 0) storage()?.removeItem(carriedKey(thread));
+    else storage()?.setItem(carriedKey(thread), JSON.stringify(asks));
+  } catch {
+    // See `remember`: the chips are still on screen, only not past a reload.
+  }
 }
