@@ -88,6 +88,7 @@ function clamp(n: number, min: number, max: number): number {
 // A native date input can fire `change` on a half-typed value in some
 // browsers, and `min` only steers its picker (`TripDateControl` records both).
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** The date input's value as an answer: a whole ISO date on or after `min`, else `null`. */
 export const dateAnswer = (raw: string, min: string | undefined): string | null =>
   ISO_DATE_RE.test(raw) && (min === undefined || raw >= min) ? raw : null;
 
