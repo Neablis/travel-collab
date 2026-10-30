@@ -321,7 +321,7 @@ describe("TripBoardScreen", () => {
     expect(screen.queryByTestId("ask-tab")).toBeNull();
   });
 
-  // PR 601 review: the tab bar holds the notebook's Ask, greyed, across the
+  // PR 601 review: the tab bar holds the notebook's Ask, inert, across the
   // move to the board until the board offers its own. A board that settles on
   // offering none must let it go, or a dead Ask stands for as long as the
   // reader stays.

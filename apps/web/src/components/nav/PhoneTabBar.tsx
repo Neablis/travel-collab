@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BookOpen, LayoutDashboard, List, Luggage, Map, NotebookText } from "lucide-react";
-import { useSessionUser } from "@/components/account/useSessionUser";
+import { useKnownSessionUser, useSessionUser } from "@/components/account/useSessionUser";
 import { landingView, resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
 import { useIndicator } from "@/lib/useIndicator";
@@ -454,24 +454,29 @@ function PhoneTabBarView({
  * where nothing registered: `/demo`, whose trip the assistant refuses
  * (KI-79), a locked notebook page, and the account pages.
  *
+ * Where the route says its screen will offer one, it is drawn before that
+ * screen registers (`useDeclaredPhoneAsk`), so it is in the server HTML and
+ * in the first frame after a move.
+ *
  * Exported so a screen's own test can render it beside the screen: the bar
  * itself needs a route, and the item is what the screen talks to. Without
- * `pathname` it holds nothing over (`useHeldPhoneAsk`).
+ * `pathname` it draws only what is registered.
  */
 export function PhoneAskTab({ pathname }: { pathname?: string }) {
-  const ask = useHeldPhoneAsk(pathname ?? null);
+  const ask = useDeclaredPhoneAsk(pathname ?? null);
   if (ask === null) return null;
-  const { held } = ask;
-  const open = ask.open && !held;
+  const { pending } = ask;
+  const open = ask.open && !pending;
   return (
     // The ghost button primitive, with its box undone back to a tab's: the
     // bar's links are not buttons, and this one item must sit exactly as
     // they do (same height, same gap, same label size).
     <Button
       variant="ghost"
-      // Held over from the screen before, whose assistant is gone: in its
-      // place, opening nothing, until the next screen offers its own.
-      disabled={held}
+      // Declared by the route, with no screen behind it yet: it opens nothing
+      // until the screen registers. Drawn as a live one is, not faded: the
+      // fade in and out on every move was the flicker (Mitchell, 2026-10-30).
+      disabled={pending}
       onClick={ask.onResume ?? ask.onOpen}
       // On a trip with a chat this is the one way into both, as the header's
       // pill is from 768px (M46), and named and dotted as that pill is.
@@ -480,7 +485,7 @@ export function PhoneAskTab({ pathname }: { pathname?: string }) {
       data-testid="ask-tab"
       className={cn(
         TAB_CLASS,
-        "h-auto rounded-none px-0 hover:bg-transparent",
+        "h-auto rounded-none px-0 hover:bg-transparent disabled:opacity-100",
         open ? "font-semibold text-brand hover:text-brand" : "font-normal text-slate hover:text-slate",
       )}
     >
@@ -509,33 +514,51 @@ function tripTabsOf(pathname: string): string | null {
 }
 
 /**
- * The registered Ask, or the last one seen in this trip, `held`, while a move
- * between its tabs has none (Mitchell's M54 phone walk: "The ask button keeps
- * disappearing and reappearing when I switch between the other tabs"). Board
- * and Notebook are different paths, so between them one screen unmounts,
- * taking its entry, and the next offers its own only once its trip lands.
- *
- * Held only onto a trip tab route of the trip it was seen in: both screens
- * there offer an Ask once loaded, so the item is not left standing for one
- * that never comes. A notebook page may offer none (a locked one), and
- * another trip's or the account pages' Ask is not this one, so those start
- * empty as before. A screen there that settles on none (its read failed, or a
- * demo's board) declines (`useDeclinePhoneAsk`), and the hold ends with it.
- * This is the bar remembering an entry, keyed by the route and dropped by it,
- * not a tab it lights (§13).
+ * Whether the screen on `pathname` offers every signed-in reader an Ask once
+ * it is up: Home (M45 D7), and a trip's board and notebook index. Not by plan:
+ * a reader without the assistant opens it onto the rail's call to upgrade
+ * (`upgradeGated`), and `/ask` refuses them whatever this says (Mitchell,
+ * 2026-10-30: "always have button render on mobile"). Not a notebook page,
+ * which may be locked, nor a playbook page, which offers one by plan.
  */
-function useHeldPhoneAsk(pathname: string | null): (PhoneAskEntry & { held: boolean }) | null {
+function routeOffersAsk(pathname: string): boolean {
+  return pathname === HOME_PATH || tripTabsOf(pathname) !== null;
+}
+
+/**
+ * The registered Ask or, where the route says its screen will offer one
+ * (`routeOffersAsk`) and it has not yet, the item `pending`, opening nothing.
+ * It was drawn only once registered, which is after the screen's read and
+ * never in the server HTML, so it popped in on every first load and every
+ * move from another layout (KI-2026-10-13-a; Mitchell, 2026-10-30: "when you
+ * first click into a trip, the ai ask button isn't there then it renders in").
+ * This is the declaration that entry's fix direction asks for, keyed by the
+ * route, and it replaces the hold between a trip's tabs (PR 601), which it
+ * covers: pending on the next tab, with the unread dot of the entry seen last
+ * in that trip.
+ *
+ * Not for a reader known to be signed out (they reach none of these routes),
+ * and not once the screen settles on offering none (`useDeclinePhoneAsk`): its
+ * read failed, or its trip is a demo's, which `/ask` refuses.
+ */
+function useDeclaredPhoneAsk(pathname: string | null): (PhoneAskEntry & { pending: boolean }) | null {
   const live = usePhoneAsk();
   const declines = usePhoneAskDeclines();
+  const signedOut = useKnownSessionUser() === null;
   const trip = pathname === null ? null : tripIdFromPathname(pathname);
-  const [last, setLast] = useState<{ entry: PhoneAskEntry; trip: string | null; declines: number } | null>(null);
-  // Keyed to the trip the entry was first seen in, not the route of every
-  // render: the bar renders the next route before the old screen's cleanup
-  // takes its entry back, and must not carry it into another trip then.
-  if (live !== null && live !== last?.entry) setLast({ entry: live, trip, declines });
-  if (live !== null) return { ...live, held: false };
-  if (last?.trip && last.declines === declines && pathname !== null && tripTabsOf(pathname) === last.trip) return { ...last.entry, held: true };
-  return null;
+  // The decline count when this route was reached: one since is this screen's.
+  const [arrival, setArrival] = useState({ pathname, declines });
+  if (arrival.pathname !== pathname) setArrival({ pathname, declines });
+  const declined = arrival.pathname === pathname && declines !== arrival.declines;
+  // The entry seen last, keyed to the trip it was first seen in, not the route
+  // of every render: the bar renders the next route before the old screen's
+  // cleanup takes its entry back, and must not carry its dot into another trip.
+  const [last, setLast] = useState<{ entry: PhoneAskEntry; trip: string | null } | null>(null);
+  if (live !== null && live !== last?.entry) setLast({ entry: live, trip });
+  if (live !== null) return { ...live, pending: false };
+  if (pathname === null || signedOut || declined || !routeOffersAsk(pathname)) return null;
+  const unread = trip !== null && last?.trip === trip ? last.entry.unread : undefined;
+  return { open: false, onOpen: () => {}, ...(unread === undefined ? {} : { unread }), pending: true };
 }
 
 /**

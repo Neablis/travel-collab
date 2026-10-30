@@ -23,10 +23,10 @@ vi.mock("next/navigation", () => ({
 // unless a test says otherwise — the state every test above the signed-out
 // block was written against, and the one in which the bar draws as it always has.
 let session: { id: string } | null | undefined = undefined;
-vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session }));
+vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session, useKnownSessionUser: () => session }));
 
 import { PhoneTabBar, PhoneTabBarFallback } from "./PhoneTabBar";
-import { usePhoneAskEntry } from "./phoneAsk";
+import { useDeclinePhoneAsk, usePhoneAskEntry } from "./phoneAsk";
 
 afterEach(() => {
   cleanup();
@@ -486,17 +486,17 @@ describe("PhoneTabBar", () => {
     // Mitchell, M54 phone walk: "The ask button keeps disappearing and
     // reappearing when I switch between the other tabs." Board → Notebook is a
     // path change: the board unmounts, a loading skeleton shows, and the
-    // notebook offers its Ask only once its trip lands. The item must hold its
+    // notebook offers its Ask only once its trip lands. The item must keep its
     // place through that gap, doing nothing, until the next screen offers one.
     // `{null}` where the screen was keeps the bar mounted, as the layout does.
-    it("holds its place, inert and closed, across a move between the trip's tabs until the next screen offers", () => {
+    it("keeps its place, inert and closed, across a move between the trip's tabs until the next screen offers", () => {
       url = "/trips/t1?view=Plan";
       const board = vi.fn();
       // Left with the board's assistant up (Back from the open sheet): the
-      // held item must not say an assistant is up when none is.
+      // pending item must not say an assistant is up when none is.
       const { rerender } = render(
         <>
-          <Screen onOpen={board} open />
+          <Screen onOpen={board} open unread={2} />
           <PhoneTabBar />
         </>,
       );
@@ -507,11 +507,13 @@ describe("PhoneTabBar", () => {
           <PhoneTabBar />
         </>,
       );
-      const held = screen.getByTestId("ask-tab");
+      const pending = screen.getByTestId("ask-tab");
       expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe("OverviewPlanMapNotebookAsk");
-      expect(held.hasAttribute("disabled")).toBe(true);
-      expect(held.getAttribute("aria-expanded")).toBe("false");
-      fireEvent.click(held);
+      expect(pending.hasAttribute("disabled")).toBe(true);
+      expect(pending.getAttribute("aria-expanded")).toBe("false");
+      // The trip's unread dot stays with it, so it does not blink either.
+      expect(pending.getAttribute("aria-label")).toBe("Ask or chat, 2 unread messages");
+      fireEvent.click(pending);
       expect(board).not.toHaveBeenCalled();
 
       const notebook = vi.fn();
@@ -525,22 +527,79 @@ describe("PhoneTabBar", () => {
       expect(notebook).toHaveBeenCalledTimes(1);
     });
 
+    // Mitchell on production, 2026-10-30: "when you first click into a trip,
+    // the ai ask button isn't there then it renders in". The route says the
+    // screen will offer one, so the item is there before it does, and in what
+    // the server renders, where nothing has registered.
     it.each([
-      ["another trip", "/trips/t2"],
-      ["the account pages", "/home"],
-      ["a notebook page, which may offer none", "/trips/t1/pages/p1"],
-    ])("holds nothing into %s", (_, to) => {
+      ["a trip's board", "/trips/t1", "OverviewPlanMapNotebookAsk"],
+      ["a trip's notebook index", "/trips/t1/pages", "OverviewPlanMapNotebookAsk"],
+      ["Home", "/home", "TripsPlaybooksAsk"],
+    ])("is drawn, inert, on %s before its screen offers one, in the server render too", (_, at, items) => {
+      session = { id: "u1" };
+      url = at;
+      render(<PhoneTabBar />);
+      expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe(items);
+      expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+      cleanup();
+      render(<PhoneTabBarFallback />);
+      expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe(items);
+    });
+
+    it.each([
+      ["a notebook page, which may be locked", "/trips/t1/pages/p1"],
+      ["a playbook page, which offers one by plan", "/playbooks"],
+    ])("is not drawn from the route on %s", (_, at) => {
+      session = { id: "u1" };
+      url = at;
+      render(<PhoneTabBar />);
+      expect(screen.queryByTestId("ask-tab")).toBeNull();
+    });
+
+    it("is not drawn from the route for a reader known to be signed out", () => {
+      session = null;
+      url = "/trips/t1";
+      render(<PhoneTabBar />);
+      expect(screen.queryByTestId("ask-tab")).toBeNull();
+    });
+
+    it("carries no unread dot into another trip", () => {
       url = "/trips/t1";
       const { rerender } = render(
         <>
-          <Screen onOpen={() => {}} />
+          <Screen onOpen={() => {}} unread={3} />
           <PhoneTabBar />
         </>,
       );
-      url = to;
+      url = "/trips/t2";
       rerender(
         <>
           {null}
+          <PhoneTabBar />
+        </>,
+      );
+      // Unnamed but for its visible "Ask": no chat, so no count to name.
+      expect(screen.getByTestId("ask-tab").hasAttribute("aria-label")).toBe(false);
+    });
+
+    // A screen that settles on none (its read failed, a demo's trip) declines,
+    // and the route's item goes with it rather than standing dead.
+    it("lets go of the route's item once the screen declines", () => {
+      function Declining({ declined }: { declined: boolean }) {
+        useDeclinePhoneAsk(declined);
+        return null;
+      }
+      url = "/trips/t1";
+      const { rerender } = render(
+        <>
+          <Declining declined={false} />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(screen.getByTestId("ask-tab")).toBeTruthy();
+      rerender(
+        <>
+          <Declining declined />
           <PhoneTabBar />
         </>,
       );

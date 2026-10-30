@@ -27,6 +27,21 @@
   → a notebook page still drops the Ask for that page's load, by design, since a locked page
   offers none. The hold is a second, bar-local source for whether an Ask is offered, beside
   the registration; the declaration below should replace it rather than sit beside it.
+- **Closed for Home and a trip's tabs, 2026-10-30 (M56 part 14).** Mitchell on production: "when
+  you first click into a trip, the ai ask button isn't there then it renders in", and from
+  Playbooks, Trips redrew the bar without its last item, which then flickered in. Both were this
+  gap: a trip's board registers only once its read lands (`boardRenders`), and `/playbooks` and
+  `/home` are under different layouts (`app/playbooks/live/layout.tsx`, `(app)/layout.tsx`), so
+  the move remounts `AppShell` and the bar starts again with nothing registered. The bar now
+  draws the item from the route where the screen offers every signed-in reader one
+  (`routeOffersAsk`: Home, a trip's board and notebook index), inert until the screen registers,
+  so it is in the server HTML and in every frame after a move (`m56-shell-first-paint.spec.ts`).
+  That replaces `useHeldPhoneAsk` (`useDeclaredPhoneAsk`); declines still end it. A reader
+  without the assistant gets the same item and opens it onto the rail's call to upgrade. **Still
+  open:** a notebook page (may be locked) and the playbook pages (offered by plan) still draw it
+  at hydration, and the bar itself still remounts between `/playbooks` and the `(app)` routes,
+  invisibly now that both first renders agree; one shell over both needs the playbooks tree
+  moved, which was part 13's route.
 - **What it means for M45 decision 3** ("the Ask is in the first paint, with no flash"): it
   holds from the `md` width up, where the page head's Ask is drawn from the served plan
   (`PlaybookAskButton`, PR 427) and is in the server HTML. **It does not yet hold on a phone.**

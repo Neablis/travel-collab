@@ -943,7 +943,7 @@ describe("NotebookScreen — the states between asked and answered", () => {
     expect(attempts).toBe(2);
   });
 
-  // PR 601 review: the tab bar holds the board's Ask, greyed, across the move
+  // PR 601 review: the tab bar holds the board's Ask, inert, across the move
   // here until this screen offers its own. A failed read offers none, so the
   // held one must go rather than stand dead in the bar.
   it("lets go of the Ask the tab bar holds from the board when its read fails", async () => {
