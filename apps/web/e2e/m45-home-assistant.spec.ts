@@ -44,6 +44,18 @@ test("asked to open a trip on the map, Home's rail lands on that trip's Map view
   await expect(page).toHaveURL(new RegExp(`/trips/${tripId}\\?view=Map$`));
 });
 
+// M56, ADR-084 §2: Home cannot plan a trip, so it hands the task to New trip
+// with a button instead of refusing in prose, and the button is New trip's own.
+test("asked to plan a new trip, Home's rail hands off to New trip with a button that opens it", async ({ page }) => {
+  await openRail(page);
+  const composer = rail(page).getByPlaceholder("Ask about your trips…");
+  await composer.fill("help me plan a foodie trip somewhere new");
+  await composer.press("Enter");
+  const handOff = rail(page).getByRole("group", { name: "Where this is done" });
+  await handOff.getByRole("button", { name: "Start a new trip" }).click();
+  await expect(page.getByRole("dialog", { name: "New trip" })).toBeVisible();
+});
+
 test("Home's rail opens on Ask, asks across your trips, and Hide closes it", async ({ page }) => {
   await openRail(page);
   const composer = rail(page).getByPlaceholder("Ask about your trips…");

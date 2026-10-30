@@ -37,6 +37,25 @@ Format:
   write the diff to the earlier state, which now includes `TripStyleSet`.
 - Breaking? no (additive, defaulted).
 
+## 2026-10-30 — `ask`, `options` and `handOff` outcomes, and `AskAnswer` (M56 part 5)
+- **Changed** (`packages/contracts/src/assistant.ts`): `AskStreamMetadata` gains three outcomes,
+  each held to the one-outcome rule: `ask` (`AssistantAsk`: a question, 2–6 `AskOption`s, `multi`,
+  `allowNone`, and an optional `AskOther` of kind `place`, `number`, `date` or `tags`), `options`
+  (`AssistantOptions`: a prompt and 1–6 `AssistantOptionCard`s, a `place` or a `day`, every field
+  but the id filled by the server), and `handOff` (`AssistantHandOff`: `task`, `to` from
+  `HandOffTo` — `new_trip`, `plan_page`, `upgrade`, `nowhere` — and a `plan_page`'s `command`,
+  dropped unless `isAssistantCommandId` allows it).
+- **New:** `AskAnswer` (`answeredAsk`, `optionIds`, `other` or null) and `ASK_ANSWER_PART`
+  (`"ask-answer"`): what the person picked, sent as a `data-ask-answer` part on their message.
+- Why: ADR-084 §2. A turn that cannot do a task ends in a sentence and a button rather than prose
+  alone, and a closed question's answer comes back as data, not text the model re-reads.
+- Consumers updated: `apps/web` — `server/ai/handleAskRequest.ts` builds the outcomes and
+  validates the data part on both ask doors; `lib/apiClient.ts` reads them into events;
+  `components/assistant/useAskThread.ts`, `Transcript.tsx` and `TurnWidget.tsx` draw them and
+  send the answer; `server/ai/eval/grade.ts` grades them — in this same PR.
+- Public API: no change. The ask stream is session-only and not in `openapi.json`.
+- Breaking? no (new branches; a reader on the previous build drops a chunk it cannot parse).
+
 ## 2026-10-27 — `ConnectedApp` (M55 part 5)
 - **New** (`packages/contracts/src/publicApi.ts`): `ConnectedApp`, one OAuth grant as Account →
   Connected apps lists it: `grantId`, `clientName`, `redirectHost`, `recognised`, `scopes`,

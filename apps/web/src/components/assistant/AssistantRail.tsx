@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { UnderlineTabs, tabId, tabPanelId } from "@/components/ui/underline-tabs";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
+import type { AskAnswer } from "@tc/contracts";
 import { clearAskDraft, loadAskDraft, saveAskDraft } from "./askThreadStore";
 import { useOwnedAskName } from "./useAskThread";
 import { cn } from "@/lib/cn";
@@ -310,7 +311,7 @@ export function AssistantRail({
   // (unsent edits still queued, or view-only access). The rail keeps the typed
   // prompt in that case — a refusal the user has to retype is a refusal that
   // reads as the box being broken.
-  onAsk: (text: string) => void | Promise<boolean | void>;
+  onAsk: (text: string, answer?: AskAnswer) => void | Promise<boolean | void>;
   /**
    * Commits an answer's proposal as ONE atomic batch (M9). Keyed by the turn
    * that carries it — the rail holds no proposal state of its own for the same
@@ -1119,6 +1120,7 @@ export function AssistantRail({
               turns={turns}
               onApproveProposal={onApproveProposal}
               onRejectProposal={onRejectProposal}
+              onAnswer={(text, answer) => void onAsk(text, answer)}
               approvalBlockedReason={approvalBlockedReason}
               touch={isSheet}
               {...(onUndoProposal === undefined ? {} : { onUndoProposal })}

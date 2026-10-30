@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { AskAnswer } from "@tc/contracts";
 import {
   AI_NOT_ENTITLED_CODE,
   createTrip,
@@ -77,7 +78,7 @@ export function BeyondTripAssistant({ scope }: { scope: { kind: "account" } }) {
       incoming={handOff}
       onIncomingTaken={() => setHandOff(null)}
       onNewConversation={ask.startNewConversation}
-      onAsk={(text: string) => void ask.runAsk(text)}
+      onAsk={(text: string, answer?: AskAnswer) => void ask.runAsk(text, answer)}
       asking={ask.asking}
       askError={ask.askError}
       askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
@@ -209,7 +210,7 @@ function OpenablePlaybookAssistant({ page, contextLine }: { page: PlaybookAskPag
       incoming={handOff}
       onIncomingTaken={() => setHandOff(null)}
       onNewConversation={ask.startNewConversation}
-      onAsk={(text: string) => void ask.runAsk(text)}
+      onAsk={(text: string, answer?: AskAnswer) => void ask.runAsk(text, answer)}
       onApproveProposal={(turnId) => void approve(turnId)}
       onRejectProposal={(turnId) => patchProposal(turnId, (state) => ({ ...state, status: "rejected" }))}
       asking={ask.asking}

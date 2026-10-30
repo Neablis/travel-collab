@@ -1913,9 +1913,9 @@ export function PageScreen({
           }}
           // Cleared before each turn, so a refusal is about the question just
           // asked and not the one before it.
-          onAsk={(text) => {
+          onAsk={(text, answer) => {
             setTurnRefusal(null);
-            void ask.runAsk(text);
+            void ask.runAsk(text, answer);
           }}
           asking={ask.asking}
           askError={ask.askError ?? turnRefusal}

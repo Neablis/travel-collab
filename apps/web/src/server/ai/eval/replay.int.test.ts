@@ -31,7 +31,7 @@ import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { replayTranscript, type AskTranscript } from "./transcript";
 import { accountExpectationFor, type SeededAccountTrip } from "./cases";
-import { grade, navigatedTo, retractedText, textBeforeToolCall, visibleText, type EvalCheck } from "./grade";
+import { endedIn, grade, navigatedTo, retractedText, textBeforeToolCall, visibleText, type EvalCheck } from "./grade";
 import { ACCOUNT_TRIPS, accountTripCommands, planningStart } from "./trips";
 
 const ACTOR_ID = "replay-actor";
@@ -442,13 +442,16 @@ describe("the live set's account questions, on the simulated model", () => {
     }
   });
 
-  it("asks all five", () => {
+  it("asks all seven", () => {
     expect(prompts.map((prompt) => prompt.id)).toEqual([
       "a-most-expensive-meal",
       "a-countries-count",
       "a-city-most",
       "a-next-country",
       "a-open-trip",
+      // ADR-084's two boundaries from Home: a new trip, and a change to one.
+      "u-plan-new-trip",
+      "u-change-from-home",
     ]);
   });
 
@@ -482,6 +485,7 @@ describe("the live set's account questions, on the simulated model", () => {
         textBeforeToolCall: textBeforeToolCall(chunks),
         retracted: retractedText(chunks),
         navigations: navigatedTo(chunks),
+        widget: endedIn(chunks),
       },
       accountExpectationFor(id, seeded, ACCOUNT_ASKER)!,
     );
