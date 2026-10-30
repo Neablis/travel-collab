@@ -222,15 +222,17 @@ export const placeSearchPort: PlaceSearchPort = createPlaceSearchPort({
 /**
  * A vendor result as the kernel's own vocabulary.
  *
- * `canonicalName` becomes `name` because that is the field that will be written
- * onto the stop if the model cites this candidate — see `ResolvedPlace`. The
+ * The place's own name becomes `name` because that is the field that will be
+ * written onto the stop if the model cites this candidate, and the title on its
+ * card — see `ResolvedPlace`. The whole address (`canonicalName`) only stands in
+ * for a result with no name of its own; `area` and `city` already say where. The
  * optional keys are spread conditionally rather than assigned `undefined`, so
  * the object a `Location` is later built from has no keys its schema would have
  * to tolerate as present-and-undefined.
  */
 function asResolvedPlace(result: GeocodeResult): Partial<ResolvedPlace> & { name: string } {
   return {
-    name: result.canonicalName,
+    name: result.name ?? result.canonicalName,
     lat: result.lat,
     lng: result.lng,
     ...(result.countryCode === undefined ? {} : { countryCode: result.countryCode }),
