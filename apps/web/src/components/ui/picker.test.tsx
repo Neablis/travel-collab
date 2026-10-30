@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { Picker, type PickerAnswer, type PickerOther } from "./picker";
+import { Picker, type PickerAnswer, type PickerOption, type PickerOther } from "./picker";
 
 // The picker is the only way New trip (M56 part 2) and the assistant's
 // `ask_user` (part 5) take an answer, and neither has a text box behind it to
@@ -27,14 +27,16 @@ function Harness({
   allowNone,
   other,
   options = OPTIONS,
+  initial = null,
 }: {
   onChange: (next: PickerAnswer | null) => void;
   multi?: boolean;
   allowNone?: boolean;
   other?: PickerOther;
-  options?: typeof OPTIONS;
+  options?: readonly PickerOption[];
+  initial?: PickerAnswer | null;
 }) {
-  const [value, setValue] = useState<PickerAnswer | null>(null);
+  const [value, setValue] = useState<PickerAnswer | null>(initial);
   return (
     <>
       <button type="button">before</button>
@@ -103,14 +105,18 @@ describe("Picker", () => {
     render(<Harness onChange={onChange} />);
     await user.tab();
     await user.tab();
-    await user.keyboard("{ArrowRight}");
-    expect(onChange).toHaveBeenLastCalledWith({ optionIds: ["steady"], other: null });
-    await user.keyboard("{ArrowLeft}{ArrowLeft}");
+    await user.keyboard("{ArrowLeft}");
     expect(onChange).toHaveBeenLastCalledWith({ optionIds: ["packed"], other: null });
-    // One more Tab leaves the group: Enter now presses "after", not an option.
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: ["steady"], other: null });
+    // Tab from a middle option leaves the group: Enter now presses "after".
     await user.tab();
     await user.keyboard("{Enter}");
     expect(onChange).toHaveBeenLastCalledWith(null);
+    // Coming back lands on the picked option, not the first or the last.
+    await user.tab({ shift: true });
+    await user.keyboard("{ArrowRight}");
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: ["packed"], other: null });
   });
 
   it("moves without picking when multi, and Space picks", async () => {
@@ -122,33 +128,89 @@ describe("Picker", () => {
     expect(onChange).not.toHaveBeenCalled();
     await user.keyboard(" ");
     expect(onChange).toHaveBeenLastCalledWith({ optionIds: ["steady"], other: null });
-    await user.keyboard("{ArrowRight}{Enter}");
-    expect(onChange).toHaveBeenLastCalledWith({ optionIds: ["steady", "packed"], other: null });
+    // Tab from the middle leaves; coming back is where the cursor was.
     await user.tab();
     await user.keyboard("{Enter}");
     expect(onChange).toHaveBeenLastCalledWith(null);
+    await user.tab({ shift: true });
+    await user.keyboard("{ArrowRight}{Enter}");
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: ["steady", "packed"], other: null });
   });
 
-  it("keeps a number other inside its bounds", async () => {
+  const LENGTH: PickerOther = { kind: "number", label: "Another length", min: 1, max: 3, initial: 2, unit: { one: "day", many: "days" } };
+
+  it("keeps a number other inside its bounds, and the keyboard on the stepper at them", async () => {
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} other={LENGTH} />);
+    await user.click(screen.getByRole("radio", { name: "Another length" }));
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 2 } });
+    await user.click(screen.getByRole("button", { name: "More days" }));
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 3 } });
+    // At the bound a press does nothing, and focus is still on More: the
+    // next Shift+Tab reaches Fewer.
+    onChange.mockClear();
+    await user.keyboard("{Enter}");
+    expect(onChange).not.toHaveBeenCalled();
+    await user.tab({ shift: true });
+    await user.keyboard("{Enter}{Enter}");
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 1 } });
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("status").textContent).toBe("1 day");
+  });
+
+  it("shows and steps a prefilled number from inside its bounds", async () => {
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} other={LENGTH} initial={{ optionIds: [], other: { kind: "number", value: 14 } }} />);
+    expect(screen.getByRole("status").textContent).toBe("3 days");
+    await user.click(screen.getByRole("button", { name: "Fewer days" }));
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 2 } });
+  });
+
+  it("answers a date other only with a whole day on or after its min", async () => {
     const onChange = vi.fn();
     render(
       <Harness
         onChange={onChange}
-        other={{ kind: "number", label: "Another length", min: 1, max: 3, initial: 2, unit: { one: "day", many: "days" } }}
+        options={[{ id: "later", label: "Not yet" }]}
+        other={{ kind: "date", label: "Pick a day", min: "2026-11-05" }}
       />,
     );
-    await user.click(screen.getByRole("radio", { name: "Another length" }));
-    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 2 } });
-    const more = screen.getByRole<HTMLButtonElement>("button", { name: "More days" });
-    const fewer = screen.getByRole<HTMLButtonElement>("button", { name: "Fewer days" });
-    await user.click(more);
-    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 3 } });
-    expect(more.disabled).toBe(true);
-    await user.click(fewer);
-    await user.click(fewer);
-    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 1 } });
-    expect(fewer.disabled).toBe(true);
-    expect(screen.getByRole("status").textContent).toBe("1 day");
+    await user.click(screen.getByRole("radio", { name: "Pick a day" }));
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "date", value: null } });
+    const day = screen.getByLabelText("Pick a day", { selector: "input" });
+    fireEvent.change(day, { target: { value: "2026-11-06" } });
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "date", value: "2026-11-06" } });
+    // `min` is only a hint to the native picker: a typed earlier day is no answer.
+    fireEvent.change(day, { target: { value: "2026-11-02" } });
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "date", value: null } });
+  });
+
+  it("answers a place other with the place its slot commits", async () => {
+    const onChange = vi.fn();
+    render(
+      <Harness
+        onChange={onChange}
+        other={{
+          kind: "place",
+          label: "Somewhere else",
+          slot: ({ commit, labelledBy }) => (
+            <button type="button" aria-labelledby={labelledBy} onClick={() => commit({ id: "p-seville", label: "Seville" })}>
+              search
+            </button>
+          ),
+        }}
+      />,
+    );
+    await user.click(screen.getByRole("radio", { name: "Somewhere else" }));
+    // Open with nothing committed is told apart from a picked place by its null.
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "place", value: null } });
+    // The slot is named by the question drawn above it.
+    await user.click(screen.getByRole("button", { name: "What pace?" }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      optionIds: [],
+      other: { kind: "place", value: { id: "p-seville", label: "Seville" } },
+    });
   });
 
   it("answers with tags from the tiles when the tags other is all there is", async () => {
@@ -158,5 +220,10 @@ describe("Picker", () => {
     await user.click(screen.getByRole("checkbox", { name: "Food" }));
     // Contract order, so the same picks never make two different arrays.
     expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "tags", value: ["meal", "beach"] } });
+    // The described tags only: lodging and the modifier are not what a trip is about.
+    expect(screen.queryByRole("checkbox", { name: "Lodging" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Ticketed" })).toBeNull();
+    // One group named by the question, not a second holding only "None of these".
+    expect(screen.getAllByRole("group", { name: "What pace?" })).toHaveLength(1);
   });
 });

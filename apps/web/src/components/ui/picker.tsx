@@ -14,27 +14,36 @@ import { useRovingRadio } from "./use-roving-radio";
 /** One choice in a `Picker`: what it reports, what it says, and an optional line under it. */
 export type PickerOption = { id: string; label: string; detail?: string };
 
+/** A place a `place` other's slot committed: a search result's id and the name it showed. */
+export type PickedPlace = { id: string; label: string };
+
 /**
  * The constrained *other* a question may offer beside its options (ADR-084
  * §2). Never free text: each kind can only produce a value of its own shape.
  * `label` is the choice that opens it; with no options it is always open and
  * `label` names it instead.
  *
- * - `place` is a slot the caller fills (a place search, whose picked result is
- *   the caller's to hold — only it can commit one).
+ * - `place` is a slot the caller draws (a place search), handed `commit` for
+ *   the result picked — only a picked result is an answer — and the question's
+ *   id to name its input by.
  * - `number` is − / + between `min` and `max`, starting at `initial` or `min`.
- * - `date` is a date input inside the box.
+ * - `date` is a date input inside the box; only a whole day on or after `min`
+ *   is an answer.
  * - `tags` is the described activity tags as tiles, any number of them.
  */
 export type PickerOther =
-  | { kind: "place"; label: string; slot: ReactNode }
+  | {
+      kind: "place";
+      label: string;
+      slot: (props: { commit: (place: PickedPlace) => void; labelledBy: string }) => ReactNode;
+    }
   | { kind: "number"; label: string; min: number; max: number; initial?: number; unit: { one: string; many: string } }
   | { kind: "date"; label: string; min?: string }
   | { kind: "tags"; label: string };
 
-/** What the chosen *other* holds; `date` is null until a day is picked. */
+/** What the chosen *other* holds; `place` and `date` are null until one is picked. */
 export type PickerOtherAnswer =
-  | { kind: "place" }
+  | { kind: "place"; value: PickedPlace | null }
   | { kind: "number"; value: number }
   | { kind: "date"; value: string | null }
   | { kind: "tags"; value: ActivityTagDescribed[] };
@@ -51,6 +60,9 @@ const NONE = "none";
 const OTHER = "other";
 const optionKey = (id: string) => `option:${id}`;
 
+// `ToggleChip`'s tones, not `ToggleChip`: it is an `aria-pressed` button on
+// its own tab stop, and these are radios or checkboxes on one roving stop
+// carrying a second line. A token fix to one belongs in the other.
 const CHOICE =
   "flex min-h-11 flex-col items-start justify-center rounded-md border px-3 py-1.5 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand";
 const choiceTone = (on: boolean) =>
@@ -59,7 +71,7 @@ const choiceTone = (on: boolean) =>
 function freshOther(other: PickerOther): PickerOtherAnswer {
   switch (other.kind) {
     case "place":
-      return { kind: "place" };
+      return { kind: "place", value: null };
     case "number":
       return { kind: "number", value: clamp(other.initial ?? other.min, other.min, other.max) };
     case "date":
@@ -72,6 +84,12 @@ function freshOther(other: PickerOther): PickerOtherAnswer {
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
+
+// A native date input can fire `change` on a half-typed value in some
+// browsers, and `min` only steers its picker (`TripDateControl` records both).
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const dateAnswer = (raw: string, min: string | undefined): string | null =>
+  ISO_DATE_RE.test(raw) && (min === undefined || raw >= min) ? raw : null;
 
 /**
  * **One boxed question with a fixed set of answers** — New trip's pages
@@ -155,7 +173,14 @@ export function Picker({
         {question}
       </Text>
       {choices.length > 0 && (
-        <div role={multi ? "group" : "radiogroup"} aria-labelledby={questionId} className="flex flex-wrap gap-2">
+        // With no options the choices are "None of these" alone, beside an
+        // other that is already the question's group: a second group of the
+        // same name would hold one checkbox.
+        <div
+          role={options.length > 0 ? (multi ? "group" : "radiogroup") : undefined}
+          aria-labelledby={options.length > 0 ? questionId : undefined}
+          className="flex flex-wrap gap-2"
+        >
           {choices.map((choice, i) => (
             <ChoiceButton
               key={choice.key}
@@ -235,7 +260,7 @@ function OtherInput({
 }) {
   switch (other.kind) {
     case "place":
-      return <div>{other.slot}</div>;
+      return <div>{other.slot({ commit: (place) => onChange({ kind: "place", value: place }), labelledBy: questionId })}</div>;
     case "number":
       return <NumberStepper other={other} value={value?.kind === "number" ? value.value : null} onChange={onChange} />;
     case "date":
@@ -245,7 +270,7 @@ function OtherInput({
           aria-label={other.label}
           min={other.min}
           value={value?.kind === "date" ? (value.value ?? "") : ""}
-          onChange={(e) => onChange({ kind: "date", value: e.target.value === "" ? null : e.target.value })}
+          onChange={(e) => onChange({ kind: "date", value: dateAnswer(e.target.value, other.min) })}
         />
       );
     case "tags":
@@ -270,18 +295,38 @@ function NumberStepper({
   onChange: (next: PickerOtherAnswer) => void;
 }) {
   const { min, max, unit } = other;
-  const n = value ?? clamp(other.initial ?? min, min, max);
-  // The buttons disable at the bounds, so a step cannot leave them.
-  const step = (by: number) => onChange({ kind: "number", value: n + by });
+  // A prefilled answer (a length carried from Home) may sit outside the bounds.
+  const n = clamp(value ?? other.initial ?? min, min, max);
+  const step = (by: number) => {
+    const next = clamp(n + by, min, max);
+    if (next !== value) onChange({ kind: "number", value: next });
+  };
+  // `aria-disabled`, not `disabled`, at a bound: a disabled button drops the
+  // keyboard focus that just pressed it to the page's body.
+  const held = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
   return (
     <div className="flex items-center gap-3">
-      <Button size="touch" variant="secondary" aria-label={`Fewer ${unit.many}`} disabled={n <= min} onClick={() => step(-1)}>
+      <Button
+        size="touch"
+        variant="secondary"
+        className={held}
+        aria-label={`Fewer ${unit.many}`}
+        aria-disabled={n <= min || undefined}
+        onClick={() => step(-1)}
+      >
         <Minus className="size-4" aria-hidden />
       </Button>
       <span role="status" className="min-w-16 text-center text-base font-semibold text-ink">
         {n} {n === 1 ? unit.one : unit.many}
       </span>
-      <Button size="touch" variant="secondary" aria-label={`More ${unit.many}`} disabled={n >= max} onClick={() => step(1)}>
+      <Button
+        size="touch"
+        variant="secondary"
+        className={held}
+        aria-label={`More ${unit.many}`}
+        aria-disabled={n >= max || undefined}
+        onClick={() => step(1)}
+      >
         <Plus className="size-4" aria-hidden />
       </Button>
     </div>
