@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ActivityTag } from "@tc/contracts";
 import { cn } from "@/lib/cn";
 import { FitRow } from "@/components/ui/fit-row";
+import { ACTIVITY_TAG_ICON } from "@/lib/activityTagIcons";
 import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint } from "@/lib/activityTags";
 
 /**
@@ -39,8 +40,15 @@ export function StopTagChips({
   if (tags.length === 0) return null;
   const chips = tags.map((tag) => {
     const chipClass = cn(
-      "inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold",
+      "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-semibold",
       TAG_CHIP_CLASS[tag],
+    );
+    const Icon = ACTIVITY_TAG_ICON[tag];
+    const content = (
+      <>
+        <Icon className="size-3 shrink-0" aria-hidden />
+        {TAG_LABEL[tag]}{" "}
+      </>
     );
     const href = hrefOf?.(tag) ?? null;
     if (href !== null) {
@@ -56,7 +64,7 @@ export function StopTagChips({
           className="group/chip inline-flex min-h-11 -my-3 items-center fine:my-0 fine:min-h-0"
         >
           <span className={cn(chipClass, "group-hover/chip:underline")}>
-            {TAG_LABEL[tag]}{" "}
+            {content}
           </span>
         </Link>
       );
@@ -64,7 +72,7 @@ export function StopTagChips({
     if (!onToggleTag) {
       return (
         <span key={tag} data-testid={`tag-chip-${tag}`} className={chipClass}>
-          {TAG_LABEL[tag]}{" "}
+          {content}
         </span>
       );
     }
@@ -111,7 +119,7 @@ export function StopTagChips({
             isFocused && "ring-2 ring-brand ring-inset",
           )}
         >
-          {TAG_LABEL[tag]}{" "}
+          {content}
         </span>
       </button>
     );
