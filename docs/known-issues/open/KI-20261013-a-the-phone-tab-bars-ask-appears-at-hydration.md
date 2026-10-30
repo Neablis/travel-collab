@@ -27,12 +27,29 @@
   → a notebook page still drops the Ask for that page's load, by design, since a locked page
   offers none. The hold is a second, bar-local source for whether an Ask is offered, beside
   the registration; the declaration below should replace it rather than sit beside it.
+- **Closed for every surface with an assistant, 2026-10-30 (M56 part 14, PR 655).** Mitchell on
+  production: "when you first click into a trip, the ai ask button isn't there then it renders
+  in", and from Playbooks, Trips redrew the bar without its last item, which then flickered in.
+  Both were this gap: a trip's board registers only once its read lands (`boardRenders`), and
+  `/playbooks` and `/home` are under different layouts (`app/playbooks/live/layout.tsx`,
+  `(app)/layout.tsx`), so the move remounts `AppShell` and the bar starts again with nothing
+  registered. The bar now draws the item from the route (`routeOffersAsk`): Home, every screen
+  of a trip (its board, notebook index and notebook pages), and the playbook pages with an
+  assistant, Discover (`/playbooks`, under PR 656's `(discover)` group and its loading frame),
+  a shared day, and a city's or a tag's days. It is pending until the screen registers, so it is
+  in the server HTML and in every frame after a move (`m56-shell-first-paint.spec.ts`), and a
+  tap meanwhile opens the screen's assistant once it registers. That replaces `useHeldPhoneAsk`
+  (`useDeclaredPhoneAsk`); declines still end it, a locked notebook page's among them. Not by
+  plan (Mitchell, PR 655 review: "Render everywhere, keep behavior consistent"): a reader
+  without the assistant gets the same item on every one of those pages, the playbook pages'
+  included, and opens it onto the rail's call to upgrade, which sends nothing to `/ask`.
+  **Still open:** the bar itself still remounts between `/playbooks` and the `(app)` routes,
+  invisibly now that both first renders agree; one shell over both needs the playbooks tree
+  moved. The leaderboard, a profile and a country's days have no assistant at all, so no Ask.
 - **What it means for M45 decision 3** ("the Ask is in the first paint, with no flash"): it
   holds from the `md` width up, where the page head's Ask is drawn from the served plan
-  (`PlaybookAskButton`, PR 427) and is in the server HTML. **It does not yet hold on a phone.**
-  There the head Ask is hidden by `max-md:hidden`, so the first HTML has no visible Ask, and the
-  tab bar's appears at hydration. PR 427 removed the wait for the plan read, so the delay is now
-  hydration only, not a network round trip.
+  (`PlaybookAskButton`, PR 427) and is in the server HTML. On a phone, where the head Ask is
+  hidden by `max-md:hidden`, it holds since PR 655: the tab bar's is drawn from the route.
 - **Why it is left like this:** it predates M45 part 5 and is the same on every surface, and a
   fix is cross-surface. The tab bar is mounted in the layout, above the page, so it cannot know
   from its own render whether the page below offers an Ask. That needs a new contract between the
