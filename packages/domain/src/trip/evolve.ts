@@ -86,6 +86,8 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       return { ...state, currency: event.payload.currency };
     case "TripBudgetSet":
       return { ...state, budget: event.payload.budget };
+    case "TripStyleSet":
+      return { ...state, pace: event.payload.pace, tags: [...event.payload.tags] };
     case "ActivityAdded": {
       const { activityId, dayId, title, timeWindow, location, notes, anchors, kind, tags, cost, bookedBy, participants, mode, endLocation, pendingReason, flightNumber } =
         event.payload;

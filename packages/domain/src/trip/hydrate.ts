@@ -18,6 +18,9 @@ export function hydrate(detail: TripDetail): TripState {
     // no `forkedFrom` key at all. TripDetail's type says otherwise because
     // Zod's default fills it in on parse — and that read does not parse.
     forkedFrom: detail.forkedFrom ?? null,
+    // The same unparsed-document reasoning: a doc written before M56 has neither key.
+    pace: detail.pace ?? null,
+    tags: [...(detail.tags ?? [])],
     startDate: detail.startDate,
     days: detail.days.map((d) => ({ dayId: d.dayId, activityIds: [...d.activityIds] })),
     backlog: [...detail.backlog],

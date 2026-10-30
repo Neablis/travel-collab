@@ -31,6 +31,26 @@ export const CitySearchResponse = z.object({ cities: z.array(CityMatch) });
 export type CitySearchResponse = z.infer<typeof CitySearchResponse>;
 
 /**
+ * A place from outside the library (M56 D3): a vendor's autocomplete result,
+ * offered to a signed-in searcher after the library's places. `id` is the
+ * vendor's stable id, what a client commits; a typed string never becomes a
+ * place (ADR-084 §7). Also the shape the server caches it in.
+ */
+export const WorldPlaceMatch = z.object({
+  kind: z.literal("world"),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  detail: z.string(),
+  countryCode: z.string().length(2).optional(),
+  lat: z.number(),
+  lng: z.number(),
+  // A world place the library holds is offered as the library's instead
+  // (`server/places.ts`), so this arm never has playbooks.
+  hasPlaybooks: z.literal(false),
+});
+export type WorldPlaceMatch = z.infer<typeof WorldPlaceMatch>;
+
+/**
  * One row of the place search (`GET /api/places?q=`, M12 link 7) — a city OR a
  * country, and the result says which.
  *
@@ -42,15 +62,20 @@ export type CitySearchResponse = z.infer<typeof CitySearchResponse>;
  *
  * `days` counts published days touching the place ONCE each, however many of
  * that country's cities a day visits — `CityMatch`'s "days, not city-hits".
+ *
+ * A signed-in searcher also gets `world` rows after the library's (M56 D3).
  */
 export const PlaceMatch = z.discriminatedUnion("kind", [
-  CityMatch.extend({ kind: z.literal("city") }),
+  CityMatch.extend({ kind: z.literal("city"), hasPlaybooks: z.boolean() }),
   z.object({
     kind: z.literal("country"),
     countryCode: z.string().length(2),
     name: z.string().min(1),
     days: z.number().int().nonnegative(),
+    /** Whether published days touch the place: the *has Playbooks* label (M56 D3). */
+    hasPlaybooks: z.boolean(),
   }),
+  WorldPlaceMatch,
 ]);
 export type PlaceMatch = z.infer<typeof PlaceMatch>;
 

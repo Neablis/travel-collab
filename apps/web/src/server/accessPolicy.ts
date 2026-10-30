@@ -137,6 +137,7 @@ const MINIMUM_ROLE: Record<Exclude<TripCommand["type"], "CreateTrip">, TripRole>
   DismissConflict: "editor",
   SetTripCurrency: "editor",
   SetTripBudget: "editor",
+  SetTripStyle: "editor",
   // History commands rewrite the plan but never destroy the log — an undo is
   // itself appended (ADR-005), so an editor undoing an owner's change is as
   // recoverable as any other edit.

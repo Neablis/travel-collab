@@ -56,10 +56,14 @@ type State =
   | { kind: "empty" }
   | { kind: "failed"; message: string };
 
-const KIND_LABEL = { city: "City", country: "Country" } as const;
+const KIND_LABEL = { city: "City", country: "Country", world: "Place" } as const;
 
+const labelOf = (match: PlaceMatch): string => (match.kind === "city" ? match.city : match.name);
+
+// A world place (M56 D3) picks as a city by its name. Discover never sees one,
+// since this box does not ask for the world, but the type still has the arm.
 const pickOf = (match: PlaceMatch): PlacePick =>
-  match.kind === "city" ? { kind: "city", city: match.city } : { kind: "country", countryCode: match.countryCode };
+  match.kind === "country" ? { kind: "country", countryCode: match.countryCode } : { kind: "city", city: labelOf(match) };
 
 /**
  * What a selected country's chip reads. `countryName` rather than the search
@@ -74,7 +78,7 @@ const countryLabel = (code: string): string => countryName(code) ?? code;
  * trailing, so "Mexico City" and "Mexico" differ in their first word as well
  * as their last.
  */
-function KindTag({ kind }: { kind: PlacePick["kind"] }) {
+function KindTag({ kind }: { kind: PlaceMatch["kind"] }) {
   return (
     <span
       aria-hidden
@@ -100,7 +104,7 @@ export function PlaceSearch({
   const [state, setState] = useState<State>({ kind: "idle" });
 
   const isSelected = (match: PlaceMatch): boolean =>
-    match.kind === "city" ? selected.cities.includes(match.city) : selected.countries.includes(match.countryCode);
+    match.kind === "country" ? selected.countries.includes(match.countryCode) : selected.cities.includes(labelOf(match));
 
   // Same generation guard the read hook uses: keystrokes race, and without it
   // the slower of two in-flight searches wins and the list shows results for a
@@ -114,6 +118,9 @@ export function PlaceSearch({
       return;
     }
     setState({ kind: "loading" });
+    // Library only, never `world`: a world place has no published days to
+    // filter Discover by, and each pause in typing would spend the account's
+    // world quota that New trip's Where page depends on (Mitchell, 2026-10-30).
     const result = await searchPlaces(q);
     if (mine !== generation.current) return;
     if (!result.ok) {
@@ -129,6 +136,7 @@ export function PlaceSearch({
   }, [text, run]);
 
   const hasSelection = selected.cities.length > 0 || selected.countries.length > 0;
+  const withWorld = state.kind === "results" && state.places.some((p) => p.kind === "world");
 
   return (
     <div className="flex flex-col gap-2">
@@ -220,11 +228,20 @@ export function PlaceSearch({
         {state.kind === "results" && (
           <div className="flex flex-wrap gap-1.5" data-testid="city-search-results">
             {state.places.map((match) => {
-              const label = match.kind === "city" ? match.city : match.name;
+              const label = labelOf(match);
               const taken = isSelected(match);
+              // Only beside world rows does the label tell anything apart: in
+              // a library-only list (Discover's) every row has playbooks.
+              const labelled = match.kind !== "world" && match.hasPlaybooks && withWorld;
               return (
                 <Button
-                  key={match.kind === "city" ? `city:${match.city}` : `country:${match.countryCode}`}
+                  key={
+                    match.kind === "city"
+                      ? `city:${match.city}`
+                      : match.kind === "country"
+                        ? `country:${match.countryCode}`
+                        : `world:${match.id}`
+                  }
                   type="button"
                   variant="secondary"
                   size="sm"
@@ -234,8 +251,15 @@ export function PlaceSearch({
                   // Name first, kind last: "Mexico · 6 (country)". The visible
                   // row leads with the tag, but a spoken name that starts with
                   // the place is the one a listener can skim — and it is the
-                  // shape `m11b-playbooks.spec.ts` matches (`^Kyoto · `).
-                  aria-label={`${label} · ${match.days} (${match.kind})`}
+                  // shape `m11b-playbooks.spec.ts` matches (`^Kyoto · `). A
+                  // world place has no days to count; its region says which
+                  // of two same-named places it is. The *has Playbooks* label
+                  // is spoken as well as shown (WCAG 2.5.3, label in name).
+                  aria-label={
+                    match.kind === "world"
+                      ? `${label}, ${match.detail} (place)`
+                      : `${label} · ${match.days} (${match.kind})${labelled ? ", has Playbooks" : ""}`
+                  }
                   onClick={() => {
                     onAdd(pickOf(match));
                     // The box empties on a pick, not on a keystroke: the chip
@@ -246,7 +270,17 @@ export function PlaceSearch({
                   }}
                 >
                   <KindTag kind={match.kind} />
-                  {label} · {match.days}
+                  {match.kind === "world" ? (
+                    <>
+                      {label}
+                      <span className="text-slate">{match.detail}</span>
+                    </>
+                  ) : (
+                    <>
+                      {label} · {match.days}
+                      {labelled && <span className="text-xs text-slate">has Playbooks</span>}
+                    </>
+                  )}
                 </Button>
               );
             })}

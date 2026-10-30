@@ -1,4 +1,4 @@
-import type { Money } from "@tc/contracts";
+import type { ActivityTagDescribed, Money, TripPace } from "@tc/contracts";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
 import { addDaysIso } from "@/lib/dates";
 
@@ -41,6 +41,10 @@ export interface TripSetup {
    *  days each one appends. Optional: every caller before that turn existed
    *  sends none. */
   savedDays?: readonly { savedDayId: string; dayCount: number }[];
+  /** How the trip is meant to feel (M56 D4). Optional, like `savedDays`:
+   *  absent reads as no pace and no tags, which a fresh trip already has. */
+  pace?: TripPace | null;
+  tags?: readonly ActivityTagDescribed[];
 }
 
 /**
@@ -70,6 +74,8 @@ export interface SetupLatch {
    * domain would refuse. Optional so a latch written before M27 still reads.
    */
   insertedDays?: readonly string[];
+  /** The pace and tags that landed. Optional for `insertedDays`' reason. */
+  styledAs?: { pace: TripPace | null; tags: readonly ActivityTagDescribed[] };
 }
 
 /**
@@ -247,6 +253,26 @@ export async function createTripWithSetup({
       };
     }
     applied = { ...applied, currencyAppliedAs: setup.currency };
+  }
+
+  // **Pace and tags**, one command for both. A fresh trip has neither, so
+  // "none" needs no command, and the nullable compare covers a clear.
+  const style = { pace: setup.pace ?? null, tags: setup.tags ?? [] };
+  const styled = applied.styledAs ?? { pace: null, tags: [] };
+  const styleDiffers =
+    style.pace !== styled.pace ||
+    style.tags.length !== styled.tags.length ||
+    style.tags.some((tag, i) => tag !== styled.tags[i]);
+  if (styleDiffers) {
+    const result = await dispatch({ type: "SetTripStyle", tripId, pace: style.pace, tags: [...style.tags] });
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: `Trip created, but setting the pace and tags failed: ${result.error.message}. Try again.`,
+        latch: applied,
+      };
+    }
+    applied = { ...applied, styledAs: style };
   }
 
   // **The chosen Playbook days, last** (M27 D13). After the dates on purpose:

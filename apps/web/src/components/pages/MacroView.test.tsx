@@ -17,6 +17,8 @@ const baseDetail: TripDetail = {
   budget: null,
   members: [{ userId: "u1", role: "owner" }],
   forkedFrom: null,
+  pace: null,
+  tags: [],
   days: [{ dayId: "22222222-2222-2222-2222-222222222222", activityIds: [], date: null, costSubtotal: 0 }],
   backlog: [],
   activities: {},

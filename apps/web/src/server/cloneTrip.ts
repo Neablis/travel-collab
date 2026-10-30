@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { BatchableCommand, TripDetail, TripLineage } from "@tc/contracts";
+import type { BatchableCommand, SetTripStyle, TripDetail, TripLineage } from "@tc/contracts";
 import { decideTripCommand, diffTripStates, evolveTrip, hydrate, type TripState } from "@tc/domain";
 import { executeTripCreation, type CommandResult } from "./commands";
 import { tripAccessFor, type TripAccessDenial } from "./access/trip-access";
@@ -229,9 +229,13 @@ async function cloneDemoTrip(demoTripId: string, actorId: string): Promise<Comma
   );
 }
 
-// The diff emits the same event set the batchable commands produce, so the
-// mapping is total over what diffTripStates can return for an empty→target run.
-function eventToCommand(event: ReturnType<typeof diffTripStates>[number], tripId: string): BatchableCommand {
+// The diff emits the same event set the batchable commands produce, plus the
+// trip's style, so the mapping is total over what diffTripStates can return
+// for an empty→target run.
+function eventToCommand(
+  event: ReturnType<typeof diffTripStates>[number],
+  tripId: string,
+): BatchableCommand | SetTripStyle {
   switch (event.type) {
     case "DayAdded":
       return { type: "AddDay", tripId, dayId: event.payload.dayId };
@@ -243,6 +247,8 @@ function eventToCommand(event: ReturnType<typeof diffTripStates>[number], tripId
       return { type: "SetTripBudget", tripId, budget: event.payload.budget };
     case "TripNameSet":
       return { type: "SetTripName", tripId, name: event.payload.name };
+    case "TripStyleSet":
+      return { type: "SetTripStyle", tripId, pace: event.payload.pace, tags: event.payload.tags };
     case "ActivityAdded":
       // ActivityAdded event payloads use explicit null for "unset" fields
       // (they're stored as jsonb forever); AddActivity the command uses

@@ -33,6 +33,7 @@ import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { registerPhoneAsk, usePhoneAsk } from "@/components/nav/phoneAsk";
 import { DEMO_TRIPS } from "@/lib/demoTrip";
 import { fetchTripAccess } from "@/lib/apiClient";
+import { fetchSavedNotebooks } from "@/lib/savedNotebooksClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 
@@ -104,6 +105,12 @@ const server = setupServer(
   // notebook ("Add missing default notebooks" is the owner's). An EDITOR by
   // default, so a suite written before the action sees the list it was
   // written against; the tests about the action set `accessRole`.
+  //
+  // This read RACES the list, and every write the index offers (Delete, Blank,
+  // the template gallery and its filter) waits on it. So a test reaches a
+  // write with `findBy*`, never with `getBy*` after waiting on the list or on
+  // `Loading` — that wait can pass before the role lands, and on a slow CI
+  // runner it did (PR 641, `test / unit`; KI-2026-10-30-d).
   http.get("/api/trips/:tripId/access", async ({ params }) => {
     accessReads += 1;
     // A test that needs the role PENDING holds the answer here until it lets go.
@@ -181,9 +188,7 @@ describe("NotebookScreen", () => {
     server.use(...makePagesHandlers([], { onCreate }));
 
     render(<NotebookScreen tripId={TRIP_ID} />);
-    await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
-
-    fireEvent.click(screen.getByRole("button", { name: "Start from Blank notebook" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start from Blank notebook" }));
 
     await waitFor(() => expect(onCreate).toHaveBeenCalled());
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringContaining(`/trips/${TRIP_ID}/pages/`)));
@@ -213,7 +218,12 @@ describe("NotebookScreen", () => {
     server.use(...makePagesHandlers([]));
     render(<NotebookScreen tripId={TRIP_ID} />);
     await screen.findByRole("region", { name: "Start from a template" });
-    await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
+    // An empty library renders nothing, so no element says the saved read has
+    // landed. Join it instead: this read is issued after the component's, to
+    // the same handler, so once it answers the component's has too.
+    await act(async () => {
+      await fetchSavedNotebooks();
+    });
     expect(screen.queryByRole("region", { name: "Your templates" })).toBeNull();
   });
 
@@ -234,6 +244,7 @@ describe("NotebookScreen", () => {
 
     render(<NotebookScreen tripId={TRIP_ID} />);
     await screen.findByRole("region", { name: "Your notebooks" });
+    await screen.findByRole("region", { name: "Start from a template" });
 
     const inOrder = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
     expect(inOrder).toEqual(["Your notebooks", "Start from a template"]);
@@ -251,9 +262,10 @@ describe("NotebookScreen", () => {
     const list = await screen.findByRole("region", { name: "Your notebooks" });
     expect(within(list).getByText(page.title)).toBeTruthy();
 
-    expect(screen.queryByRole("button", { name: `Rename ${page.title}` })).toBeNull();
     // Delete stays: it is the one row action that has nowhere else to live.
-    expect(screen.getByRole("button", { name: `Delete ${page.title}` })).toBeTruthy();
+    // Found first, so the absence below is read with the role answered.
+    expect(await screen.findByRole("button", { name: `Delete ${page.title}` })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: `Rename ${page.title}` })).toBeNull();
   });
 
   it("deletes a page via the client", async () => {
@@ -265,7 +277,7 @@ describe("NotebookScreen", () => {
     const list = await screen.findByRole("region", { name: "Your notebooks" });
     expect(within(list).getByText(page.title)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: `Delete ${page.title}` }));
+    fireEvent.click(await screen.findByRole("button", { name: `Delete ${page.title}` }));
 
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(page.id));
     await waitFor(() => expect(within(list).queryByText(page.title)).toBeNull());
@@ -357,11 +369,14 @@ describe("NotebookScreen", () => {
       render(<NotebookScreen tripId={TRIP_ID} />);
       const list = await screen.findByRole("region", { name: "Your notebooks" });
       await within(list).findByText(gone.title);
+      // Delete is found first, so the absence below is read with the role
+      // answered: while it is pending nobody is the owner, and that passes.
+      const deleteGone = await screen.findByRole("button", { name: `Delete ${gone.title}` });
       expect(screen.queryByRole("button", ADD)).toBeNull();
 
       // Deleting a seed is how a trip comes to be missing one; the action
       // follows the list rather than the page load.
-      fireEvent.click(screen.getByRole("button", { name: `Delete ${gone.title}` }));
+      fireEvent.click(deleteGone);
       await waitFor(() => expect(within(list).queryByText(gone.title)).toBeNull());
       fireEvent.click(await screen.findByRole("button", ADD));
 
@@ -379,7 +394,7 @@ describe("NotebookScreen", () => {
       render(<NotebookScreen tripId={TRIP_ID} />);
       const list = await screen.findByRole("region", { name: "Your notebooks" });
       await within(list).findByText("Today");
-      const deletable = within(list).getAllByRole("button", { name: /^Delete / }).map((button) => button.getAttribute("aria-label"));
+      const deletable = (await within(list).findAllByRole("button", { name: /^Delete / })).map((button) => button.getAttribute("aria-label"));
       expect(deletable).toEqual(all.filter((p) => p.seedKey !== "overview" && p.seedKey !== "today").map((p) => `Delete ${p.title}`));
     });
 
@@ -466,7 +481,7 @@ describe("NotebookScreen", () => {
     const galleryOnly = TEMPLATE_LIBRARY.find((t) => t.key === "dinner-tracker")!;
 
     render(<NotebookScreen tripId={TRIP_ID} />);
-    await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
+    await screen.findByRole("radiogroup", { name: "Show templates" });
 
     // Every template is offered under one of the two filters (there is no
     // "All" — Mitchell, PR #269 preview), so this walks both.
@@ -515,11 +530,10 @@ describe("NotebookScreen", () => {
     const startButton = (title: string) => ({ name: `Start from ${title}` });
 
     render(<NotebookScreen tripId={TRIP_ID} />);
-    await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
 
     // Mitchell, PR #269 preview: *"Make the options, Essential and More, no
     // all, and more shouldnt include essentials"*. It opens on Essentials alone.
-    const filter = screen.getByRole("radiogroup", { name: "Show templates" });
+    const filter = await screen.findByRole("radiogroup", { name: "Show templates" });
     expect(within(filter).getAllByRole("radio").map((r) => r.textContent)).toEqual(["Essentials", "More"]);
     expect(within(filter).getByRole("radio", { name: "Essentials", checked: true })).toBeTruthy();
     const essentialGroup = screen.getByRole("region", { name: "Essentials" });
@@ -893,7 +907,7 @@ describe("NotebookScreen — the states between asked and answered", () => {
     expect(screen.getByRole("heading", { name: "Notebooks", level: 1 })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Your trips/ })).toBeTruthy();
     // And the one thing this page can still DO without its list.
-    expect(screen.getByRole("region", { name: "Start from a template" })).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "Start from a template" })).toBeTruthy();
     // The sections sit one level under the page's h1 (axe heading-order).
     expect(screen.getByRole("heading", { name: "Your notebooks", level: 2 })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Start from a template", level: 2 })).toBeTruthy();
@@ -916,7 +930,7 @@ describe("NotebookScreen — the states between asked and answered", () => {
     const failed = await screen.findByTestId("notebook-pages-error");
     // The templates gallery is a module constant, so it survives a failed read
     // — which is the whole reason it sits outside the branch.
-    expect(within(screen.getByRole("region", { name: "Start from a template" })).getByText("Blank notebook")).toBeTruthy();
+    expect(within(await screen.findByRole("region", { name: "Start from a template" })).getByText("Blank notebook")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Notebooks", level: 1 })).toBeTruthy();
 
     await userEvent.click(within(failed).getByRole("button", { name: "Try again" }));
