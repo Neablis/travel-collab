@@ -449,8 +449,8 @@ export function DiscoverScreen({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Ask, for the page's assistant (M45 D9), drawn only for an account
-          whose plan has it. */}
+      {/* Ask, for the page's assistant (M45 D9). Drawn for every signed-in
+          reader, a free one opening it onto the call to upgrade (PR 655). */}
       <DiscoverIntro action={<PlaybookAskButton />} />
 
       <SyncFailure read={feed} what="the library" />

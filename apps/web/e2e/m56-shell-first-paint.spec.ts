@@ -40,14 +40,16 @@ async function recordBar(page: Page): Promise<void> {
 }
 
 /**
- * What the bar drew on `pathname`, one entry per change. A full load's frames
- * before the bar has streamed in are left out: there is no bar to lack an Ask.
+ * What the bar drew on `pathname`, one entry per change. On a `fullLoad` the
+ * frames before the bar has streamed in are left out: there is no bar yet to
+ * lack an Ask. A client move keeps them, since a bar that blinks out there is
+ * the flicker being tested.
  */
-async function barOn(page: Page, pathname: string): Promise<string[]> {
+async function barOn(page: Page, pathname: string, { fullLoad = false } = {}): Promise<string[]> {
   const frames = await page.evaluate(() => (window as unknown as { barFrames: string[] }).barFrames);
   const drawn = frames.filter((line) => line.startsWith(`${pathname} `)).map((line) => line.slice(pathname.length + 1));
   const first = drawn.findIndex((items) => items !== "no bar");
-  return first === -1 ? drawn : drawn.slice(first);
+  return fullLoad && first !== -1 ? drawn.slice(first) : drawn;
 }
 
 /** Holds the server render of every URL `pattern` matches back, so the walk sees the frames before it lands. */
@@ -128,7 +130,7 @@ test.describe("a free account", () => {
     await slow(page, new RegExp(escapeForRegExp(path)));
     await page.goto(path);
     await expect(offeredAsk(page)).toBeVisible();
-    expect(await barOn(page, path)).toEqual([items]);
+    expect(await barOn(page, path, { fullLoad: true })).toEqual([items]);
 
     await offeredAsk(page).click();
     const assistant = page.getByRole("complementary", { name: "Assistant" });
