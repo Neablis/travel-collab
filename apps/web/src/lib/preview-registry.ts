@@ -124,10 +124,13 @@ export const PREVIEW_REGISTRY = {
   // M26 link 9a built the FREE half of §30.3's fork, so this shell is now the
   // PAID half only: it renders where an entitled account would get a live
   // composer continuing in the trip's context. A free account gets a real
-  // answer instead (`NewTripPlusNote`), not this. The draft itself is still
-  // M9's — the script collects the answers it would need and nothing generates
-  // anything from them.
-  "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "The assistant's own draft, mid-task, for an account that holds `ai.ask` (design §4, SPEC §30.3's with-access half) — the fork itself is built, the draft is not" },
+  // answer instead (`NewTripPlusNote`), not this.
+  //
+  // **Retagged M9 -> M56 part 6** (PR 642 review): New trip's Review now has
+  // *Plan with AI*, which creates the trip and nothing more. The rail opening
+  // on that trip with a kickoff from the answers is part 6's, so that is the
+  // claim this shell makes.
+  "wizard-assistant-draft": { milestone: "M56 part 6", wiredUpBy: "Plan with AI on New trip's Review opening the assistant on the new trip with a kickoff from the answers (ADR-084, M56 part 6) — the trip is created, the assistant does not open" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;

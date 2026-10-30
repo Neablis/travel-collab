@@ -823,6 +823,29 @@ describe("Home first-run experience", () => {
     expect((composers[0] as HTMLInputElement).value).toBe("Lisbon");
   });
 
+  // Where's search exists only on the first page, so a button that aimed at it
+  // did nothing once the inline flow had moved on.
+  it("focuses the inline flow's current page once it is past Where", async () => {
+    fetchMock = vi.fn(async (url: string) =>
+      url.includes("/api/places")
+        ? jsonResponse({ places: [{ kind: "country", countryCode: "JP", name: "Japan", days: 0, hasPlaybooks: false }] })
+        : jsonResponse({ trips: [] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomeScreen />);
+    await screen.findByTestId("first-trip-start");
+    await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
+    await userEvent.click(await screen.findByRole("button", { name: /^Japan/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    const notYet = screen.getByRole("radio", { name: "Not yet" });
+
+    await userEvent.click(screen.getByRole("button", { name: "New trip" }));
+
+    // `:focus` on what the query found: the wall bans `document.activeElement`.
+    expect(notYet.matches(":focus")).toBe(true);
+  });
+
   // "Building a trip from total scratch is a rough experience" (Mitchell,
   // 2026-09-01). The other two routes into the product already existed and were
   // reachable from everywhere EXCEPT the screen where somebody has nothing:

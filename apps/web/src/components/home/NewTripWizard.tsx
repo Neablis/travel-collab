@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import Link from "next/link";
 import { Check, Lock } from "lucide-react";
 import { insertSavedDay, searchPlaces, searchPlaybooks, type ApiResult, type BoardCommand, type CommandOutcome } from "@/lib/apiClient";
@@ -67,8 +67,8 @@ export type NewTripWizardProps = {
    * **`tripId` is sent, and an implementation that ignores it silently gives up
    * KI-2026-09-12-e's guarantee.** The wizard mints the id so a retry after a
    * lost response is the same command rather than a second trip. Structural
-   * typing cannot make a caller read it; page.test.tsx's "creates a first trip
-   * from a name alone" is what holds it.
+   * typing cannot make a caller read it; HomeScreen.test.tsx's "creates a first
+   * trip from a picked place alone" is what holds it.
    */
   createTrip: (input: { name: string; tripId?: string }) => Promise<ApiResult<{ tripId: string }>>;
   // Awaited, not fire-and-forget (CodeRabbit, PR 32): the setup waits for each
@@ -295,9 +295,11 @@ type PagesProps = {
   /** Somebody's first trip, which changes Cass's opening line (SPEC §32.1). */
   firstRun?: boolean;
   /**
-   * An id for Where's search field, so a control outside this component can
-   * focus it: the empty Home's page-head "New trip" button, which would
-   * otherwise put a second copy of this flow on one screen.
+   * An id for the current page, so a control outside this component can focus
+   * it with `focusNewTripPage`: the empty Home's page-head "New trip" button,
+   * which would otherwise put a second copy of this flow on one screen. On
+   * page one that lands in Where's search, hence the name. It is on the page,
+   * not the field, because the field is on no other page.
    */
   whereFieldId?: string;
   /**
@@ -317,6 +319,28 @@ type PagesProps = {
     onImportFile?: () => void;
   };
 };
+
+/** A page's first control a keyboard would reach: the roving radios' unchosen ones are `-1`. */
+const FIRST_CONTROL = 'input:not([disabled]), button:not([disabled]):not([tabindex="-1"])';
+
+/**
+ * **Focus a page of the flow**: a question page's first control, or Review
+ * itself, whose first line says what Review is. Exported for the empty Home's
+ * "New trip", which finds the inline flow's page by `whereFieldId`.
+ */
+export function focusNewTripPage(page: HTMLElement | null) {
+  if (page === null) return;
+  const first = page.dataset.page === "review" ? null : page.querySelector<HTMLElement>(FIRST_CONTROL);
+  (first ?? page).focus();
+}
+
+/**
+ * Where focus goes after a press that unmounts the button pressed: Review
+ * replaces the footer and the page, and a picked result's list goes. Left
+ * alone, a keyboard reader lands on the dialog, or on the body in the inline
+ * first run, and the next Tab starts from the top.
+ */
+type Refocus = "page" | "next" | { change: NewTripPageId };
 
 /**
  * **New trip: five pages and a Review** (M56 part 2, ADR-084 §1), with no
@@ -351,6 +375,13 @@ function Pages({
   const [progress, setProgress] = useState<SetupLatch | null>(null);
   /** Chosen days that could not be put in the trip, by name, once it is made. */
   const [missed, setMissed] = useState<readonly string[] | null>(null);
+  // The name the made trip has. A retry after *Change where* has to rename it:
+  // with a latch, `createTripWithSetup` skips `CreateTrip`, the one command
+  // that otherwise carries the name.
+  const [namedAs, setNamedAs] = useState<string | null>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const refocus = useRef<Refocus | null>(null);
   // Asked from the first page, so it has long resolved by Review. `null`
   // (unknown, or a failed read) takes the paid branch: `useAiEntitled`'s own
   // rule, since a paywall flashed at a subscriber is the worse mistake.
@@ -359,6 +390,16 @@ function Pages({
   const page = pageOf(state);
   const { answers } = state;
   const name = answers.where?.label ?? UNTITLED_TRIP;
+
+  // After the commit, so the target is mounted and Next is no longer disabled.
+  useEffect(() => {
+    const target = refocus.current;
+    if (target === null) return;
+    refocus.current = null;
+    if (target === "page") focusNewTripPage(pageRef.current);
+    else if (target === "next") nextRef.current?.focus();
+    else pageRef.current?.querySelector<HTMLElement>(`[data-change="${target.change}"]`)?.focus();
+  }, [state]);
 
   /**
    * **The published days for a picked place** (M27 D13, now Review's card,
@@ -376,10 +417,27 @@ function Pages({
     });
   }
 
-  function pickPlace(place: NewTripPlace) {
-    if (place.id === answers.where?.id) return;
+  /** `fromList` when a result was pressed; Enter leaves focus in the field, which stays. */
+  function pickPlace(place: NewTripPlace, fromList: boolean) {
+    if (place.id === answers.where?.id) {
+      // Nothing changes, so the effect does not run; Next is already live.
+      if (fromList) nextRef.current?.focus();
+      return;
+    }
+    if (fromList) refocus.current = "next";
     setState((current) => answer(current, { where: place }));
     lookUp(place);
+  }
+
+  function goNext() {
+    if (page !== "review" && next(state).page === REVIEW) refocus.current = state.fromReview ? { change: page } : "page";
+    setState(next);
+  }
+
+  function goBack() {
+    // Page one has no Back button.
+    if (state.page === 1) refocus.current = "page";
+    setState(back);
   }
 
   /** Make the trip and apply what was answered. `null` when nothing was made. */
@@ -387,6 +445,15 @@ function Pages({
     if (submitting || disabled) return null;
     setError(null);
     setSubmitting(true);
+    if (progress !== null && namedAs !== null && namedAs !== name) {
+      const renamed = await dispatch({ type: "SetTripName", tripId: progress.tripId, name });
+      if (!renamed.ok) {
+        setSubmitting(false);
+        setError(`Trip created, but renaming it failed: ${renamed.error.message}. Try again.`);
+        return null;
+      }
+      setNamedAs(name);
+    }
     const result = await createTripWithSetup({
       setup: {
         name,
@@ -405,6 +472,7 @@ function Pages({
     // Stored on BOTH outcomes: dropping the latch on failure is the defect
     // `newTripSubmit.ts`'s own header describes.
     if (result.latch !== null) setProgress(result.latch);
+    if (result.latch !== null && progress === null) setNamedAs(name);
     setSubmitting(false);
     if (!result.ok) {
       setError(result.error);
@@ -470,8 +538,17 @@ function Pages({
       </div>
 
       {/* Keyed by page so each one is a fresh mount, which `[data-step-enter]`
-          fades in (M54). */}
-      <div key={state.page} data-step-enter data-testid="new-trip-page" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+          fades in (M54). Focusable only from code (`focusNewTripPage`). */}
+      <div
+        key={state.page}
+        ref={pageRef}
+        tabIndex={-1}
+        {...(whereFieldId === undefined ? {} : { id: whereFieldId })}
+        data-page={page}
+        data-step-enter
+        data-testid="new-trip-page"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain focus:outline-none"
+      >
         {state.destinationChanged && page !== "review" && page !== "where" && (
           <Badge variant="warning" className="self-start">
             Destination changed
@@ -482,14 +559,16 @@ function Pages({
           <Review
             state={state}
             missed={missed}
-            onChange={(each) => setState((current) => changeTo(current, each))}
+            onChange={(each) => {
+              refocus.current = "page";
+              setState((current) => changeTo(current, each));
+            }}
             onToggleDay={(id) => setState((current) => toggleDay(current, id))}
           />
         ) : (
           <PagePicker
             page={page}
             answers={answers}
-            whereFieldId={whereFieldId}
             onPlace={pickPlace}
             onAnswer={(patch) => setState((current) => answer(current, patch))}
           />
@@ -511,7 +590,7 @@ function Pages({
             onOpen={() => onDone(progress?.tripId ?? null, true)}
           />
         ) : (
-          <PageActions state={state} onBack={() => setState(back)} onNext={() => setState(next)} />
+          <PageActions state={state} nextRef={nextRef} onBack={goBack} onNext={goNext} />
         )}
         {/* **The rare ways in, as one quiet row** (SPEC §35.2). Not on Review,
             which has the real create buttons. */}
@@ -560,14 +639,12 @@ function Pages({
 function PagePicker({
   page,
   answers,
-  whereFieldId,
   onPlace,
   onAnswer,
 }: {
   page: NewTripPageId;
   answers: NewTripAnswers;
-  whereFieldId: string | undefined;
-  onPlace: (place: NewTripPlace) => void;
+  onPlace: (place: NewTripPlace, fromList: boolean) => void;
   onAnswer: (patch: Partial<NewTripAnswers>) => void;
 }) {
   const options: PickerOption[] =
@@ -584,7 +661,7 @@ function PagePicker({
           kind: "place",
           label: QUESTION.where,
           slot: ({ labelledBy }) => (
-            <WhereSearch labelledBy={labelledBy} inputId={whereFieldId} picked={answers.where} onPick={onPlace} />
+            <WhereSearch labelledBy={labelledBy} picked={answers.where} onPick={onPlace} />
           ),
         }
       : page === "start"
@@ -609,7 +686,17 @@ function PagePicker({
 }
 
 /** Back and Next; Next waits for an answer, and a page Review opened goes back to it. */
-function PageActions({ state, onBack, onNext }: { state: NewTripState; onBack: () => void; onNext: () => void }) {
+function PageActions({
+  state,
+  nextRef,
+  onBack,
+  onNext,
+}: {
+  state: NewTripState;
+  nextRef: Ref<HTMLButtonElement>;
+  onBack: () => void;
+  onNext: () => void;
+}) {
   const page = pageOf(state);
   if (page === "review") return null;
   const rewalk = page === "where" && state.answers.where?.id !== state.leftWhere?.id;
@@ -621,7 +708,14 @@ function PageActions({ state, onBack, onNext }: { state: NewTripState; onBack: (
           Back
         </Button>
       )}
-      <Button type="button" variant="primary" className={TOUCH} disabled={!isAnswered(state.answers, page)} onClick={onNext}>
+      <Button
+        ref={nextRef}
+        type="button"
+        variant="primary"
+        className={TOUCH}
+        disabled={!isAnswered(state.answers, page)}
+        onClick={onNext}
+      >
         {label}
       </Button>
     </div>
@@ -669,6 +763,7 @@ function Review({
               size="sm"
               className={TOUCH}
               aria-label={`Change ${TERM[each].toLowerCase()}`}
+              data-change={each}
               onClick={() => onChange(each)}
             >
               Change
@@ -799,14 +894,12 @@ type SearchState =
  */
 function WhereSearch({
   labelledBy,
-  inputId,
   picked,
   onPick,
 }: {
   labelledBy: string;
-  inputId: string | undefined;
   picked: NewTripPlace | undefined;
-  onPick: (place: NewTripPlace) => void;
+  onPick: (place: NewTripPlace, fromList: boolean) => void;
 }) {
   const [text, setText] = useState("");
   const [state, setState] = useState<SearchState>({ kind: "idle" });
@@ -835,8 +928,8 @@ function WhereSearch({
     return () => clearTimeout(timer);
   }, [text, run]);
 
-  const pick = (place: NewTripPlace) => {
-    onPick(place);
+  const pick = (place: NewTripPlace, fromList: boolean) => {
+    onPick(place, fromList);
     setText("");
   };
 
@@ -851,7 +944,6 @@ function WhereSearch({
       )}
       <Input
         type="search"
-        {...(inputId === undefined ? {} : { id: inputId })}
         aria-labelledby={labelledBy}
         placeholder={picked === undefined ? "Search a city or country" : "Search for somewhere else"}
         className={TOUCH}
@@ -860,42 +952,48 @@ function WhereSearch({
         onKeyDown={submitOnEnter(() => {
           // Only results for the text in the box: mid-debounce the list is the
           // previous query's.
-          if (state.kind === "results" && state.q === text && state.places[0] !== undefined) pick(state.places[0]);        })}
+          if (state.kind === "results" && state.q === text && state.places[0] !== undefined) pick(state.places[0], false);
+        })}
       />
-      <div aria-live="polite">
-        {state.kind === "loading" && <Text variant="muted">Searching places…</Text>}
-        {state.kind === "empty" && <Text variant="muted">{`No place matches “${text}”.`}</Text>}
+      {/* The status is announced and the list is not: a live region round the
+          list read every result's label out on every keystroke. */}
+      <div className="flex items-center gap-2">
+        <div aria-live="polite">
+          {state.kind === "loading" && <Text variant="muted">Searching places…</Text>}
+          {state.kind === "empty" && <Text variant="muted">{`No place matches “${text}”.`}</Text>}
+          {state.kind === "failed" && <Text variant="muted">Place search is unavailable.</Text>}
+          {state.kind === "results" && (
+            <span className="sr-only">{state.places.length === 1 ? "1 place" : `${state.places.length} places`}</span>
+          )}
+        </div>
         {state.kind === "failed" && (
-          <div className="flex items-center gap-2">
-            <Text variant="muted">Place search is unavailable.</Text>
-            <Button type="button" variant="secondary" size="sm" onClick={() => void run(text)}>
-              Retry
-            </Button>
-          </div>
-        )}
-        {state.kind === "results" && (
-          <div role="group" aria-label="Places" className="flex flex-col gap-1.5">
-            {state.places.map((place) => (
-              <Button
-                key={place.id}
-                type="button"
-                variant="secondary"
-                className={cn(TOUCH, "h-auto justify-start gap-2 py-1.5 text-left")}
-                // The region says which of two same-named places it is, and
-                // *has Playbooks* is spoken as well as shown (WCAG 2.5.3).
-                aria-label={[place.label, place.detail, place.hasPlaybooks ? "has Playbooks" : undefined]
-                  .filter((part) => part !== undefined)
-                  .join(", ")}
-                onClick={() => pick(place)}
-              >
-                <span className="font-semibold">{place.label}</span>
-                {place.detail !== undefined && <span className="text-slate">{place.detail}</span>}
-                {place.hasPlaybooks && <span className="text-xs text-slate">has Playbooks</span>}
-              </Button>
-            ))}
-          </div>
+          <Button type="button" variant="secondary" size="sm" onClick={() => void run(text)}>
+            Retry
+          </Button>
         )}
       </div>
+      {state.kind === "results" && (
+        <div role="group" aria-label="Places" className="flex flex-col gap-1.5">
+          {state.places.map((place) => (
+            <Button
+              key={place.id}
+              type="button"
+              variant="secondary"
+              className={cn(TOUCH, "h-auto justify-start gap-2 py-1.5 text-left")}
+              // The region says which of two same-named places it is, and
+              // *has Playbooks* is spoken as well as shown (WCAG 2.5.3).
+              aria-label={[place.label, place.detail, place.hasPlaybooks ? "has Playbooks" : undefined]
+                .filter((part) => part !== undefined)
+                .join(", ")}
+              onClick={() => pick(place, true)}
+            >
+              <span className="font-semibold">{place.label}</span>
+              {place.detail !== undefined && <span className="text-slate">{place.detail}</span>}
+              {place.hasPlaybooks && <span className="text-xs text-slate">has Playbooks</span>}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
