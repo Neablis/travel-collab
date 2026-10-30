@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { expect, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, type Browser, type Locator, type Page, type Route } from "@playwright/test";
 import type { Location } from "@tc/contracts";
 import { commandsFor, type CommandsForOverrides } from "@tc/factories";
 import { E2E_SUPER_CODE, fillInviteCode } from "./admission";
@@ -492,18 +492,40 @@ export async function openNewStopOnDay(page: Page, dayIndex = 0): Promise<void> 
 }
 
 /**
+ * **Pick `place` on New trip's Where page**, from whichever surface shows it.
+ *
+ * Where commits only a search result (M56, ADR-084 §7), and this server has
+ * neither: no LocationIQ key, so `world=1` finds nothing, and a library that
+ * holds only what other specs happened to publish. So the one search this
+ * makes is answered here with a single world place named `place`, which is
+ * what lets a spec still name its trip uniquely. The route is dropped once
+ * the pick lands, so nothing after it is answered by this.
+ */
+export async function pickNewTripPlace(scope: Page | Locator, place: string): Promise<void> {
+  const page = "page" in scope ? scope.page() : scope;
+  const searches = /\/api\/places\?/;
+  const answer = (route: Route) =>
+    route.fulfill({
+      json: { places: [{ kind: "world", id: `e2e-${place}`, name: place, detail: "Test place", lat: 0, lng: 0, hasPlaybooks: false }] },
+    });
+  await page.route(searches, answer);
+  await scope.getByLabel("Where are you going?").fill(place);
+  await scope.getByRole("button", { name: `${place}, Test place`, exact: true }).click();
+  await page.unroute(searches, answer);
+  await expect(scope.getByTestId("new-trip-decided")).toContainText(place);
+}
+
+/**
  * **Create an empty trip through the New-trip sheet, from the home page.**
  *
- * One seam, where there were fourteen. `getByRole("button", { name: "New trip" })`
- * → `getByLabel("Trip name")` → `"Create empty"` was inlined across nine spec
- * files, none of which is about the sheet — every one of them just needs a trip
- * to exist before it can test something else.
+ * One seam, where there were fourteen. Every caller just needs a trip to exist
+ * before it can test something else, so when the sheet changed shape (SPEC
+ * §30.1's turns, then M56's pages) the change landed here once.
  *
- * That sequence has since stopped working, exactly as expected: SPEC §30.1
- * turned the sheet into four conversational turns and the field called "Trip
- * name" went away with the form. Because the sequence moved here FIRST — in its
- * own commit, against the wizard as it then stood, with the suite green either
- * side — the rename below is a one-line edit rather than fourteen.
+ * Since M56 the name is a picked place (`pickNewTripPlace`), and *create an
+ * empty one* (SPEC §35.2's quiet row) makes the trip from it with no other
+ * answer, so the trip is as empty as it always was: no dates, no pace, no
+ * history beyond its creation.
  *
  * Leaves the browser on the home page with the new trip's link present, which
  * is where every caller already expected to be. It deliberately does NOT open
@@ -512,12 +534,7 @@ export async function openNewStopOnDay(page: Page, dayIndex = 0): Promise<void> 
  */
 export async function createEmptyTripViaWizard(page: Page, tripName: string): Promise<void> {
   await page.getByRole("button", { name: "New trip" }).click();
-  // The composer's accessible name is the QUESTION being asked, not "Trip
-  // name" — the sheet is four conversational turns now (SPEC §30.1). This one
-  // rename is the whole reason the sequence moved in here first.
-  await page.getByLabel("Where are you going?").fill(tripName);
-  // SPEC §35.2: *Create empty* stopped being a footer button and became the
-  // quiet row's *create an empty one*.
+  await pickNewTripPlace(page, tripName);
   await page.getByRole("button", { name: "create an empty one" }).click();
   // **The new trip lands as the hero — usually.** The list is newest-first and
   // since §35.2 the hero is left out of *Other trips*, so a new trip has no
