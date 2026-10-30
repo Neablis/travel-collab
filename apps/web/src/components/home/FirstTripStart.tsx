@@ -8,7 +8,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
-import { NewTripConversation, TOUCH, type NewTripWizardProps } from "./NewTripWizard";
+import { NewTripPages, TOUCH, type NewTripWizardProps } from "./NewTripWizard";
 import { ImportTripButton, type ImportTripHandle } from "./ImportTripButton";
 
 // Somebody's first authenticated screen, and the answer to two pieces of
@@ -35,19 +35,19 @@ import { ImportTripButton, type ImportTripHandle } from "./ImportTripButton";
 // shipped a "Who & money" step the flow does not have. And a numbered list of
 // steps is the form framing SPEC §31.2 removed from the sheet itself: the
 // design's whole point is that this reads as a conversation, and the screen
-// that introduces it was arguing the opposite. The conversation now renders
-// here directly (`NewTripConversation`), so the first thing a new account sees
-// is the first question, already answerable — no click-through, and no list
-// that can disagree with the script.
+// that introduces it was arguing the opposite. The flow now renders here
+// directly (`NewTripPages`, five pages since M56), so the first thing a new
+// account sees is the first question, already answerable — no click-through,
+// and no list that can disagree with it.
 
 /**
- * Somebody's first screen: the new-trip conversation itself, and the routes
+ * Somebody's first screen: the new-trip pages themselves, and the routes
  * that are not "start from nothing".
  *
  * @param createTrip - Mints the trip; carries the client-minted `tripId`.
  * @param dispatch - Sends the setup commands the answers imply.
  * @param onDone - Called once the trip exists and its commands have confirmed.
- * @param composerId - Lets the page head's "New trip" button focus the answer field.
+ * @param pageId - Lets the page head's "New trip" button focus the current page.
  * @param disabled - Holds the exits while a demo clone is still in flight.
  * @param showConversation - False while the sheet owns the conversation.
  * @param importHandle - Lets the page open this card's file picker.
@@ -57,7 +57,7 @@ export function FirstTripStart({
   createTrip,
   dispatch,
   onDone,
-  composerId,
+  pageId,
   disabled = false,
   showConversation = true,
   importHandle,
@@ -65,8 +65,8 @@ export function FirstTripStart({
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
   onDone: (tripId: string | null, navigate: boolean) => void;
-  composerId?: string;
-  /** True while a demo clone is landing — see `NewTripConversation`. */
+  pageId?: string;
+  /** True while a demo clone is landing — see `NewTripPages`. */
   disabled?: boolean;
   /**
    * **Exactly one composer, and the open sheet wins.**
@@ -99,21 +99,19 @@ export function FirstTripStart({
       </div>
 
       {/* **The same component the sheet renders**, told it is a first run so
-          the thread opens with §32.1's own line — "Welcome. A few quick
-          questions and I will draft your first trip". The sheet's line says "I
-          will draft the trip", which has no antecedent on a screen with no
-          trips behind it. The height is bounded here rather than by a sheet,
-          because on a page the transcript must not be the thing that grows the
-          card (§31.3's "original sin"). */}
+          Cass opens with §32.1's own line: "set up the trip" has no antecedent
+          on a screen with no trips behind it. The height is bounded here
+          rather than by a sheet, so the pages scroll inside the card instead
+          of growing it (§31.3's "original sin"). */}
       {showConversation && (
         <div className="flex h-a-thread min-h-0 flex-col" data-testid="first-trip-conversation">
-          <NewTripConversation
+          <NewTripPages
             createTrip={createTrip}
             dispatch={dispatch}
             onDone={onDone}
             firstRun
             disabled={disabled}
-            {...(composerId === undefined ? {} : { composerId })}
+            {...(pageId === undefined ? {} : { pageId })}
           />
         </div>
       )}

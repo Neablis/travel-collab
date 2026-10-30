@@ -18,13 +18,16 @@ import { InstallNudge } from "@/components/install/InstallNudge";
 import { NextTripHeroSkeleton, TripGridSkeleton } from "@/components/home/HomeSkeletons";
 import { RegionError } from "@/components/ui/skeleton";
 import { TripCard } from "@/components/home/TripCard";
-import { NewTripWizard } from "@/components/home/NewTripWizard";
+import { NewTripWizard, focusNewTripPage } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
 import { NextTripPrompt } from "@/components/home/NextTripPrompt";
 import { ImportTripButton, type ImportTripHandle } from "@/components/home/ImportTripButton";
 
-/** The inline first-run composer, so the page head's "New trip" can focus it. */
-const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
+/**
+ * The inline first run's current page, so the page head's "New trip" can
+ * focus it. On page one that lands in Where's search, which is on no other.
+ */
+const FIRST_TRIP_PAGE_ID = "first-trip-page";
 import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTrips } from "@/lib/apiClient";
 import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
@@ -237,7 +240,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
     // KI-2026-09-13-a): it scrolls every scrollable ancestor, which is the bug
     // `usePinToBottom` exists to avoid on this very flow. Focusing a form
     // control brings it into view natively, so the ban costs nothing here.
-    document.getElementById(FIRST_TRIP_COMPOSER_ID)?.focus();
+    focusNewTripPage(document.getElementById(FIRST_TRIP_PAGE_ID));
   }
 
   // Every render branch below is gated on `trips !== null`, so "the read
@@ -678,7 +681,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
           // not coming back: `open` is gated on `!hasNoTrips`, so it was
           // unreachable, and first run is the inline conversation now (§32.1).
           size={isPhone ? "full" : "rail"}
-          // Only the full wizard (dates/budget applied) navigates straight to
+          // Review's create buttons (the answers applied) navigate straight to
           // the new trip, matching the phase doc's own "create... apply
           // dates and budget... then navigate" sequence. "create an empty one"
           // is the old single-field dialog's escape hatch and keeps that
@@ -777,15 +780,14 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
             <FirstTripStart
               createTrip={createTripApi}
               dispatch={sendTripCommand}
-              composerId={FIRST_TRIP_COMPOSER_ID}
+              pageId={FIRST_TRIP_PAGE_ID}
               disabled={cloningDemo}
               showConversation={!newTripOpen}
               importHandle={importPicker}
               // **SPEC §32.1's `ntLand()` is already satisfied here, and
               // widening it would break nine e2e specs.** §32.1 says finishing
-              // a first run has to land you in an app, and names the two exits
-              // that do it: *Create with this* and *Open the trip*. Both pass
-              // `navigate: true`, so both already push. *create an empty one*
+              // a first run has to land you in an app. Review's create buttons
+              // and *Open the trip* pass `navigate: true`, so they push. *create an empty one*
               // is not one of them — it is this build's own escape hatch from
               // the old single-field dialog, and making IT navigate is the
               // precise regression CI caught on PR 32: `createEmptyTripViaWizard`

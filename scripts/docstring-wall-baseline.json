@@ -100,7 +100,6 @@
   "apps/web/src/components/front/FrontDoorHeader.tsx::FrontDoorHeader",
   "apps/web/src/components/front/authCopy.ts::errorMessage",
   "apps/web/src/components/home/ImportTripButton.tsx::ImportTripButton",
-  "apps/web/src/components/home/NewTripWizard.tsx::NewTripConversation",
   "apps/web/src/components/home/NewTripWizard.tsx::NewTripWizard",
   "apps/web/src/components/home/newTripSubmit.ts::createTripWithSetup",
   "apps/web/src/components/lenses/CalendarLens.tsx::CalendarLens",

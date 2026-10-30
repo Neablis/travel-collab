@@ -1,45 +1,49 @@
-/**
- * **The New-trip script, and a pure reducer over it.**
- *
- * No React, no `fetch`, no imports from `@/lib`. That is deliberate and it is
- * the point: SPEC §30.2 says the turns make **zero model calls and zero
- * network calls**, and the only way to make that property assertable rather
- * than merely asserted is to put everything that decides what is asked, what
- * commits and what an answer means somewhere that could not make one.
- *
- * The only traffic the flow may produce is `POST /api/trips` and
- * `POST /api/trips/:id/commands`, and only when an exit is pressed — both of
- * which live in the component, not here. **One read joined them in M27 (D13):**
- * after the city, the component asks the library for published days there.
- * It is a read, never a model call, and it never holds the script up; what it
- * found arrives here as data (`offerDays`), so this file still cannot make it.
- *
- * **The list is derived, not fixed** (SPEC §32.3, 2026-09-18). Answering *Yes*
- * to "do you have a start date" inserts the day-picker turn, so the flow is
- * five turns without a date and six with one. `questionsFor` is the only place
- * that knows, and nothing may hardcode the count — including the copy.
- */
+import type { ActivityTagDescribed, TripPace } from "@tc/contracts";
 
 /**
- * `who` was dropped on Mitchell's instruction, 2026-09-15 — a recorded delta
- * against `SPEC.md` §30.1 and §32.3, both of which still list it.
+ * **New trip's pages, and a pure reducer over them** (M56 part 2, ADR-084 §1).
  *
- * `date`, `start` and `len` are §32.3: what used to be one `when` turn is now
- * "do you have a start date", an optional day picker, and a length. The old
- * turn carried a length chip row *and* an arrive→leave range *and* a *Use
- * these* button — three controls for one answer — and it modelled a trip as a
- * date range while every other surface in this app models it as a start date
- * plus a length.
+ * No React, no `fetch`, no imports from `@/lib`. It was a scripted chat until
+ * M56; it is five pages and a Review now, and the reason it stays here is the
+ * one it always had: everything that decides what is asked, what counts as an
+ * answer and what reaches the trip sits where nothing could make a model call
+ * or a network call (SPEC §30.2). The one read the flow makes, the published
+ * days for the chosen place, is the component's; what it found arrives here as
+ * data (`offerDays`).
+ *
+ * **Every answer is a pick.** There is no free text: Where takes a place a
+ * search returned (`NewTripPlace` is built from a result, never from what was
+ * typed), and every other page answers with options, a date, a count or tags.
  */
-export type NewTripQuestionId = "where" | "pb" | "date" | "start" | "len" | "pace" | "feel";
+
+/** The five pages, in order. Review comes after the last. */
+export const NEW_TRIP_PAGES = ["where", "start", "length", "pace", "about"] as const;
+export type NewTripPageId = (typeof NEW_TRIP_PAGES)[number];
+
+/** `page` once every page is behind the reader. */
+export const REVIEW = NEW_TRIP_PAGES.length;
 
 /**
- * **A published day offered on the Playbook-day turn** (SPEC §35.8, M27 D13).
+ * **A place a search returned** — a library city or country, or a world place
+ * (M56 D3). `id` is the result's own key, so two places with one name stay
+ * two; `label` is what the trip is named.
+ */
+export interface NewTripPlace {
+  id: string;
+  label: string;
+  /** What tells two same-named world places apart: their region. */
+  detail?: string;
+  kind: "city" | "country" | "world";
+  countryCode?: string;
+  /** Published days touch it, so Review may offer some (D9). */
+  hasPlaybooks: boolean;
+}
+
+/**
+ * **A published day Review offers to start from** (M27 D13, M56 D9).
  *
- * Plain data, handed in: the read that finds these is the component's, and
- * this module only decides what they mean for the script. `author` is the
- * day's `ownerDisplayName`, already said by the server (`publicNameFor`), and
- * this file imports nothing from `@/lib`.
+ * Plain data, handed in: `author` is the day's `ownerDisplayName`, already
+ * said by the server (`publicNameFor`).
  */
 export interface PopularDay {
   savedDayId: string;
@@ -50,42 +54,54 @@ export interface PopularDay {
   author: string;
 }
 
-export interface NewTripQuestion {
-  id: NewTripQuestionId;
-  ask: string;
-  /**
-   * The answer dock's text field. **It says that typing and the chips are the
-   * same answer** (SPEC §31.3): they are one control, not two, and the chip
-   * row sits directly above this field inside the same frame.
-   */
-  placeholder: string;
-  chips: readonly string[];
-  /** `start` offers a day picker, which no other turn does. */
-  dates?: boolean;
-  /** `feel` and `pb` take several answers at once; every other turn takes one. */
-  multi?: boolean;
-  /** `pb` offers these days as cards instead of chips. */
-  offer?: readonly PopularDay[];
+/** `iso: null` is *Yes, pick a day* with no day picked yet, which is not an answer. */
+export type StartAnswer = "not-yet" | { iso: string | null };
+
+export interface NewTripAnswers {
+  where?: NewTripPlace;
+  start?: StartAnswer;
+  /** `other` when the − / + counter set it rather than a chip, so the page reopens on the counter. */
+  length?: { days: number; other: boolean };
+  pace?: TripPace;
+  /** Any or none: an empty list is an answer. */
+  about: readonly ActivityTagDescribed[];
 }
 
-/** The one answer to `date` that inserts the day picker. Compared by value in
- *  `questionsFor` and in `commitAnswer`, so it is named once. */
-export const DATE_YES = "Yes";
-export const DATE_NOT_YET = "Not yet";
+export interface NewTripState {
+  /** The page being shown: an index into `NEW_TRIP_PAGES`, or `REVIEW`. */
+  page: number;
+  answers: NewTripAnswers;
+  /** True when Review's *Change* opened this page, so it goes back to Review. */
+  fromReview: boolean;
+  /**
+   * The place Review's *Change* left, while Where is open from Review. A
+   * different pick re-walks the later pages instead of returning.
+   */
+  leftWhere?: NewTripPlace;
+  /** Set by changing Where from Review, until the re-walk reaches Review again. */
+  destinationChanged: boolean;
+  /** Published days for `answers.where`, frozen by `offerDays`. */
+  offer: readonly PopularDay[];
+  /** The offered days the reader chose to start from, in offer order. */
+  chosen: readonly string[];
+}
+
+export const NEW_TRIP_START: NewTripState = {
+  page: 0,
+  answers: { about: [] },
+  fromReview: false,
+  destinationChanged: false,
+  offer: [],
+  chosen: [],
+};
 
 /**
  * **Day counts for the length chips.**
  *
- * The design file calls this map `NT_NIGHTS`, and this one is named for days
- * because days is what the product has always meant here: `LENGTH_CHIPS` shipped
- * "Long weekend" as 4 and the design's own New Orleans card reads *"Long
- * weekend, four days"*. Renaming the concept at this boundary would make 4 mean
- * five days on one screen and four on another.
- *
- * `Longer: 21` is **D-B, answered 2026-09-16**, and it reverses the 2026-08-23
- * decision that `Longer` has no day count the design implies. That reversal is
- * why `Longer` is a real chip here instead of the inert Preview badge
- * `NewTripWizard` shipped.
+ * Named for days, not nights, because days is what the product has always
+ * meant here: *"Long weekend, four days"* is the design's own card. `Longer: 21`
+ * is D-B, answered 2026-09-16. M56 keeps these five and adds the counter for
+ * any other length (plan, *Settled in the plan*).
  */
 export const LENGTH_DAYS: Readonly<Record<string, number>> = {
   "Long weekend": 4,
@@ -96,99 +112,103 @@ export const LENGTH_DAYS: Readonly<Record<string, number>> = {
 };
 
 /**
- * **The day count for a length answer, or `null` if it is not one of the five.**
+ * **The day count for a chip, or `null` if it is not one of the five.**
  *
  * A function rather than an index, because `LENGTH_DAYS[answer]` reads the
- * PROTOTYPE too: a reader who types `constructor` on the length turn got
- * `Object` back, which is not null, so the closing line rendered function source
- * and `addDaysIso` was handed a `NaN` that throws before the date command is
- * sent (CodeRabbit, PR #188). `Object.hasOwn` is the guard, and it lives here,
- * beside the map, so a second call site cannot reintroduce the same lookup.
+ * PROTOTYPE too: `constructor` gave back `Object` (CodeRabbit, PR 188).
  */
-export function daysFor(answer: string | undefined): number | null {
-  if (answer === undefined || !Object.hasOwn(LENGTH_DAYS, answer)) return null;
-  return LENGTH_DAYS[answer] ?? null;
+export function daysFor(chip: string | undefined): number | null {
+  if (chip === undefined || !Object.hasOwn(LENGTH_DAYS, chip)) return null;
+  return LENGTH_DAYS[chip] ?? null;
 }
 
-/** What `feel` commits when the reader picks nothing and writes nothing. */
-export const FEEL_DEFAULT = "A bit of everything";
+/** The chip a length came from, when it is one; the counter's own lengths have none. */
+export function chipFor(length: NewTripAnswers["length"]): string | null {
+  if (length === undefined || length.other) return null;
+  return Object.keys(LENGTH_DAYS).find((chip) => LENGTH_DAYS[chip] === length.days) ?? null;
+}
 
-/**
- * **The line the thread opens with, before any question** (SPEC §31.2, §35.8).
- *
- * It does two jobs. It states §30.2's contract in the reader's own reading
- * order — nothing is made until the last answer, so an abandoned sheet costs
- * nothing — and it means turn one is never an empty pane. Since §35.8 it also
- * says who is asking: the new-trip assistant is **Cass**. (The in-trip panel
- * is still *Assistant*; §35.8 says explicitly not to rename it.)
- *
- * **"A few", never a number.** It used to say "Four quick questions", which was
- * right for a fixed four-turn script and became a bug the moment §32.3 made the
- * list depend on the answers. §32.3 says it outright: *"Nothing may hardcode
- * the count — including the copy."*
- *
- * First run gets its own line (§32.1), because "the trip" has no antecedent on
- * somebody's first screen. It greets them by name only when there is a name
- * worth using — see `firstNameOf` (lib/displayName.ts).
- */
-export function openingFor(firstRun: boolean, firstName: string | null = null): string {
-  if (!firstRun) {
-    return "Hi, it’s Cass. A few quick questions and I’ll draft the trip — nothing is made until your last answer.";
+/** The counter's bounds. No contract caps a trip; two months is past any trip this flow is for. */
+export const LENGTH_MIN = 1;
+export const LENGTH_MAX = 60;
+
+/** Whether `page` holds an answer the reader may move on from. */
+export function isAnswered(answers: NewTripAnswers, page: NewTripPageId): boolean {
+  switch (page) {
+    case "where":
+      return answers.where !== undefined;
+    case "start":
+      return answers.start === "not-yet" || (answers.start !== undefined && answers.start.iso !== null);
+    case "length":
+      return answers.length !== undefined;
+    case "pace":
+      return answers.pace !== undefined;
+    case "about":
+      return true;
   }
-  const hi = firstName === null ? "Hi, I’m Cass." : `Hi ${firstName}, I’m Cass.`;
-  return `${hi} I plan trips here — ask me a few things and I’ll draft your first one. Nothing is made until your last answer.`;
+}
+
+/** The page the state is on, or `"review"`. */
+export function pageOf(state: NewTripState): NewTripPageId | "review" {
+  return NEW_TRIP_PAGES[state.page] ?? "review";
 }
 
 /**
- * **How long Cass "types" before the next line** (SPEC §35.8, M27 D14).
+ * **Record what the current page's control now holds.**
  *
- * Presentation over a local script: nothing waits on these but the row. D14
- * supersedes §30.2's "do not add a fake delay" on the design's say-so — an
- * answer that lands with no beat reads as a form advancing, not as someone
- * listening. Reduced motion stills the dots; it does not shorten the pause.
+ * A different place takes the offer and the chosen days with it — those days
+ * are somewhere else — until `offerDays` freezes the new place's.
  */
-export const CASS_TYPING_MS = 750;
-/** The longer beat before the draft, labelled `CASS_DRAFTING_LINE`. */
-export const CASS_DRAFTING_MS = 1300;
-export const CASS_DRAFTING_LINE = "Drafting the trip…";
-
-/** What the Playbook-day turn commits when nothing is picked. */
-export const PB_FRESH = "Plan it fresh";
-
-export type NewTripAnswers = Partial<Record<NewTripQuestionId, string>>;
-
-const WHERE: NewTripQuestion = {
-  id: "where",
-  ask: "Where are you going?",
-  placeholder: "Type a city, or tap one above",
-  chips: ["Lisbon", "Mexico City", "Seoul", "Copenhagen", "Big Sur", "Back to Kyoto"],
-};
-
-/** The city a `where` answer names — "Back to Kyoto" is about Kyoto. */
-export function cityOf(where: string | undefined): string {
-  return (where ?? "").replace(/^back to /i, "").trim();
-}
-
-function playbookQuestion(where: string | undefined, offer: readonly PopularDay[]): NewTripQuestion {
-  const city = cityOf(where) || "there";
-  // D13: the copy says what the number IS. There are no ratings until M12, so
-  // the design's "rated these days highly" would be a claim nothing measured.
-  const ask =
-    offer.length === 1
-      ? `People planning ${city} keep adding this day. Want me to build around it? Or skip, and I’ll plan it fresh.`
-      : `People planning ${city} keep adding these days. Want me to build around any of them? Or skip, and I’ll plan it fresh.`;
-  return {
-    id: "pb",
-    ask,
-    placeholder: "Or tell me what you want from the days",
-    chips: [],
-    multi: true,
-    offer,
-  };
+export function answer(state: NewTripState, patch: Partial<NewTripAnswers>): NewTripState {
+  const answers = { ...state.answers, ...patch };
+  if (patch.where !== undefined && patch.where.id !== state.answers.where?.id) {
+    return { ...state, answers, offer: [], chosen: [] };
+  }
+  return { ...state, answers };
 }
 
 /**
- * **Up to three published days worth offering after the city** (M27 D13).
+ * **Move on from the current page**, and refuse to while it is unanswered.
+ *
+ * From a page Review's *Change* opened, that is back to Review — except Where
+ * with a different place, which re-walks the later pages with their answers
+ * kept, under *Destination changed*: a length or a pace picked for one place
+ * is worth a second look for another.
+ */
+export function next(state: NewTripState): NewTripState {
+  const page = NEW_TRIP_PAGES[state.page];
+  if (page === undefined || !isAnswered(state.answers, page)) return state;
+  if (state.fromReview) {
+    const { leftWhere, ...rest } = state;
+    const moved = page === "where" && state.answers.where?.id !== leftWhere?.id;
+    return moved
+      ? { ...rest, fromReview: false, page: 1, destinationChanged: true }
+      : { ...rest, fromReview: false, page: REVIEW };
+  }
+  const to = state.page + 1;
+  return to === REVIEW ? { ...state, page: REVIEW, destinationChanged: false } : { ...state, page: to };
+}
+
+/** One page back. Not from Where, which has nothing before it. */
+export function back(state: NewTripState): NewTripState {
+  return state.page === 0 ? state : { ...state, page: state.page - 1 };
+}
+
+/** **Review's *Change***: open that page, to come back to Review. */
+export function changeTo(state: NewTripState, page: NewTripPageId): NewTripState {
+  const index = NEW_TRIP_PAGES.indexOf(page);
+  const opened: NewTripState = { ...state, page: index, fromReview: true };
+  if (page === "where" && state.answers.where !== undefined) opened.leftWhere = state.answers.where;
+  return opened;
+}
+
+/** "Step 2 of 5", for a page; Review has no step. */
+export function stepLabel(state: NewTripState): string | null {
+  return state.page < REVIEW ? `Step ${state.page + 1} of ${NEW_TRIP_PAGES.length}` : null;
+}
+
+/**
+ * **Up to three published days worth offering for the place** (M27 D13).
  *
  * Most-added first, at least one add, never the reader's own — offering
  * somebody their own day back as something "people keep adding" is the app
@@ -217,293 +237,93 @@ export function pickPopularDays(
     }));
 }
 
-const DATE: NewTripQuestion = {
-  id: "date",
-  ask: "Do you have a start date in mind?",
-  placeholder: "Say when, or tap one above",
-  chips: [DATE_YES, DATE_NOT_YET],
-};
-
-const START: NewTripQuestion = {
-  id: "start",
-  ask: "When do you arrive?",
-  placeholder: "Or describe it — early April",
-  chips: [],
-  dates: true,
-};
-
-const PACE: NewTripQuestion = {
-  id: "pace",
-  ask: "What pace do you want?",
-  placeholder: "Describe the pace, or tap one above",
-  chips: ["Slow", "Balanced", "Packed"],
-};
-
-const FEEL: NewTripQuestion = {
-  id: "feel",
-  ask: "What is the trip about?",
-  placeholder: "Say what it is about, or tap any above",
-  chips: [
-    "Food",
-    "Art",
-    "Hiking",
-    "Nightlife",
-    "Markets",
-    "Architecture",
-    "With kids",
-    "Slow mornings",
-  ],
-  multi: true,
-};
-
 /**
- * **The turns, for these answers** (SPEC §32.3).
- *
- * Two things depend on what has been said so far: whether the day picker is in
- * the list at all, and how the length turn asks — *"And how long are you
- * staying?"* once a date is fixed, *"How long, roughly?"* when it is not.
- *
- * Called with the answers rather than read off a module constant so that the
- * question a reducer is committing and the length it measures completion
- * against are both computed from the SAME answers. A list captured before a
- * commit and a list captured after it disagree by exactly one turn, which is
- * the bug this shape makes unrepresentable. §35.8's offer is a third input for
- * the same reason, and it lives in the state beside the answers rather than
- * next to it.
+ * **Freeze the offer for `placeId`**, once the read for it answers. A read for
+ * a place the reader has since moved off is dropped: its days are somewhere
+ * else. A chosen day the new offer no longer holds cannot be honoured.
  */
-export function questionsFor(
-  answers: NewTripAnswers,
-  offer: readonly PopularDay[] = [],
-): readonly NewTripQuestion[] {
-  const dated = answers.date === DATE_YES;
-  return [
-    WHERE,
-    // **Asked only when there is something to offer** (§35.8): skipped
-    // entirely when the city has no published days, when the read failed, or
-    // when it had not come back by the time the typing row ended.
-    ...(offer.length > 0 ? [playbookQuestion(answers.where, offer)] : []),
-    DATE,
-    ...(dated ? [START] : []),
-    {
-      id: "len",
-      ask: dated ? "And how long are you staying?" : "How long, roughly?",
-      placeholder: "Type a length, or tap one above",
-      chips: ["Long weekend", "A week", "10 days", "2 weeks", "Longer"],
-    },
-    PACE,
-    FEEL,
-  ];
-}
-
-export interface NewTripState {
-  /** The turn being asked. `questionsFor(answers).length` means they are all in. */
-  turn: number;
-  answers: NewTripAnswers;
-  /** The multi turn's picks, in pick order — `feel`'s chips, or `pb`'s
-   *  savedDayIds. Empty on every other turn. */
-  picked: readonly string[];
-  /**
-   * The Playbook days on offer for the answered city, frozen by `offerDays`
-   * when the typing row after `where` ends (M27 D13). Absent until then, and
-   * empty for good when there was nothing to offer. It decides whether `pb` is
-   * in the list, so it is state every turn index is measured against.
-   */
-  offer?: readonly PopularDay[];
-  /** The savedDayIds the `pb` turn chose, inserted once the trip exists. */
-  chosen?: readonly string[];
-}
-
-export const NEW_TRIP_START: NewTripState = { turn: 0, answers: {}, picked: [] };
-
-/** The list this state's turn indexes into. */
-export function questionsOf(state: NewTripState): readonly NewTripQuestion[] {
-  return questionsFor(state.answers, state.offer);
-}
-
-/** The question a state is standing on, or `undefined` once the flow is done. */
-export function questionAt(state: NewTripState): NewTripQuestion | undefined {
-  return questionsOf(state)[state.turn];
-}
-
-/** Every turn answered — measured against the list THESE answers imply. */
-export function isComplete(state: NewTripState): boolean {
-  return state.turn >= questionsOf(state).length;
-}
-
-/**
- * Commit one written or picked answer and move on.
- *
- * **An empty answer is not an answer**, and returning the same state rather
- * than advancing is what stops a blank turn being recorded as one the reader
- * gave. Whitespace counts as empty: a space bar is not a destination.
- *
- * **Revising the date question away from *Yes* takes the picked day with it**
- * (SPEC §32.3). Without that, going back and saying "not yet" left `start`
- * behind, and the closing line kept a date the reader had just removed.
- */
-export function commitAnswer(state: NewTripState, value: string): NewTripState {
-  const trimmed = value.trim();
-  const question = questionAt(state);
-  if (trimmed === "" || question === undefined) return state;
-  const answers: NewTripAnswers = { ...state.answers, [question.id]: trimmed };
-  if (question.id === "date" && trimmed !== DATE_YES) delete answers.start;
-  const next: NewTripState = { ...state, turn: state.turn + 1, answers, picked: [] };
-  // Words typed on the Playbook-day turn pick no day: a sentence is not a
-  // savedDayId, and reading one into it would be the model call §30.2 bars.
-  if (question.id === "pb") return { ...next, chosen: [] };
-  if (question.id === "where") return withoutOffer(next, trimmed !== state.answers.where);
-  return next;
-}
-
-/**
- * **A `where` answer takes the old offer with it** until `offerDays` freezes a
- * new one, so no `pb` turn can be asked about the wrong place in between. A
- * DIFFERENT city also drops what was chosen for the old one — those days are
- * somewhere else.
- */
-function withoutOffer(state: NewTripState, cityChanged: boolean): NewTripState {
-  const next: NewTripState = { turn: state.turn, answers: { ...state.answers }, picked: state.picked };
-  if (cityChanged) {
-    delete next.answers.pb;
-  } else if (state.chosen !== undefined) {
-    next.chosen = state.chosen;
-  }
-  return next;
-}
-
-/**
- * **Freeze the offer for the answered city** (M27 D13) — called when the typing
- * row after `where` ends, with whatever the read had found by then, which is
- * `[]` when it had found nothing, failed, or not come back.
- *
- * A pick that is not in the new offer cannot be honoured, so the `pb` answer
- * and its days go together; an empty offer removes the turn, and the answer
- * with it, rather than inserting days nobody was shown this time.
- */
-export function offerDays(state: NewTripState, offer: readonly PopularDay[]): NewTripState {
+export function offerDays(state: NewTripState, placeId: string, offer: readonly PopularDay[]): NewTripState {
+  if (state.answers.where?.id !== placeId) return state;
   const offered = new Set(offer.map((day) => day.savedDayId));
-  const chosen = state.chosen ?? [];
-  if (offer.length > 0 && chosen.every((id) => offered.has(id))) {
-    // Re-asked after the same city was confirmed: the picks are still ticked.
-    const asking = questionsFor(state.answers, offer)[state.turn]?.id === "pb";
-    return { ...state, offer, picked: asking ? chosen : state.picked };
-  }
-  const answers = { ...state.answers };
-  delete answers.pb;
-  return { ...state, offer, answers, chosen: [] };
+  return { ...state, offer, chosen: state.chosen.filter((id) => offered.has(id)) };
 }
 
-/** Add or remove one pick — a `feel` chip or a `pb` day — keeping the rest in pick order. */
-export function togglePick(state: NewTripState, chip: string): NewTripState {
-  const picked = state.picked.includes(chip)
-    ? state.picked.filter((each) => each !== chip)
-    : [...state.picked, chip];
-  return { ...state, picked };
+/** *Start from this*, pressed or pressed again. Only an offered day can be chosen. */
+export function toggleDay(state: NewTripState, savedDayId: string): NewTripState {
+  if (!state.offer.some((day) => day.savedDayId === savedDayId)) return state;
+  const on = state.chosen.includes(savedDayId);
+  const chosen = state.offer
+    .map((day) => day.savedDayId)
+    .filter((id) => (id === savedDayId ? !on : state.chosen.includes(id)));
+  return { ...state, chosen };
 }
 
-/**
- * Commit the multi-pick turn.
- *
- * Nothing picked commits `FEEL_DEFAULT` rather than nothing: this is the last
- * turn, and a blank here would leave the closing line describing a trip that is
- * about nothing at all.
- */
-export function commitMulti(state: NewTripState): NewTripState {
-  const question = questionAt(state);
-  if (question === undefined) return state;
-  if (question.offer !== undefined) {
-    // The answer said in the thread is the days' NAMES; what the trip gets is
-    // their ids. Nothing picked is the reader choosing a fresh plan.
-    const byId = new Map(question.offer.map((day) => [day.savedDayId, day.name]));
-    const chosen = state.picked.filter((id) => byId.has(id));
-    const names = chosen.map((id) => byId.get(id)!);
-    return {
-      ...state,
-      turn: state.turn + 1,
-      answers: { ...state.answers, [question.id]: names.length === 0 ? PB_FRESH : names.join(", ") },
-      picked: [],
-      chosen,
-    };
-  }
-  const value = state.picked.length === 0 ? FEEL_DEFAULT : state.picked.join(", ");
-  return {
-    ...state,
-    turn: state.turn + 1,
-    answers: { ...state.answers, [question.id]: value },
-    picked: [],
-  };
-}
+/** The pace options, with what each means for the days. */
+export const PACE_OPTIONS: readonly { id: TripPace; label: string; detail: string }[] = [
+  { id: "slow", label: "Slow", detail: "Fewer stops, longer lunches" },
+  { id: "balanced", label: "Balanced", detail: "A full day with room to breathe" },
+  { id: "packed", label: "Packed", detail: "As much as the days will hold" },
+];
 
 /**
- * **The one-clause acknowledgement Cass puts before the next question**
- * (SPEC §35.8): *"so it reads like someone listening, not a form advancing.
- * Never gushing; one clause at most."*
- *
- * Keyed on the CHIP where a chip has a meaning. "Balanced it is." is a fine
- * thing to say to *Balanced* and a strange one to say to somebody who typed
- * "whatever the kids can manage", so words no chip covers get a plain
- * "Got it." `who` has no line because it has no turn (M27 D15). The date turn
- * says nothing to *Yes*: the next line is already about the date.
+ * **Cass's line before a page's question**: one clause on the answer before
+ * it (SPEC §35.8 — *"never gushing; one clause at most"*), or the opening line
+ * on Where. Cass is the picker's voice, with no AI badge (M56 D7).
  */
-export function acknowledge(id: NewTripQuestionId, answer: string, chosen = 0): string {
-  switch (id) {
+export function cassLine(state: NewTripState, opening: string): string {
+  const { answers } = state;
+  if (state.destinationChanged && state.page === 1 && answers.where !== undefined) {
+    return `${answers.where.label} now. Your answers are kept — check they still fit.`;
+  }
+  switch (pageOf(state)) {
     case "where":
-      return /^back to /i.test(answer) ? `${cityOf(answer)} again — good.` : `${answer}, good.`;
-    case "pb":
-      if (answer === PB_FRESH) return "Fresh it is.";
-      if (chosen === 0) return "Got it.";
-      return chosen === 1 ? "I’ll build the rest around that one." : "I’ll build the rest around those.";
-    case "date":
-      // Anything but Yes leaves the trip undated — a typed date is not parsed
-      // (§30.2) — so "dates can come later" is true of every other answer.
-      return answer === DATE_YES ? "" : "No problem — dates can come later.";
-    case "len":
-      return "Got it.";
-    case "pace":
-      if (answer === "Slow") return "Slow — fewer stops, longer lunches.";
-      if (answer === "Packed") return "Packed — I’ll keep the travel between stops tight.";
-      return answer === "Balanced" ? "Balanced it is." : "Got it.";
+      return opening;
     case "start":
-    case "feel":
-      return "";
+      return answers.where === undefined ? "" : `${answers.where.label}, good.`;
+    case "length":
+      return answers.start === "not-yet" ? "No problem — dates can come later." : "";
+    case "pace":
+      return "Got it.";
+    case "about": {
+      const pace = PACE_OPTIONS.find((option) => option.id === answers.pace);
+      return pace === undefined ? "" : `${pace.label} it is.`;
+    }
+    case "review":
+      return "Here is the trip. Change anything, then create it — nothing is made until you do.";
   }
 }
 
 /**
- * **A question as Cass says it: the acknowledgement of the answer before it,
- * then the question.** The composer's accessible name stays `question.ask`
- * alone — the acknowledgement is conversation, not the field's label.
+ * **The line the first page opens with** (SPEC §31.2, §35.8). It says who is
+ * asking and the contract §30.2 keeps: nothing is made until the reader says
+ * so, so an abandoned sheet costs nothing. First run greets by name when there
+ * is one worth using (`firstNameOf`).
  */
-export function spokenAsk(state: NewTripState, index: number): string {
-  const questions = questionsOf(state);
-  const question = questions[index];
-  if (question === undefined) return "";
-  const previous = index > 0 ? questions[index - 1] : undefined;
-  const answer = previous === undefined ? undefined : state.answers[previous.id];
-  const ack =
-    previous === undefined || answer === undefined
-      ? ""
-      : acknowledge(previous.id, answer, state.chosen?.length ?? 0);
-  return ack === "" ? question.ask : `${ack} ${question.ask}`;
+export function openingFor(firstRun: boolean, firstName: string | null = null): string {
+  if (!firstRun) return "Hi, it’s Cass. Five quick picks and I’ll set the trip up — nothing is made until you say so.";
+  const hi = firstName === null ? "Hi, I’m Cass." : `Hi ${firstName}, I’m Cass.`;
+  return `${hi} I plan trips here — five quick picks and I’ll set up your first one. Nothing is made until you say so.`;
 }
 
 /**
- * Go back to an earlier turn to change its answer.
- *
- * **Later answers are kept, not cleared** (SPEC §30.1: *"you re-answer
- * forward"*). Clearing them would be the tidier data model and the worse
- * product: a reader who fixes a typo in the city should not lose the three
- * answers they already gave.
- *
- * The turn is an INDEX into the list these answers imply, which is why callers
- * find it with `questionsOf(state)` rather than off a constant: when the date
- * answer or the offer changes, the list grows or shrinks by one and every index
- * after it moves.
- *
- * Going back to the Playbook-day turn re-opens its picks as they were, so a
- * reader checking their answer does not have to find the days again.
+ * **What the answers make, for `createTripWithSetup`.** `arrive` is `""` and
+ * the trip undated unless a day was picked; `days` is the length whichever
+ * way it was given. The chosen days go with their lengths, so the empty days
+ * laid out around them are only the ones they do not fill.
  */
-export function changeTo(state: NewTripState, turn: number): NewTripState {
-  const back = questionsOf(state)[turn];
-  return { ...state, turn, picked: back?.id === "pb" ? (state.chosen ?? []) : [] };
+export function setupOf(state: NewTripState): {
+  arrive: string;
+  days: number | null;
+  pace: TripPace | null;
+  tags: readonly ActivityTagDescribed[];
+  savedDays: readonly PopularDay[];
+} {
+  const { start, length, pace, about } = state.answers;
+  return {
+    arrive: start !== undefined && start !== "not-yet" ? (start.iso ?? "") : "",
+    days: length?.days ?? null,
+    pace: pace ?? null,
+    tags: about,
+    savedDays: state.offer.filter((day) => state.chosen.includes(day.savedDayId)),
+  };
 }

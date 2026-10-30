@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures/test";
 import { commandsFor } from "@tc/factories";
-import { createMappedTrip, signInAsDevUser } from "./helpers";
+import { createMappedTrip, pickNewTripPlace, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 /**
@@ -1290,25 +1290,23 @@ test.describe("responsive (narrow viewport, signed out)", () => {
 // through the gate rather than around it.
 test.describe("responsive (new trip sheet, short viewport)", () => {
   // **The sheet has to BE a chat box, not contain one.** Mitchell, on the
-  // 5c27d37 preview: *"This is still wrong, the input and decisions are at
-  // bototm, and the chat at top, this should look like a chat box"* — anchored
-  // to the composer inside the dialog.
+  // 5c27d37 preview: *"the input and decisions are at bototm"* — and since M56
+  // the decisions are a page's Back and Next.
   //
   // `Sheet` puts its children in a `flex-1 overflow-y-auto` scrollport, which
-  // is a block, so it sizes them to content. `NewTripConversation`'s `flex-1`
-  // transcript therefore had nothing to fill: the thread grew the sheet, took
-  // the dock down with it, and the composer left the fold as the conversation
-  // got longer. §31.3's "original sin", one level up from where it was fixed.
+  // is a block, so it sizes them to content. A page that grew the sheet would
+  // take its buttons below the fold with it: §31.3's "original sin", one level
+  // up from where it was fixed.
   //
-  // This is a layout defect, so it is asserted where layout exists. The
-  // invariant §31.3 states is "the transcript scrolls and the dock does not",
-  // and its observable form is that **the sheet's own scrollport never has
-  // anything to scroll** — the conversation is exactly its height. A short
-  // viewport is what makes the broken version overflow deterministically.
-  test("the thread scrolls inside the sheet, and the composer stays docked", async ({ page }) => {
-    await page.setViewportSize({ width: 420, height: 620 });
-    // A trip has to exist, or Home renders the conversation inline instead of
-    // in a sheet — that path is bounded by `h-a-thread` and never had this bug.
+  // This is a layout defect, so it is asserted where layout exists, and its
+  // observable form is that **the sheet's own scrollport never has anything
+  // to scroll** — the page body does instead. A short viewport is what makes
+  // the broken version overflow deterministically; About's twelve tag tiles
+  // are the tallest page.
+  test("a page scrolls inside the sheet, and its buttons stay docked", async ({ page }) => {
+    await page.setViewportSize({ width: 420, height: 520 });
+    // A trip has to exist, or Home renders the pages inline instead of in a
+    // sheet — that path is bounded by `h-a-thread`.
     await page.request.post("/api/trips", { data: { name: e2eTripName("Dock") } });
     await page.goto("/home");
 
@@ -1316,51 +1314,32 @@ test.describe("responsive (new trip sheet, short viewport)", () => {
     const sheet = page.getByRole("dialog", { name: "New trip" });
     await expect(sheet).toBeVisible();
 
-    const scrollport = sheet.getByTestId("sheet-scrollport");
-    const thread = sheet.getByRole("log", { name: "Conversation" });
+    await pickNewTripPlace(sheet, e2eTripName("Nowhere Bay"));
+    await sheet.getByRole("button", { name: "Next" }).click();
+    await sheet.getByRole("radio", { name: "Not yet" }).click();
+    await sheet.getByRole("button", { name: "Next" }).click();
+    await sheet.getByRole("radio", { name: "A week" }).click();
+    await sheet.getByRole("button", { name: "Next" }).click();
+    await sheet.getByRole("radio", { name: "Slow" }).click();
+    await sheet.getByRole("button", { name: "Next" }).click();
+    await expect(sheet.getByText("Step 5 of 5")).toBeVisible();
 
-    // Answer the long path — the six-turn one, with the day picker in it — so
-    // the thread is as tall as this flow ever gets. A place nobody has
-    // published a day for: a city with Playbook days gets an extra turn after
-    // it (M27 D13), which would make this walk depend on the shared library.
-    // Each click below waits out Cass's typing beat by auto-waiting for the
-    // next control to appear — never on a timer.
-    await sheet.getByLabel("Where are you going?").fill("Nowhere Bay");
-    await sheet.getByRole("button", { name: "Send" }).click();
-    await sheet.getByRole("button", { name: "Yes" }).click();
-    // `exact`, because Playwright's `getByLabel` is a substring match and the
-    // composer on this very turn is labelled "When do you arrive?".
-    await sheet.getByLabel("Arrive", { exact: true }).fill("2026-10-03");
-    await sheet.getByRole("button", { name: "Use this date" }).click();
-    await sheet.getByRole("button", { name: "A week" }).click();
-    await sheet.getByRole("button", { name: "Slow" }).click();
-    await expect(thread).toContainText("What is the trip about?");
-
-    // The composer is gone on the multi-pick turn, so the control checked here
-    // is the one that ends the flow — still the last thing, still on screen.
-    const commit = sheet.getByRole("button", { name: "Nothing in particular" });
-    await expect(commit).toBeVisible();
+    const commit = sheet.getByRole("button", { name: "Review" });
     await expect(commit).toBeInViewport();
 
-    // **The sheet does not scroll.** With the bug this overflows by the height
-    // of everything the thread added.
+    const scrollport = sheet.getByTestId("sheet-scrollport");
     const outer = await scrollport.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
-    expect(outer.scroll, "the sheet scrollport is scrolling — the thread is growing the sheet").toBeLessThanOrEqual(outer.client + 1);
+    expect(outer.scroll, "the sheet scrollport is scrolling — the page is growing the sheet").toBeLessThanOrEqual(outer.client + 1);
 
-    // …because the thread is the thing that scrolls instead.
-    const inner = await thread.evaluate((el) => {
-      const port = el.closest("[class*='overflow-y-auto']");
-      return port === null ? null : { scroll: port.scrollHeight, client: port.clientHeight };
-    });
-    expect(inner, "the transcript has no scrollport of its own").not.toBeNull();
-    expect(inner!.scroll, "the transcript is not the thing that scrolls").toBeGreaterThan(inner!.client);
+    const body = await sheet.getByTestId("new-trip-page").evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+    expect(body.scroll, "the page body is not the thing that scrolls").toBeGreaterThan(body.client);
   });
 });
 
 test.describe("responsive (narrow viewport, first trip)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("the conversation and both other routes stay visible and operable below sm", async ({ page }) => {
+  test("the first page and both other routes stay visible and operable below sm", async ({ page }) => {
     // Set before signing in, matching this file's own pattern for a
     // breakpoint below the narrow project's own 1100px — 375px is a real
     // phone width, comfortably below the 640px `sm` this grid
@@ -1371,28 +1350,20 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     const card = page.getByTestId("first-trip-start");
     await expect(card).toBeVisible();
 
-    // **The four steps were a numbered list DESCRIBING the questions; the
-    // conversation itself is here now** (SPEC §31, 2026-09-18). What this
-    // width has to prove is the same thing it always did — that the first-run
-    // screen reflows rather than clips — so it is asserted against the parts
-    // that exist: the thread, and the field that answers it, both actually on
+    // **The flow itself is on the first-run screen** (SPEC §31, 2026-09-18;
+    // five pages since M56). What this width has to prove is that the screen
+    // reflows rather than clips, so it is asserted against the parts that
+    // exist: the first page and the search that answers it, both actually on
     // screen rather than merely in the DOM.
-    const thread = card.getByRole("log", { name: "Conversation" });
-    await expect(thread).toBeVisible();
-    await expect(thread).toContainText("Where are you going?");
-    const composer = card.getByLabel("Where are you going?");
-    await expect(composer).toBeVisible();
-    await expect(composer).toBeInViewport();
+    await expect(card.getByText("Step 1 of 5")).toBeVisible();
+    const search = card.getByLabel("Where are you going?");
+    await expect(search).toBeVisible();
+    await expect(search).toBeInViewport();
 
     // The actions, scoped to the card. Since SPEC §35.2 the page head carries
     // only "New trip", but scoping still says which surface is being measured.
     // The two links are checked for their real destination rather than
-    // clicked — clicking either would navigate away from this screen, which is
-    // what the composer is checked by doing below instead.
-    //
-    // *create an empty one* is §35.2's quiet link where the "Create empty"
-    // button was, and the empty state's import is its quiet *Have a trip file?
-    // Import it*.
+    // clicked — clicking either would navigate away from this screen.
     const createEmpty = card.getByRole("button", { name: "create an empty one" });
     const importLink = card.getByRole("button", { name: "Have a trip file? Import it" });
     const playbookLink = card.getByRole("link", { name: "Start from a Playbook" });
@@ -1404,30 +1375,24 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     await expect(demoLink).toBeVisible();
     await expect(demoLink).toHaveAttribute("href", "/demo");
 
-    // Operable, not just visible. Typing an answer at this width has to reach
-    // the field — Send only becomes usable once there is something to send,
-    // which is what proves the conversation is live rather than painted.
-    // (*create an empty one* is live from turn one since M27 D4, and so is no
-    // longer the thing that can say so.)
-    const send = card.getByRole("button", { name: "Send" });
-    await expect(send).toBeDisabled();
-    await composer.fill("Reykjavik");
-    await expect(send).toBeEnabled();
+    // Operable, not just visible: Next becomes usable once a place is picked
+    // at this width, which proves the page is live rather than painted.
+    const next = card.getByRole("button", { name: "Next" });
+    await expect(next).toBeDisabled();
+    await pickNewTripPlace(card, "Reykjavik");
+    await expect(next).toBeEnabled();
 
-    // **44px targets at phone width** — SPEC §32.2 draws the new-trip dock with
-    // phone-sized controls, and §13.1 is the standing rule they answer to:
-    // "44px targets, always". Measured, not read off a class: the class is one
-    // way to get there, the rendered height is the thing §13.1 actually asks
-    // for, and `toHaveClass` is banned in this suite for exactly that reason.
+    // **44px targets at phone width** — SPEC §32.2 draws the new-trip controls
+    // phone-sized, and §13.1 is the standing rule: "44px targets, always".
+    // Measured, not read off a class: the rendered height is the thing §13.1
+    // asks for, and `toHaveClass` is banned in this suite for that reason.
     for (const [label, control] of [
-      ["the answer field", composer],
+      ["the place search", search],
       ["create an empty one", createEmpty],
       ["the import link", importLink],
-      ["a destination chip", card.getByRole("button", { name: "Lisbon" })],
-      // The two exits belong in this loop as much as the dock does
-      // (CodeRabbit, PR #188). They are `size: "sm"`, which is 28px, and
-      // measuring only the controls the dock happened to own made §13.1 hold
-      // for those and not for the ones beside them.
+      ["Next", next],
+      // The two exits belong in this loop as much as the page's own controls
+      // (CodeRabbit, PR 188): `size: "sm"` is 28px.
       ["the Playbook exit", playbookLink],
       ["the example-trip exit", demoLink],
     ] as const) {

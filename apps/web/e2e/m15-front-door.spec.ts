@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
+import { pickNewTripPlace } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // Whether the browser holds ADR-078's signed-in hint. The app shell writes it
@@ -103,15 +104,13 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   ]);
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
 
-  // A trip from a name alone — the capability that replaced the first-run screen.
+  // A trip from a place alone — the capability that replaced the first-run screen.
   //
   // **Not `createEmptyTripViaWizard`**, deliberately: that helper asserts the
   // new trip's link is visible, and the assertion below is this spec's own
-  // point about the front door. Inlined, so the composer's accessible name —
-  // the QUESTION being asked, since SPEC §30.1 (this locator used to read
-  // `/trip name/i` and matched nothing) — appears here too.
+  // point about the front door.
   await page.getByRole("button", { name: "New trip" }).click();
-  await page.getByLabel("Where are you going?").fill(tripName);
+  await pickNewTripPlace(page, tripName);
   // SPEC §35.2: a quiet link now, where it was a "Create empty" footer button.
   await page.getByRole("button", { name: "create an empty one" }).click();
   // `.first()`, not a bare `getByText`: a freshly created trip used to render
