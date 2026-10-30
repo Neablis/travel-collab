@@ -11,8 +11,7 @@ import { Input } from "@/components/ui/input";
 import { UnderlineTabs, tabId, tabPanelId } from "@/components/ui/underline-tabs";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
-import type { CarriedAsk } from "@/lib/pendingCarriedAsks";
-import type { AskAnswer } from "@tc/contracts";
+import type { AskAnswer, CarriedAsk } from "@tc/contracts";
 import { clearAskDraft, loadAskDraft, saveAskDraft } from "./askThreadStore";
 import { useOwnedAskName } from "./useAskThread";
 import { cn } from "@/lib/cn";
@@ -1162,9 +1161,14 @@ export function AssistantRail({
                       // Gated as a suggestion is, and for its reason.
                       disabled={asking || upgradeGated || threadFull}
                       className={cn("whitespace-normal text-left", !isSheet && "h-auto")}
+                      // The chip pressed goes once it is asked, and the rest are
+                      // disabled while the turn runs: focus goes to the
+                      // composer, as an answer's does, not to the page's top.
                       onClick={() =>
                         void Promise.resolve(onAsk(carried.said)).then((accepted) => {
-                          if (accepted !== false) onCarriedAskTaken?.(carried);
+                          if (accepted === false) return;
+                          onCarriedAskTaken?.(carried);
+                          composerRef.current?.focus();
                         })
                       }
                     >

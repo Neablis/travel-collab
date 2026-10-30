@@ -4,7 +4,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { AskAnswer, PageSummary, TimeWindow } from "@tc/contracts";
+import type { AskAnswer, CarriedAsk, PageSummary, TimeWindow } from "@tc/contracts";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
@@ -37,7 +37,7 @@ import {
 } from "@/components/lenses/LensSkeletons";
 import { useIsAbovePhone, useIsPhone, useIsPhoneKnown, useIsTabletWidth } from "@/lib/useIsPhone";
 import { useHydrated } from "@/lib/useHydrated";
-import { takeIntoTrip, type CarriedAsk } from "@/lib/pendingCarriedAsks";
+import { loadCarriedAsks, saveCarriedAsks, takeIntoTrip } from "@/lib/pendingCarriedAsks";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { buttonVariants } from "@/components/ui/button";
@@ -81,7 +81,7 @@ import { hasTripChat, tripHasChat, tripIsSolo, useTripChat } from "@/components/
 import { personasOf } from "@/components/pages/people";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
-import { useAskThread } from "@/components/assistant/useAskThread";
+import { useAskThread, useOwnedAskName } from "@/components/assistant/useAskThread";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { suggestedQuestions } from "@/components/assistant/suggestedQuestions";
 import {
@@ -336,19 +336,26 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // **What New trip left for this trip** (M56 D1, D5): *Plan with AI*'s
   // kickoff goes in as ⌘K's text does, which is the person's own press of
   // Plan with AI; a carried ask is only a chip until it is pressed. Taken once
-  // the board renders, when there is a rail to open.
+  // the board renders, when there is a rail to open. The chips left are kept
+  // beside the thread (`saveCarriedAsks`), which keeps the kickoff, so a
+  // reload offers them again; that needs the thread's owned name first.
   const [carriedAsks, setCarriedAsks] = useState<readonly CarriedAsk[]>([]);
+  const carriedThread = useOwnedAskName(isDemoTripId(tripId) ? undefined : `trip:${tripId}`);
   // `openAsk` is new each render, and the take is once per trip.
   const openAskLatest = useRef(openAsk);
   openAskLatest.current = openAsk;
   useEffect(() => {
-    if (!boardRenders || isDemoTripId(tripId)) return;
+    if (!boardRenders || carriedThread === undefined) return;
     const into = takeIntoTrip(tripId);
-    if (into === null) return;
+    if (into === null) {
+      setCarriedAsks(loadCarriedAsks(carriedThread));
+      return;
+    }
+    saveCarriedAsks(carriedThread, into.asks);
     setCarriedAsks(into.asks);
     openAskLatest.current();
     if (into.kickoff !== null) setHandOff({ text: into.kickoff });
-  }, [boardRenders, tripId]);
+  }, [boardRenders, carriedThread, tripId]);
   usePhoneAskEntry(
     boardRenders && !isDemoTripId(tripId) ? openAsk : undefined,
     assistant.open,
@@ -1881,7 +1888,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               turns={thread}
               suggestions={isPhone ? phoneAsk.quickAsks : assistantSuggestions}
               carriedAsks={carriedAsks}
-              onCarriedAskTaken={(taken) => setCarriedAsks((asks) => asks.filter((each) => each !== taken))}
+              onCarriedAskTaken={(taken) => {
+                const left = carriedAsks.filter((each) => each !== taken);
+                setCarriedAsks(left);
+                if (carriedThread !== undefined) saveCarriedAsks(carriedThread, left);
+              }}
               // Undefined on the desktop, which leaves the rail's own trip-wide
               // sentence — §23 changes the phone and nothing above 768px.
               emptyHint={assistantPresentation === "sheet" ? phoneAsk.emptyHint : undefined}
