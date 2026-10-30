@@ -9,8 +9,12 @@ import { NEW_TRIP_PATH } from "@/lib/homePath";
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
+// The router's search params, which a client navigation updates after the new
+// tree has rendered; a test moves them with `arriveAt`.
+let searchParamsMock = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
+  useSearchParams: () => searchParamsMock,
 }));
 
 // Who is reading, which is what decides whether a card's menu offers Delete or
@@ -616,12 +620,31 @@ describe("Home page head", () => {
 
   // M56 part 5 review: an assistant hand-off's "Start a new trip" on a page
   // without New trip reloaded the landing page. It links here now.
+  // The URL as the address bar and the router both hold it.
+  function arriveAt(path: string) {
+    window.history.replaceState(null, "", path);
+    searchParamsMock = new URLSearchParams(window.location.search);
+  }
+
   it("opens New trip when it is arrived at to start one, and drops the ask from the address", async () => {
-    window.history.replaceState(null, "", NEW_TRIP_PATH);
-    onTestFinished(() => window.history.replaceState(null, "", "/"));
+    arriveAt(NEW_TRIP_PATH);
+    onTestFinished(() => arriveAt("/"));
     renderHome([tripSummaryFixture()]);
     expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
     expect(window.location.search).toBe("");
+  });
+
+  // M56 part 5 review: from a trip page's rail, the router commits the new
+  // URL after Home has rendered, so a read of the address on the first render
+  // saw the trip page's and New trip never opened.
+  it("opens New trip when the router's URL arrives after Home has rendered", async () => {
+    onTestFinished(() => arriveAt("/"));
+    const { rerender } = renderHome([tripSummaryFixture()]);
+    await screen.findByRole("heading", { name: tripSummaryFixture().name });
+    arriveAt(NEW_TRIP_PATH);
+    rerender(<HomeScreen />);
+    expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
   it("does not invite a next trip while there are other trips to show", async () => {

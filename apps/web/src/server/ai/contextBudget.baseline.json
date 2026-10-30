@@ -28,9 +28,9 @@
         "request_change_tools"
       ],
       "toolChars": 10260,
-      "instructionChars": 3341,
-      "totalChars": 13601,
-      "approxTokens": 4109
+      "instructionChars": 3369,
+      "totalChars": 13629,
+      "approxTokens": 4118
     },
     "trip · question · under way": {
       "tools": [
@@ -48,9 +48,9 @@
         "request_change_tools"
       ],
       "toolChars": 11243,
-      "instructionChars": 3756,
-      "totalChars": 14999,
-      "approxTokens": 4531
+      "instructionChars": 3784,
+      "totalChars": 15027,
+      "approxTokens": 4540
     },
     "trip · edit": {
       "tools": [
@@ -79,9 +79,9 @@
         "hand_off"
       ],
       "toolChars": 25925,
-      "instructionChars": 4855,
-      "totalChars": 30780,
-      "approxTokens": 9299
+      "instructionChars": 4883,
+      "totalChars": 30808,
+      "approxTokens": 9308
     },
     "trip · plan": {
       "tools": [
@@ -107,9 +107,9 @@
         "hand_off"
       ],
       "toolChars": 24866,
-      "instructionChars": 5162,
-      "totalChars": 30028,
-      "approxTokens": 9072
+      "instructionChars": 5190,
+      "totalChars": 30056,
+      "approxTokens": 9080
     },
     "trip · unsure": {
       "tools": [
@@ -138,9 +138,9 @@
         "hand_off"
       ],
       "toolChars": 25925,
-      "instructionChars": 4855,
-      "totalChars": 30780,
-      "approxTokens": 9299
+      "instructionChars": 4883,
+      "totalChars": 30808,
+      "approxTokens": 9308
     },
     "page · compose": {
       "tools": [
@@ -156,9 +156,9 @@
         "hand_off"
       ],
       "toolChars": 8033,
-      "instructionChars": 4324,
-      "totalChars": 12357,
-      "approxTokens": 3733
+      "instructionChars": 4244,
+      "totalChars": 12277,
+      "approxTokens": 3709
     },
     "page · question": {
       "tools": [
@@ -175,9 +175,9 @@
         "hand_off"
       ],
       "toolChars": 9618,
-      "instructionChars": 2472,
-      "totalChars": 12090,
-      "approxTokens": 3653
+      "instructionChars": 2500,
+      "totalChars": 12118,
+      "approxTokens": 3661
     },
     "account · question": {
       "tools": [

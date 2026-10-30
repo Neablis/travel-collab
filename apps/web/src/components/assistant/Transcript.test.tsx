@@ -669,7 +669,8 @@ describe("a turn that ends in a widget", () => {
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Open the plan" }));
-    expect(screen.getByRole("group", { name: "Where this is done" }).textContent).toContain("couldn't open that trip");
+    // A status region, so a screen reader whose focus stays on the button hears it.
+    expect(within(screen.getByRole("group", { name: "Where this is done" })).getByRole("status").textContent).toContain("couldn't open that trip");
   });
 
   it("says a task nobody can do is not done here, with nothing to press", () => {
