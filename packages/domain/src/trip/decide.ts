@@ -266,6 +266,10 @@ function decideCommand(
       return okUnlessNoOp(state, [
         { type: "TripBudgetSet", version: 1, payload: { tripId: command.tripId, budget: command.budget } },
       ]);
+    case "SetTripStyle":
+      return okUnlessNoOp(state, [
+        { type: "TripStyleSet", version: 1, payload: { tripId: command.tripId, pace: command.pace, tags: command.tags } },
+      ]);
     case "AddActivity": {
       if (state.activities[command.activityId] !== undefined) {
         return reject("activity-already-exists", "An activity with this id already exists.");

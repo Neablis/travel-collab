@@ -10,6 +10,8 @@ const detail: TripDetail = {
   currency: "USD", budget: null,
   members: [{ userId: "u1", role: "owner" }],
   forkedFrom: null,
+  pace: null,
+  tags: [],
   days: [{ dayId: DAY, activityIds: [A1], date: null, costSubtotal: 0 }], backlog: [A2],
   unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
   activities: {

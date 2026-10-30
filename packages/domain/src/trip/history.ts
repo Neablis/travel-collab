@@ -2,6 +2,7 @@ import {
   PageEvent as PageEventSchema,
   TripEvent as TripEventSchema,
   isPageEventType,
+  type ActivityTagDescribed,
   type EventEnvelope,
   type PageEvent,
   type HistoryEntry,
@@ -9,6 +10,7 @@ import {
   type RedoChange,
   type RevertToState,
   type TripEvent,
+  type TripPace,
   type UndoLastChange,
 } from "@tc/contracts";
 import type { Rejection } from "./decide";
@@ -238,6 +240,12 @@ export function describeUserBatch(stateBefore: TripState | null, events: TripEve
   return parts.join("; ");
 }
 
+// The whole style, since the event replaces the whole style.
+function describeStyle(pace: TripPace | null, tags: readonly ActivityTagDescribed[]): string {
+  if (pace === null && tags.length === 0) return "Cleared the trip's pace and tags";
+  return `Set the trip's pace to ${pace ?? "none"} and its tags to ${tags.length === 0 ? "none" : tags.join(", ")}`;
+}
+
 // `state` is the state BEFORE the event — names resolve even when a payload
 // carries only ids (e.g. ActivityMoved).
 function describeEvent(state: TripState | null, event: TripEvent): string {
@@ -258,6 +266,8 @@ function describeEvent(state: TripState | null, event: TripEvent): string {
       return event.payload.budget === null
         ? "Cleared the budget"
         : `Set the budget to ${(event.payload.budget.amountMinor / 100).toFixed(2)} ${event.payload.budget.currency}`;
+    case "TripStyleSet":
+      return describeStyle(event.payload.pace, event.payload.tags);
     case "ActivityAdded":
       return `Added "${event.payload.title}" to ${
         event.payload.dayId === null ? "the backlog" : dayLabel(state, event.payload.dayId)

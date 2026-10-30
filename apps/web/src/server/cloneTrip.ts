@@ -112,6 +112,11 @@ async function cloneFrom(
     // (`startDate` is what gives days their dates — see `dates.ts`). Clearing
     // the days too would make Duplicate a rename of an empty trip.
     ...(clearDates ? { startDate: null } : {}),
+    // Pace and tags stay behind: `SetTripStyle` is not a `BatchableCommand`
+    // (ADR-084 §6), so a creation batch cannot carry it, and the diff would
+    // otherwise emit an event `eventToCommand` has no command for.
+    pace: null,
+    tags: [],
   };
   // `eventToCommand` is total over what an empty→target diff can emit, and
   // throws by construction if that ever stops being true — before any write.

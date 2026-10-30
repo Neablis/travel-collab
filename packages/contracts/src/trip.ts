@@ -6,6 +6,7 @@ import {
   ActivityMovedV1,
   ActivityRemovedV1,
   ActivityUpdatedV1,
+  ActivityTagDescribed,
   AddActivity,
   MoveActivity,
   RemoveActivity,
@@ -236,6 +237,35 @@ export const TripBudgetSetV1 = z.object({
 });
 export type TripBudgetSetV1 = z.infer<typeof TripBudgetSetV1>;
 
+// M56 D4: how the trip is meant to feel, answered at Create and read by the
+// trip's assistant. One command for both, because the picker asks them as one
+// page and a trip's settings edit them together: whole-value replace, null
+// pace and [] tags clear. Not in `BatchableCommand` (ADR-084 §6): that union
+// generates an assistant planning tool, and the assistant reads these rather
+// than writing them.
+export const TripPace = z.enum(["slow", "balanced", "packed"]);
+export type TripPace = z.infer<typeof TripPace>;
+
+// The categories a description names (`ActivityTagDescribed`), the same set
+// Discover filters on, so a trip's tags and a day's are one vocabulary.
+const TripStyleTags = z.array(ActivityTagDescribed);
+
+export const SetTripStyle = z.object({
+  type: z.literal("SetTripStyle"),
+  tripId: z.string().guid(),
+  pace: TripPace.nullable(),
+  // A repeat says nothing a single tag does not.
+  tags: TripStyleTags.refine((tags) => new Set(tags).size === tags.length, "tags must not repeat"),
+});
+export type SetTripStyle = z.infer<typeof SetTripStyle>;
+
+export const TripStyleSetV1 = z.object({
+  type: z.literal("TripStyleSet"),
+  version: z.literal(1),
+  payload: z.object({ tripId: z.string().guid(), pace: TripPace.nullable(), tags: TripStyleTags }),
+});
+export type TripStyleSetV1 = z.infer<typeof TripStyleSetV1>;
+
 export const TripEvent = z.discriminatedUnion("type", [
   TripCreatedV1,
   DayAddedV1,
@@ -250,6 +280,7 @@ export const TripEvent = z.discriminatedUnion("type", [
   ConflictUndismissedV1,
   TripCurrencySetV1,
   TripBudgetSetV1,
+  TripStyleSetV1,
   TripDeletedV1,
   TripRestoredV1,
 ]);
@@ -298,13 +329,15 @@ const TripCommandUnion = z.discriminatedUnion("type", [
   RestoreTrip,
   SetTripCurrency,
   SetTripBudget,
+  SetTripStyle,
 ]);
 export const TripCommand = TripCommandUnion.superRefine(refuseKindDetailOffKind);
 export type TripCommand = z.infer<typeof TripCommand>;
 
 // Commands eligible for atomic batching (M6): every TripCommand except
 // CreateTrip (a trip's genesis), the history commands (decided separately),
-// and destructive/stream-level operations (DeleteTrip, RestoreTrip).
+// destructive/stream-level operations (DeleteTrip, RestoreTrip), and
+// SetTripStyle, which would become an assistant tool here (ADR-084 §6).
 const BatchableCommandUnion = z.discriminatedUnion("type", [
   AddDay,
   RemoveDay,

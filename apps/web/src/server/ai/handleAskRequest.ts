@@ -168,6 +168,8 @@ import {
   type Page,
   type TimeFormat,
   type TripDetail,
+  type TripPace,
+  type ActivityTagDescribed,
 } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
@@ -2036,6 +2038,11 @@ export interface TripStanding {
   planned: boolean;
   /** `startDate !== null`. */
   dated: boolean;
+  /**
+   * The trip's pace and tags (M56 D4), when it has either. Absent otherwise,
+   * so a trip without them is told byte-identically what it was told before.
+   */
+  style?: { pace: TripPace | null; tags: readonly ActivityTagDescribed[] };
 }
 
 /**
@@ -2047,11 +2054,13 @@ export interface TripStanding {
  */
 const FULLY_PLANNED: TripStanding = { planned: true, dated: true };
 
-/** The two facts, read off the trip the guard already parsed. */
+/** The two facts, and the style, read off the trip the guard already parsed. */
 export function standingOf(detail: TripDetail): TripStanding {
+  const styled = detail.pace !== null || detail.tags.length > 0;
   return {
     planned: Object.keys(detail.activities).length > 0,
     dated: detail.startDate !== null,
+    ...(styled ? { style: { pace: detail.pace, tags: detail.tags } } : {}),
   };
 }
 
@@ -2225,6 +2234,13 @@ export function instructionBlocks(
             : []),
         ]
       : []),
+    // M56 D4, on every posture: a question about the trip's feel is answered
+    // from it as much as a plan is shaped by it.
+    ...(standing.style !== undefined
+      ? [
+          "This trip was created with a pace and the kinds of day it is for (the Trip pace and tags line). Answer from it when asked, and fit what you suggest to it unless they ask for something else.",
+        ]
+      : []),
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
     // The one place a turn that can write is told HOW to write an amount (the
     // planning tools' descriptions used to repeat it, three times on an edit
@@ -2246,7 +2262,8 @@ export function instructionBlocks(
   ];
   // `formatExampleBlocks([])` is `[]`: with no examples this is the same
   // array of blocks as before Part 4, which is the flag-off guarantee.
-  return [...rules.map(rule), ...now, scopeBlock(scope), ...formatExampleBlocks(examples)];
+  const style = standing.style === undefined ? [] : [data("Trip pace and tags", standing.style)];
+  return [...rules.map(rule), ...now, ...style, scopeBlock(scope), ...formatExampleBlocks(examples)];
 }
 
 /**

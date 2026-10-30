@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Conflict } from "./conflict.ts";
-import { TripLineage, TripMember, TripStatus } from "./trip.ts";
-import { ActivityMode, ActivitySnapshot, COST_DOC, StoredActivityKind, ActivityTag, Anchor, Location, PendingReason, TimeWindow } from "./activity.ts";
+import { TripLineage, TripMember, TripPace, TripStatus } from "./trip.ts";
+import { ActivityMode, ActivitySnapshot, COST_DOC, StoredActivityKind, ActivityTag, ActivityTagDescribed, Anchor, Location, PendingReason, TimeWindow } from "./activity.ts";
 import { Money } from "./money.ts";
 
 export const ActivityView = z.object({
@@ -107,6 +107,10 @@ export const TripDetail = z.object({
   // default, `TripDetail.parse` in the read route would 500 on every existing
   // trip until someone remembered to rebuild the projections.
   forkedFrom: TripLineage.nullable().default(null),
+  // M56 D4, `SetTripStyle`. Defaulted for `forkedFrom`'s reason: a stored doc
+  // written before them has neither key.
+  pace: TripPace.nullable().default(null),
+  tags: z.array(ActivityTagDescribed).default([]),
   days: z.array(
     z.object({
       dayId: z.string().guid(),

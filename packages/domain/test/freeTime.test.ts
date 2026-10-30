@@ -47,6 +47,8 @@ function detail(
     budget: null,
     members: [MEMBER],
     forkedFrom: null,
+    pace: null,
+    tags: [],
     days,
     backlog: [],
     activities,

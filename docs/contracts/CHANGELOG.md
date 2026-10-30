@@ -13,6 +13,26 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-30 — `SetTripStyle`, `TripStyleSet`, `TripDetail.pace` and `.tags` (M56 part 4; public API 1.31.0)
+- **New** (`packages/contracts/src/trip.ts`): `TripPace` (`"slow" | "balanced" | "packed"`);
+  the command `SetTripStyle { tripId, pace: TripPace | null, tags: ActivityTagDescribed[] }`,
+  whole-value replace, null and `[]` clear, tags refused when one repeats; and its event
+  `TripStyleSet` v1 with the same payload. In `TripCommand` and `TripEvent`, **not** in
+  `BatchableCommand` (ADR-084 §6): that union generates an assistant planning tool.
+- **Changed** (`packages/contracts/src/detail.ts`): `TripDetail` gains `pace`
+  (`.default(null)`) and `tags` (`.default([])`), so every stored `trip_details.doc` written
+  before them still parses. No migration: the doc is JSONB.
+- Why: M56 D4, the picker's pace and tags answers reach the trip, and the trip's assistant reads
+  them (`read_trip`, and a `Trip pace and tags` data block in the trip instruction).
+- Consumers updated: `packages/domain` (decide, evolve, diff, equality, hydrate, detail, history),
+  `packages/factories`, `apps/web` (`accessPolicy` editor-minimum; `mocks/handlers`;
+  `newTripSubmit` dispatches it; `assistant/tools/read.ts`; `ai/handleAskRequest.ts`;
+  `cloneTrip` leaves the style off a copy, since a creation batch takes only
+  `BatchableCommand`s) — in this same PR.
+- Public API: `API_VERSION` 1.31.0 with its new `API_FINGERPRINT`. `/v1/trips/{tripId}` returns
+  `TripDetail`, so its responses gain the two fields. No v1 endpoint writes them.
+- Breaking? no (additive, defaulted).
+
 ## 2026-10-27 — `ConnectedApp` (M55 part 5)
 - **New** (`packages/contracts/src/publicApi.ts`): `ConnectedApp`, one OAuth grant as Account →
   Connected apps lists it: `grantId`, `clientName`, `redirectHost`, `recognised`, `scopes`,
