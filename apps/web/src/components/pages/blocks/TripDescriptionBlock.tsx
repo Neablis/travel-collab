@@ -1,6 +1,7 @@
 import type { TripDescriptionPayload } from "@tc/pages";
 import { DataText } from "@/components/ui/data-text";
 import { cn } from "@/lib/cn";
+import { ACTIVITY_TAG_ICON } from "@/lib/activityTagIcons";
 import { TAG_CHIP_CLASS } from "@/lib/activityTags";
 
 // "Trip description" (`trip.description`, M42 D11): the words the home card
@@ -12,14 +13,18 @@ export function TripDescriptionBlock({ payload }: { payload: TripDescriptionPayl
     <span className="flex flex-col gap-2 rounded-md border border-hairline bg-surface p-3">
       <span className="block text-lg font-semibold text-ink">{payload.text}</span>
       <span role="list" aria-label={payload.basis} className="flex flex-wrap items-center gap-2">
-        {payload.tags.map((tag) => (
-          <span role="listitem" key={tag.key} className="inline-flex items-center gap-1.5">
-            <span className={cn("inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CHIP_CLASS[tag.key])}>
-              {tag.label}
+        {payload.tags.map((tag) => {
+          const Icon = ACTIVITY_TAG_ICON[tag.key];
+          return (
+            <span role="listitem" key={tag.key} className="inline-flex items-center gap-1.5">
+              <span className={cn("inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CHIP_CLASS[tag.key])}>
+                <Icon className="size-3 shrink-0" aria-hidden />
+                {tag.label}
+              </span>
+              <DataText size="xs">{tag.share}</DataText>
             </span>
-            <DataText size="xs">{tag.share}</DataText>
-          </span>
-        ))}
+          );
+        })}
       </span>
       <span aria-hidden className="block text-xs text-slate">
         {payload.basis}

@@ -27,6 +27,7 @@ import {
   type DurationLabel,
 } from "./activityDuration";
 import { KIND_LABEL, KIND_OPTIONS } from "./activityKind";
+import { ACTIVITY_TAG_ICON } from "@/lib/activityTagIcons";
 import { TAG_GROUPS, TAG_LABEL, toggleTag } from "@/lib/activityTags";
 import { LocationInput } from "./LocationInput";
 import { MoneyInput } from "./MoneyInput";
@@ -709,6 +710,7 @@ export function ActivityEditor({
             <div role="group" aria-label={group.label} className="flex flex-wrap gap-1.5">
               {group.tags.map((tag) => {
                 const on = tags.includes(tag);
+                const Icon = ACTIVITY_TAG_ICON[tag];
                 return (
                   <Button
                     key={tag}
@@ -718,6 +720,7 @@ export function ActivityEditor({
                     className="rounded-full px-3"
                     onClick={() => setTags((current) => toggleTag(current, tag))}
                   >
+                    <Icon className="size-3.5 shrink-0" aria-hidden />
                     {TAG_LABEL[tag]}
                   </Button>
                 );
