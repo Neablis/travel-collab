@@ -18,13 +18,16 @@ import { InstallNudge } from "@/components/install/InstallNudge";
 import { NextTripHeroSkeleton, TripGridSkeleton } from "@/components/home/HomeSkeletons";
 import { RegionError } from "@/components/ui/skeleton";
 import { TripCard } from "@/components/home/TripCard";
-import { NewTripWizard } from "@/components/home/NewTripWizard";
+import { NewTripWizard, focusNewTripPage } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
 import { NextTripPrompt } from "@/components/home/NextTripPrompt";
 import { ImportTripButton, type ImportTripHandle } from "@/components/home/ImportTripButton";
 
-/** The inline first run's Where search, so the page head's "New trip" can focus it. */
-const FIRST_TRIP_WHERE_ID = "first-trip-where";
+/**
+ * The inline first run's current page, so the page head's "New trip" can
+ * focus it. On page one that lands in Where's search, which is on no other.
+ */
+const FIRST_TRIP_PAGE_ID = "first-trip-page";
 import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTrips } from "@/lib/apiClient";
 import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
@@ -242,7 +245,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
     // KI-2026-09-13-a): it scrolls every scrollable ancestor, which is the bug
     // `usePinToBottom` exists to avoid on this very flow. Focusing a form
     // control brings it into view natively, so the ban costs nothing here.
-    document.getElementById(FIRST_TRIP_WHERE_ID)?.focus();
+    focusNewTripPage(document.getElementById(FIRST_TRIP_PAGE_ID));
   }
 
   // Every render branch below is gated on `trips !== null`, so "the read
@@ -802,7 +805,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
             <FirstTripStart
               createTrip={createTripApi}
               dispatch={sendTripCommand}
-              whereFieldId={FIRST_TRIP_WHERE_ID}
+              whereFieldId={FIRST_TRIP_PAGE_ID}
               disabled={cloningDemo}
               showConversation={!newTripOpen}
               importHandle={importPicker}

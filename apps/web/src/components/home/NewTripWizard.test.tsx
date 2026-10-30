@@ -144,6 +144,12 @@ async function walkToReview() {
   await user.click(nextButton());
 }
 
+/**
+ * `:focus` asked of the element a query found, as `SnapshotList.test.tsx`
+ * does: the test-quality wall bans reading `document.activeElement`.
+ */
+const hasFocus = (element: HTMLElement) => element.matches(":focus");
+
 /** What Review says for a row. */
 const reviewed = (term: string) => screen.getByText(term, { selector: "dt" }).nextElementSibling?.textContent;
 
@@ -178,6 +184,14 @@ describe("NewTripWizard — the pages", () => {
     await user.clear(screen.getByLabelText("Where are you going?"));
     await user.type(screen.getByLabelText("Where are you going?"), "Lis");
     expect(await screen.findByRole("button", { name: "Lisbon, has Playbooks" })).not.toBeNull();
+  });
+
+  // A picked result's list unmounts with the button that had focus, which
+  // would drop a keyboard reader on the page's body.
+  it("hands focus to Next once a result is picked", async () => {
+    renderWizard();
+    await pickWhere("Lis", /^Lisbon/);
+    expect(hasFocus(nextButton())).toBe(true);
   });
 
   it("takes the first result on Enter", async () => {
@@ -279,6 +293,18 @@ describe("NewTripWizard — Review", () => {
     expect(reviewed("Pace")).toBe("Packed");
   });
 
+  // Review, Change and Back to review each unmount the button that was pressed.
+  it("keeps keyboard focus on the flow through Review, Change and Back to review", async () => {
+    renderWizard();
+    await walkToReview();
+    expect(hasFocus(screen.getByTestId("new-trip-page")), "Review").toBe(true);
+    await user.click(screen.getByRole("button", { name: "Change pace" }));
+    expect(hasFocus(screen.getByRole("radio", { name: "Slow" })), "the changed page").toBe(true);
+    await user.click(screen.getByRole("radio", { name: "Packed" }));
+    await user.click(screen.getByRole("button", { name: "Back to review" }));
+    expect(hasFocus(screen.getByRole("button", { name: "Change pace" })), "back on Review").toBe(true);
+  });
+
   // The gate's re-walk box: a new destination re-asks every later page, each
   // already holding its answer, under *Destination changed*.
   it("re-walks the later pages, prefilled, when Where changes", async () => {
@@ -352,6 +378,32 @@ describe("NewTripWizard — Review", () => {
     expect(onCreated).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Just create it" })).not.toBeNull();
+  });
+
+  // After a partial failure the trip exists under its first name, and Review
+  // still offers Change: a new Where has to reach that trip, not just Review.
+  it("renames the trip it already made when Where changes before a retry", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    let datesFailed = false;
+    dispatch.mockImplementation(async (command) => {
+      if (command.type === "SetTripDates" && !datesFailed) {
+        datesFailed = true;
+        return { ok: false, error: { status: 500, message: "Dates failed" } };
+      }
+      return { ok: true, value: {} as CommandOutcome };
+    });
+    await walkToReview();
+    await user.click(screen.getByRole("button", { name: "Just create it" }));
+    await screen.findByRole("alert");
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripName" }));
+
+    await user.click(screen.getByRole("button", { name: "Change where" }));
+    await pickWhere("Por", /^Porto/);
+    for (let page = 0; page < 5; page++) await user.click(nextButton());
+    await user.click(screen.getByRole("button", { name: "Just create it" }));
+    const tripId = createTrip.mock.calls[0]![0].tripId;
+    await waitFor(() => expect(dispatch).toHaveBeenCalledWith({ type: "SetTripName", tripId, name: "Porto" }));
+    expect(createTrip).toHaveBeenCalledTimes(1);
   });
 
   // §30.2's property, over the whole walk: reads to find places and days,
