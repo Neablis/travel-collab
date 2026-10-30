@@ -47,7 +47,7 @@ import { ImportTripButton, type ImportTripHandle } from "./ImportTripButton";
  * @param createTrip - Mints the trip; carries the client-minted `tripId`.
  * @param dispatch - Sends the setup commands the answers imply.
  * @param onDone - Called once the trip exists and its commands have confirmed.
- * @param whereFieldId - Lets the page head's "New trip" button focus Where's search.
+ * @param pageId - Lets the page head's "New trip" button focus the current page.
  * @param disabled - Holds the exits while a demo clone is still in flight.
  * @param showConversation - False while the sheet owns the conversation.
  * @param importHandle - Lets the page open this card's file picker.
@@ -57,7 +57,7 @@ export function FirstTripStart({
   createTrip,
   dispatch,
   onDone,
-  whereFieldId,
+  pageId,
   disabled = false,
   showConversation = true,
   importHandle,
@@ -65,7 +65,7 @@ export function FirstTripStart({
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
   onDone: (tripId: string | null, navigate: boolean) => void;
-  whereFieldId?: string;
+  pageId?: string;
   /** True while a demo clone is landing — see `NewTripPages`. */
   disabled?: boolean;
   /**
@@ -111,7 +111,7 @@ export function FirstTripStart({
             onDone={onDone}
             firstRun
             disabled={disabled}
-            {...(whereFieldId === undefined ? {} : { whereFieldId })}
+            {...(pageId === undefined ? {} : { pageId })}
           />
         </div>
       )}
