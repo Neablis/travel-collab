@@ -1,4 +1,8 @@
-import { UpstreamError } from "../external/upstream";
+// The explicit `.ts` is load-bearing: `scripts/geocode-japan-seed.mts` loads
+// this file under plain node, whose ESM resolver does not resolve an
+// extensionless relative import (the `import type` below is erased, so it may
+// stay as it is).
+import { UpstreamError } from "../external/upstream.ts";
 import type { GeocodeOptions, Geocoder, GeocodeResult } from "./geocoder";
 
 const FREE_TEXT = "https://us1.locationiq.com/v1/search";
@@ -176,8 +180,9 @@ export function createLocationIQGeocoder(apiKey: string): Geocoder {
       url.searchParams.set("accept-language", "en");
       const res = await fetch(url, { headers: { Accept: "application/json" } });
       if (res.status === 404) return [];
-      // `UpstreamError`, so the cache backs the key off a 429, 403 or 5xx
-      // rather than charging the next keystroke for the same refusal.
+      // `UpstreamError`, so the cache backs this query's key off a 429, 403 or
+      // 5xx. Only a repeat of the same query is held back: the next keystroke
+      // is a different key and is still charged.
       if (!res.ok) throw new UpstreamError(`autocomplete failed: ${res.status}`, res.status, retryAfterOf(res));
       const rows = (await res.json()) as AutocompleteRow[];
       // The OSM object, not LocationIQ's `place_id`, which it renumbers when it
