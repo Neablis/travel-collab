@@ -13,6 +13,9 @@ import { cn } from "@/lib/cn";
 // Discover's place search — a city OR a country, one box (M12 link 7; it was
 // M11b link 2's city-only search, `CitySearch`, until then).
 //
+// In its own folder since the assistant's place picker uses it too (M56): kept
+// under `playbooks`, it made `assistant` and `playbooks` import each other.
+//
 // **The static `<option>` city dropdown is gone and must not come back.** The
 // design handoff says so twice and the exit gate restates it: "No `<option>`
 // city list exists anywhere in the tree." A dropdown can only offer the places

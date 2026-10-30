@@ -26,7 +26,7 @@ import {
   type FilterOption,
   type FilterState,
 } from "./discoverFilters";
-import { PlaceSearch, type PlacePick } from "./PlaceSearch";
+import { PlaceSearch, type PlacePick } from "@/components/places/PlaceSearch";
 import { DISCOVER_URL_DEFAULTS, discoverQueryString, parseDiscoverQuery, type DiscoverUrlState } from "./discoverUrl";
 import { DiscoverCard, editorialSize } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";

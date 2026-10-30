@@ -1274,3 +1274,36 @@ describe("AssistantRail — focus on open, from useAssistantVisibility", () => {
     expect(screen.getByPlaceholderText(/ask about this day/i).matches(":focus")).toBe(true);
   });
 });
+
+// M56 part 5 review: Answer unmounts once the answer is in, and focus fell to
+// `<body>`; it goes to the composer, where the next question is typed.
+describe("an answer pressed under a question", () => {
+  it("is sent with its data, and leaves focus in the composer", async () => {
+    const onAsk = vi.fn();
+    const asked: AssistantTurn = {
+      id: "a1",
+      role: "assistant",
+      text: "",
+      tools: [],
+      pending: false,
+      widget: {
+        kind: "ask",
+        ask: {
+          id: "call-1",
+          question: "Which?",
+          options: [
+            { id: "food", label: "Food" },
+            { id: "sights", label: "Sights" },
+          ],
+          multi: false,
+          allowNone: false,
+        },
+      },
+    };
+    renderRail({ turns: [asked], onAsk });
+    await userEvent.click(screen.getByRole("radio", { name: "Food" }));
+    await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+    expect(onAsk).toHaveBeenCalledWith("Food", expect.objectContaining({ answeredAsk: "call-1", optionIds: ["food"] }));
+    expect(screen.getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(true);
+  });
+});

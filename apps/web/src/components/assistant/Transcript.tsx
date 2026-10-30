@@ -318,6 +318,7 @@ export function Transcript({
   look = "prose",
   example = null,
   onAnswer,
+  answering = false,
 }: {
   turns: AssistantTurn[];
   /** Commits the turn's proposal as one atomic batch. Keyed by turn id. */
@@ -379,6 +380,8 @@ export function Transcript({
   example?: { review: string; stepsOpen?: boolean } | null;
   /** Sends an answer to a question or a card the assistant ended on (ADR-084). Without it they are drawn, not sendable. */
   onAnswer?: OnAnswer;
+  /** True while an answer cannot be sent: a turn in flight, or the composer's own gates shut. */
+  answering?: boolean;
 }) {
   const chat = look === "chat";
   // The turns there when the thread was first shown. Each turn rises in as it
@@ -503,7 +506,12 @@ export function Transcript({
                 registry, so no surface has to wire an Approve for it. */}
             {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} rise={rises(turn)} />)}
             {turn.widget != null && (
-              <TurnWidget widget={turn.widget} answered={answered.has(widgetIdOf(turn.widget))} {...(onAnswer === undefined ? {} : { onAnswer })} />
+              <TurnWidget
+                widget={turn.widget}
+                answered={answered.has(widgetIdOf(turn.widget))}
+                busy={answering}
+                {...(onAnswer === undefined ? {} : { onAnswer })}
+              />
             )}
             {/* Visible only, and no `role` — a second live region nested
                 inside the log is what finding 4 was about. Once text is

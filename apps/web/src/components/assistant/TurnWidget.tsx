@@ -5,9 +5,10 @@ import Link from "next/link";
 import type { AskAnswer, AssistantAsk, AssistantHandOff, AssistantOptions, HandOffTo } from "@tc/contracts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Picker, type PickerAnswer, type PickerOther } from "@/components/ui/picker";
-import { PlaceSearch } from "@/components/playbooks/PlaceSearch";
+import { PlaceSearch } from "@/components/places/PlaceSearch";
 import { runPaletteCommand } from "@/components/palette/paletteRegistry";
 import { TAG_LABEL } from "@/lib/activityTags";
+import { NEW_TRIP_PATH } from "@/lib/homePath";
 
 /** The widget a turn ended in (ADR-084 §2): a question, cards, or a hand-off. */
 export type TurnWidgetState =
@@ -22,14 +23,26 @@ export type OnAnswer = (text: string, answer: AskAnswer) => void;
  * The turn's widget, under its answer. `answered` is a later turn already
  * answering it, so the question stays readable and can no longer be sent;
  * without `onAnswer` (a picture of a conversation) nothing is sendable either.
+ * `busy` is a turn in flight: its buttons wait, since a second turn started
+ * now would orphan the first.
  */
-export function TurnWidget({ widget, answered, onAnswer }: { widget: TurnWidgetState; answered: boolean; onAnswer?: OnAnswer }) {
+export function TurnWidget({
+  widget,
+  answered,
+  busy = false,
+  onAnswer,
+}: {
+  widget: TurnWidgetState;
+  answered: boolean;
+  busy?: boolean;
+  onAnswer?: OnAnswer;
+}) {
   const live = !answered && onAnswer !== undefined;
   switch (widget.kind) {
     case "ask":
-      return <AskPicker ask={widget.ask} {...(live && { onAnswer })} />;
+      return <AskPicker ask={widget.ask} busy={busy} {...(live && { onAnswer })} />;
     case "options":
-      return <OptionCards options={widget.options} {...(live && { onAnswer })} />;
+      return <OptionCards options={widget.options} busy={busy} {...(live && { onAnswer })} />;
     case "handOff":
       return <HandOffCard handOff={widget.handOff} />;
   }
@@ -81,29 +94,33 @@ function asAnswer(ask: AssistantAsk, value: PickerAnswer | null): AskAnswer | nu
   return { answeredAsk: ask.id, optionIds: value.optionIds, other };
 }
 
-function AskPicker({ ask, onAnswer }: { ask: AssistantAsk; onAnswer?: OnAnswer }) {
+function AskPicker({ ask, busy, onAnswer }: { ask: AssistantAsk; busy: boolean; onAnswer?: OnAnswer }) {
   const [value, setValue] = useState<PickerAnswer | null>(null);
   const other = pickerOther(ask.other);
   const answer = asAnswer(ask, value);
   return (
     <div className="flex flex-col gap-2">
-      <Picker
-        question={ask.question}
-        options={ask.options}
-        multi={ask.multi}
-        allowNone={ask.allowNone}
-        {...(other !== undefined && { other })}
-        value={value}
-        onChange={setValue}
-      />
+      {/* A question no longer sendable takes no clicks or keys either: the
+          fieldset disables every control the picker draws. */}
+      <fieldset disabled={onAnswer === undefined} className="m-0 min-w-0 border-0 p-0">
+        <Picker
+          question={ask.question}
+          options={ask.options}
+          multi={ask.multi}
+          allowNone={ask.allowNone}
+          {...(other !== undefined && { other })}
+          value={value}
+          onChange={setValue}
+        />
+      </fieldset>
       {onAnswer !== undefined && (
         <Button
           type="button"
           variant="primary"
           size="sm"
           className="self-start"
-          disabled={answer === null}
-          onClick={() => answer !== null && value !== null && onAnswer(answerWords(ask, value), answer)}
+          disabled={busy || answer === null}
+          onClick={() => answer !== null && value !== null && onAnswer(answerWords(ask, value), { ...answer, question: ask.question })}
         >
           Answer
         </Button>
@@ -112,7 +129,7 @@ function AskPicker({ ask, onAnswer }: { ask: AssistantAsk; onAnswer?: OnAnswer }
   );
 }
 
-function OptionCards({ options, onAnswer }: { options: AssistantOptions; onAnswer?: OnAnswer }) {
+function OptionCards({ options, busy, onAnswer }: { options: AssistantOptions; busy: boolean; onAnswer?: OnAnswer }) {
   return (
     <ul aria-label={options.prompt} className="flex flex-col gap-2">
       {options.cards.map((card) => (
@@ -131,7 +148,8 @@ function OptionCards({ options, onAnswer }: { options: AssistantOptions; onAnswe
               variant="secondary"
               size="sm"
               aria-label={`Choose ${card.name}`}
-              onClick={() => onAnswer(card.name, { answeredAsk: options.id, optionIds: [card.id], other: null })}
+              disabled={busy}
+              onClick={() => onAnswer(card.name, { answeredAsk: options.id, question: options.prompt, optionIds: [card.id], other: null })}
             >
               Choose
             </Button>
@@ -152,11 +170,15 @@ const HAND_OFF_COPY: Readonly<Record<HandOffTo, { says: string; button: string |
 
 /**
  * A decline with a way forward. Each button is a person pressing it, through
- * the page's own command or link: New trip is the palette's `new-trip`, and
- * Home is where it lives when this page has none.
+ * the page's own command or link. New trip is the palette's `new-trip` where
+ * this page has one (Home), and otherwise a link to Home that opens it there.
  */
 function HandOffCard({ handOff }: { handOff: AssistantHandOff }) {
   const { says, button } = HAND_OFF_COPY[handOff.to];
+  // The plan page's command exists once the palette has read the trips, and
+  // only for one it lists: when it is not there, say so rather than nothing.
+  const [unopened, setUnopened] = useState(false);
+  const command = handOff.to === "plan_page" ? handOff.command : undefined;
   return (
     <div role="group" aria-label="Where this is done" className="flex flex-col items-start gap-2">
       <p className="text-sm text-a-asst-ink">{says}</p>
@@ -165,19 +187,22 @@ function HandOffCard({ handOff }: { handOff: AssistantHandOff }) {
           <Link href="/plans" className={buttonVariants({ variant: "secondary", size: "sm" })}>
             {button}
           </Link>
-        ) : handOff.to === "plan_page" && handOff.command === undefined ? null : (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              if (handOff.to === "plan_page" && handOff.command !== undefined) runPaletteCommand(handOff.command);
-              else if (!runPaletteCommand("new-trip")) window.location.assign("/");
+        ) : handOff.to === "new_trip" ? (
+          <Link
+            href={NEW_TRIP_PATH}
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
+            onClick={(event) => {
+              if (runPaletteCommand("new-trip")) event.preventDefault();
             }}
           >
             {button}
+          </Link>
+        ) : command === undefined ? null : (
+          <Button type="button" variant="secondary" size="sm" onClick={() => setUnopened(!runPaletteCommand(command))}>
+            {button}
           </Button>
         ))}
+      {unopened && <p className="text-sm text-a-asst-ink">I couldn&apos;t open that trip from this page.</p>}
     </div>
   );
 }

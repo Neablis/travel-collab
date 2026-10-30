@@ -339,6 +339,9 @@ export function useAskThread({
   }, [persistAs, thread]);
 
   const runAsk = async (text: string, answer?: AskAnswer) => {
+    // One turn at a time: a second would take over `abort` and strand the
+    // first's answer turn pending while its request runs on, billed.
+    if (status === "loading") return;
     const userTurn: AssistantTurn = { id: nextTurnId("u"), role: "user", text, ...(answer !== undefined && { answer }) };
     const answerId = nextTurnId("a");
     // `thread` from this render's closure is the thread the user is looking at:
