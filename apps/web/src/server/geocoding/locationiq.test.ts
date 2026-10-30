@@ -18,7 +18,7 @@ describe("LocationIQ geocoder adapter", () => {
 
     const results = await createLocationIQGeocoder("KEY123").forward("Colosseum", { limit: 3 });
     expect(results).toEqual([
-      { lat: 41.8902, lng: 12.4922, canonicalName: "Colosseum, Rome, Italy", countryCode: "IT" },
+      { lat: 41.8902, lng: 12.4922, canonicalName: "Colosseum, Rome, Italy", name: "Colosseum", countryCode: "IT" },
     ]);
     const url = new URL(fetchMock.mock.calls[0]![0] as string);
     expect(url.searchParams.get("key")).toBe("KEY123");
@@ -117,6 +117,28 @@ describe("LocationIQ geocoder adapter", () => {
     ]);
     // The settlement read is untouched by any of this.
     expect(results.map((r) => r.city)).toEqual(["Tokyo", "Rochester", "Paris", "Berlin", "Rochester"]);
+  });
+
+  it("names a place by its own name, keeps the whole address as canonicalName, and names no bare address", async () => {
+    const full = "Cochon, 930, Tchoupitoulas Street, Warehouse District, New Orleans, Orleans Parish, Louisiana, 70130, USA";
+    vi.stubGlobal("fetch", async () =>
+      new Response(
+        JSON.stringify([
+          { lat: "1", lon: "2", display_name: full, address: { house_number: "930" } },
+          // A building with no name leads with its house number, which is no title.
+          { lat: "1", lon: "2", display_name: "930, Tchoupitoulas Street, New Orleans, USA", address: { house_number: "930" } },
+          // The vendor saying it has no name is believed over the address.
+          { lat: "1", lon: "2", display_name: "Tchoupitoulas Street, New Orleans, USA", name: "" },
+        ]),
+        { status: 200 },
+      ),
+    );
+    const results = await createLocationIQGeocoder("k").forward("q");
+    expect(results.map((r) => [r.name, r.canonicalName])).toEqual([
+      ["Cochon", full],
+      [undefined, "930, Tchoupitoulas Street, New Orleans, USA"],
+      [undefined, "Tchoupitoulas Street, New Orleans, USA"],
+    ]);
   });
 
   it("throws on a non-OK response", async () => {

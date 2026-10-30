@@ -2,7 +2,9 @@ import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { dateAnswer, Picker, type PickerAnswer, type PickerOption, type PickerOther } from "./picker";
+import { cn } from "@/lib/cn";
+import { buttonVariants } from "./button";
+import { ChoiceRow, dateAnswer, Picker, type PickerAnswer, type PickerOption, type PickerOther } from "./picker";
 
 // The picker is the only way New trip (M56 part 2) and the assistant's
 // `ask_user` (part 5) take an answer, and neither has a text box behind it to
@@ -249,5 +251,39 @@ describe("Picker", () => {
     expect(screen.queryByRole("checkbox", { name: "Ticketed" })).toBeNull();
     // One group named by the question, not a second holding only "None of these".
     expect(screen.getAllByRole("group", { name: "What pace?" })).toHaveLength(1);
+  });
+
+  // Mitchell on production, 2026-10-30: equal squares in a grid, not chips
+  // each as wide as its own label.
+  it("lays the tag tiles out as a grid of equal squares", () => {
+    render(<Harness onChange={vi.fn()} options={[]} multi other={{ kind: "tags", label: "What it is about" }} />);
+    expect([...screen.getByRole("group", { name: "What pace?" }).classList]).toEqual(expect.arrayContaining(["grid", "grid-cols-3"]));
+    const tiles = screen.getAllByRole("checkbox");
+    expect(tiles).toHaveLength(12);
+    for (const tile of tiles) expect([...tile.classList]).toContain("aspect-square");
+  });
+});
+
+// Mitchell, 2026-10-30: in the docked assistant (~360px) a place offered with
+// its whole LocationIQ address as a name squeezed Choose narrower than its own
+// word, which spilled out of its border. The name wraps in its column; the
+// button keeps its size and is the app's standard secondary one.
+describe("ChoiceRow", () => {
+  it("never squeezes Choose below its word, and draws it as the standard secondary button", () => {
+    render(
+      <ul>
+        <ChoiceRow
+          name="Cochon, 930, Tchoupitoulas Street, Warehouse District, New Orleans, Orleans Parish, Louisiana, 70130, USA"
+          detail="Warehouse District, New Orleans"
+          onChoose={() => {}}
+        />
+      </ul>,
+    );
+    const choose = screen.getByRole("button", { name: /^Choose Cochon/ });
+    const classes = choose.className.split(" ");
+    expect(classes).toEqual(expect.arrayContaining(["shrink-0", "whitespace-nowrap"]));
+    // 44px at every width, the panel being docked on a desktop too. Merged as
+    // `Button` merges, since `touch` overrides the base's mouse release.
+    expect(classes).toEqual(expect.arrayContaining(cn(buttonVariants({ variant: "secondary", size: "touch" })).split(" ")));
   });
 });

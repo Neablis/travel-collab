@@ -43,6 +43,9 @@ type LocationIQRow = {
   lat: string;
   lon: string;
   display_name: string;
+  // The object's own name, in the `accept-language` below; "" when it has none.
+  // Not every response carries it, so the first part of `display_name` stands in.
+  name?: string;
   // Nominatim-style address breakdown (LocationIQ's `addressdetails=1`,
   // already requested below). `city` is present for a genuine city-level
   // result; smaller settlements come back under `town`/`village`/`hamlet`
@@ -55,6 +58,7 @@ type LocationIQRow = {
   // they never collide with the `city` read.
   address?: {
     country_code?: string;
+    house_number?: string;
     city?: string;
     town?: string;
     village?: string;
@@ -88,11 +92,19 @@ function vendorUrl(endpoint: string, apiKey: string, params: Record<string, stri
   return url;
 }
 
+// `display_name` leads with the object's name when it has one; an unnamed
+// building leads with its house number instead, which is no title.
+function nameOf(r: LocationIQRow): string | undefined {
+  const name = r.name?.trim() || (r.name === undefined ? r.display_name.split(",")[0]?.trim() : undefined);
+  return name && name !== r.address?.house_number ? name : undefined;
+}
+
 function toResult(r: LocationIQRow): GeocodeResult {
   return {
     lat: Number(r.lat),
     lng: Number(r.lon),
     canonicalName: r.display_name,
+    name: nameOf(r),
     countryCode: r.address?.country_code?.toUpperCase(),
     city: r.address?.city ?? r.address?.town ?? r.address?.village ?? r.address?.hamlet,
     area:

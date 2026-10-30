@@ -245,6 +245,50 @@ function ChoiceButton({
   );
 }
 
+/**
+ * **One offered thing as a row, with its Choose** — the assistant's option
+ * cards (ADR-084 §2). A list item, so the caller draws the `<ul>` and names it.
+ * Without `onChoose` (a question already answered) the row is only read.
+ */
+export function ChoiceRow({
+  name,
+  detail,
+  disabled,
+  onChoose,
+}: {
+  name: string;
+  detail: string;
+  disabled?: boolean;
+  onChoose?: () => void;
+}) {
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-md border border-hairline px-3 py-2">
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-semibold break-words text-ink">{name}</span>
+        <span className="text-xs text-slate">{detail}</span>
+      </span>
+      {/* The name wraps in its own column and Choose keeps its size: a
+          place's whole street address as a name (Mitchell, 2026-10-30) once
+          squeezed the button narrower than its word. `fine:min-w-0` on the
+          base lets a flex item shrink past its content, so `shrink-0` is
+          what holds it. `touch`: 44px in the docked panel on a desktop too. */}
+      {onChoose !== undefined && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="touch"
+          className="shrink-0 whitespace-nowrap"
+          aria-label={`Choose ${name}`}
+          disabled={disabled}
+          onClick={onChoose}
+        >
+          Choose
+        </Button>
+      )}
+    </li>
+  );
+}
+
 function OtherInput({
   other,
   value,
@@ -376,34 +420,47 @@ function TagTiles({
   const radioProps = useRovingRadio(tags, tags[cursor] ?? null, (tag) => setCursor(tags.indexOf(tag)));
   const toggle = (tag: ActivityTagDescribed) =>
     onChange(tags.filter((t) => (t === tag) !== value.includes(t)));
+  // Equal squares, not chips each as wide as its own label (Mitchell,
+  // 2026-10-30). The column count follows the space the picker is given, not
+  // the viewport: the same tiles sit in the first-run card, the New trip
+  // dialog and the assistant's narrower turn. The width cap keeps a square
+  // near a hundred pixels in the full-width first-run card, where it was 240.
   return (
-    <div role="group" aria-label={label} aria-labelledby={labelledBy} className="flex flex-wrap gap-2">
-      {tags.map((tag, i) => {
-        const on = value.includes(tag);
-        const Icon = ACTIVITY_TAG_ICON[tag];
-        return (
-          <button
-            key={tag}
-            type="button"
-            role="checkbox"
-            aria-checked={on}
-            {...radioProps(i)}
-            onClick={() => {
-              setCursor(i);
-              toggle(tag);
-            }}
-            className={cn(
-              "inline-flex min-h-11 items-center gap-1.5 rounded-md px-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand",
-              TAG_CHIP_CLASS[tag],
-              // The ring, not the tint, says it is picked: every tile is tinted.
-              on && "ring-2 ring-brand ring-inset",
-            )}
-          >
-            <Icon className="size-4" aria-hidden />
-            {TAG_LABEL[tag]}
-          </button>
-        );
-      })}
+    <div className="@container">
+      <div
+        role="group"
+        aria-label={label}
+        aria-labelledby={labelledBy}
+        className="grid max-w-2xl grid-cols-3 gap-2 @sm:grid-cols-4 @xl:grid-cols-6"
+      >
+        {tags.map((tag, i) => {
+          const on = value.includes(tag);
+          const Icon = ACTIVITY_TAG_ICON[tag];
+          return (
+            <button
+              key={tag}
+              type="button"
+              role="checkbox"
+              aria-checked={on}
+              {...radioProps(i)}
+              onClick={() => {
+                setCursor(i);
+                toggle(tag);
+              }}
+              className={cn(
+                "flex aspect-square min-w-0 flex-col items-center justify-center gap-1.5 rounded-md p-1.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand",
+                TAG_CHIP_CLASS[tag],
+                // The ring, not the tint, says it is picked: every tile is tinted.
+                on && "ring-2 ring-brand ring-inset",
+              )}
+            >
+              <Icon className="size-5" aria-hidden />
+              {/* A label wider than its tile is cut rather than growing the square. */}
+              <span className="max-w-full truncate">{TAG_LABEL[tag]}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

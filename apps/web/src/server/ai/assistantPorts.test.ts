@@ -11,9 +11,12 @@
 // The counter store itself is `quota.int.test.ts`'s; what is testable here is
 // the adapter's own three rules: charge before you look up, stop at the first
 // refusal, and pace the vendor.
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createLocationIQGeocoder } from "../geocoding/locationiq";
 import { createPlaceSearchPort, placeSearchPort } from "./assistantPorts";
 import { MIN_INTERVAL_MS } from "./rateLimit";
+
+afterEach(() => vi.unstubAllGlobals());
 
 const REGION = { minLat: 42, maxLat: 44, minLng: -80, maxLng: -78 };
 
@@ -184,6 +187,39 @@ describe("the place search port", () => {
       countryCode: "US",
     });
     expect(lookup!.places[1]).toEqual({ name: "Bare", lat: 1, lng: 2 });
+  });
+
+  // A candidate's `name` is the bold title on its card and the stop's
+  // `Location.name` once chosen, so it is the place's name, not its address
+  // (Mitchell, walking M56 on production, 2026-10-30). The rows are LocationIQ's
+  // own shape for the search he walked.
+  it("names a vendor place by its name, not its whole address", async () => {
+    vi.stubGlobal("fetch", async () =>
+      new Response(
+        JSON.stringify([
+          {
+            lat: "29.9425",
+            lon: "-90.0676",
+            display_name: "Cochon, 930, Tchoupitoulas Street, Warehouse District, New Orleans, Orleans Parish, Louisiana, 70130, USA",
+            address: { restaurant: "Cochon", house_number: "930", road: "Tchoupitoulas Street", neighbourhood: "Warehouse District", city: "New Orleans", county: "Orleans Parish", state: "Louisiana", postcode: "70130", country: "United States", country_code: "us" },
+          },
+          {
+            lat: "29.9430",
+            lon: "-90.0705",
+            display_name: "The National World War II Museum, 945, Magazine Street, Central Business District, New Orleans, Orleans Parish, Louisiana, 70130, USA",
+            address: { museum: "The National World War II Museum", house_number: "945", road: "Magazine Street", suburb: "Central Business District", city: "New Orleans", country_code: "us" },
+          },
+        ]),
+        { status: 200 },
+      ),
+    );
+    const geocoder = createLocationIQGeocoder("KEY");
+    const { port } = harness({ forward: vi.fn((query: string) => geocoder.forward(query)) });
+    const [lookup] = await port.search({ queries: ["cochon new orleans"], region: null, userId: "asker" });
+    const [cochon, museum] = lookup!.places;
+    expect(cochon!.name).toBe("Cochon");
+    expect([cochon!.area, cochon!.city].join(", ")).toBe("Warehouse District, New Orleans");
+    expect(museum!.name).toBe("The National World War II Museum");
   });
 
   // The shipped instance exists and is the one the app wires. Its edges are the
