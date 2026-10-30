@@ -72,6 +72,7 @@ const SearchPlacesInput = z.object({
 const PlaceCandidateSchema = z.object({
   ref: z.number().int().positive(),
   name: z.string(),
+  address: z.string().optional(),
   city: z.string().optional(),
   area: z.string().optional(),
   countryCode: z.string().optional(),
@@ -109,6 +110,7 @@ function readoutFor(lookups: readonly PlaceLookup[], numbered: readonly (readonl
       const candidates = (numbered[index] ?? []).map((candidate) => ({
         ref: candidate.ref,
         name: candidate.name,
+        ...(candidate.address === undefined ? {} : { address: candidate.address }),
         ...(candidate.city === undefined ? {} : { city: candidate.city }),
         ...(candidate.area === undefined ? {} : { area: candidate.area }),
         ...(candidate.countryCode === undefined ? {} : { countryCode: candidate.countryCode }),
@@ -170,6 +172,7 @@ export const searchPlacesTool = defineTool({
       candidates: result.candidates.map((candidate) => ({
         ...candidate,
         name: untrusted(candidate.name),
+        ...(candidate.address === undefined ? {} : { address: untrusted(candidate.address) }),
         ...(candidate.city === undefined ? {} : { city: untrusted(candidate.city) }),
         ...(candidate.area === undefined ? {} : { area: untrusted(candidate.area) }),
       })),

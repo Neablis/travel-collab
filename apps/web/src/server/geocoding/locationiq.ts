@@ -58,7 +58,6 @@ type LocationIQRow = {
   // they never collide with the `city` read.
   address?: {
     country_code?: string;
-    house_number?: string;
     city?: string;
     town?: string;
     village?: string;
@@ -92,11 +91,25 @@ function vendorUrl(endpoint: string, apiKey: string, params: Record<string, stri
   return url;
 }
 
-// `display_name` leads with the object's name when it has one; an unnamed
-// building leads with its house number instead, which is no title.
+// "930", "930A", "12-14": a segment that is only a house number.
+const HOUSE_NUMBER = /^\d+[a-z]?(?:[-/]\d+[a-z]?)*$/i;
+
+/**
+ * What a `display_name` names: its first segment, the rest being the address.
+ *
+ * Undefined when that segment is a house number, the lead of an unnamed
+ * building. The one rule for both a candidate's title here and the name-match
+ * verdict (`geocodeNameMatch.ts`), so the two cannot disagree; it reads the
+ * string alone because the verdict has nothing else.
+ */
+export function ownNameOf(displayName: string): string | undefined {
+  const first = displayName.split(",")[0]?.trim() ?? "";
+  return first === "" || HOUSE_NUMBER.test(first) ? undefined : first;
+}
+
+// The vendor's own `name` when it sends one, "" meaning it has none.
 function nameOf(r: LocationIQRow): string | undefined {
-  const name = r.name?.trim() || (r.name === undefined ? r.display_name.split(",")[0]?.trim() : undefined);
-  return name && name !== r.address?.house_number ? name : undefined;
+  return r.name === undefined ? ownNameOf(r.display_name) : r.name.trim() || undefined;
 }
 
 function toResult(r: LocationIQRow): GeocodeResult {

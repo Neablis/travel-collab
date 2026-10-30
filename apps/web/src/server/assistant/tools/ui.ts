@@ -82,7 +82,8 @@ export const showOptionsTool = defineTool({
     for (const ref of input.places ?? []) {
       const place = deps.placeCache.get(ref);
       if (place === null) dropped.push(`place ${ref}`);
-      else cards.push({ kind: "place", id: `place-${ref}`, name: place.name, ...(place.area && { area: place.area }), ...(place.city && { city: place.city }) });
+      // A city or district is named by itself; the line under it repeating that says nothing.
+      else cards.push({ kind: "place", id: `place-${ref}`, name: place.name, ...(place.area && place.area !== place.name && { area: place.area }), ...(place.city && place.city !== place.name && { city: place.city }) });
     }
     for (const savedDayId of input.days ?? []) {
       const day = deps.uiOutcome.day(savedDayId);

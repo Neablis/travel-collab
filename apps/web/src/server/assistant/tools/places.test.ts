@@ -184,6 +184,32 @@ describe("search_places", () => {
     expect(readout.results[0]!.query).toBe("lunch");
   });
 
+  // A chain answers one query with several branches of one name, and only the
+  // address tells them apart. It is the vendor's text, so it is fenced too.
+  it("prints each candidate's address beside its name, fenced", async () => {
+    const readout = await searchPlacesTool.invoke(
+      { queries: ["cafe du monde"] },
+      {
+        trip: scenarios.emptyTrip(),
+        actor: ACTOR,
+        placeSearch: portReturning({
+          query: "cafe du monde",
+          places: [
+            { name: "Café du Monde", address: "Café du Monde, 800, Decatur Street, New Orleans, USA", lat: 29.95, lng: -90.06 },
+            { name: "Café du Monde", address: "Café du Monde, 1, Poydras Street, New Orleans, USA", lat: 29.94, lng: -90.06 },
+          ],
+        }),
+        placeCache: newPlaceCache(),
+      },
+    );
+    const [decatur, poydras] = readout.results[0]!.candidates;
+    expect(decatur!.address?.startsWith(UNTRUSTED_OPEN)).toBe(true);
+    expect([decatur, poydras].map((candidate) => plain(candidate!.address ?? ""))).toEqual([
+      "Café du Monde, 800, Decatur Street, New Orleans, USA",
+      "Café du Monde, 1, Poydras Street, New Orleans, USA",
+    ]);
+  });
+
   // The step cost is the milestone's stated cost driver: search then act is 2-3
   // steps, not one per place. A schema that accepted a bare string would make
   // one-call-per-place the natural spelling.

@@ -13,6 +13,9 @@
 // Kept in its own module rather than added to that one because "is this
 // point where I asked" and "is this the place I asked for" are different
 // kinds of evidence, and geocodeRegion.ts's own header promises arithmetic.
+// What a vendor's `display_name` names is the adapter's knowledge, so it comes
+// from there (`.ts` explicit: `geocode-japan-seed.mts` loads this under node).
+import { ownNameOf } from "../geocoding/locationiq.ts";
 
 // The verdict is deliberately three-valued rather than boolean. "Not
 // comparable" is a real and common outcome for Japan and is NOT a mismatch:
@@ -125,13 +128,6 @@ export function distinctiveTokens(place: string, context: readonly string[] = []
   return distinctive.length > 0 ? distinctive : all;
 }
 
-// A LocationIQ `display_name` is "<the object's own name>, <address…>". Only
-// the first segment names the thing; the rest is street/ward/prefecture and
-// would match on geography we deliberately excluded above.
-export function candidateOwnName(displayName: string): string {
-  return displayName.split(",")[0]?.trim() ?? "";
-}
-
 // Every concatenation of a CONTIGUOUS RUN of tokens, e.g.
 // ["nishi", "azabu"] -> {"nishi", "azabu", "nishiazabu"}. This is what makes
 // the comparison insensitive to where a name puts its separators, without
@@ -208,7 +204,12 @@ export function placeNameVerdict(
   candidateDisplayName: string,
   context: readonly string[] = [],
 ): NameVerdict {
-  const candidate = nameTokens(candidateOwnName(candidateDisplayName));
+  // Only the candidate's own name, never the street/ward/prefecture after it,
+  // which would match on geography excluded above. An unnamed building (a
+  // house-number lead) cannot be the named place asked for.
+  const ownName = ownNameOf(candidateDisplayName);
+  if (ownName === undefined) return "mismatch";
+  const candidate = nameTokens(ownName);
   if (candidate.length === 0) return "not-comparable";
   const placeAll = nameTokens(place);
   if (placeAll.length === 0) return "not-comparable";
