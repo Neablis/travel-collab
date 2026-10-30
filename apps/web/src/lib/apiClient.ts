@@ -1449,10 +1449,14 @@ export async function searchCities(q: string): Promise<ApiResult<CityMatch[]>> {
  * Cities AND countries whose name starts with `q`, labelled by kind (M12 link
  * 7) — `searchCities`' successor, on its terms: the server answers a blank `q`,
  * and the caller debounces.
+ *
+ * `world` also asks for places outside the library (M56 D3), which only a
+ * signed-in caller gets, each search charged to their account on a cache miss.
+ * New trip's Where page asks for them; Discover does not.
  */
-export async function searchPlaces(q: string): Promise<ApiResult<PlaceMatch[]>> {
+export async function searchPlaces(q: string, opts: { world?: boolean } = {}): Promise<ApiResult<PlaceMatch[]>> {
   try {
-    const res = await fetch(apiUrl(`/api/places?q=${encodeURIComponent(q)}`));
+    const res = await fetch(apiUrl(`/api/places?q=${encodeURIComponent(q)}${opts.world ? "&world=1" : ""}`));
     return await readJson(res, (data) => PlaceSearchResponse.parse(data).places);
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };

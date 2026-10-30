@@ -1,3 +1,4 @@
+import { UpstreamError } from "../external/upstream";
 import type { GeocodeOptions, Geocoder, GeocodeResult } from "./geocoder";
 
 const FREE_TEXT = "https://us1.locationiq.com/v1/search";
@@ -10,6 +11,16 @@ const REVERSE = "https://us1.locationiq.com/v1/reverse";
 // Autocomplete is documented on the `api.` host only, not the regional ones.
 // It answers its own row shape, and takes neither `format` nor `addressdetails`.
 const AUTOCOMPLETE = "https://api.locationiq.com/v1/autocomplete";
+
+// A 429 without a `Retry-After` still backs off this long: LocationIQ's free
+// tier is 2 requests a second, so a minute is well past a burst.
+const FALLBACK_BACKOFF_MS = 60_000;
+
+/** When a refusal says to come back: `Retry-After` in seconds when sent, else the fallback. */
+function retryAfterOf(res: Response): Date {
+  const seconds = Number(res.headers.get("Retry-After"));
+  return new Date(Date.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : FALLBACK_BACKOFF_MS));
+}
 
 type AutocompleteRow = {
   osm_id?: string;
@@ -165,18 +176,27 @@ export function createLocationIQGeocoder(apiKey: string): Geocoder {
       url.searchParams.set("accept-language", "en");
       const res = await fetch(url, { headers: { Accept: "application/json" } });
       if (res.status === 404) return [];
-      if (!res.ok) throw new Error(`autocomplete failed: ${res.status}`);
+      // `UpstreamError`, so the cache backs the key off a 429, 403 or 5xx
+      // rather than charging the next keystroke for the same refusal.
+      if (!res.ok) throw new UpstreamError(`autocomplete failed: ${res.status}`, res.status, retryAfterOf(res));
       const rows = (await res.json()) as AutocompleteRow[];
-      return rows.map((r) => ({
-        // The OSM object, not LocationIQ's `place_id`, which it renumbers when
-        // it reloads its data: an id the client commits has to outlive that.
-        id: r.osm_type && r.osm_id ? `osm:${r.osm_type}:${r.osm_id}` : `locationiq:${r.place_id}`,
-        name: r.display_place ?? r.display_name,
-        detail: r.display_address ?? r.display_name,
-        countryCode: r.address?.country_code?.toUpperCase(),
-        lat: Number(r.lat),
-        lng: Number(r.lon),
-      }));
+      // The OSM object, not LocationIQ's `place_id`, which it renumbers when it
+      // reloads its data: an id the client commits has to outlive that, so a
+      // row without one is not offered.
+      return rows.flatMap((r) =>
+        r.osm_type && r.osm_id
+          ? [
+              {
+                id: `osm:${r.osm_type}:${r.osm_id}`,
+                name: r.display_place ?? r.display_name,
+                detail: r.display_address ?? r.display_name,
+                countryCode: r.address?.country_code?.toUpperCase(),
+                lat: Number(r.lat),
+                lng: Number(r.lon),
+              },
+            ]
+          : [],
+      );
     },
   };
 }

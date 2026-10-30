@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { SavedDayVisibility } from "@tc/contracts";
@@ -203,15 +204,17 @@ export function worldSearchFor(readerId: string): WorldSearch | null {
 }
 
 /**
- * Vendor places for `q`, less any the library already offers by the same
- * name: that one is the library's row, labelled as having playbooks. Empty
- * when the vendor fails or the quota refuses, so the library still answers.
+ * Vendor places for `q`, less any the library already offers
+ * (`notInLibrary`). Empty when the vendor fails or the quota refuses, so the
+ * library still answers.
  */
 async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearch): Promise<WorldPlaceMatch[]> {
   const query = q.trim().replace(/\s+/g, " ");
   if (query.length < WORLD_MIN_QUERY || query.length > WORLD_MAX_QUERY) return [];
   const cached = await readThrough({
-    key: `locationiq:autocomplete:${query.toLowerCase()}`,
+    // Hashed, because `readThrough` logs the key on a failed call and the table
+    // keeps it: what a searcher typed belongs in neither.
+    key: `locationiq:autocomplete:${createHash("sha256").update(query.toLowerCase()).digest("hex")}`,
     schema: WorldPlaces,
     store: world.store,
     now: world.now,
@@ -219,7 +222,13 @@ async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearc
     timeoutMs: WORLD_TIMEOUT_MS,
     call: async () => ({
       kind: "fresh",
-      value: (await world.autocomplete(query)).map((s): WorldPlaceMatch => ({ kind: "world", ...s, hasPlaybooks: false })),
+      // Checked row by row here, because `readThrough` hands a fresh value back
+      // unparsed: one row the vendor left without a name or a coordinate would
+      // otherwise fail the route's parse and take the library's answer with it.
+      value: (await world.autocomplete(query)).flatMap((s): WorldPlaceMatch[] => {
+        const row = WorldPlaceMatch.safeParse({ kind: "world", ...s, hasPlaybooks: false });
+        return row.success ? [row.data] : [];
+      }),
       expiresAt: new Date(world.now.getTime() + WORLD_CACHE_MS),
       lastModified: null,
       sourceUpdatedAt: null,
@@ -229,6 +238,23 @@ async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearc
     console.warn(`[places] world search: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   });
-  const offered = new Set(library.map((p) => labelOf(p).toLowerCase()));
-  return (cached?.value ?? []).filter((p) => !offered.has(p.name.toLowerCase()));
+  return notInLibrary(cached?.value ?? [], library);
+}
+
+/**
+ * `world` less the rows that are the library's own places, each of which the
+ * library already offers, labelled as having playbooks.
+ *
+ * Each library place hides ONE world row, never every row with its name: a
+ * library Paris is not Paris, Texas, and Portland, Oregon is not Portland,
+ * Maine. A country is matched by name and code, so the country Georgia does
+ * not hide the US state. A city row knows no country, so the vendor's
+ * top-ranked namesake is taken to be it and the rest, each with its own
+ * region line, stay.
+ */
+function notInLibrary(world: WorldPlaceMatch[], library: LibraryMatch[]): WorldPlaceMatch[] {
+  const keyOf = (name: string, countryCode?: string) => `${name.toLowerCase()}|${countryCode ?? ""}`;
+  const unclaimed = new Set(library.map((p) => (p.kind === "country" ? keyOf(p.name, p.countryCode) : keyOf(p.city))));
+  // `delete` answers whether the key was there, and spends it: the claim is used once.
+  return world.filter((p) => !unclaimed.delete(keyOf(p.name, p.countryCode)) && !unclaimed.delete(keyOf(p.name)));
 }
