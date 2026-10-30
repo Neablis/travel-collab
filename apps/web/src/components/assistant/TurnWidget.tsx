@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import type { AskAnswer, AssistantAsk, AssistantHandOff, AssistantOptions, HandOffTo } from "@tc/contracts";
+import type { AskAnswer, AssistantAsk, AssistantHandOff, AssistantOptionCard, AssistantOptions, HandOffTo } from "@tc/contracts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ChoiceRow, Picker, type PickerAnswer, type PickerOther } from "@/components/ui/picker";
 import { PlaceSearch } from "@/components/places/PlaceSearch";
@@ -135,6 +135,13 @@ function AskPicker({ ask, busy, onAnswer }: { ask: AssistantAsk; busy: boolean; 
   );
 }
 
+/** A card's second line, the same in the list and asked alone. */
+function cardDetail(card: AssistantOptionCard): string {
+  return card.kind === "place"
+    ? [card.area, card.city].filter(Boolean).join(", ")
+    : `${card.cities.join(", ")}${card.cities.length > 0 ? " · " : ""}${card.stopCount} stop${card.stopCount === 1 ? "" : "s"}`;
+}
+
 function OptionCards({ options, busy, onAnswer }: { options: AssistantOptions; busy: boolean; onAnswer?: OnAnswer }) {
   return (
     <ul aria-label={options.prompt} className="flex flex-col gap-2">
@@ -142,11 +149,7 @@ function OptionCards({ options, busy, onAnswer }: { options: AssistantOptions; b
         <ChoiceRow
           key={card.id}
           name={card.name}
-          detail={
-            card.kind === "place"
-              ? [card.area, card.city].filter(Boolean).join(", ")
-              : `${card.cities.join(", ")}${card.cities.length > 0 ? " · " : ""}${card.stopCount} stop${card.stopCount === 1 ? "" : "s"}`
-          }
+          detail={cardDetail(card)}
           disabled={busy}
           {...(onAnswer !== undefined && {
             onChoose: () => onAnswer(card.name, { answeredAsk: options.id, question: options.prompt, optionIds: [card.id], other: null }),
@@ -173,9 +176,7 @@ function ConfirmCard({ options, busy, onAnswer }: { options: AssistantOptions; b
       <div className="flex min-w-0 flex-col rounded-md border border-hairline px-3 py-2">
         <span className="text-sm font-semibold break-words text-ink">{card.name}</span>
         <span className="text-xs text-slate">
-          {card.kind === "place"
-            ? [card.area, card.city].filter(Boolean).join(", ")
-            : `${card.cities.join(", ")}${card.cities.length > 0 ? " · " : ""}${card.stopCount} stop${card.stopCount === 1 ? "" : "s"}`}
+          {cardDetail(card)}
         </span>
       </div>
       {onAnswer !== undefined && (

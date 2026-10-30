@@ -51,6 +51,15 @@ describe("show_options", () => {
     expect(shown).toEqual({ shown: true, note: expect.stringContaining('"How about A day of ramen?"') });
   });
 
+  // A whole-address name can run past the contract's 200 once asked about, and
+  // a prompt over it drops the whole widget where the client parses it.
+  it("keeps the model's own prompt when asking about the one card would run over 200", async () => {
+    const deps = turn();
+    deps.placeCache.add([{ name: "A".repeat(195), lat: 35.64, lng: 139.71 }]);
+    await showOptionsTool.invoke({ prompt: "Two to try", places: [2, 99] }, deps);
+    expect(deps.uiOutcome.outcome()).toMatchObject({ options: { prompt: "Two to try" } });
+  });
+
   it("keeps the model's own prompt when it asked about one card", async () => {
     const deps = turn();
     await showOptionsTool.invoke({ prompt: "Add Ichiran?", places: [1] }, deps);
