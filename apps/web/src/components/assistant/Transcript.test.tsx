@@ -767,6 +767,24 @@ describe("a turn that ends in a widget", () => {
     await userEvent.click(within(question).getByRole("button", { name: "No" }));
     expect(onAnswer).toHaveBeenLastCalledWith("No", { answeredAsk: "call-2", question: "Add Cochon?", optionIds: [], other: null });
   });
+
+  // PR 652 review: the busy test moved to two cards, so nothing held Yes and No.
+  it("holds Yes and No while a turn is in flight", async () => {
+    const onAnswer = vi.fn();
+    const ONE: AssistantTurn = {
+      id: "a3",
+      role: "assistant",
+      text: "",
+      tools: [],
+      pending: false,
+      widget: { kind: "options", options: { id: "call-2", prompt: "Add Cochon?", cards: [{ kind: "place", id: "place-1", name: "Cochon" }] } },
+    };
+    render(<Transcript turns={[ONE]} onAnswer={onAnswer} answering />);
+    const question = screen.getByRole("group", { name: "Add Cochon?" });
+    await userEvent.click(within(question).getByRole("button", { name: "Yes" }));
+    await userEvent.click(within(question).getByRole("button", { name: "No" }));
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
 });
 
 // ADR-072 §4: the commands a reply named that wait for Approve are drawn under

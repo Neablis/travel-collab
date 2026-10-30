@@ -92,9 +92,18 @@ export const showOptionsTool = defineTool({
       else cards.push({ kind: "day", id: day.savedDayId, name: day.name, cities: day.cities, stopCount: day.stopCount });
     }
     if (cards.length === 0) return { shown: false, refused: "No tool returned any of those this turn. Search first, then show what it found." };
-    if (!deps.uiOutcome.set({ options: { id: callId(), prompt: input.prompt, cards } })) return { shown: false, refused: ALREADY };
-    const note = "The cards are under your answer. Do not list them again; say one short sentence about why these.";
-    return { shown: true, note: dropped.length === 0 ? note : `${note} Left out, since no tool returned them: ${dropped.join(", ")}.` };
+    // One card is drawn as a yes or no, so a prompt written for several
+    // ("Pick a day") would ask nothing once the others were dropped. A name too
+    // long for the contract's 200 keeps the model's prompt.
+    const asked = `How about ${cards[0]!.name}?`;
+    const prompt = cards.length === 1 && dropped.length > 0 && asked.length <= 200 ? asked : input.prompt;
+    if (!deps.uiOutcome.set({ options: { id: callId(), prompt, cards } })) return { shown: false, refused: ALREADY };
+    // Named, since a fifth was cut before this ran (`repairToolInput`): the
+    // last sentence must not point at a card that is not there.
+    const notes = [`The cards are under your answer. Do not list them again; say one short sentence about why these. Shown: ${cards.map((card) => card.name).join(", ")}.`];
+    if (dropped.length > 0) notes.push(`Left out, since no tool returned them: ${dropped.join(", ")}.`);
+    if (prompt !== input.prompt) notes.push(`With one left, it is asked as "${prompt}" with Yes and No.`);
+    return { shown: true, note: notes.join(" ") };
   },
 });
 

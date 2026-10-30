@@ -189,10 +189,10 @@ function ConfirmCard({ options, busy, onAnswer }: { options: AssistantOptions; b
       </div>
       {onAnswer !== undefined && (
         <div className="flex gap-2">
-          <Button type="button" variant="primary" size="sm" disabled={busy} onClick={() => onAnswer("Yes", answer([card.id]))}>
+          <Button type="button" variant="primary" size="touch" disabled={busy} onClick={() => onAnswer("Yes", answer([card.id]))}>
             Yes
           </Button>
-          <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => onAnswer("No", answer([]))}>
+          <Button type="button" variant="secondary" size="touch" disabled={busy} onClick={() => onAnswer("No", answer([]))}>
             No
           </Button>
         </div>
