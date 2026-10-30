@@ -100,7 +100,8 @@ const HOUSE_NUMBER = /^\d+[a-z]?(?:[-/]\d+[a-z]?)*$/i;
  * Undefined when that segment is a house number, the lead of an unnamed
  * building. The one rule for both a candidate's title here and the name-match
  * verdict (`geocodeNameMatch.ts`), so the two cannot disagree; it reads the
- * string alone because the verdict has nothing else.
+ * string alone because the verdict has nothing else. The verdict's one
+ * exception is a place asked for by that very number (a bar called "1905").
  */
 export function ownNameOf(displayName: string): string | undefined {
   const first = displayName.split(",")[0]?.trim() ?? "";

@@ -185,8 +185,10 @@ describe("search_places", () => {
   });
 
   // A chain answers one query with several branches of one name, and only the
-  // address tells them apart. It is the vendor's text, so it is fenced too.
-  it("prints each candidate's address beside its name, fenced", async () => {
+  // address tells them apart. It is the vendor's text, so it is fenced too. Only
+  // the street is printed: the name, area and city beside it already are, and
+  // what follows them (region, postcode, country) tells no two branches apart.
+  it("prints each candidate's street beside its name, fenced", async () => {
     const readout = await searchPlacesTool.invoke(
       { queries: ["cafe du monde"] },
       {
@@ -195,19 +197,29 @@ describe("search_places", () => {
         placeSearch: portReturning({
           query: "cafe du monde",
           places: [
-            { name: "Café du Monde", address: "Café du Monde, 800, Decatur Street, New Orleans, USA", lat: 29.95, lng: -90.06 },
-            { name: "Café du Monde", address: "Café du Monde, 1, Poydras Street, New Orleans, USA", lat: 29.94, lng: -90.06 },
+            {
+              name: "Café du Monde",
+              address: "Café du Monde, 800, Decatur Street, French Quarter, New Orleans, Orleans Parish, Louisiana, 70116, USA",
+              area: "French Quarter",
+              city: "New Orleans",
+              lat: 29.95,
+              lng: -90.06,
+            },
+            { name: "Café du Monde", address: "Café du Monde, 1, Poydras Street, New Orleans, USA", city: "New Orleans", lat: 29.94, lng: -90.06 },
+            // Nothing left once the name and the city are taken off.
+            { name: "Café du Monde", address: "Café du Monde, New Orleans, USA", city: "New Orleans", lat: 29.93, lng: -90.06 },
           ],
         }),
         placeCache: newPlaceCache(),
       },
     );
-    const [decatur, poydras] = readout.results[0]!.candidates;
+    const [decatur, poydras, bare] = readout.results[0]!.candidates;
     expect(decatur!.address?.startsWith(UNTRUSTED_OPEN)).toBe(true);
     expect([decatur, poydras].map((candidate) => plain(candidate!.address ?? ""))).toEqual([
-      "Café du Monde, 800, Decatur Street, New Orleans, USA",
-      "Café du Monde, 1, Poydras Street, New Orleans, USA",
+      "800, Decatur Street",
+      "1, Poydras Street",
     ]);
+    expect(bare!.address).toBeUndefined();
   });
 
   // The step cost is the milestone's stated cost driver: search then act is 2-3

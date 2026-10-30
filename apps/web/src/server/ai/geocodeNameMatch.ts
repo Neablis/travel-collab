@@ -205,13 +205,17 @@ export function placeNameVerdict(
   context: readonly string[] = [],
 ): NameVerdict {
   // Only the candidate's own name, never the street/ward/prefecture after it,
-  // which would match on geography excluded above. An unnamed building (a
-  // house-number lead) cannot be the named place asked for.
+  // which would match on geography excluded above. A house-number lead names no
+  // place, unless the place asked for is that number: a bar called "1905" leads
+  // its display_name exactly as an unnamed building at number 1905 does.
   const ownName = ownNameOf(candidateDisplayName);
-  if (ownName === undefined) return "mismatch";
+  const placeAll = nameTokens(place);
+  if (ownName === undefined) {
+    const lead = nameTokens(candidateDisplayName.split(",")[0] ?? "");
+    return placeAll.length > 0 && placeAll.join("") === lead.join("") ? "match" : "mismatch";
+  }
   const candidate = nameTokens(ownName);
   if (candidate.length === 0) return "not-comparable";
-  const placeAll = nameTokens(place);
   if (placeAll.length === 0) return "not-comparable";
 
   if (placeAll.join("") === candidate.join("")) return "match";
