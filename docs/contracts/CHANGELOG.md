@@ -27,8 +27,8 @@ Format:
 - Consumers updated: `packages/domain` (decide, evolve, diff, equality, hydrate, detail, history),
   `packages/factories`, `apps/web` (`accessPolicy` editor-minimum; `mocks/handlers`;
   `newTripSubmit` dispatches it; `assistant/tools/read.ts`; `ai/handleAskRequest.ts`;
-  `cloneTrip` leaves the style off a copy, since a creation batch takes only
-  `BatchableCommand`s) — in this same PR.
+  `cloneTrip` keeps the style on a copy, since `executeTripCreation`'s follow-up takes
+  `SetTripStyle` alongside `BatchableCommand`s) — in this same PR.
 - Public API: `API_VERSION` 1.31.0 with its new `API_FINGERPRINT`. `/v1/trips/{tripId}` returns
   `TripDetail`, so its responses gain the two fields. No v1 endpoint writes them.
 - Breaking? no (additive, defaulted).
