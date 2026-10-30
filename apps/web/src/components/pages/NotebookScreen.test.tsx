@@ -33,6 +33,7 @@ import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { registerPhoneAsk, usePhoneAsk } from "@/components/nav/phoneAsk";
 import { DEMO_TRIPS } from "@/lib/demoTrip";
 import { fetchTripAccess } from "@/lib/apiClient";
+import { fetchSavedNotebooks } from "@/lib/savedNotebooksClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 
@@ -217,7 +218,12 @@ describe("NotebookScreen", () => {
     server.use(...makePagesHandlers([]));
     render(<NotebookScreen tripId={TRIP_ID} />);
     await screen.findByRole("region", { name: "Start from a template" });
-    await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
+    // An empty library renders nothing, so no element says the saved read has
+    // landed. Join it instead: this read is issued after the component's, to
+    // the same handler, so once it answers the component's has too.
+    await act(async () => {
+      await fetchSavedNotebooks();
+    });
     expect(screen.queryByRole("region", { name: "Your templates" })).toBeNull();
   });
 
@@ -363,11 +369,14 @@ describe("NotebookScreen", () => {
       render(<NotebookScreen tripId={TRIP_ID} />);
       const list = await screen.findByRole("region", { name: "Your notebooks" });
       await within(list).findByText(gone.title);
+      // Delete is found first, so the absence below is read with the role
+      // answered: while it is pending nobody is the owner, and that passes.
+      const deleteGone = await screen.findByRole("button", { name: `Delete ${gone.title}` });
       expect(screen.queryByRole("button", ADD)).toBeNull();
 
       // Deleting a seed is how a trip comes to be missing one; the action
       // follows the list rather than the page load.
-      fireEvent.click(await screen.findByRole("button", { name: `Delete ${gone.title}` }));
+      fireEvent.click(deleteGone);
       await waitFor(() => expect(within(list).queryByText(gone.title)).toBeNull());
       fireEvent.click(await screen.findByRole("button", ADD));
 

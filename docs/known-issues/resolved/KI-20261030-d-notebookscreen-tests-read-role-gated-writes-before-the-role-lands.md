@@ -30,8 +30,11 @@
   The others failed on Blank, Delete, the "Essentials" radio and the "Start from a template"
   region. Fix (`NotebookScreen.test.tsx` only; the component is right to withhold writes until
   the role is known): each of the ten reaches its first role-gated element with
-  `findByRole`/`findAllByRole`, the two `Loading` waits that proved nothing are gone, and a
-  comment on the `/access` handler says why. Proof: with the delay still in, 34 of 34 passed at
+  `findByRole`/`findAllByRole`, all four `Loading` waits that proved nothing are gone, and a
+  comment on the `/access` handler says why. Review (PR 644) found two absences still read too
+  early, and both now wait: "shows no Your templates section" joins the saved-notebooks read
+  before its check (its `Loading` wait was the fourth), and the owner's "Add missing" absence
+  is read after Delete is found, once the role is known. Proof: with the delay still in, 34 of 34 passed at
   30 ms and at 300 ms. With the delay removed, 34 of 34 passed, and `web` lint and typecheck were
   clean. The ten tests now waiting on the role are the regression coverage. No test was
   weakened or removed.
