@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-30 — `AssistantOptions.cards` at most `MAX_OPTION_CARDS` (4) (M56 part 9)
+- **New** (`packages/contracts/src/assistant.ts`): `MAX_OPTION_CARDS`, 4.
+- **Changed:** `AssistantOptions.cards` is 1 to `MAX_OPTION_CARDS`, down from 1 to 6. A single
+  card is now drawn as a yes or no about it, so its `prompt` is that question (doc comment only;
+  the shape is unchanged).
+- Why: Mitchell, 2026-10-30, on production: five Choose rows "looks bad when theres too many",
+  and one place as a one-row list should be a yes/no.
+- Consumers updated: `apps/web` — `server/assistant/tools/ui.ts` (`show_options` input caps
+  `places` and `days` at the same constant, and its description tells the model the limit; a call
+  over it is cut to its first four by `repairToolInput`'s existing array clamp) and
+  `components/assistant/TurnWidget.tsx` (`ConfirmCard`), in this same PR.
+- Public API: no change. The ask stream is session-only and not in `openapi.json`.
+- Breaking? no. Only the server produces it, live on the final chunk; a turn's widget is never
+  stored (`askThreadStore.ts` drops it), so no saved value holds five or six cards.
+
 ## 2026-10-30 — `AssistantHandOff.prefill` and `.asks`, `NewTripPrefill`, `CarriedAsk` (M56 part 6)
 - **New** (`packages/contracts/src/assistant.ts`): `NewTripPrefill` (`place` as search text, never
   a pick; `days` 1 to `NEW_TRIP_DAYS_MAX`, 60; `tags` of `ActivityTagDescribed`), `CarriedAsk`

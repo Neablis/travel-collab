@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
-import type { AskAnswer, AssistantAsk, AssistantHandOff, AssistantOptions, HandOffTo } from "@tc/contracts";
+import type { AskAnswer, AssistantAsk, AssistantHandOff, AssistantOptionCard, AssistantOptions, HandOffTo } from "@tc/contracts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ChoiceRow, Picker, type PickerAnswer, type PickerOther } from "@/components/ui/picker";
 import { PlaceSearch } from "@/components/places/PlaceSearch";
@@ -43,7 +43,12 @@ export function TurnWidget({
     case "ask":
       return <AskPicker ask={widget.ask} busy={busy} {...(live && { onAnswer })} />;
     case "options":
-      return <OptionCards options={widget.options} busy={busy} {...(live && { onAnswer })} />;
+      // One card is nothing to choose between: a yes or a no about it.
+      return widget.options.cards.length === 1 ? (
+        <ConfirmCard options={widget.options} busy={busy} {...(live && { onAnswer })} />
+      ) : (
+        <OptionCards options={widget.options} busy={busy} {...(live && { onAnswer })} />
+      );
     case "handOff":
       return <HandOffCard handOff={widget.handOff} />;
   }
@@ -130,6 +135,13 @@ function AskPicker({ ask, busy, onAnswer }: { ask: AssistantAsk; busy: boolean; 
   );
 }
 
+/** A card's second line, the same in the list and asked alone. */
+function cardDetail(card: AssistantOptionCard): string {
+  return card.kind === "place"
+    ? [card.area, card.city].filter(Boolean).join(", ")
+    : `${card.cities.join(", ")}${card.cities.length > 0 ? " · " : ""}${card.stopCount} stop${card.stopCount === 1 ? "" : "s"}`;
+}
+
 function OptionCards({ options, busy, onAnswer }: { options: AssistantOptions; busy: boolean; onAnswer?: OnAnswer }) {
   return (
     <ul aria-label={options.prompt} className="flex flex-col gap-2">
@@ -137,11 +149,7 @@ function OptionCards({ options, busy, onAnswer }: { options: AssistantOptions; b
         <ChoiceRow
           key={card.id}
           name={card.name}
-          detail={
-            card.kind === "place"
-              ? [card.area, card.city].filter(Boolean).join(", ")
-              : `${card.cities.join(", ")}${card.cities.length > 0 ? " · " : ""}${card.stopCount} stop${card.stopCount === 1 ? "" : "s"}`
-          }
+          detail={cardDetail(card)}
           disabled={busy}
           {...(onAnswer !== undefined && {
             onChoose: () => onAnswer(card.name, { answeredAsk: options.id, question: options.prompt, optionIds: [card.id], other: null }),
@@ -149,6 +157,39 @@ function OptionCards({ options, busy, onAnswer }: { options: AssistantOptions; b
         />
       ))}
     </ul>
+  );
+}
+
+/**
+ * A lone card as a question about it: the prompt asks, Yes picks the card and
+ * No picks none, the same answer as cards' Choose and an ask's "None of these".
+ */
+function ConfirmCard({ options, busy, onAnswer }: { options: AssistantOptions; busy: boolean; onAnswer?: OnAnswer }) {
+  const card = options.cards[0]!;
+  const id = useId();
+  const answer = (optionIds: string[]): AskAnswer => ({ answeredAsk: options.id, question: options.prompt, optionIds, other: null });
+  return (
+    <div role="group" aria-labelledby={id} className="flex flex-col gap-2">
+      <p id={id} className="text-sm text-a-asst-ink">
+        {options.prompt}
+      </p>
+      <div className="flex min-w-0 flex-col rounded-md border border-hairline px-3 py-2">
+        <span className="text-sm font-semibold break-words text-ink">{card.name}</span>
+        <span className="text-xs text-slate">
+          {cardDetail(card)}
+        </span>
+      </div>
+      {onAnswer !== undefined && (
+        <div className="flex gap-2">
+          <Button type="button" variant="primary" size="touch" disabled={busy} onClick={() => onAnswer("Yes", answer([card.id]))}>
+            Yes
+          </Button>
+          <Button type="button" variant="secondary" size="touch" disabled={busy} onClick={() => onAnswer("No", answer([]))}>
+            No
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 

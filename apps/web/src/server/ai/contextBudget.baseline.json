@@ -27,10 +27,10 @@
         "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 10929,
+      "toolChars": 11061,
       "instructionChars": 3369,
-      "totalChars": 14298,
-      "approxTokens": 4320
+      "totalChars": 14430,
+      "approxTokens": 4360
     },
     "trip · question · under way": {
       "tools": [
@@ -47,10 +47,10 @@
         "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 11912,
+      "toolChars": 12044,
       "instructionChars": 3784,
-      "totalChars": 15696,
-      "approxTokens": 4742
+      "totalChars": 15828,
+      "approxTokens": 4782
     },
     "trip · edit": {
       "tools": [
@@ -78,10 +78,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 26594,
+      "toolChars": 26726,
       "instructionChars": 4883,
-      "totalChars": 31477,
-      "approxTokens": 9510
+      "totalChars": 31609,
+      "approxTokens": 9550
     },
     "trip · plan": {
       "tools": [
@@ -106,10 +106,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 25535,
+      "toolChars": 25667,
       "instructionChars": 5190,
-      "totalChars": 30725,
-      "approxTokens": 9282
+      "totalChars": 30857,
+      "approxTokens": 9322
     },
     "trip · unsure": {
       "tools": [
@@ -137,10 +137,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 26594,
+      "toolChars": 26726,
       "instructionChars": 4883,
-      "totalChars": 31477,
-      "approxTokens": 9510
+      "totalChars": 31609,
+      "approxTokens": 9550
     },
     "page · compose": {
       "tools": [
@@ -174,10 +174,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 10287,
+      "toolChars": 10419,
       "instructionChars": 2500,
-      "totalChars": 12787,
-      "approxTokens": 3863
+      "totalChars": 12919,
+      "approxTokens": 3903
     },
     "account · question": {
       "tools": [
@@ -280,6 +280,10 @@
       "chars": 854,
       "approxTokens": 258
     },
+    "show_options": {
+      "chars": 783,
+      "approxTokens": 237
+    },
     "request_change_tools": {
       "chars": 725,
       "approxTokens": 219
@@ -291,10 +295,6 @@
     "suggest_next_country": {
       "chars": 661,
       "approxTokens": 200
-    },
-    "show_options": {
-      "chars": 651,
-      "approxTokens": 197
     },
     "MoveActivity": {
       "chars": 605,

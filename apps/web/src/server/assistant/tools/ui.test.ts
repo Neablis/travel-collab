@@ -4,6 +4,7 @@
 // change's card is the turn's one outcome and the widget would never render.
 import { describe, expect, it } from "vitest";
 import { newPlaceCache, newUiOutcomeBuffer, type UiOutcomeBuffer } from "@/server/assistant/deps";
+import { repairToolInput } from "@/server/assistant/repairToolInput";
 import { askUserTool, handOffTool, showOptionsTool } from "./ui";
 
 const ICHIRAN = { name: "Ichiran Shibuya", lat: 35.66, lng: 139.7, area: "Shibuya", city: "Tokyo" };
@@ -23,7 +24,7 @@ describe("show_options", () => {
     const shown = await showOptionsTool.invoke({ prompt: "Two to try", places: [1, 7] }, deps);
     expect(shown).toEqual({ shown: true, note: expect.stringContaining("Left out, since no tool returned them: place 7") });
     expect(deps.uiOutcome.outcome()).toEqual({
-      options: { id: "ask", prompt: "Two to try", cards: [{ kind: "place", id: "place-1", name: "Ichiran Shibuya", area: "Shibuya", city: "Tokyo" }] },
+      options: { id: "ask", prompt: "How about Ichiran Shibuya?", cards: [{ kind: "place", id: "place-1", name: "Ichiran Shibuya", area: "Shibuya", city: "Tokyo" }] },
     });
   });
 
@@ -31,7 +32,7 @@ describe("show_options", () => {
     const deps = turn();
     await showOptionsTool.invoke({ prompt: "Days like it", days: ["day-food", "day-made-up"] }, deps);
     expect(deps.uiOutcome.outcome()).toEqual({
-      options: { id: "ask", prompt: "Days like it", cards: [{ kind: "day", id: "day-food", name: "A day of ramen", cities: ["Tokyo"], stopCount: 4 }] },
+      options: { id: "ask", prompt: "How about A day of ramen?", cards: [{ kind: "day", id: "day-food", name: "A day of ramen", cities: ["Tokyo"], stopCount: 4 }] },
     });
   });
 
@@ -39,6 +40,47 @@ describe("show_options", () => {
     const deps = turn();
     expect(await showOptionsTool.invoke({ prompt: "Made up", places: [3] }, deps)).toEqual({ shown: false, refused: expect.stringContaining("Search first") });
     expect(deps.uiOutcome.outcome()).toBeNull();
+  });
+
+  // PR 652 review: "Pick a day" over a lone card with Yes and No reads as a
+  // choice with nothing to choose. The prompt becomes a question about it.
+  it("asks about the one card left when the others were dropped, and says so", async () => {
+    const deps = turn();
+    const shown = await showOptionsTool.invoke({ prompt: "Pick a day", days: ["day-food", "day-made-up"] }, deps);
+    expect(deps.uiOutcome.outcome()).toMatchObject({ options: { prompt: "How about A day of ramen?" } });
+    expect(shown).toEqual({ shown: true, note: expect.stringContaining('"How about A day of ramen?"') });
+  });
+
+  // A whole-address name can run past the contract's 200 once asked about, and
+  // a prompt over it drops the whole widget where the client parses it.
+  it("keeps the model's own prompt when asking about the one card would run over 200", async () => {
+    const deps = turn();
+    deps.placeCache.add([{ name: "A".repeat(195), lat: 35.64, lng: 139.71 }]);
+    await showOptionsTool.invoke({ prompt: "Two to try", places: [2, 99] }, deps);
+    expect(deps.uiOutcome.outcome()).toMatchObject({ options: { prompt: "Two to try" } });
+  });
+
+  it("keeps the model's own prompt when it asked about one card", async () => {
+    const deps = turn();
+    await showOptionsTool.invoke({ prompt: "Add Ichiran?", places: [1] }, deps);
+    expect(deps.uiOutcome.outcome()).toMatchObject({ options: { prompt: "Add Ichiran?" } });
+  });
+
+  // A fifth ref is cut before `run` sees it (`repairToolInput`), so the note
+  // names what is on screen: the last sentence cannot point at the fifth.
+  it("names the cards it shows, so the model knows which made it", async () => {
+    const deps = turn();
+    deps.placeCache.add([{ name: "Afuri Ebisu", lat: 35.64, lng: 139.71 }]);
+    expect(await showOptionsTool.invoke({ prompt: "Two to try", places: [1, 2] }, deps)).toEqual({
+      shown: true,
+      note: expect.stringContaining("Shown: Ichiran Shibuya, Afuri Ebisu."),
+    });
+  });
+
+  // Mitchell, 2026-10-30: five Choose rows looked bad. A call over four keeps
+  // the model's first four, its best, since it orders them as it suggests.
+  it("keeps a call naming five places to the model's first four", () => {
+    expect(repairToolInput("show_options", { prompt: "Five to try", places: [1, 2, 3, 4, 5] })).toEqual({ prompt: "Five to try", places: [1, 2, 3, 4] });
   });
 });
 

@@ -7,7 +7,7 @@
 // the model what is now on screen so its last sentence matches it. A second
 // widget in the same turn is refused: a turn ends one way.
 import { z } from "zod";
-import { AskOption, AskOther, CarriedAsks, HandOffTo, NewTripPrefill, type AssistantOptionCard } from "@tc/contracts";
+import { AskOption, AskOther, CarriedAsks, HandOffTo, MAX_OPTION_CARDS, NewTripPrefill, type AssistantOptionCard } from "@tc/contracts";
 import { currentCallId } from "@/server/assistant/callScope";
 import { defineTool } from "@/server/assistant/defineTool";
 import { searchPlacesTool } from "@/server/assistant/tools/places";
@@ -60,15 +60,17 @@ export const askUserTool = defineTool({
 export const showOptionsTool = defineTool({
   name: SHOW_OPTIONS_TOOL_NAME,
   description:
-    "Show the person cards to choose from: places by the `ref` numbers search_places gave them, or published days by the savedDayIds search_playbooks returned, in the order you would suggest. The server fills each card's name and details from those results; anything no tool returned this turn is dropped.",
+    `Show the person cards to choose from: places by the \`ref\` numbers search_places gave them, or published days by the savedDayIds search_playbooks returned, in the order you would suggest, at most ${MAX_OPTION_CARDS}: your best, not every match. One card is shown as a yes or no about it, so make \`prompt\` that question ("Add Cochon?"). The server fills each card's name and details from those results; anything no tool returned this turn is dropped.`,
   domain: "ui",
   effect: "steer",
   spend: "none",
   input: z
     .object({
       prompt: z.string().min(1).max(200).describe("The line above the cards."),
-      places: z.array(z.number().int().positive()).min(1).max(6).optional(),
-      days: z.array(z.string().min(1)).min(1).max(6).optional(),
+      // Over the limit is cut to the first few by `repairToolInput`, not
+      // refused: the model's order is its suggestion, so those are its best.
+      places: z.array(z.number().int().positive()).min(1).max(MAX_OPTION_CARDS).optional(),
+      days: z.array(z.string().min(1)).min(1).max(MAX_OPTION_CARDS).optional(),
     })
     .refine((input) => (input.places === undefined) !== (input.days === undefined), "Pass places or days, not both."),
   output: UiOutput,
@@ -90,9 +92,18 @@ export const showOptionsTool = defineTool({
       else cards.push({ kind: "day", id: day.savedDayId, name: day.name, cities: day.cities, stopCount: day.stopCount });
     }
     if (cards.length === 0) return { shown: false, refused: "No tool returned any of those this turn. Search first, then show what it found." };
-    if (!deps.uiOutcome.set({ options: { id: callId(), prompt: input.prompt, cards } })) return { shown: false, refused: ALREADY };
-    const note = "The cards are under your answer. Do not list them again; say one short sentence about why these.";
-    return { shown: true, note: dropped.length === 0 ? note : `${note} Left out, since no tool returned them: ${dropped.join(", ")}.` };
+    // One card is drawn as a yes or no, so a prompt written for several
+    // ("Pick a day") would ask nothing once the others were dropped. A name too
+    // long for the contract's 200 keeps the model's prompt.
+    const asked = `How about ${cards[0]!.name}?`;
+    const prompt = cards.length === 1 && dropped.length > 0 && asked.length <= 200 ? asked : input.prompt;
+    if (!deps.uiOutcome.set({ options: { id: callId(), prompt, cards } })) return { shown: false, refused: ALREADY };
+    // Named, since a fifth was cut before this ran (`repairToolInput`): the
+    // last sentence must not point at a card that is not there.
+    const notes = [`The cards are under your answer. Do not list them again; say one short sentence about why these. Shown: ${cards.map((card) => card.name).join(", ")}.`];
+    if (dropped.length > 0) notes.push(`Left out, since no tool returned them: ${dropped.join(", ")}.`);
+    if (prompt !== input.prompt) notes.push(`With one left, it is asked as "${prompt}" with Yes and No.`);
+    return { shown: true, note: notes.join(" ") };
   },
 });
 
