@@ -4,6 +4,7 @@
 // change's card is the turn's one outcome and the widget would never render.
 import { describe, expect, it } from "vitest";
 import { newPlaceCache, newUiOutcomeBuffer, type UiOutcomeBuffer } from "@/server/assistant/deps";
+import { repairToolInput } from "@/server/assistant/repairToolInput";
 import { askUserTool, handOffTool, showOptionsTool } from "./ui";
 
 const ICHIRAN = { name: "Ichiran Shibuya", lat: 35.66, lng: 139.7, area: "Shibuya", city: "Tokyo" };
@@ -39,6 +40,12 @@ describe("show_options", () => {
     const deps = turn();
     expect(await showOptionsTool.invoke({ prompt: "Made up", places: [3] }, deps)).toEqual({ shown: false, refused: expect.stringContaining("Search first") });
     expect(deps.uiOutcome.outcome()).toBeNull();
+  });
+
+  // Mitchell, 2026-10-30: five Choose rows looked bad. A call over four keeps
+  // the model's first four, its best, since it orders them as it suggests.
+  it("keeps a call naming five places to the model's first four", () => {
+    expect(repairToolInput("show_options", { prompt: "Five to try", places: [1, 2, 3, 4, 5] })).toEqual({ prompt: "Five to try", places: [1, 2, 3, 4] });
   });
 });
 
