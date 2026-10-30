@@ -1,12 +1,12 @@
-// M45 D9: a playbook page's assistant. Only an account whose plan has the
-// assistant sees it, and it starts closed, like the trip board's: the page's
-// Ask opens it, and a question goes to the one door about no one trip with
-// the page it was asked on.
+// M45 D9: a playbook page's assistant. Every signed-in reader sees it (PR 655:
+// a plan without the assistant opens it onto the call to upgrade), and it
+// starts closed, like the trip board's: the page's Ask opens it, and a
+// question goes to the one door about no one trip with the page it was asked on.
 //
 // The plan is the one the layout sends with the page
 // (`ServedEntitlementsProvider`, Mitchell's decision 3), not a mock of the
 // hook that reads it: the Ask has to be in the server's HTML.
-import { cleanup, render, screen, waitForElementToBeRemoved } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import type { Entitlement } from "@tc/contracts";
@@ -66,49 +66,43 @@ describe("a playbook page's assistant", () => {
     expect((JSON.parse(String(init.body)) as { scope: unknown }).scope).toEqual({ kind: "playbook", page: DAY });
   });
 
-  it.each([
-    [
-      "signed out",
-      () => {
-        session.user = null;
-        served.value = null;
-      },
-    ],
-    ["on a plan without the assistant", () => (served.value = [])],
-  ])("offers no Ask and no assistant %s", (_case, arrange) => {
-    arrange();
+  it("offers no Ask and no assistant to a reader who is signed out", () => {
+    session.user = null;
+    served.value = null;
     page();
     expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
     expect(rail()).toBeNull();
   });
 
-  // Mitchell's decision 3: the plan comes with the page, so the Ask is in
-  // the first HTML for a reader who has the assistant, before the session or
-  // anything else has been read on the client, and never for one who has not.
+  // PR 655 (Mitchell, 2026-10-30: "Render everywhere, keep behavior
+  // consistent"): a plan without the assistant gets the Ask too, as on Home
+  // and a trip, and it opens onto the rail's call to upgrade. Nothing it
+  // offers reaches `/api/ask`.
+  it("opens onto the call to upgrade for a plan without the assistant, and asks nothing", async () => {
+    const fetchMock = vi.fn(async (_url: string) => new Response('data: {"type":"finish"}\n\n', { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    served.value = [];
+    page();
+
+    await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+    expect(screen.getByRole("link", { name: "See plans" }).getAttribute("href")).toBe("/plans");
+    expect((screen.getByPlaceholderText("Ask about this page…") as HTMLTextAreaElement).disabled).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "What does this cover?" }));
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/api/ask"))).toEqual([]);
+  });
+
+  // Mitchell's decision 3: the plan comes with the page, so the Ask is in the
+  // first HTML for a signed-in reader, before the session or anything else has
+  // been read on the client, whatever that plan is (PR 655).
   it.each([
-    ["is in", ["ai.ask"], true],
-    ["is not in", [], false],
-  ] as const)("%s the server's HTML when the served plan says so, with no read of its own", (_case, plan, drawn) => {
+    ["with the assistant", ["ai.ask"]],
+    ["without it", []],
+  ] as const)("is in the server's HTML for a plan %s, with no read of its own", (_case, plan) => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     session.user = undefined;
     served.value = [...plan];
-    expect(renderToString(tree()).includes('data-testid="ask-pill"')).toBe(drawn);
+    expect(renderToString(tree()).includes('data-testid="ask-pill"')).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  // The layout's read failed (it sends `null`), so the hook asks for itself.
-  // Unknown is entitled for a signed-in reader, as everywhere `useEntitled`
-  // is read: a paying reader keeps the Ask while that read is in flight, and
-  // loses it only once it says the plan has no assistant.
-  it("keeps the Ask for a signed-in reader while the plan is unknown, until a read says otherwise", async () => {
-    let answer: (response: Response) => void = () => {};
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
-    served.value = null;
-    page();
-    expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy();
-
-    answer(new Response(JSON.stringify({ plan: { entitlements: [] } }), { status: 200 }));
-    await waitForElementToBeRemoved(() => screen.queryByRole("button", { name: "Ask" }));
   });
 });

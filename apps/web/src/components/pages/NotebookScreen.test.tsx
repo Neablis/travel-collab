@@ -943,14 +943,15 @@ describe("NotebookScreen — the states between asked and answered", () => {
     expect(attempts).toBe(2);
   });
 
-  // PR 601 review: the tab bar holds the board's Ask, inert, across the move
-  // here until this screen offers its own. A failed read offers none, so the
-  // held one must go rather than stand dead in the bar.
-  it("lets go of the Ask the tab bar holds from the board when its read fails", async () => {
+  // The tab bar draws the route's Ask, pending, from the first frame here
+  // until this screen offers its own (PR 655; it held the board's before,
+  // PR 601). A failed read offers none, so the pending one must go rather
+  // than stand dead in the bar.
+  it("lets go of the Ask the tab bar draws from the route when its read fails", async () => {
     server.use(http.get("/api/trips/:tripId/pages", () => HttpResponse.json({ error: "Could not load your notebooks." }, { status: 500 })));
     const bar = <PhoneAskTab pathname={`/trips/${TRIP_ID}/pages`} />;
     const takeBack = registerPhoneAsk({ open: false, onOpen: () => {} });
-    // `{null}` where the screen will be keeps the bar in place, holding.
+    // `{null}` where the screen will be keeps the bar in place, pending.
     const { rerender } = render(
       <>
         {null}
@@ -958,7 +959,7 @@ describe("NotebookScreen — the states between asked and answered", () => {
       </>,
     );
     act(() => takeBack());
-    expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+    expect(screen.getByTestId("ask-tab").getAttribute("data-pending")).toBe("true");
 
     rerender(
       <>
@@ -973,8 +974,8 @@ describe("NotebookScreen — the states between asked and answered", () => {
 
   // PR 601 review: `/ask` refuses a demo trip (KI-079), so the board offers no
   // Ask there. A notebook that did would open a sheet whose every question is
-  // refused, and put back the flicker the hold exists to stop.
-  it("offers no Ask on a demo trip, and lets go of any the tab bar holds", async () => {
+  // refused.
+  it("offers no Ask on a demo trip, and lets go of the one the tab bar draws from the route", async () => {
     const tripId = DEMO_TRIPS[0]!.tripId;
     server.use(...makePagesHandlers([pageFixture({ tripId })]));
     const bar = <PhoneAskTab pathname={`/trips/${tripId}/pages`} />;
@@ -986,7 +987,7 @@ describe("NotebookScreen — the states between asked and answered", () => {
       </>,
     );
     act(() => takeBack());
-    expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+    expect(screen.getByTestId("ask-tab").getAttribute("data-pending")).toBe("true");
 
     rerender(
       <>

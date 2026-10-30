@@ -1520,7 +1520,13 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
       ...makePagesHandlers([page], { onUpdate }),
       http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
     );
-    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    render(
+      <>
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+        {/* The bar as the layout mounts it, on this page's route. */}
+        <PhoneAskTab pathname={`/trips/${trip.tripId}/pages/${page.id}`} />
+      </>,
+    );
     return { onUpdate };
   }
 
@@ -1570,6 +1576,17 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     expect(screen.queryByTestId("assistant-launcher")).toBeNull();
     expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+  });
+
+  // PR 655: the tab bar draws a notebook page's Ask from the route, before the
+  // page is read. A locked page settles on offering none, so it lets that go
+  // rather than leave a dead Ask in the bar.
+  it("lets go of the Ask the tab bar draws from the route", async () => {
+    await renderWithStoredContent(withNewerNode);
+    expect(screen.getByTestId("ask-tab").getAttribute("data-pending")).toBe("true");
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
+    await screen.findByRole("status");
+    expect(screen.queryByTestId("ask-tab")).toBeNull();
   });
 
   it("locks a document it cannot parse at all, and says so without pretending to show it", async () => {

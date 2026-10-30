@@ -321,18 +321,18 @@ describe("TripBoardScreen", () => {
     expect(screen.queryByTestId("ask-tab")).toBeNull();
   });
 
-  // PR 601 review: the tab bar holds the notebook's Ask, inert, across the
-  // move to the board until the board offers its own. A board that settles on
-  // offering none must let it go, or a dead Ask stands for as long as the
-  // reader stays.
-  describe("lets go of the Ask the tab bar holds from the notebook", () => {
+  // The tab bar draws the route's Ask, pending, from the first frame on a
+  // trip's board until the board offers its own (PR 655; it held the
+  // notebook's before, PR 601). A board that settles on offering none must
+  // let it go, or a dead Ask stands for as long as the reader stays.
+  describe("lets go of the Ask the tab bar draws from the route", () => {
     async function heldThen(tripId: string, fixture: TripDetail, ...first: Parameters<typeof server.use>) {
       setViewportMatches({ "(max-width: 767px)": true });
       server.use(...first, ...makeTripHandlers(fixture));
       const bar = <PhoneAskTab pathname={`/trips/${tripId}`} />;
       const takeBack = registerPhoneAsk({ open: false, onOpen: () => {} });
       // `{null}` where the board will be keeps the bar in place, so it is the
-      // same bar, holding, as the layout's is.
+      // same bar, pending, as the layout's is.
       const { rerender } = render(
         <>
           {null}
@@ -340,7 +340,7 @@ describe("TripBoardScreen", () => {
         </>,
       );
       act(() => takeBack());
-      expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+      expect(screen.getByTestId("ask-tab").getAttribute("data-pending")).toBe("true");
       rerender(
         <>
           <TripProvider tripId={tripId}>
@@ -389,11 +389,11 @@ describe("TripBoardScreen", () => {
       );
       expect(await screen.findByTestId("trip-header-skeleton")).toBeTruthy();
       await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
+      expect(screen.getByTestId("ask-tab").getAttribute("data-pending")).toBe("true");
 
       release();
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-      await waitFor(() => expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(false));
+      await waitFor(() => expect(screen.getByTestId("ask-tab").hasAttribute("data-pending")).toBe(false));
     });
   });
 

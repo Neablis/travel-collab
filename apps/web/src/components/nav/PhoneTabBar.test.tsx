@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The failure mode this file exists for: PhoneTabBar's selected tab is derived
@@ -394,8 +395,17 @@ describe("PhoneTabBar", () => {
   // — so what is under test is the hand-off: a screen offers its opener, the
   // bar draws an item that calls it, and nothing is drawn with nothing behind it.
   describe("the Ask item", () => {
-    function Screen({ onOpen, open = false, unread }: { onOpen?: () => void; open?: boolean; unread?: number }) {
-      usePhoneAskEntry(onOpen, open, undefined, undefined, unread);
+    // `chatPending`: the screen's chat read is still out, so `unread` is a placeholder.
+    function Screen({ onOpen, open = false, unread, chatPending = false }: { onOpen?: () => void; open?: boolean; unread?: number; chatPending?: boolean }) {
+      usePhoneAskEntry(
+        onOpen,
+        open,
+        undefined,
+        undefined,
+        unread,
+        false,
+        chatPending ? { onOpen: () => {}, messages: null, unread: unread ?? 0, pending: true } : undefined,
+      );
       return null;
     }
     const ask = () => screen.queryByRole("button", { name: "Ask" });
@@ -429,9 +439,9 @@ describe("PhoneTabBar", () => {
     });
 
     it("is not drawn where no screen offers an assistant, or once it unmounts", () => {
-      // A trip's notebook page: within a trip's tabs the item outlives its
-      // screen (the test below), and a page is not one of them.
-      url = "/trips/t1/pages/p1";
+      // The leaderboard: a playbook page with no assistant of its own, so the
+      // route declares none and only a registration draws the item.
+      url = "/playbooks/board";
       const { rerender } = render(
         <>
           <Screen />
@@ -486,17 +496,19 @@ describe("PhoneTabBar", () => {
     // Mitchell, M54 phone walk: "The ask button keeps disappearing and
     // reappearing when I switch between the other tabs." Board → Notebook is a
     // path change: the board unmounts, a loading skeleton shows, and the
-    // notebook offers its Ask only once its trip lands. The item must keep its
-    // place through that gap, doing nothing, until the next screen offers one.
+    // notebook offers its Ask only once its trip lands. The item keeps its
+    // place through that gap, closed, and a tap there is not lost: it opens
+    // the next screen's assistant as soon as that screen offers one (PR 655
+    // review: an item that looked live and ignored the tap was a lie).
     // `{null}` where the screen was keeps the bar mounted, as the layout does.
-    it("keeps its place, inert and closed, across a move between the trip's tabs until the next screen offers", () => {
+    it("keeps its place across a move between the trip's tabs, and a tap there opens the next screen's", () => {
       url = "/trips/t1?view=Plan";
       const board = vi.fn();
       // Left with the board's assistant up (Back from the open sheet): the
       // pending item must not say an assistant is up when none is.
       const { rerender } = render(
         <>
-          <Screen onOpen={board} open unread={2} />
+          <Screen onOpen={board} open />
           <PhoneTabBar />
         </>,
       );
@@ -509,10 +521,8 @@ describe("PhoneTabBar", () => {
       );
       const pending = screen.getByTestId("ask-tab");
       expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe("OverviewPlanMapNotebookAsk");
-      expect(pending.hasAttribute("disabled")).toBe(true);
+      expect(pending.getAttribute("data-pending")).toBe("true");
       expect(pending.getAttribute("aria-expanded")).toBe("false");
-      // The trip's unread dot stays with it, so it does not blink either.
-      expect(pending.getAttribute("aria-label")).toBe("Ask or chat, 2 unread messages");
       fireEvent.click(pending);
       expect(board).not.toHaveBeenCalled();
 
@@ -523,37 +533,136 @@ describe("PhoneTabBar", () => {
           <PhoneTabBar />
         </>,
       );
-      fireEvent.click(screen.getByTestId("ask-tab"));
       expect(notebook).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("ask-tab").hasAttribute("data-pending")).toBe(false);
+    });
+
+    it("drops a tap on the pending item once the reader moves on", () => {
+      url = "/trips/t1";
+      const { rerender } = render(
+        <>
+          {null}
+          <PhoneTabBar />
+        </>,
+      );
+      fireEvent.click(screen.getByTestId("ask-tab"));
+      url = "/trips/t1/pages";
+      rerender(
+        <>
+          {null}
+          <PhoneTabBar />
+        </>,
+      );
+      const notebook = vi.fn();
+      rerender(
+        <>
+          <Screen onOpen={notebook} />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(notebook).not.toHaveBeenCalled();
+    });
+
+    // PR 655 review: the unread dot blinked on Board ↔ Notebook. The count is
+    // the trip's, so the bar keeps the last one a screen knew for certain and
+    // draws it wherever that trip's chat is a tap away: on the board's pending
+    // item, and while the board's own chat read is still out (it counts 0
+    // until then). The notebook index has no chat, so it never draws one.
+    it("keeps the trip's unread dot steady across Board, Notebook and back", () => {
+      const dot = () => screen.getByTestId("ask-tab").getAttribute("aria-label");
+      url = "/trips/t1";
+      const { rerender } = render(
+        <>
+          <Screen onOpen={() => {}} unread={2} />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(dot()).toBe("Ask or chat, 2 unread messages");
+
+      url = "/trips/t1/pages";
+      rerender(
+        <>
+          {null}
+          <PhoneTabBar />
+        </>,
+      );
+      expect(dot()).toBeNull();
+      rerender(
+        <>
+          <Screen onOpen={() => {}} />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(dot()).toBeNull();
+
+      url = "/trips/t1";
+      rerender(
+        <>
+          {null}
+          <PhoneTabBar />
+        </>,
+      );
+      expect(dot()).toBe("Ask or chat, 2 unread messages");
+      rerender(
+        <>
+          <Screen onOpen={() => {}} unread={0} chatPending />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(dot()).toBe("Ask or chat, 2 unread messages");
+      rerender(
+        <>
+          <Screen onOpen={() => {}} unread={2} />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(dot()).toBe("Ask or chat, 2 unread messages");
     });
 
     // Mitchell on production, 2026-10-30: "when you first click into a trip,
-    // the ai ask button isn't there then it renders in". The route says the
-    // screen will offer one, so the item is there before it does, and in what
-    // the server renders, where nothing has registered.
-    it.each([
+    // the ai ask button isn't there then it renders in", and (PR 655 review)
+    // "Render everywhere, keep behavior consistent": every route whose screen
+    // has an assistant declares the item, for any signed-in reader whatever
+    // their plan. A free one opens it onto the rail's call to upgrade.
+    const DECLARED = [
       ["a trip's board", "/trips/t1", "OverviewPlanMapNotebookAsk"],
       ["a trip's notebook index", "/trips/t1/pages", "OverviewPlanMapNotebookAsk"],
+      ["a notebook page", "/trips/t1/pages/p1", "OverviewPlanMapNotebookAsk"],
       ["Home", "/home", "TripsPlaybooksAsk"],
-    ])("is drawn, inert, on %s before its screen offers one, in the server render too", (_, at, items) => {
+      ["Discover", "/playbooks", "TripsPlaybooksAsk"],
+      ["a shared day", "/playbooks/day/d1", "TripsPlaybooksAsk"],
+      ["a city's days", "/playbooks/city/kyoto", "TripsPlaybooksAsk"],
+      ["a city's days under a tag", "/playbooks/city/kyoto/food", "TripsPlaybooksAsk"],
+      ["a tag's days", "/playbooks/tag/food", "TripsPlaybooksAsk"],
+    ] as const;
+
+    it.each(DECLARED)("is drawn, pending, on the first render of %s, before its screen offers one", (_, at, items) => {
       session = { id: "u1" };
       url = at;
       render(<PhoneTabBar />);
       expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe(items);
-      expect(screen.getByTestId("ask-tab").hasAttribute("disabled")).toBe(true);
-      cleanup();
-      render(<PhoneTabBarFallback />);
-      expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe(items);
+      expect(screen.getByTestId("ask-tab").getAttribute("data-pending")).toBe("true");
+    });
+
+    // A real server render, not the fallback mounted in jsdom: the store's
+    // server snapshot is what answers there (`usePhoneAsk`), with nothing
+    // registered and no effect run.
+    it.each(DECLARED)("is in the server's HTML on %s", (_, at) => {
+      session = { id: "u1" };
+      url = at;
+      expect(renderToString(<PhoneTabBarFallback />)).toContain('data-testid="ask-tab"');
     });
 
     it.each([
-      ["a notebook page, which may be locked", "/trips/t1/pages/p1"],
-      ["a playbook page, which offers one by plan", "/playbooks"],
-    ])("is not drawn from the route on %s", (_, at) => {
+      ["the leaderboard", "/playbooks/board"],
+      ["a profile", "/playbooks/profile/u2"],
+      ["a country's days", "/playbooks/country/japan"],
+    ])("is not drawn from the route on %s, which has no assistant", (_, at) => {
       session = { id: "u1" };
       url = at;
       render(<PhoneTabBar />);
       expect(screen.queryByTestId("ask-tab")).toBeNull();
+      expect(renderToString(<PhoneTabBarFallback />)).not.toContain('data-testid="ask-tab"');
     });
 
     it("is not drawn from the route for a reader known to be signed out", () => {

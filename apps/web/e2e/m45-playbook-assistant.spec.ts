@@ -94,10 +94,11 @@ test("asked to start a trip with this day, the assistant drafts it and Approve c
 });
 
 // Mitchell's decision 3 (2026-10-13), "send the plan with the page": the Ask
-// is in the HTML the server sends for a reader whose plan has the assistant,
-// so it is there on the first paint rather than after a read, and it is never
-// in it for a reader whose plan has not. The raw response, before any script.
-test("the day's Ask is in the server's HTML for a plan with the assistant, and not for a free one", async ({ page, browser }) => {
+// is in the HTML the server sends for a signed-in reader, so it is there on
+// the first paint rather than after a read. For a free one too since PR 655
+// (Mitchell, 2026-10-30: "Render everywhere, keep behavior consistent"): their
+// Ask opens onto the call to upgrade. The raw response, before any script.
+test("the day's Ask is in the server's HTML for a plan with the assistant, and for a free one", async ({ page, browser }) => {
   const ASK_PILL = 'data-testid="ask-pill"';
   const entitled = await page.request.get(`/playbooks/day/${savedDayId}`);
   expect(await entitled.text()).toContain(ASK_PILL);
@@ -108,8 +109,7 @@ test("the day's Ask is in the server's HTML for a plan with the assistant, and n
   await revokeSignupTrial(browser, `dev-${username}`);
   const unentitled = await free.request.get(`/playbooks/day/${savedDayId}`);
   const html = await unentitled.text();
-  // The day itself is there, so the absence is the Ask's and not the page's.
   expect(html).toContain(dayName);
-  expect(html).not.toContain(ASK_PILL);
+  expect(html).toContain(ASK_PILL);
   await free.context().close();
 });
