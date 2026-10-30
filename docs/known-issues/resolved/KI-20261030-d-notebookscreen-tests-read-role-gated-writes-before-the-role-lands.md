@@ -1,4 +1,4 @@
-### KI-2026-10-30-d — `NotebookScreen.test.tsx` reads the role-gated "Show templates" filter before the role read has landed
+### KI-2026-10-30-d — `NotebookScreen.test.tsx` reads the role-gated "Show templates" filter before the role read has landed — RESOLVED
 
 - **Severity:** reliability. A unit test that fails on a slow runner; no product behaviour is
   wrong. Seen once on CI.
@@ -22,3 +22,16 @@
 - **Cross-reference:** KI-2026-10-21-a (the same shape in e2e: a wait that proves nothing before
   a role-dependent read).
 - **First noted:** 2026-10-30, CI on PR 641 at `b36c02d`.
+- **Resolved:** 2026-10-30, on its own branch against main. The problem was wider than reported:
+  the role read gates every write on this index, and ten tests in the file reached one
+  synchronously after a wait that did not cover the role (the list region, or `Loading`). With
+  the `/access` handler delayed 30 ms, 10 of 34 failed, one with the CI text exactly:
+  `Unable to find an accessible element with the role "radiogroup" and name "Show templates"`.
+  The others failed on Blank, Delete, the "Essentials" radio and the "Start from a template"
+  region. Fix (`NotebookScreen.test.tsx` only; the component is right to withhold writes until
+  the role is known): each of the ten reaches its first role-gated element with
+  `findByRole`/`findAllByRole`, the two `Loading` waits that proved nothing are gone, and a
+  comment on the `/access` handler says why. Proof: with the delay still in, 34 of 34 passed at
+  30 ms and at 300 ms. With the delay removed, 34 of 34 passed, and `web` lint and typecheck were
+  clean. The ten tests now waiting on the role are the regression coverage. No test was
+  weakened or removed.
