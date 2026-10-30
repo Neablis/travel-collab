@@ -35,13 +35,15 @@ const callId = () => currentCallId() ?? "ask";
 export const askUserTool = defineTool({
   name: ASK_USER_TOOL_NAME,
   description:
-    "Ask the person a closed question when a few answers would settle what they want — instead of guessing, and instead of asking in prose. 2 to 6 options, each id a short lowercase word. `other` adds one constrained answer beside them: a place, a number between min and max, a date, or activity tags. Their answer arrives as their next message.",
+    `Ask the person a closed question when a few answers would settle what they want — instead of guessing, and instead of asking in prose. 2 to ${MAX_OPTION_CARDS} options, the likeliest first, each id a short lowercase word. \`other\` adds one constrained answer beside them: a place, a number between min and max, a date, or activity tags. Their answer arrives as their next message.`,
   domain: "ui",
   effect: "steer",
   spend: "none",
   input: z.object({
     question: z.string().min(1).max(200),
-    options: z.array(AskOption).min(2).max(6),
+    // Over the limit is cut to the first few by `repairToolInput`, as
+    // show_options' cards are: one cap and one behaviour (Mitchell, 2026-10-30).
+    options: z.array(AskOption).min(2).max(MAX_OPTION_CARDS),
     multi: z.boolean().optional().describe("True when more than one option may be picked."),
     allowNone: z.boolean().optional(),
     other: AskOther.optional(),
@@ -53,7 +55,9 @@ export const askUserTool = defineTool({
     if (deps.uiOutcome.drafting()) return { shown: false, refused: DRAFTED };
     const ask = { id: callId(), question: input.question, options: input.options, multi: input.multi ?? false, allowNone: input.allowNone ?? false, ...(input.other && { other: input.other }) };
     if (!deps.uiOutcome.set({ ask })) return { shown: false, refused: ALREADY };
-    return { shown: true, note: "The question and its choices are under your answer. Do not repeat them; say nothing more than a short lead-in, and wait for their answer." };
+    // Named, as show_options' cards are, since a fifth was cut before this
+    // ran (`repairToolInput`): the lead-in must not point at it.
+    return { shown: true, note: `The question and its choices are under your answer. Do not repeat them; say nothing more than a short lead-in, and wait for their answer. Shown: ${input.options.map((option) => option.label).join(", ")}.` };
   },
 });
 

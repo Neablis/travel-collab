@@ -13,6 +13,20 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-30 — `AssistantAsk.options` at most `MAX_OPTION_CARDS` (4) (M56 part 15)
+- **Changed** (`packages/contracts/src/assistant.ts`): `AssistantAsk.options` is 2 to
+  `MAX_OPTION_CARDS`, down from 2 to 6, the same constant `AssistantOptions.cards` uses (PR 652).
+  `AskAnswer.optionIds` stays at most 6, so an answer to an older six-option question still reads.
+- Why: Mitchell, 2026-10-30: "same cap everywhere, keep behaviour consistent".
+- Consumers updated: `apps/web` — `server/assistant/tools/ui.ts` (`ask_user` input caps `options`
+  at the constant, its description says so, a call over it is cut to its first four by
+  `repairToolInput`'s array clamp as `show_options` is, and its note names the options shown) and
+  `server/ai/contextBudget.baseline.json` (`ask_user` +21 chars, every shape that grants it), in
+  this same PR. The picker (`TurnWidget.tsx`) draws whatever options arrive and needs no change.
+- Public API: no change. The ask stream is session-only and not in `openapi.json`.
+- Breaking? no. Only the server produces it, live on the final chunk, and a turn's widget is never
+  stored (`askThreadStore.ts` drops it).
+
 ## 2026-10-30 — `AssistantOptions.cards` at most `MAX_OPTION_CARDS` (4) (M56 part 9)
 - **New** (`packages/contracts/src/assistant.ts`): `MAX_OPTION_CARDS`, 4.
 - **Changed:** `AssistantOptions.cards` is 1 to `MAX_OPTION_CARDS`, down from 1 to 6. A single

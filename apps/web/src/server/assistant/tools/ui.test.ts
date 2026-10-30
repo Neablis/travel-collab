@@ -105,6 +105,22 @@ describe("show_options", () => {
   });
 });
 
+// M56 part 15: Mitchell, 2026-10-30, "same cap everywhere, keep behaviour
+// consistent": a question over four options is cut as show_options' cards are.
+describe("ask_user", () => {
+  it("keeps a question naming five options to the model's first four", () => {
+    const options = ["food", "art", "bars", "parks", "shops"].map((id) => ({ id, label: id }));
+    expect(repairToolInput("ask_user", { question: "What is it about?", options })).toEqual({ question: "What is it about?", options: options.slice(0, 4) });
+  });
+
+  // A fifth option is cut before `run` sees it, so the note names what is on
+  // screen, as show_options' does: the lead-in cannot point at the fifth.
+  it("names the options it shows, so the model knows which made it", async () => {
+    const options = [{ id: "food", label: "Food" }, { id: "art", label: "Art" }];
+    expect(await askUserTool.invoke({ question: "What is it about?", options }, turn())).toEqual({ shown: true, note: expect.stringContaining("Shown: Food, Art.") });
+  });
+});
+
 describe("a widget after a drafted change", () => {
   it("is refused by all three, so the last sentence never points at a widget that does not render", async () => {
     const deps = turn(true);
