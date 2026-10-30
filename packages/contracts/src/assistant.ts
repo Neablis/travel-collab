@@ -477,20 +477,59 @@ export const HAND_OFF_TARGETS = ["new_trip", "plan_page", "upgrade", "nowhere"] 
 export const HandOffTo = z.enum(HAND_OFF_TARGETS);
 export type HandOffTo = z.infer<typeof HandOffTo>;
 
+/** The longest trip New trip's length page counts to. Two months is past any trip that flow is for. */
+export const NEW_TRIP_DAYS_MAX = 60;
+
+/**
+ * **The picker's fields a hand-off may fill** (ADR-084 §5). `place` is search
+ * text for Where, never a pick: Where still takes only a result the person
+ * chooses (§7). Length and tags are answers, held to what the pages can show.
+ */
+export const NewTripPrefill = z.object({
+  place: z.string().min(1).max(200).optional(),
+  days: z.number().int().min(1).max(NEW_TRIP_DAYS_MAX).optional(),
+  tags: z.array(ActivityTagDescribed).max(ActivityTagDescribed.options.length).optional(),
+});
+export type NewTripPrefill = z.infer<typeof NewTripPrefill>;
+
+/**
+ * What a carried ask needs the trip for: its plan, a published day, or a
+ * notebook page. The three things a trip's rail changes that no surface about
+ * no trip can.
+ */
+export const CARRIED_ASK_KINDS = ["itinerary", "library", "pages"] as const;
+export const CarriedAskKind = z.enum(CARRIED_ASK_KINDS);
+
+/** The most asks one hand-off carries: each is a chip on the new trip's rail. */
+export const MAX_CARRIED_ASKS = 6;
+
+/**
+ * An ask only a trip can do, made before the trip existed: what was said, run
+ * on the new trip's rail as an ordinary turn, and only when pressed (M56 D5).
+ */
+export const CarriedAsk = z.object({ said: z.string().min(1).max(200), kind: CarriedAskKind });
+export type CarriedAsk = z.infer<typeof CarriedAsk>;
+export const CarriedAsks = z.array(CarriedAsk).max(MAX_CARRIED_ASKS);
+
 /**
  * A decline with a way forward. `command` is the palette command a `plan_page`
  * button runs; it is held to the `paletteCommands` allowlist and dropped from
- * any other target, so a hand-off cannot carry a URL either.
+ * any other target, so a hand-off cannot carry a URL either. `prefill` and
+ * `asks` ride only to `new_trip`, the one target with a picker to fill.
  */
 export const AssistantHandOff = z
   .object({
     task: z.string().min(1).max(200),
     to: HandOffTo,
     command: z.string().min(1).optional(),
+    prefill: NewTripPrefill.optional(),
+    asks: CarriedAsks.optional(),
   })
-  .transform(({ command, ...rest }) => ({
+  .transform(({ command, prefill, asks, ...rest }) => ({
     ...rest,
     ...(command !== undefined && rest.to === "plan_page" && isAssistantCommandId(command) ? { command } : {}),
+    ...(prefill !== undefined && rest.to === "new_trip" ? { prefill } : {}),
+    ...(asks !== undefined && rest.to === "new_trip" ? { asks } : {}),
   }));
 export type AssistantHandOff = z.infer<typeof AssistantHandOff>;
 

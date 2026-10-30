@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, AskAnswer, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId } from "../src";
+import { ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, AskAnswer, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId, MAX_CARRIED_ASKS, NEW_TRIP_DAYS_MAX } from "../src";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const DAY_ID = "22222222-2222-4222-8222-222222222222";
@@ -525,6 +525,23 @@ describe("asking, showing and handing off (ADR-084 §2)", () => {
     expect(read(tripPlan)).toBe(tripPlan);
     expect(read("https://example.com/")).toBeUndefined();
     expect(read(tripPlan, "new_trip")).toBeUndefined();
+  });
+
+  // M56 part 6: what a hand-off to New trip already knew rides to the picker,
+  // and only there; a place is search text, never a pick.
+  it("carries a prefill and asks only on a new_trip hand-off, each held to what the picker and the board take", () => {
+    const prefill = { place: "Oaxaca", days: 14, tags: ["meal"] };
+    const asks = [{ said: "add a mezcal tasting", kind: "itinerary" }];
+    const read = (handOff: Record<string, unknown>) => {
+      const parsed = AskStreamMetadata.safeParse({ handOff: { task: "plan a food trip", ...handOff } });
+      return parsed.success && "handOff" in parsed.data ? parsed.data.handOff : parsed.success;
+    };
+    expect(read({ to: "new_trip", prefill, asks })).toEqual({ task: "plan a food trip", to: "new_trip", prefill, asks });
+    expect(read({ to: "nowhere", prefill, asks })).toEqual({ task: "plan a food trip", to: "nowhere" });
+    expect(read({ to: "new_trip", prefill: { days: NEW_TRIP_DAYS_MAX + 1 } })).toBe(false);
+    expect(read({ to: "new_trip", prefill: { tags: ["lodging"] } })).toBe(false);
+    expect(read({ to: "new_trip", asks: [{ said: "book it", kind: "anything" }] })).toBe(false);
+    expect(read({ to: "new_trip", asks: Array.from({ length: MAX_CARRIED_ASKS + 1 }, (_, i) => ({ said: `ask ${i}`, kind: "itinerary" })) })).toBe(false);
   });
 
   it("takes an answer only as ids and a constrained other, never free text", () => {
