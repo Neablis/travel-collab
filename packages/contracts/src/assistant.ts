@@ -372,19 +372,25 @@ export const AskOption = z.object({
 });
 export type AskOption = z.infer<typeof AskOption>;
 
-/** The constrained *other* an `ask` may offer. Never free text: each kind answers in its own shape (`AskAnswer`). */
-export const AskOther = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("place"), label: z.string().min(1).max(80) }),
-  z.object({
-    kind: z.literal("number"),
-    label: z.string().min(1).max(80),
-    min: z.number().int(),
-    max: z.number().int(),
-    unit: z.object({ one: z.string().min(1).max(20), many: z.string().min(1).max(20) }),
-  }),
-  z.object({ kind: z.literal("date"), label: z.string().min(1).max(80) }),
-  z.object({ kind: z.literal("tags"), label: z.string().min(1).max(80) }),
-]);
+/**
+ * The constrained *other* an `ask` may offer. Never free text: each kind
+ * answers in its own shape (`AskAnswer`). A number's range has to hold one
+ * value, or the picker could show a question nobody can answer.
+ */
+export const AskOther = z
+  .discriminatedUnion("kind", [
+    z.object({ kind: z.literal("place"), label: z.string().min(1).max(80) }),
+    z.object({
+      kind: z.literal("number"),
+      label: z.string().min(1).max(80),
+      min: z.number().int(),
+      max: z.number().int(),
+      unit: z.object({ one: z.string().min(1).max(20), many: z.string().min(1).max(20) }),
+    }),
+    z.object({ kind: z.literal("date"), label: z.string().min(1).max(80) }),
+    z.object({ kind: z.literal("tags"), label: z.string().min(1).max(80) }),
+  ])
+  .refine((other) => other.kind !== "number" || other.min <= other.max, "A number's min cannot be above its max.");
 export type AskOther = z.infer<typeof AskOther>;
 
 /** A closed question the turn ended on (`ask_user`). `id` is the server's: the call that asked it. */
@@ -406,9 +412,15 @@ export const ASK_ANSWER_PART = "ask-answer";
  * the option ids in the options' order, and the *other* when one was chosen.
  * No ids and no other is "none of these". The ask route validates it with the
  * thread and turns it into the model's text itself.
+ *
+ * `question` is the words it answers (a question, or cards' prompt), carried
+ * because the turn that asked often has no text of its own to send back as
+ * history, and slugs alone leave the next turn guessing what was asked.
+ * Optional, so an answer stored before it existed still reads.
  */
 export const AskAnswer = z.object({
   answeredAsk: z.string().min(1).max(100),
+  question: z.string().min(1).max(200).optional(),
   optionIds: z.array(ASK_OPTION_ID).max(6),
   other: z
     .discriminatedUnion("kind", [

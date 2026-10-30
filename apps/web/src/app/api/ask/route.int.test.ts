@@ -273,15 +273,19 @@ describe("POST /api/ask", () => {
         }),
       });
     const prompts: unknown[] = [];
+    // The question rides with the answer: the turn that asked it often sent
+    // no text, so without it the next turn reads slugs and nothing they answer.
     const res = await handleBeyondTripAskRequest(
-      answered({ answeredAsk: "ask-1", optionIds: ["food"], other: { kind: "number", value: 14 } }),
+      answered({ answeredAsk: "ask-1", question: "What should it be about?", optionIds: ["food"], other: { kind: "number", value: 14 } }),
       scriptedStepsModel([["Food it is."]], prompts),
       () => {},
     );
     expect(res.status).toBe(200);
     await res.text();
     expect(JSON.stringify(prompts[0])).toContain(
-      JSON.stringify('(They answered your question by picking the options ["food"], and as the other answer {"kind":"number","value":14}.)').slice(1, -1),
+      JSON.stringify(
+        '(They answered your question "What should it be about?" by picking the options ["food"], and as the other answer {"kind":"number","value":14}.)',
+      ).slice(1, -1),
     );
 
     const typed = await handleBeyondTripAskRequest(

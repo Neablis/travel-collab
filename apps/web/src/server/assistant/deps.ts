@@ -541,6 +541,12 @@ export interface UiOutcomeBuffer {
   noteDays(days: readonly ShownDay[]): void;
   /** A day this turn's tools returned, or null. */
   day(savedDayId: string): ShownDay | null;
+  /**
+   * Whether the turn has already drafted a change. Its card is the turn's one
+   * outcome, so a widget asked for after it would never be shown, and the
+   * model is told so rather than told it is on screen.
+   */
+  drafting(): boolean;
   /** Ends the turn on `outcome`. False, keeping the first, when the turn already ends in one. */
   set(outcome: UiOutcome): boolean;
   outcome(): UiOutcome | null;
@@ -550,6 +556,7 @@ export interface UiOutcomeBuffer {
 export function newUiOutcomeBuffer(
   targets: readonly HandOffTo[],
   planPage: UiOutcomeBuffer["planPage"],
+  drafting: () => boolean = () => false,
 ): UiOutcomeBuffer {
   const days = new Map<string, ShownDay>();
   let held: UiOutcome | null = null;
@@ -558,6 +565,7 @@ export function newUiOutcomeBuffer(
     planPage,
     noteDays: (shown) => shown.forEach((day) => days.set(day.savedDayId, { ...day, cities: [...day.cities] })),
     day: (savedDayId) => days.get(savedDayId) ?? null,
+    drafting,
     set: (outcome) => {
       if (held !== null) return false;
       held = structuredClone(outcome);
