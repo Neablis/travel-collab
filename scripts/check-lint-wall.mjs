@@ -272,7 +272,7 @@ expectClean(
 );
 expectClean(
   lintFixture("playbooks_root_page_server", `import "@/server/playbooks";${PAGE_BODY}`, {
-    file: "src/app/playbooks/live/page.tsx",
+    file: "src/app/playbooks/live/(discover)/page.tsx",
   }),
   "the Discover page may import @/server/*",
 );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { candidateOwnName, distinctiveTokens, nameTokens, placeNameVerdict } from "./geocodeNameMatch";
+import { distinctiveTokens, nameTokens, placeNameVerdict } from "./geocodeNameMatch";
 
 describe("nameTokens", () => {
   it("folds diacritics so Gōra and Gora are the same token", () => {
@@ -39,10 +39,22 @@ describe("distinctiveTokens", () => {
   });
 });
 
-describe("candidateOwnName", () => {
-  it("takes only the leading segment of a display_name", () => {
-    expect(candidateOwnName("Bakery & Table, Hakone, Kanagawa Prefecture, Japan")).toBe("Bakery & Table");
-    expect(candidateOwnName("品川駅 (Shinagawa Station), Minato, Tokyo, Japan")).toBe("品川駅 (Shinagawa Station)");
+// The candidate's own name is the geocoder's (`ownNameOf`), so the verdict and
+// a card's title cannot disagree about what a display_name names.
+describe("the candidate's own name", () => {
+  it("is the leading segment, and a leading house number names nothing", () => {
+    expect(placeNameVerdict("Bakery & Table", "Bakery & Table, Hakone, Kanagawa Prefecture, Japan")).toBe("match");
+    expect(placeNameVerdict("Gora Kadan", "Gōra Kadan, 1300, Gora, Hakone, Japan")).toBe("match");
+    expect(placeNameVerdict("Cochon", "930, Tchoupitoulas Street, New Orleans, USA")).toBe("mismatch");
+    expect(placeNameVerdict("Hotel 930", "930, Tchoupitoulas Street, New Orleans, USA")).toBe("mismatch");
+  });
+
+  // A bar named after a year leads its display_name with the number, exactly as
+  // an unnamed building does; asked for by that number, it is the place.
+  it("matches a venue named by a number to the same number, and to nothing else", () => {
+    expect(placeNameVerdict("1905", "1905, Rue Saint-Merri, Paris, France")).toBe("match");
+    expect(placeNameVerdict("1905", "1906, Rue Saint-Merri, Paris, France")).toBe("mismatch");
+    expect(placeNameVerdict("", "930, Tchoupitoulas Street, New Orleans, USA")).toBe("mismatch");
   });
 });
 

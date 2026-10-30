@@ -324,8 +324,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const headerReady = (abovePhone !== undefined || seed !== null) && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
   // Settled, past the skeleton, on a screen with no Ask: the error, the
-  // sign-in prompt, or a demo's board. The tab bar is holding the notebook's
-  // Ask for this screen's (PR 601), and must let it go.
+  // sign-in prompt, or a demo's board. The tab bar draws the route's Ask
+  // for this screen's before it registers, and must let it go.
   const boardSettled = status !== "loading" && !(status === "ready" && !headerReady);
   useDeclinePhoneAsk(boardSettled && !(boardRenders && !isDemoTripId(tripId)));
   // ⌘K's *Ask: <text>* (M45 D6): opens the rail and hands it the words, which

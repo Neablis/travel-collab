@@ -327,14 +327,19 @@ export interface SavedDayLibrary {
 /**
  * One place a vendor returned, normalised — never one a model wrote.
  *
- * It is `GeocodeResult` minus `canonicalName`'s name, and the rename is the
- * point: `name` here is what will be written onto a stop's `Location.name` if
- * the model cites it, so the field the tool prints and the field that commits
- * are the same field. A shape that printed one label and stored another would
- * make the approval card a claim about something the user did not see.
+ * `name` is the place's own name, else its whole address, and it is what
+ * will be written onto a stop's `Location.name` if the model cites it, so the
+ * field the tool prints as the name and the field that commits are the same
+ * field. A shape that printed one label and stored another would make the
+ * approval card a claim about something the user did not see.
  */
 export interface ResolvedPlace {
   name: string;
+  /**
+   * The whole address, when `name` is not already it: what tells the model two
+   * branches of one name apart. Read, never stored.
+   */
+  address?: string;
   lat: number;
   lng: number;
   countryCode?: string;

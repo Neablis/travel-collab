@@ -72,6 +72,7 @@ const SearchPlacesInput = z.object({
 const PlaceCandidateSchema = z.object({
   ref: z.number().int().positive(),
   name: z.string(),
+  address: z.string().optional(),
   city: z.string().optional(),
   area: z.string().optional(),
   countryCode: z.string().optional(),
@@ -106,13 +107,17 @@ export type PlaceSearchReadout = z.infer<typeof PlaceSearchReadout>;
 function readoutFor(lookups: readonly PlaceLookup[], numbered: readonly (readonly PlaceCandidate[])[]) {
   return {
     results: lookups.map((lookup, index) => {
-      const candidates = (numbered[index] ?? []).map((candidate) => ({
-        ref: candidate.ref,
-        name: candidate.name,
-        ...(candidate.city === undefined ? {} : { city: candidate.city }),
-        ...(candidate.area === undefined ? {} : { area: candidate.area }),
-        ...(candidate.countryCode === undefined ? {} : { countryCode: candidate.countryCode }),
-      }));
+      const candidates = (numbered[index] ?? []).map((candidate) => {
+        const street = streetOf(candidate);
+        return {
+          ref: candidate.ref,
+          name: candidate.name,
+          ...(street === undefined ? {} : { address: street }),
+          ...(candidate.city === undefined ? {} : { city: candidate.city }),
+          ...(candidate.area === undefined ? {} : { area: candidate.area }),
+          ...(candidate.countryCode === undefined ? {} : { countryCode: candidate.countryCode }),
+        };
+      });
       return {
         query: lookup.query,
         candidates,
@@ -120,6 +125,24 @@ function readoutFor(lookups: readonly PlaceLookup[], numbered: readonly (readonl
       };
     }),
   };
+}
+
+/**
+ * The part of a candidate's address the readout does not already print.
+ *
+ * The leading segment is its `name`, and from its `area` or `city` on it is
+ * geography printed beside it, then region, postcode and country, which tell
+ * no two candidates apart. What is left is the street: what tells two branches
+ * of one name apart, at a fraction of the whole address's tokens. Undefined
+ * when nothing is left.
+ */
+function streetOf(candidate: PlaceCandidate): string | undefined {
+  if (candidate.address === undefined) return undefined;
+  const parts = candidate.address.split(",").map((part) => part.trim());
+  if (parts[0] === candidate.name) parts.shift();
+  const end = parts.findIndex((part) => part === candidate.area || part === candidate.city);
+  const street = (end === -1 ? parts : parts.slice(0, end)).join(", ");
+  return street === "" ? undefined : street;
 }
 
 /**
@@ -170,6 +193,7 @@ export const searchPlacesTool = defineTool({
       candidates: result.candidates.map((candidate) => ({
         ...candidate,
         name: untrusted(candidate.name),
+        ...(candidate.address === undefined ? {} : { address: untrusted(candidate.address) }),
         ...(candidate.city === undefined ? {} : { city: untrusted(candidate.city) }),
         ...(candidate.area === undefined ? {} : { area: untrusted(candidate.area) }),
       })),

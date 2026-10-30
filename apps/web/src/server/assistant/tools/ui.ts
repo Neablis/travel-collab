@@ -7,7 +7,7 @@
 // the model what is now on screen so its last sentence matches it. A second
 // widget in the same turn is refused: a turn ends one way.
 import { z } from "zod";
-import { AskOption, AskOther, CarriedAsks, HandOffTo, NewTripPrefill, type AssistantOptionCard } from "@tc/contracts";
+import { AskOption, AskOther, CarriedAsks, HandOffTo, MAX_OPTION_CARDS, NewTripPrefill, type AssistantOptionCard } from "@tc/contracts";
 import { currentCallId } from "@/server/assistant/callScope";
 import { defineTool } from "@/server/assistant/defineTool";
 import { searchPlacesTool } from "@/server/assistant/tools/places";
@@ -35,13 +35,15 @@ const callId = () => currentCallId() ?? "ask";
 export const askUserTool = defineTool({
   name: ASK_USER_TOOL_NAME,
   description:
-    "Ask the person a closed question when a few answers would settle what they want — instead of guessing, and instead of asking in prose. 2 to 6 options, each id a short lowercase word. `other` adds one constrained answer beside them: a place, a number between min and max, a date, or activity tags. Their answer arrives as their next message.",
+    `Ask the person a closed question when a few answers would settle what they want — instead of guessing, and instead of asking in prose. 2 to ${MAX_OPTION_CARDS} options, the likeliest first, each id a short lowercase word. \`other\` adds one constrained answer beside them: a place, a number between min and max, a date, or activity tags. Their answer arrives as their next message.`,
   domain: "ui",
   effect: "steer",
   spend: "none",
   input: z.object({
     question: z.string().min(1).max(200),
-    options: z.array(AskOption).min(2).max(6),
+    // Over the limit is cut to the first few by `repairToolInput`, as
+    // show_options' cards are: one cap and one behaviour (Mitchell, 2026-10-30).
+    options: z.array(AskOption).min(2).max(MAX_OPTION_CARDS),
     multi: z.boolean().optional().describe("True when more than one option may be picked."),
     allowNone: z.boolean().optional(),
     other: AskOther.optional(),
@@ -53,22 +55,26 @@ export const askUserTool = defineTool({
     if (deps.uiOutcome.drafting()) return { shown: false, refused: DRAFTED };
     const ask = { id: callId(), question: input.question, options: input.options, multi: input.multi ?? false, allowNone: input.allowNone ?? false, ...(input.other && { other: input.other }) };
     if (!deps.uiOutcome.set({ ask })) return { shown: false, refused: ALREADY };
-    return { shown: true, note: "The question and its choices are under your answer. Do not repeat them; say nothing more than a short lead-in, and wait for their answer." };
+    // Named, as show_options' cards are, since a fifth was cut before this
+    // ran (`repairToolInput`): the lead-in must not point at it.
+    return { shown: true, note: `The question and its choices are under your answer. Do not repeat them; say nothing more than a short lead-in, and wait for their answer. Shown: ${input.options.map((option) => option.label).join(", ")}.` };
   },
 });
 
 export const showOptionsTool = defineTool({
   name: SHOW_OPTIONS_TOOL_NAME,
   description:
-    "Show the person cards to choose from: places by the `ref` numbers search_places gave them, or published days by the savedDayIds search_playbooks returned, in the order you would suggest. The server fills each card's name and details from those results; anything no tool returned this turn is dropped.",
+    `Show the person cards to choose from: places by the \`ref\` numbers search_places gave them, or published days by the savedDayIds search_playbooks returned, in the order you would suggest, at most ${MAX_OPTION_CARDS}: your best, not every match. One card is shown as a yes or no about it, so make \`prompt\` that question ("Add Cochon?"). The server fills each card's name and details from those results; anything no tool returned this turn is dropped.`,
   domain: "ui",
   effect: "steer",
   spend: "none",
   input: z
     .object({
       prompt: z.string().min(1).max(200).describe("The line above the cards."),
-      places: z.array(z.number().int().positive()).min(1).max(6).optional(),
-      days: z.array(z.string().min(1)).min(1).max(6).optional(),
+      // Over the limit is cut to the first few by `repairToolInput`, not
+      // refused: the model's order is its suggestion, so those are its best.
+      places: z.array(z.number().int().positive()).min(1).max(MAX_OPTION_CARDS).optional(),
+      days: z.array(z.string().min(1)).min(1).max(MAX_OPTION_CARDS).optional(),
     })
     .refine((input) => (input.places === undefined) !== (input.days === undefined), "Pass places or days, not both."),
   output: UiOutput,
@@ -82,7 +88,8 @@ export const showOptionsTool = defineTool({
     for (const ref of input.places ?? []) {
       const place = deps.placeCache.get(ref);
       if (place === null) dropped.push(`place ${ref}`);
-      else cards.push({ kind: "place", id: `place-${ref}`, name: place.name, ...(place.area && { area: place.area }), ...(place.city && { city: place.city }) });
+      // A city or district is named by itself; the line under it repeating that says nothing.
+      else cards.push({ kind: "place", id: `place-${ref}`, name: place.name, ...(place.area && place.area !== place.name && { area: place.area }), ...(place.city && place.city !== place.name && { city: place.city }) });
     }
     for (const savedDayId of input.days ?? []) {
       const day = deps.uiOutcome.day(savedDayId);
@@ -90,9 +97,18 @@ export const showOptionsTool = defineTool({
       else cards.push({ kind: "day", id: day.savedDayId, name: day.name, cities: day.cities, stopCount: day.stopCount });
     }
     if (cards.length === 0) return { shown: false, refused: "No tool returned any of those this turn. Search first, then show what it found." };
-    if (!deps.uiOutcome.set({ options: { id: callId(), prompt: input.prompt, cards } })) return { shown: false, refused: ALREADY };
-    const note = "The cards are under your answer. Do not list them again; say one short sentence about why these.";
-    return { shown: true, note: dropped.length === 0 ? note : `${note} Left out, since no tool returned them: ${dropped.join(", ")}.` };
+    // One card is drawn as a yes or no, so a prompt written for several
+    // ("Pick a day") would ask nothing once the others were dropped. A name too
+    // long for the contract's 200 keeps the model's prompt.
+    const asked = `How about ${cards[0]!.name}?`;
+    const prompt = cards.length === 1 && dropped.length > 0 && asked.length <= 200 ? asked : input.prompt;
+    if (!deps.uiOutcome.set({ options: { id: callId(), prompt, cards } })) return { shown: false, refused: ALREADY };
+    // Named, since a fifth was cut before this ran (`repairToolInput`): the
+    // last sentence must not point at a card that is not there.
+    const notes = [`The cards are under your answer. Do not list them again; say one short sentence about why these. Shown: ${cards.map((card) => card.name).join(", ")}.`];
+    if (dropped.length > 0) notes.push(`Left out, since no tool returned them: ${dropped.join(", ")}.`);
+    if (prompt !== input.prompt) notes.push(`With one left, it is asked as "${prompt}" with Yes and No.`);
+    return { shown: true, note: notes.join(" ") };
   },
 });
 

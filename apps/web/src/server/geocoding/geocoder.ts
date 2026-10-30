@@ -16,6 +16,10 @@ export interface GeocodeResult {
   lat: number;
   lng: number;
   canonicalName: string;
+  // The place's own name ("Cochon"), where canonicalName is its whole address.
+  // Undefined when the result has no name of its own (a bare street address),
+  // so a caller that wants a title falls back to canonicalName.
+  name?: string;
   countryCode?: string; // ISO-3166 alpha-2, uppercase
   // The result's city (or nearest equivalent — town/village/hamlet), from
   // the geocoder's own structured address data — distinct from

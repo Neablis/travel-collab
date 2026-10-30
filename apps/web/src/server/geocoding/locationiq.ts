@@ -43,6 +43,9 @@ type LocationIQRow = {
   lat: string;
   lon: string;
   display_name: string;
+  // The object's own name, in the `accept-language` below; "" when it has none.
+  // Not every response carries it, so the first part of `display_name` stands in.
+  name?: string;
   // Nominatim-style address breakdown (LocationIQ's `addressdetails=1`,
   // already requested below). `city` is present for a genuine city-level
   // result; smaller settlements come back under `town`/`village`/`hamlet`
@@ -88,11 +91,34 @@ function vendorUrl(endpoint: string, apiKey: string, params: Record<string, stri
   return url;
 }
 
+// "930", "930A", "12-14": a segment that is only a house number.
+const HOUSE_NUMBER = /^\d+[a-z]?(?:[-/]\d+[a-z]?)*$/i;
+
+/**
+ * What a `display_name` names: its first segment, the rest being the address.
+ *
+ * Undefined when that segment is a house number, the lead of an unnamed
+ * building. The one rule for both a candidate's title here and the name-match
+ * verdict (`geocodeNameMatch.ts`), so the two cannot disagree; it reads the
+ * string alone because the verdict has nothing else. The verdict's one
+ * exception is a place asked for by that very number (a bar called "1905").
+ */
+export function ownNameOf(displayName: string): string | undefined {
+  const first = displayName.split(",")[0]?.trim() ?? "";
+  return first === "" || HOUSE_NUMBER.test(first) ? undefined : first;
+}
+
+// The vendor's own `name` when it sends one, "" meaning it has none.
+function nameOf(r: LocationIQRow): string | undefined {
+  return r.name === undefined ? ownNameOf(r.display_name) : r.name.trim() || undefined;
+}
+
 function toResult(r: LocationIQRow): GeocodeResult {
   return {
     lat: Number(r.lat),
     lng: Number(r.lon),
     canonicalName: r.display_name,
+    name: nameOf(r),
     countryCode: r.address?.country_code?.toUpperCase(),
     city: r.address?.city ?? r.address?.town ?? r.address?.village ?? r.address?.hamlet,
     area:

@@ -17,8 +17,8 @@ import type { ChatMessage } from "@tc/contracts";
 // the bar never offers an Ask with nothing behind it (`/demo`, a locked
 // notebook, the account pages). The entry is a value, not a flag the bar
 // holds — the route still decides which tabs exist (`tabsForScope`). The bar
-// alone keeps a taken-back entry drawn, inert, across a move between one
-// trip's tabs (`useHeldPhoneAsk`); every other reader sees `null` here.
+// alone draws an Ask, inert, before the screen registers, where the route says
+// one is coming (`useDeclaredPhoneAsk`); every other reader sees `null` here.
 //
 // **Not the tab bar's alone since M52**: a notebook's *Trip chat* widget
 // reads the entry at every width (`readerCapabilities.ts`), so what a screen
@@ -94,15 +94,15 @@ export function registerPhoneAsk(next: PhoneAskEntry): () => void {
   };
 }
 
-// How many times a screen has settled on offering no Ask. The bar holds the
-// last entry, inert, only while this has not moved since it saw it.
+// How many times a screen has settled on offering no Ask. The bar draws the
+// route's Ask, inert, only while this has not moved since the route was reached.
 let declines = 0;
 
 /**
  * Says this screen has settled on offering no Ask while `declined`: its read
  * failed, or its trip is one the assistant refuses. The bar then lets go of
- * the entry it holds from the screen before (`useHeldPhoneAsk`), which
- * otherwise stands, dead, waiting for an offer that never comes.
+ * the Ask the route declared (`useDeclaredPhoneAsk`), which otherwise
+ * stands, dead, waiting for an offer that never comes.
  */
 export function useDeclinePhoneAsk(declined: boolean): void {
   useLayoutEffect(() => {
@@ -112,7 +112,7 @@ export function useDeclinePhoneAsk(declined: boolean): void {
   }, [declined]);
 }
 
-/** The bar's: how many times a screen has declined, for `useHeldPhoneAsk`. */
+/** The bar's: how many times a screen has declined, for `useDeclaredPhoneAsk`. */
 export function usePhoneAskDeclines(): number {
   return useSyncExternalStore(
     subscribe,
@@ -126,8 +126,8 @@ export function usePhoneAsk(): PhoneAskEntry | null {
   return useSyncExternalStore(
     subscribe,
     () => entry,
-    // The server render has no screen registered yet: no item for one paint,
-    // which is the same answer `/demo` gets for good.
+    // The server render has no screen registered yet. The bar draws the
+    // route's Ask for it where there is one (`useDeclaredPhoneAsk`).
     () => null,
   );
 }
@@ -166,7 +166,7 @@ export function usePhoneAskEntry(
   const chatPending = chat?.pending === true;
   // A layout effect, as `useDeclinePhoneAsk`'s is: the bar's re-render then
   // lands in the commit that drew the screen, not a task after it, so the bar
-  // never paints a frame behind the screen (a stale unread count, or the held
+  // never paints a frame behind the screen (a stale unread count, or the pending
   // Ask beside a board's error). Repeat runs of PR 601's tests caught that
   // frame.
   useLayoutEffect(() => {

@@ -507,7 +507,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
       : undefined,
   );
   // A failed read or a demo trip offers none: the tab bar lets go of the
-  // board's Ask it is holding for this screen's (PR 601).
+  // route's Ask it draws for this screen's before it registers.
   useDeclinePhoneAsk(status === "error" || isDemoTripId(tripId));
 
   return (

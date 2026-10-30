@@ -992,8 +992,9 @@ export function SharedDayScreen({
                     : "Add to a trip"}
               </Button>
               {/* The page's assistant (M45 D9), which can press that button
-                  for you on a trip and day you name. Drawn only for an
-                  account whose plan has it; a phone's is the tab bar's. */}
+                  for you on a trip and day you name. Drawn for every
+                  signed-in reader, a free one opening it onto the call to
+                  upgrade (PR 655); a phone's is the tab bar's. */}
               <PlaybookAskButton />
 
               {/* Delete, owner-only (Mitchell, 2026-09-01: "add a button to

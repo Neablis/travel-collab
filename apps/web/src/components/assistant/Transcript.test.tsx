@@ -726,7 +726,17 @@ describe("a turn that ends in a widget", () => {
       text: "",
       tools: [],
       pending: false,
-      widget: { kind: "options", options: { id: "call-2", prompt: "Two to try", cards: [{ kind: "place", id: "place-1", name: "Ichiran" }] } },
+      widget: {
+        kind: "options",
+        options: {
+          id: "call-2",
+          prompt: "Two to try",
+          cards: [
+            { kind: "place", id: "place-1", name: "Ichiran" },
+            { kind: "place", id: "place-2", name: "Afuri" },
+          ],
+        },
+      },
     };
     render(<Transcript turns={[ASKED, CARDS]} onAnswer={onAnswer} answering />);
     await userEvent.click(screen.getByRole("radio", { name: "Sights" }));
@@ -734,6 +744,45 @@ describe("a turn that ends in a widget", () => {
     const choose = screen.getByRole("button", { name: "Choose Ichiran" }) as HTMLButtonElement;
     expect([answer.disabled, choose.disabled]).toEqual([true, true]);
     await userEvent.click(choose);
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  // Mitchell, 2026-10-30: one place offered as a one-row "choose one" list.
+  // With nothing to choose between, it is a yes or a no about that place.
+  it("asks a lone card as yes or no: yes picks the card, no picks none", async () => {
+    const onAnswer = vi.fn();
+    const ONE: AssistantTurn = {
+      id: "a3",
+      role: "assistant",
+      text: "",
+      tools: [],
+      pending: false,
+      widget: { kind: "options", options: { id: "call-2", prompt: "Add Cochon?", cards: [{ kind: "place", id: "place-1", name: "Cochon", city: "New Orleans" }] } },
+    };
+    render(<Transcript turns={[ONE]} onAnswer={onAnswer} />);
+    const question = screen.getByRole("group", { name: "Add Cochon?" });
+    expect(within(question).queryByRole("button", { name: "Choose Cochon" })).toBeNull();
+    await userEvent.click(within(question).getByRole("button", { name: "Yes" }));
+    expect(onAnswer).toHaveBeenLastCalledWith("Yes", { answeredAsk: "call-2", question: "Add Cochon?", optionIds: ["place-1"], other: null });
+    await userEvent.click(within(question).getByRole("button", { name: "No" }));
+    expect(onAnswer).toHaveBeenLastCalledWith("No", { answeredAsk: "call-2", question: "Add Cochon?", optionIds: [], other: null });
+  });
+
+  // PR 652 review: the busy test moved to two cards, so nothing held Yes and No.
+  it("holds Yes and No while a turn is in flight", async () => {
+    const onAnswer = vi.fn();
+    const ONE: AssistantTurn = {
+      id: "a3",
+      role: "assistant",
+      text: "",
+      tools: [],
+      pending: false,
+      widget: { kind: "options", options: { id: "call-2", prompt: "Add Cochon?", cards: [{ kind: "place", id: "place-1", name: "Cochon" }] } },
+    };
+    render(<Transcript turns={[ONE]} onAnswer={onAnswer} answering />);
+    const question = screen.getByRole("group", { name: "Add Cochon?" });
+    await userEvent.click(within(question).getByRole("button", { name: "Yes" }));
+    await userEvent.click(within(question).getByRole("button", { name: "No" }));
     expect(onAnswer).not.toHaveBeenCalled();
   });
 });

@@ -8,10 +8,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 4927,
+      "toolChars": 4948,
       "instructionChars": 2637,
-      "totalChars": 7564,
-      "approxTokens": 2285
+      "totalChars": 7585,
+      "approxTokens": 2292
     },
     "trip · question": {
       "tools": [
@@ -27,10 +27,10 @@
         "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 10929,
+      "toolChars": 11082,
       "instructionChars": 3369,
-      "totalChars": 14298,
-      "approxTokens": 4320
+      "totalChars": 14451,
+      "approxTokens": 4366
     },
     "trip · question · under way": {
       "tools": [
@@ -47,10 +47,10 @@
         "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 11912,
+      "toolChars": 12065,
       "instructionChars": 3784,
-      "totalChars": 15696,
-      "approxTokens": 4742
+      "totalChars": 15849,
+      "approxTokens": 4788
     },
     "trip · edit": {
       "tools": [
@@ -78,10 +78,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 26594,
+      "toolChars": 26747,
       "instructionChars": 4883,
-      "totalChars": 31477,
-      "approxTokens": 9510
+      "totalChars": 31630,
+      "approxTokens": 9556
     },
     "trip · plan": {
       "tools": [
@@ -106,10 +106,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 25535,
+      "toolChars": 25688,
       "instructionChars": 5190,
-      "totalChars": 30725,
-      "approxTokens": 9282
+      "totalChars": 30878,
+      "approxTokens": 9329
     },
     "trip · unsure": {
       "tools": [
@@ -137,10 +137,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 26594,
+      "toolChars": 26747,
       "instructionChars": 4883,
-      "totalChars": 31477,
-      "approxTokens": 9510
+      "totalChars": 31630,
+      "approxTokens": 9556
     },
     "page · compose": {
       "tools": [
@@ -155,10 +155,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 8702,
+      "toolChars": 8723,
       "instructionChars": 4244,
-      "totalChars": 12946,
-      "approxTokens": 3911
+      "totalChars": 12967,
+      "approxTokens": 3918
     },
     "page · question": {
       "tools": [
@@ -174,10 +174,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 10287,
+      "toolChars": 10440,
       "instructionChars": 2500,
-      "totalChars": 12787,
-      "approxTokens": 3863
+      "totalChars": 12940,
+      "approxTokens": 3909
     },
     "account · question": {
       "tools": [
@@ -189,10 +189,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 5678,
+      "toolChars": 5699,
       "instructionChars": 3486,
-      "totalChars": 9164,
-      "approxTokens": 2769
+      "totalChars": 9185,
+      "approxTokens": 2775
     },
     "playbook day · question": {
       "tools": [
@@ -202,10 +202,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 4398,
+      "toolChars": 4419,
       "instructionChars": 3223,
-      "totalChars": 7621,
-      "approxTokens": 2302
+      "totalChars": 7642,
+      "approxTokens": 2309
     },
     "playbook list · question": {
       "tools": [
@@ -213,10 +213,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 3239,
+      "toolChars": 3260,
       "instructionChars": 2798,
-      "totalChars": 6037,
-      "approxTokens": 1824
+      "totalChars": 6058,
+      "approxTokens": 1830
     }
   },
   "tools": {
@@ -229,8 +229,8 @@
       "approxTokens": 1751
     },
     "ask_user": {
-      "chars": 1573,
-      "approxTokens": 475
+      "chars": 1594,
+      "approxTokens": 482
     },
     "search_widgets": {
       "chars": 1288,
@@ -280,6 +280,10 @@
       "chars": 854,
       "approxTokens": 258
     },
+    "show_options": {
+      "chars": 783,
+      "approxTokens": 237
+    },
     "request_change_tools": {
       "chars": 725,
       "approxTokens": 219
@@ -291,10 +295,6 @@
     "suggest_next_country": {
       "chars": 661,
       "approxTokens": 200
-    },
-    "show_options": {
-      "chars": 651,
-      "approxTokens": 197
     },
     "MoveActivity": {
       "chars": 605,

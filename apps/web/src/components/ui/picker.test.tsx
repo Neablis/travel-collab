@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { dateAnswer, Picker, type PickerAnswer, type PickerOption, type PickerOther } from "./picker";
+import { cn } from "@/lib/cn";
+import { buttonVariants } from "./button";
+import { ChoiceRow, dateAnswer, Picker, type PickerAnswer, type PickerOption, type PickerOther } from "./picker";
 
 // The picker is the only way New trip (M56 part 2) and the assistant's
 // `ask_user` (part 5) take an answer, and neither has a text box behind it to
@@ -249,5 +251,101 @@ describe("Picker", () => {
     expect(screen.queryByRole("checkbox", { name: "Ticketed" })).toBeNull();
     // One group named by the question, not a second holding only "None of these".
     expect(screen.getAllByRole("group", { name: "What pace?" })).toHaveLength(1);
+  });
+
+  // Mitchell on production, 2026-10-30: equal tiles in a grid, not chips
+  // each as wide as its own label; then, on a 375px phone, four short tiles
+  // a row so all twelve fit the New trip sheet without scrolling (the
+  // geometry is `m56-new-trip.spec.ts`'s).
+  it("lays the tag tiles out as a grid of equal tiles", () => {
+    render(<Harness onChange={vi.fn()} options={[]} multi other={{ kind: "tags", label: "What it is about" }} />);
+    expect([...screen.getByRole("group", { name: "What pace?" }).classList]).toEqual(expect.arrayContaining(["grid", "grid-cols-4"]));
+    const tiles = screen.getAllByRole("checkbox");
+    expect(tiles).toHaveLength(12);
+    for (const tile of tiles) expect([...tile.classList]).toContain("aspect-4/3");
+  });
+
+  // Mitchell on his phone, 2026-10-30: the tiles were each as wide as their
+  // own words, in ragged rows. Two choices split the row; more are a column of
+  // full-width rows. The count is the choices drawn, other and none included.
+  it("splits the row between exactly two choices", () => {
+    render(<Harness onChange={vi.fn()} options={[{ id: "later", label: "Not yet" }]} other={{ kind: "date", label: "Pick a day" }} />);
+    const group = [...screen.getByRole("radiogroup", { name: "What pace?" }).classList];
+    expect(group).toEqual(expect.arrayContaining(["grid", "grid-cols-2"]));
+  });
+
+  it("gives three or more choices a full-width row each", () => {
+    render(<Harness onChange={vi.fn()} options={OPTIONS.slice(0, 2)} allowNone />);
+    const group = [...screen.getByRole("radiogroup", { name: "What pace?" }).classList];
+    expect(group).toEqual(expect.arrayContaining(["grid", "grid-cols-1"]));
+    expect(group).not.toContain("grid-cols-2");
+  });
+
+  // "Show it connected and drop down under the box" (Mitchell, 2026-10-30):
+  // the other's input opens inside the choice's own border, not after the list.
+  it("opens a chosen other as a disclosure attached under its own choice", async () => {
+    render(<Harness onChange={vi.fn()} allowNone other={LENGTH} />);
+    const another = screen.getByRole("radio", { name: "Another length" });
+    expect(another.getAttribute("aria-controls")).toBeNull();
+    await user.click(another);
+    const panel = screen.getByRole("group", { name: "Another length" });
+    expect(another.getAttribute("aria-controls")).toBe(panel.id);
+    within(panel).getByRole("button", { name: "More days" });
+    // One box: the choice gives up its foot's corners and the panel its top edge.
+    expect([...another.classList]).toContain("rounded-b-none");
+    expect([...panel.classList]).toEqual(expect.arrayContaining(["border-t-0", "rounded-b-md", "border-brand"]));
+    // Inside the group, before "None of these", not after the whole list.
+    within(screen.getByRole("radiogroup", { name: "What pace?" })).getByRole("button", { name: "More days" });
+  });
+
+  // PR 654 review: a group named for the date, around an input named the
+  // same, read the label twice on the way in.
+  it("names an attached date panel once, on its input", async () => {
+    render(<Harness onChange={vi.fn()} other={{ kind: "date", label: "Another day" }} />);
+    const choice = screen.getByRole("radio", { name: "Another day" });
+    await user.click(choice);
+    const named = screen.getAllByLabelText("Another day").filter((el) => el !== choice);
+    expect(named).toHaveLength(1);
+    expect(named[0]?.getAttribute("type")).toBe("date");
+    // Still attached: inside the question's group, not after it.
+    expect(within(screen.getByRole("radiogroup", { name: "What pace?" })).getAllByLabelText("Another day")).toContain(named[0]);
+  });
+
+  it("keeps the keyboard on the other's choice as its disclosure opens", async () => {
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} other={LENGTH} />);
+    await user.tab();
+    await user.tab();
+    // Wrapping back from the first picks the other, which opens under it.
+    await user.keyboard("{ArrowLeft}");
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 2 } });
+    // Still on that choice, so Tab reaches the stepper drawn under it.
+    await user.tab();
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenLastCalledWith({ optionIds: [], other: { kind: "number", value: 1 } });
+  });
+});
+
+// Mitchell, 2026-10-30: in the docked assistant (~360px) a place offered with
+// its whole LocationIQ address as a name squeezed Choose narrower than its own
+// word, which spilled out of its border. The name wraps in its column; the
+// button keeps its size and is the app's standard secondary one.
+describe("ChoiceRow", () => {
+  it("never squeezes Choose below its word, and draws it as the standard secondary button", () => {
+    render(
+      <ul>
+        <ChoiceRow
+          name="Cochon, 930, Tchoupitoulas Street, Warehouse District, New Orleans, Orleans Parish, Louisiana, 70130, USA"
+          detail="Warehouse District, New Orleans"
+          onChoose={() => {}}
+        />
+      </ul>,
+    );
+    const choose = screen.getByRole("button", { name: /^Choose Cochon/ });
+    const classes = choose.className.split(" ");
+    expect(classes).toEqual(expect.arrayContaining(["shrink-0", "whitespace-nowrap"]));
+    // 44px at every width, the panel being docked on a desktop too. Merged as
+    // `Button` merges, since `touch` overrides the base's mouse release.
+    expect(classes).toEqual(expect.arrayContaining(cn(buttonVariants({ variant: "secondary", size: "touch" })).split(" ")));
   });
 });

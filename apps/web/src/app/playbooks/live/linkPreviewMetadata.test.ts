@@ -18,7 +18,7 @@ vi.mock("@/server/publicLibrary", async (importOriginal) => ({
 
 import { metadata as boardMetadata } from "./board/page";
 import { generateMetadata as dayMetadata } from "./day/[savedDayId]/page";
-import { generateMetadata as discoverMetadata } from "./page";
+import { generateMetadata as discoverMetadata } from "./(discover)/page";
 import { generateMetadata as profileMetadata } from "./profile/[userId]/page";
 
 // Spec 2026-10-02 §2.7, "Link previews": which card each Playbooks page points

@@ -36,7 +36,7 @@ import { readLastRailTab, rememberRailTab } from "@/components/assistant/lastTab
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { hasTripChat, tripHasChat, tripIsSolo, useTripChat } from "@/components/chat/useTripChat";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
-import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
+import { useDeclinePhoneAsk, usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -1139,15 +1139,9 @@ export function PageScreen({
   // locked branches, which never offered an assistant (decision 4). Nor while
   // the skeleton is held for the globals (PR #384 review): that is the loading
   // branch too, with no assistant behind it yet.
+  const offersAsk = status === "ready" && globalsSettled && page !== null && trip !== null && stored?.status === "mountable";
   usePhoneAskEntry(
-    status !== "loading" &&
-      status !== "error" &&
-      globalsSettled &&
-      page !== null &&
-      trip !== null &&
-      stored?.status === "mountable"
-      ? openAsk
-      : undefined,
+    offersAsk ? openAsk : undefined,
     assistantOpen,
     (text) => {
       openAsk();
@@ -1163,6 +1157,9 @@ export function PageScreen({
         : undefined,
     tripIsSolo(tripId, memberCount),
   );
+  // Settled on none, the error or the locked branch: the tab bar lets go of
+  // the route's Ask it draws for this page before it registers (PR 655).
+  useDeclinePhoneAsk(status === "error" || (status === "ready" && globalsSettled && !offersAsk));
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
   // because the assistant was an editing-only control and leaving Editing was
   // leaving the assistant. It is available in both modes now (Mitchell:
