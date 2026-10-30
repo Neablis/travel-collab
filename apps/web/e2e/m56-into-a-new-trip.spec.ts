@@ -15,6 +15,12 @@ function rail(page: Page) {
   return page.getByRole("complementary", { name: "Assistant" });
 }
 
+// Mitchell, 2026-10-30: a trip made from New trip opens on Plan, where it is
+// planned, not on the read-only Overview a bare `/trips/<id>` lands on.
+function planTab(page: Page) {
+  return page.getByRole("tablist", { name: "Trip view" }).getByRole("tab", { name: "Plan" });
+}
+
 function askedText(request: Request): string | undefined {
   const body = JSON.parse(request.postData() ?? "{}") as { messages?: { role: string; parts: { type: string; text?: string }[] }[] };
   return body.messages?.at(-1)?.parts.find((part) => part.type === "text")?.text;
@@ -44,6 +50,7 @@ test.describe("Plan with AI", () => {
     const asked = page.waitForRequest((r) => TRIP_ASK.test(new URL(r.url()).pathname));
     await card.getByRole("button", { name: "Plan with AI" }).click();
     await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/);
+    await expect(planTab(page)).toHaveAttribute("aria-selected", "true");
     await expect(rail(page)).toBeVisible();
     expect(askedText(await asked)).toBe(kickoff);
     await expect(rail(page).getByRole("log", { name: "Conversation" })).toContainText(kickoff);
@@ -88,6 +95,7 @@ test("Home's rail hands a trip to New trip prefilled, and its other ask is a chi
   });
   await sheet.getByRole("button", { name: "Just create it" }).click();
   await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/);
+  await expect(planTab(page)).toHaveAttribute("aria-selected", "true");
 
   const chips = rail(page).getByRole("list", { name: "You also asked" });
   const chip = chips.getByRole("button", { name: mezcal });

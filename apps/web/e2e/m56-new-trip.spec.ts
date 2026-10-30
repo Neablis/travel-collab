@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { pickNewTripPlace, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
@@ -8,6 +9,12 @@ import { e2eTripName } from "./tripNames";
 // `plus` trial, so Review offers *Plan with AI*; the free half is the
 // component test's (`NewTripWizard.test.tsx`).
 test.use({ storageState: { cookies: [], origins: [] } });
+
+// Mitchell, 2026-10-30: a trip made from New trip opens on Plan, where it is
+// planned, not on the read-only Overview a bare `/trips/<id>` lands on.
+function planTab(page: Page) {
+  return page.getByRole("tablist", { name: "Trip view" }).getByRole("tab", { name: "Plan" });
+}
 
 test("five pages and Review make a trip holding every answer, and a new place re-walks them", async ({ page }) => {
   await signInAsDevUser(page, `m56${randomUUID().replace(/-/g, "").slice(0, 10)}`);
@@ -50,9 +57,10 @@ test("five pages and Review make a trip holding every answer, and a new place re
   await card.getByRole("button", { name: "Review" }).click();
   await expect(decided).toHaveText(`${second} · Apr 10, 2027 · A week · Packed · Food, Museum`);
 
-  // *Plan with AI* makes the trip and goes to it (the rail is part 6's).
+  // *Plan with AI* makes the trip and goes to its Plan (the rail is part 6's).
   await card.getByRole("button", { name: "Plan with AI" }).click();
   await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/);
+  await expect(planTab(page)).toHaveAttribute("aria-selected", "true");
   const tripId = new URL(page.url()).pathname.split("/")[2]!;
   const read = await page.request.get(`/api/trips/${tripId}`);
   expect(read.ok()).toBe(true);
