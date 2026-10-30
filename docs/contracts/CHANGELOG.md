@@ -29,8 +29,12 @@ Format:
   `newTripSubmit` dispatches it; `assistant/tools/read.ts`; `ai/handleAskRequest.ts`;
   `cloneTrip` keeps the style on a copy, since `executeTripCreation`'s follow-up takes
   `SetTripStyle` alongside `BatchableCommand`s) — in this same PR.
-- Public API: `API_VERSION` 1.31.0 with its new `API_FINGERPRINT`. `/v1/trips/{tripId}` returns
-  `TripDetail`, so its responses gain the two fields. No v1 endpoint writes them.
+- Public API: `API_VERSION` 1.31.0 with its new `API_FINGERPRINT`. Every v1 response that
+  carries a `TripDetail` (16 operations: `GET`/`PATCH`/`DELETE /v1/trips/{tripId}`,
+  `POST /v1/trips`, `POST /v1/trips/import`, restore, the day and activity writes, conflict
+  dismiss, and `GET /history/{seq}` with `POST /history/{undo,redo,revert}`) gains the two
+  fields. No v1 endpoint takes them as input, but undo, redo and revert can change them: they
+  write the diff to the earlier state, which now includes `TripStyleSet`.
 - Breaking? no (additive, defaulted).
 
 ## 2026-10-27 — `ConnectedApp` (M55 part 5)

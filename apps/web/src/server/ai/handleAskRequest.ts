@@ -2064,6 +2064,18 @@ export function standingOf(detail: TripDetail): TripStanding {
   };
 }
 
+// Says what the style is, not how it got there: Create sets it, and undo can
+// change it after.
+function styleRule(style: NonNullable<TripStanding["style"]>): string {
+  const what =
+    style.pace === null
+      ? "the kinds of day this trip is for (no pace was chosen)"
+      : style.tags.length === 0
+        ? "the pace this trip is meant to have (no kinds of day were chosen)"
+        : "the pace this trip is meant to have and the kinds of day it is for";
+  return `The Trip pace and tags line is ${what}. Answer from it when asked, and fit what you suggest to it unless they ask for something else.`;
+}
+
 /**
  * The instruction as BLOCKS (spec §4).
  *
@@ -2235,12 +2247,9 @@ export function instructionBlocks(
         ]
       : []),
     // M56 D4, on every posture: a question about the trip's feel is answered
-    // from it as much as a plan is shaped by it.
-    ...(standing.style !== undefined
-      ? [
-          "This trip was created with a pace and the kinds of day it is for (the Trip pace and tags line). Answer from it when asked, and fit what you suggest to it unless they ask for something else.",
-        ]
-      : []),
+    // from it as much as a plan is shaped by it. Worded from the halves that
+    // are set, so the rule never claims a pace the data line says is null.
+    ...(standing.style !== undefined ? [styleRule(standing.style)] : []),
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
     // The one place a turn that can write is told HOW to write an amount (the
     // planning tools' descriptions used to repeat it, three times on an edit
