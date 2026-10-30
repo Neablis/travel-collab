@@ -222,6 +222,8 @@ const PLANNING_TOOL_NAMES = planningTools.map((t) => t.name);
 const WITHHELD_FROM_PLAN = ["SetTripCurrency", "SetTripBudget", "DismissConflict"];
 const PLAN_TURN_TOOL_NAMES = PLANNING_TOOL_NAMES.filter((n) => !WITHHELD_FROM_PLAN.includes(n));
 const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
+// The ui widgets (ADR-084), on every surface and so in every set above.
+const UI_TOOL_NAMES: readonly string[] = ["ask_user", "show_options", "hand_off"];
 /** The propose half of a planning turn — what a page turn must not hold. */
 const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
 const { getPage } = await import("@/server/pages");
@@ -984,7 +986,7 @@ describe("POST /api/trips/:id/ask", () => {
       // nothing can use.
       expect(PAGE_TURN_TOOL_NAMES).not.toContain("search_places");
       expect(PAGE_TURN_TOOL_NAMES).toEqual([
-        ...READ_TOOL_NAMES.filter((name) => name !== "search_places" && name !== "go_to"),
+        ...READ_TOOL_NAMES.filter((name) => name !== "search_places" && name !== "go_to" && !UI_TOOL_NAMES.includes(name)),
         // The widget lookup (ADR-057) — `pages` at `read`, so here and only here.
         "search_widgets",
         "get_widget",
@@ -996,6 +998,8 @@ describe("POST /api/trips/:id/ask", () => {
         // to turn editing on is `pages`/`propose`, so a notebook's alone.
         "go_to",
         "propose_notebook_editing",
+        // How a turn ends when prose would strand the person (ADR-084).
+        ...UI_TOOL_NAMES,
       ]);
       expect(PLANNING_TOOL_NAMES).not.toContain("insert_widget");
       expect(PLANNING_TOOL_NAMES).not.toContain("switch_intent");
@@ -2004,7 +2008,7 @@ describe("POST /api/trips/:id/ask", () => {
         records.push(r),
       );
       await res.text();
-      expect(records[0]!.offeredTools).toEqual(["read_trip", "read_day"]);
+      expect(records[0]!.offeredTools).toEqual(["read_trip", "read_day", ...UI_TOOL_NAMES]);
     });
 
     it("carries no proposal when the turn was only a question", async () => {
@@ -2303,7 +2307,7 @@ describe("POST /api/trips/:id/ask", () => {
       // fourteen days to decide which live widgets to insert.
       expect(records[0]!.classification?.taskClass).toBe("compose");
       expect(records[0]!.offeredTools.sort()).toEqual(
-        ["read_trip", "search_widgets", "get_widget", "insert_text", "insert_widget", "switch_intent", "go_to", "propose_notebook_editing"].sort(),
+        ["read_trip", "search_widgets", "get_widget", "insert_text", "insert_widget", "switch_intent", "go_to", "propose_notebook_editing", ...UI_TOOL_NAMES].sort(),
       );
       for (const name of WRITE_ONLY_NAMES) {
         expect(records[0]!.offeredTools, `a page turn must not be offered ${name}`).not.toContain(name);
@@ -3359,6 +3363,7 @@ describe("POST /api/trips/:id/ask", () => {
         "search_playbooks",
         "search_places",
         "go_to",
+        ...UI_TOOL_NAMES,
         "request_change_tools",
       ]);
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
@@ -3387,6 +3392,7 @@ describe("POST /api/trips/:id/ask", () => {
         "search_playbooks",
         "search_places",
         "go_to",
+        ...UI_TOOL_NAMES,
         "request_change_tools",
       ]);
     });

@@ -88,6 +88,8 @@ export type SurfaceGrant = readonly DomainCap[];
  * enough — that it was offered nowhere until these two rows named its domain —
  * is the table working rather than an obstacle to route around.
  */
+const UI = { domain: "ui", max: "read" } as const;
+
 export const SURFACES = {
   trip: [
     { domain: "itinerary", max: "propose" },
@@ -109,12 +111,17 @@ export const SURFACES = {
     // a question about the tool. Collapsing them would put a tool's own
     // condition in a table that knows nothing about it.
     { domain: "system", max: "read" },
+    // ADR-084 §3: every surface with an assistant ends a turn the same ways
+    // when prose would strand the person. `read` because nothing in it changes
+    // anything; it is on every row below for the same reason.
+    UI,
   ],
   day: [
     { domain: "itinerary", max: "propose" },
     { domain: "library", max: "propose" },
     { domain: "places", max: "read" },
     { domain: "system", max: "read" },
+    UI,
   ],
   // A page turn reads the trip and writes the page. `library` stays at `read`
   // rather than being left out, because a page turn browses the corpus today
@@ -152,6 +159,7 @@ export const SURFACES = {
     { domain: "itinerary", max: "read" },
     { domain: "library", max: "read" },
     { domain: "pages", max: "propose" },
+    UI,
   ],
   // **The account surface reads across trips and writes nothing** (M45: *"this
   // assistant reads across trips and writes within one"*). One domain, at
@@ -159,17 +167,17 @@ export const SURFACES = {
   // read, and every itinerary tool is about one. `go_to` (ADR-072) is an
   // `itinerary` tool, so it is not offered here either; its account twin,
   // `open_trip`, is in this domain and names the trip in its input.
-  account: [{ domain: "account", max: "read" }],
+  account: [{ domain: "account", max: "read" }, UI],
   // **Each playbook page sees what is on it and nothing else** (M45 D9). A
   // shared day reads the playbook on screen and may take it into a trip the
   // person names, the two buttons it already has; a list page reads its own
   // list and writes nothing, because it has no button that does. No trip
   // domain on any of them: no `find_free_time`, no stop edits, no aggregates.
-  "playbook-day": [{ domain: "playbook", max: "propose" }],
-  playbook: [{ domain: "playbook", max: "propose" }],
-  discover: [{ domain: "playbookList", max: "read" }],
-  city: [{ domain: "playbookList", max: "read" }],
-  tag: [{ domain: "playbookList", max: "read" }],
+  "playbook-day": [{ domain: "playbook", max: "propose" }, UI],
+  playbook: [{ domain: "playbook", max: "propose" }, UI],
+  discover: [{ domain: "playbookList", max: "read" }, UI],
+  city: [{ domain: "playbookList", max: "read" }, UI],
+  tag: [{ domain: "playbookList", max: "read" }, UI],
 } as const satisfies Record<SurfaceKind, SurfaceGrant>;
 
 /**
@@ -291,7 +299,14 @@ export function toolsFor(
     // is a thing a person with read access can do in the UI (AGENTS.md
     // invariant 7). Keyed on the tag every tool must declare, so a new tool
     // that is not a pure read cannot reach a viewer by being forgotten.
-    if (posture === "read-only" && (definition.effect !== "read" || definition.onReadOnlyTurns === false)) return false;
+    //
+    // **The `ui` widgets are the one exception, by domain** (ADR-084 §2): a
+    // question, cards or a hand-off change nothing and widen nothing, and a
+    // read-only turn is exactly the one that most needs to decline with a
+    // button. Every account turn is read-only (it holds no trip role), and
+    // Home handing off instead of refusing is what M56 is for.
+    const readOnlyAllows = definition.effect === "read" || definition.domain === "ui";
+    if (posture === "read-only" && (!readOnlyAllows || definition.onReadOnlyTurns === false)) return false;
     // **The fourth axis (`defineTool`'s `postures`), and it does NOT follow the
     // third's "absent argument disables the filter" rule.** That rule exists
     // because a caller who has not classified the turn must not be handed a

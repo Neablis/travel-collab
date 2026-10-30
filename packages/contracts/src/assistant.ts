@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ActivityTagDescribed } from "./activity.ts";
 import { PageDoc } from "./pageDoc.ts";
 import { BatchableCommand } from "./trip.ts";
 
@@ -345,6 +346,142 @@ const PaletteCommands = z.array(z.unknown()).transform((entries): PaletteCommand
   }),
 );
 
+// ---------------------------------------------------------------------------
+// Asking, showing and handing off (M56, ADR-084 §2).
+//
+// Three outcomes a turn ends in where prose alone would strand the person: a
+// closed question (`ask`), real places or days to choose from (`options`), and
+// a task this surface cannot do, with where it is done (`handOff`). The answer
+// to an `ask` comes back as DATA on the user message (`AskAnswer`), so nothing
+// the person picked is ever parsed out of text.
+// ---------------------------------------------------------------------------
+
+/**
+ * An option's id as the model writes it: a short lowercase slug the answer
+ * names it by (`food`, `two-weeks`), or a saved day's uuid on a card. Readable
+ * on purpose: the next turn reads the ids back in the answer, and by then the
+ * model no longer sees the question it asked.
+ */
+const ASK_OPTION_ID = z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/);
+
+/** One choice of an `ask`: the id the answer names, what it says, and an optional line under it. */
+export const AskOption = z.object({
+  id: ASK_OPTION_ID,
+  label: z.string().min(1).max(80),
+  detail: z.string().min(1).max(160).optional(),
+});
+export type AskOption = z.infer<typeof AskOption>;
+
+/** The constrained *other* an `ask` may offer. Never free text: each kind answers in its own shape (`AskAnswer`). */
+export const AskOther = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("place"), label: z.string().min(1).max(80) }),
+  z.object({
+    kind: z.literal("number"),
+    label: z.string().min(1).max(80),
+    min: z.number().int(),
+    max: z.number().int(),
+    unit: z.object({ one: z.string().min(1).max(20), many: z.string().min(1).max(20) }),
+  }),
+  z.object({ kind: z.literal("date"), label: z.string().min(1).max(80) }),
+  z.object({ kind: z.literal("tags"), label: z.string().min(1).max(80) }),
+]);
+export type AskOther = z.infer<typeof AskOther>;
+
+/** A closed question the turn ended on (`ask_user`). `id` is the server's: the call that asked it. */
+export const AssistantAsk = z.object({
+  id: z.string().min(1).max(100),
+  question: z.string().min(1).max(200),
+  options: z.array(AskOption).min(2).max(6),
+  multi: z.boolean(),
+  allowNone: z.boolean().default(false),
+  other: AskOther.optional(),
+});
+export type AssistantAsk = z.infer<typeof AssistantAsk>;
+
+/** The data part's name on the user message, `data-ask-answer` on the wire. */
+export const ASK_ANSWER_PART = "ask-answer";
+
+/**
+ * **What the person picked, as data** (ADR-084 §2): the question it answers,
+ * the option ids in the options' order, and the *other* when one was chosen.
+ * No ids and no other is "none of these". The ask route validates it with the
+ * thread and turns it into the model's text itself.
+ */
+export const AskAnswer = z.object({
+  answeredAsk: z.string().min(1).max(100),
+  optionIds: z.array(ASK_OPTION_ID).max(6),
+  other: z
+    .discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("place"),
+        value: z.object({ id: z.string().min(1).max(200), label: z.string().min(1).max(200) }),
+      }),
+      z.object({ kind: z.literal("number"), value: z.number().int() }),
+      z.object({ kind: z.literal("date"), value: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
+      z.object({ kind: z.literal("tags"), value: z.array(ActivityTagDescribed).max(12) }),
+    ])
+    .nullable(),
+});
+export type AskAnswer = z.infer<typeof AskAnswer>;
+
+/**
+ * One card a `show_options` turn ended on. **Every field but the id is the
+ * server's**: the model names a place by the number `search_places` gave it, or
+ * a day by the id `search_playbooks` returned, and the server fills the rest
+ * from that result, so a card cannot show an invented place or count.
+ */
+export const AssistantOptionCard = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("place"),
+    id: ASK_OPTION_ID,
+    name: z.string().min(1),
+    area: z.string().min(1).optional(),
+    city: z.string().min(1).optional(),
+  }),
+  z.object({
+    kind: z.literal("day"),
+    id: ASK_OPTION_ID,
+    name: z.string().min(1),
+    cities: z.array(z.string()),
+    stopCount: z.number().int().nonnegative(),
+  }),
+]);
+export type AssistantOptionCard = z.infer<typeof AssistantOptionCard>;
+
+/** The cards in the model's order, and the line above them. `id` is the call's, as an ask's is. */
+export const AssistantOptions = z.object({
+  id: z.string().min(1).max(100),
+  prompt: z.string().min(1).max(200),
+  cards: z.array(AssistantOptionCard).min(1).max(6),
+});
+export type AssistantOptions = z.infer<typeof AssistantOptions>;
+
+/**
+ * Where a task this surface cannot do is done (ADR-084 §2): New trip, an
+ * existing trip's plan page, an upgrade (only where a person whose plan has no
+ * changes can reach the surface), or nowhere.
+ */
+export const HAND_OFF_TARGETS = ["new_trip", "plan_page", "upgrade", "nowhere"] as const;
+export const HandOffTo = z.enum(HAND_OFF_TARGETS);
+export type HandOffTo = z.infer<typeof HandOffTo>;
+
+/**
+ * A decline with a way forward. `command` is the palette command a `plan_page`
+ * button runs; it is held to the `paletteCommands` allowlist and dropped from
+ * any other target, so a hand-off cannot carry a URL either.
+ */
+export const AssistantHandOff = z
+  .object({
+    task: z.string().min(1).max(200),
+    to: HandOffTo,
+    command: z.string().min(1).optional(),
+  })
+  .transform(({ command, ...rest }) => ({
+    ...rest,
+    ...(command !== undefined && rest.to === "plan_page" && isAssistantCommandId(command) ? { command } : {}),
+  }));
+export type AssistantHandOff = z.infer<typeof AssistantHandOff>;
+
 /**
  * Not an outcome: a sibling any outcome may carry, and the silent one too, so
  * a turn can answer, propose or write AND take you somewhere. It sits in every
@@ -354,7 +491,7 @@ const PaletteCommands = z.array(z.unknown()).transform((entries): PaletteCommand
 const WITH_COMMANDS = { paletteCommands: PaletteCommands.optional() };
 
 /**
- * What the stream's final chunk carries, and the only seven shapes it may take.
+ * What the stream's final chunk carries, and the only ten shapes it may take.
  *
  * A proposal OR a page, never both: the two tool sets are disjoint server-side
  * — the page surface caps the `itinerary` domain at `read` and no other surface
@@ -363,23 +500,23 @@ const WITH_COMMANDS = { paletteCommands: PaletteCommands.optional() };
  * convention two files hold. A planning turn ends in `proposal` or
  * `suggested`, never both, by its command count (ADR-067 decisions 4 and 5).
  *
- * `{}` is the seventh shape and is a real one: a page-scoped turn that inserted
+ * `{}` is the tenth shape and is a real one: a page-scoped turn that inserted
  * nothing is silence, not a failure — a turn can legitimately answer a question
  * about the page without editing it, which is most of what a conversation does.
  * A turn that only takes you somewhere is this shape with `paletteCommands`.
  * A turn with no outcome at all sends no `messageMetadata` key instead.
  *
- * **The empty branch is strict and the other six are not, and the asymmetry
+ * **The empty branch is strict and the other nine are not, and the asymmetry
  * is load-bearing both ways.** A permissive `z.object({})` matches ANY object,
  * so `{ proposal: <garbage> }` would parse as "nothing" and the union would
  * accept every malformed payload rather than rejecting it — it would assert
- * nothing at all. The six payload branches are deliberately NOT strict for
+ * nothing at all. The nine payload branches are deliberately NOT strict for
  * the opposite reason: the stream is a superset the server may grow, and a key
  * added beside a valid `proposal` by a newer deployment must not cost an older
  * client the proposal. It strips the key and renders the card.
  *
  * That forward compatibility is not a hole on the producing side. The inferred
- * type is still exactly these five shapes, so a server literal with a sixth or
+ * type is still exactly these ten shapes, so a server literal with an eleventh or
  * misspelled key fails to compile — the key set is pinned by the type, and the
  * parse is what protects the consumer.
  *
@@ -448,6 +585,12 @@ const AskStreamShape = z.union([
    * others, so it never rides beside a `proposal`.
    */
   z.object({ proposalFailed: z.object({ message: z.string().min(1) }), ...WITH_COMMANDS }),
+  /** A closed question (ADR-084 §2), drawn as a picker. Its answer is the person's next message. */
+  z.object({ ask: AssistantAsk, ...WITH_COMMANDS }),
+  /** Cards for places or published days, filled by the server from this turn's tool results. */
+  z.object({ options: AssistantOptions, ...WITH_COMMANDS }),
+  /** The one decline: a sentence and a button to where the task is done. */
+  z.object({ handOff: AssistantHandOff, ...WITH_COMMANDS }),
   /**
    * Silence, or only somewhere to go (ADR-072). Strict at runtime for the
    * reason above: it still parses `{}` and still rejects `{ anything: 1 }`.

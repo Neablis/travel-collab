@@ -92,6 +92,9 @@ function storable(turn: AssistantTurn): AssistantTurn {
   // Its note says where the board was when the turn ended. The suggestions
   // themselves are on the board, and a reload shows them there, decided or not.
   delete rest.suggested;
+  // A question or a card is a live offer, as a proposal is (ADR-084): the
+  // answer a later turn sent is kept on that turn, and the words above stay.
+  delete rest.widget;
   return rest as unknown as AssistantTurn;
 }
 

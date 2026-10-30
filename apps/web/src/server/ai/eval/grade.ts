@@ -12,7 +12,7 @@
 // model's prose is not reproducible; asserting it would make the eval fail on
 // a rephrase and teach everyone to ignore it.
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
-import { ASK_RETRACT_CHUNK, AskRetractData, type AskStreamMetadata } from "@tc/contracts";
+import { ASK_RETRACT_CHUNK, AskRetractData, AskStreamMetadata, type HandOffTo } from "@tc/contracts";
 
 /** One turn, as the runner observed it. */
 export interface EvalTurn {
@@ -39,6 +39,23 @@ export interface EvalTurn {
    * fails a `navigatesTo` expectation rather than passing it.
    */
   navigations?: readonly string[];
+  /** The widget the turn ended in (ADR-084), or null for none (`endedIn`). Absent fails a widget expectation. */
+  widget?: EvalWidget | null;
+}
+
+/** Which widget a turn ended in, and where a hand-off sent the person. */
+export type EvalWidget = { kind: "ask" } | { kind: "options" } | { kind: "handOff"; to: HandOffTo };
+
+/** The widget a turn's final chunk carried (ADR-084 §2), or null when it ended in none. */
+export function endedIn(chunks: readonly Record<string, unknown>[]): EvalWidget | null {
+  for (const chunk of chunks) {
+    const parsed = AskStreamMetadata.safeParse(chunk.messageMetadata);
+    if (!parsed.success) continue;
+    if ("ask" in parsed.data) return { kind: "ask" };
+    if ("options" in parsed.data) return { kind: "options" };
+    if ("handOff" in parsed.data) return { kind: "handOff", to: parsed.data.handOff.to };
+  }
+  return null;
 }
 
 /**
@@ -189,6 +206,10 @@ export interface EvalExpectation {
   namesOneOf?: readonly string[];
   /** The turn takes the person to this palette command and nowhere else (`go:trip:<id>:view:Map`). Computed from the seeded trips. */
   navigatesTo?: string;
+  /** The turn ended in a question, cards or a hand-off (`true`), or in none (`false`) — ADR-084. */
+  endsInWidget?: boolean;
+  /** The turn declined by handing off, to this target. */
+  handsOffTo?: HandOffTo;
 }
 
 export interface EvalCheck {
@@ -356,6 +377,22 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
       name: `navigates to ${expect.navigatesTo}`,
       pass: went.length === 1 && went[0] === expect.navigatesTo,
       detail: went.join(", ") || "nowhere",
+    });
+  }
+  if (expect.endsInWidget !== undefined) {
+    const widget = turn.widget;
+    checks.push({
+      name: expect.endsInWidget ? "ends in a widget" : "ends in no widget",
+      pass: widget !== undefined && (widget !== null) === expect.endsInWidget,
+      detail: widget === undefined ? "not read" : (widget?.kind ?? "none"),
+    });
+  }
+  if (expect.handsOffTo !== undefined) {
+    const widget = turn.widget;
+    checks.push({
+      name: `hands off to ${expect.handsOffTo}`,
+      pass: widget?.kind === "handOff" && widget.to === expect.handsOffTo,
+      detail: widget === undefined ? "not read" : widget === null ? "none" : widget.kind === "handOff" ? `handOff to ${widget.to}` : widget.kind,
     });
   }
   if (expect.namesOneOfAmounts !== undefined) {

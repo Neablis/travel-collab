@@ -160,6 +160,11 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
         mustCallOneOf: [["find_places_near_now", "search_places"]],
         mustNotCall: ["AddActivity", "RemoveActivity"],
       };
+    // ADR-084's third boundary: nobody in the app can book, so the turn says
+    // so with a hand-off to nowhere and drafts nothing, rather than ending in
+    // prose alone.
+    case "u-book-flight":
+      return { ...QUESTION, handsOffTo: "nowhere" };
     default:
       return undefined;
   }
@@ -303,6 +308,13 @@ export function accountExpectationFor(
         ...(kyoto === undefined ? {} : { navigatesTo: `go:trip:${kyoto.tripId}:view:Map` }),
       };
     }
+    // ADR-084's boundaries from Home, which changes nothing: the M56 prompt
+    // Home used to refuse goes to New trip, and a change to a trip they have
+    // goes to that trip's plan. Neither may end in prose alone.
+    case "u-plan-new-trip":
+      return { ...ACCOUNT_QUESTION, endsInWidget: true, handsOffTo: "new_trip" };
+    case "u-change-from-home":
+      return { ...ACCOUNT_QUESTION, endsInWidget: true, handsOffTo: "plan_page" };
     default:
       return undefined;
   }

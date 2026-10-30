@@ -608,6 +608,68 @@ describe("Transcript — changes stored as suggestions", () => {
   });
 });
 
+// ADR-084 §2: a turn that cannot do a task ends in a sentence and a button,
+// and a closed question is a picker whose answer goes back as data.
+describe("a turn that ends in a widget", () => {
+  const ASKED: AssistantTurn = {
+    id: "a2",
+    role: "assistant",
+    text: "",
+    tools: [],
+    pending: false,
+    widget: {
+      kind: "ask",
+      ask: {
+        id: "call-1",
+        question: "What should the day be about?",
+        options: [
+          { id: "food", label: "Food" },
+          { id: "sights", label: "Sights" },
+        ],
+        multi: false,
+        allowNone: false,
+      },
+    },
+  };
+
+  it("hands off with a button that runs New trip's own command", async () => {
+    const startNewTrip = vi.fn();
+    onTestFinished(registerPaletteCommands("test", [{ id: "new-trip", action: "Add", type: "Trip", nearness: "global", run: startNewTrip }]));
+    render(
+      <Transcript
+        turns={[
+          { id: "u1", role: "user", text: "help me plan a foodie trip somewhere new" },
+          { id: "a2", role: "assistant", text: "", tools: [], pending: false, widget: { kind: "handOff", handOff: { task: "plan a trip", to: "new_trip" } } },
+        ]}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Start a new trip" }));
+    expect(startNewTrip).toHaveBeenCalledOnce();
+  });
+
+  it("says a task nobody can do is not done here, with nothing to press", () => {
+    render(
+      <Transcript
+        turns={[{ id: "a2", role: "assistant", text: "", tools: [], pending: false, widget: { kind: "handOff", handOff: { task: "book a flight", to: "nowhere" } } }]}
+      />,
+    );
+    const handOff = screen.getByRole("group", { name: "Where this is done" });
+    expect(handOff.textContent).toContain("isn't something this app can do");
+    expect(within(handOff).queryByRole("button")).toBeNull();
+  });
+
+  it("sends the picked option as data, and shows the question answered once it is", async () => {
+    const onAnswer = vi.fn();
+    const { rerender } = render(<Transcript turns={[ASKED]} onAnswer={onAnswer} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Sights" }));
+    await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+    expect(onAnswer).toHaveBeenCalledWith("Sights", { answeredAsk: "call-1", optionIds: ["sights"], other: null });
+
+    rerender(<Transcript turns={[ASKED, { id: "u3", role: "user", text: "Sights", answer: { answeredAsk: "call-1", optionIds: ["sights"], other: null } }]} onAnswer={onAnswer} />);
+    expect(screen.queryByRole("button", { name: "Answer" })).toBeNull();
+  });
+});
+
 // ADR-072 §4: the commands a reply named that wait for Approve are drawn under
 // the answer, each on its own card, with nothing for the surface to wire.
 describe("a reply's command that waits for Approve", () => {

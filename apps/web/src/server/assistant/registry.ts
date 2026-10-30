@@ -51,6 +51,7 @@ import { ACROSS_TRIP_TOOLS } from "./tools/acrossTrips";
 import { NAVIGATION_TOOLS } from "./tools/navigate";
 import { PLAYBOOK_TOOLS } from "./tools/playbook";
 import { CHAT_TOOLS } from "./tools/chat";
+import { UI_TOOLS } from "./tools/ui";
 
 /**
  * Every definition this build has. Derived families are spread, so a
@@ -83,6 +84,10 @@ export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   // Where to take the person (ADR-072): after everything that answers or
   // changes the trip, because going somewhere is what a turn does last.
   ...NAVIGATION_TOOLS,
+  // How a turn ends when prose would strand the person (ADR-084): after
+  // everything that answers, changes or moves, since a question, cards or a
+  // hand-off is the last thing a turn does.
+  ...UI_TOOLS,
   // Last, and it is the one position in this array that is a decision rather
   // than a grouping: `request_change_tools` is the tool a turn reaches for when
   // the others were not enough, and a model reads the list in order. It is also
