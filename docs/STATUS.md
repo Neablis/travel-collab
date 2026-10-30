@@ -21,12 +21,14 @@ general setup.
 
 ## Where the work is right now
 
-**M56 is current, scoped 2026-10-30** (*New trip is a picker, and the assistant never strands
-you*), minted and placed ahead of M43 by Mitchell the same day. Decisions D1–D9 are answered
-(`docs/milestones/M56-new-trip-is-a-picker.md`), ADR-084 is written, and the plan is
-`docs/plans/2026-10-30-M56-new-trip-picker.md`: six parts, each its own PR on `main`, part 1 (the
-picker widget and tag icons) first. Part 0 is this branch, `claude/elegant-maxwell-h4ldi1`, a
-draft that merges last.
+**M56 closed 2026-10-30, gate 17 of 17**, by `pnpm milestone close M56 --confirm` on part 0
+(PR 637, `claude/elegant-maxwell-h4ldi1`, prose only), which **waits on Mitchell's merge**. All
+sixteen code parts are on `main` in `3ac8c02`, none with a migration: parts 1 to 6 (PRs 638 to
+643), parts 7 to 11 from the first preview walk (PRs 648 to 653), and parts 12 to 16 from the
+second (PRs 654 to 658), each with `ci-ok` green on its final head. Mitchell walked round 2 on
+production and reported nothing to change (2026-10-30). Evidence, retro and spend (three of
+four sessions measured; the original build session's transcript is gone) are in
+`docs/milestones/M56-new-trip-is-a-picker.md`; the plan is deleted.
 
 **M55 closed 2026-10-28, gate 17 of 17**, by `pnpm milestone close M55 --confirm` on part 0
 (PR 613, `ccr-a54f396f-65ja2i`, prose only), merged to `main` as `d97e71d`. All eleven
@@ -64,18 +66,17 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** build M56's parts in the plan's order (part 1 first), then close its gate on
-part 0. M43 follows (`docs/milestones/M43-notebooks-keep-up.md`, not scoped). Open follow-ups from M55:
-KI-2026-10-27-e to -i (KI-2026-10-28-b and -c are resolved by PR 632), and the candidate *Claude
-can search for a cover photo* in `docs/candidates.md`. KI-2026-10-25-w's fix is PR 627, outside
-M55.
-Open follow-ups from M54: KI-20261027-a to -c, KI-20261026-x
-and -y, and KI-20261013-a's first-load gap. Open follow-ups from M49: KI-20261025-w, and the candidate
-**Next action:** Mitchell merges M54's part 0 (PR 593). Then scope M43 with him
-(`plan-a-milestone`): the Overview's identity in the database, its derived title, and the `open`
-widget's design and filters. Open follow-ups from M54: KI-20261027-a to -c, KI-20261026-x
-and -y, and KI-20261013-a's first-load gap. Open follow-up from M49: the candidate
-*Reposition a playbook day's cover*.
+**Next action:** Mitchell merges M56's part 0 (PR 637). Then scope M43 with him
+(`plan-a-milestone`; `docs/milestones/M43-notebooks-keep-up.md`, not scoped): the Overview's
+identity in the database, its derived title, and the `open` widget's design and filters. Hand
+tasks for Mitchell from M56: delete the stray remote branch `claude/m56-part5-ask-show-hand-off`
+(`1449913`), and, in the old container only, the empty `/tc-orchestrator` at the filesystem root.
+Open follow-ups from M56: KI-2026-10-30-a, -b, -c, -m and -p, KI-2026-10-28-e, whether
+LocationIQ's `/v1/search` returns `name`, PR 655's unresolved CodeQL thread, and the live eval
+(his call). Open follow-ups from M55: KI-2026-10-27-e to -i, and the candidate *Claude can search
+for a cover photo* in `docs/candidates.md`. Open follow-ups from M54: KI-20261027-a to -c,
+KI-20261026-x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M49:
+KI-20261025-w, and the candidate *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
 3 moderate). The order is M43 (current) → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped),
@@ -129,7 +130,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M48 (parked) → M49 → M43 → M44 → M53`; the M51 reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 → M44 → M53`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
