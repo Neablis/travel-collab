@@ -75,7 +75,7 @@ not chat widgets; there is no chat-widget catalogue yet.
 
 ### Settled in the plan (not Mitchell's to answer; say so if wrong)
 
-- **Pace and tags are set by the picker and by the trip's settings, not by a new assistant
+- **Pace and tags are set by the picker, not by a new assistant
   tool.** Adding the command to `BatchableCommand` (`packages/contracts/src/trip.ts:320`)
   generates a planning tool automatically (`server/assistant/tools/planning.ts:4-15`), which costs
   context on every planning step. Part 4 keeps it out; the assistant reads them.

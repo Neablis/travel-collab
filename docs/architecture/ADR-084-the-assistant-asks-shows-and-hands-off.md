@@ -66,7 +66,7 @@ New trip, meanwhile, is a fixed script dressed as a chat, whose typed answers ar
    appear in the new trip's assistant as **chips the person presses** (D5); each runs as an
    ordinary plan-page turn.
 
-6. **Pace and tags live on the trip** (D4), set by the picker and the trip's settings, read by the
+6. **Pace and tags live on the trip** (D4), set by the picker, read by the
    assistant. They are **not** a `BatchableCommand`, which would generate a planning tool on
    every planning step (`server/assistant/tools/planning.ts`).
 
