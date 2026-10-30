@@ -14,6 +14,11 @@
   name is typed, for example when a place lookup for the typed name answers, so the node Playwright
   resolved is replaced and the replacement is hidden or renamed. A row that never comes back
   suggests the sheet moved to another turn, not a plain re-render.
+- **Hypothesis now unlikely (review of PR 642, 2026-10-30):** M56 part 2 replaced the typed
+  name with a picked place. The e2e helper's fake place has `hasPlaybooks: false`, so no
+  `searchPlaybooks` read answers after the pick, and the helper waits for the pick to settle
+  (`new-trip-decided`) before clicking. The click is still there, so this stays open on its
+  tripwire.
 - **Why not fixed here:** found while fixing KI-2026-10-26-x (2026-10-28 KI sweep, e2e group). It
   did not recur in the runs after, so there was nothing to measure a fix against.
 - **Fix path / Tripwire:** on the next occurrence, capture the trace and check what the sheet
