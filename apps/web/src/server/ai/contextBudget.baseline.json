@@ -4,12 +4,14 @@
     "trip · viewer": {
       "tools": [
         "read_trip",
-        "read_day"
+        "read_day",
+        "ask_user",
+        "hand_off"
       ],
-      "toolChars": 2106,
-      "instructionChars": 2094,
-      "totalChars": 4200,
-      "approxTokens": 1269
+      "toolChars": 4927,
+      "instructionChars": 2637,
+      "totalChars": 7564,
+      "approxTokens": 2285
     },
     "trip · question": {
       "tools": [
@@ -20,12 +22,15 @@
         "search_playbooks",
         "search_places",
         "go_to",
+        "ask_user",
+        "show_options",
+        "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 7457,
-      "instructionChars": 2691,
-      "totalChars": 10148,
-      "approxTokens": 3066
+      "toolChars": 10929,
+      "instructionChars": 3369,
+      "totalChars": 14298,
+      "approxTokens": 4320
     },
     "trip · question · under way": {
       "tools": [
@@ -37,12 +42,15 @@
         "search_places",
         "find_places_near_now",
         "go_to",
+        "ask_user",
+        "show_options",
+        "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 8440,
-      "instructionChars": 3106,
-      "totalChars": 11546,
-      "approxTokens": 3488
+      "toolChars": 11912,
+      "instructionChars": 3784,
+      "totalChars": 15696,
+      "approxTokens": 4742
     },
     "trip · edit": {
       "tools": [
@@ -65,12 +73,15 @@
         "SetTripCurrency",
         "SetTripBudget",
         "insert_playbook_day",
-        "go_to"
+        "go_to",
+        "ask_user",
+        "show_options",
+        "hand_off"
       ],
-      "toolChars": 23122,
-      "instructionChars": 4205,
-      "totalChars": 27327,
-      "approxTokens": 8256
+      "toolChars": 26594,
+      "instructionChars": 4883,
+      "totalChars": 31477,
+      "approxTokens": 9510
     },
     "trip · plan": {
       "tools": [
@@ -90,12 +101,15 @@
         "MoveActivity",
         "RemoveActivity",
         "insert_playbook_day",
-        "go_to"
+        "go_to",
+        "ask_user",
+        "show_options",
+        "hand_off"
       ],
-      "toolChars": 22063,
-      "instructionChars": 4512,
-      "totalChars": 26575,
-      "approxTokens": 8029
+      "toolChars": 25535,
+      "instructionChars": 5190,
+      "totalChars": 30725,
+      "approxTokens": 9282
     },
     "trip · unsure": {
       "tools": [
@@ -118,12 +132,15 @@
         "SetTripCurrency",
         "SetTripBudget",
         "insert_playbook_day",
-        "go_to"
+        "go_to",
+        "ask_user",
+        "show_options",
+        "hand_off"
       ],
-      "toolChars": 23122,
-      "instructionChars": 4205,
-      "totalChars": 27327,
-      "approxTokens": 8256
+      "toolChars": 26594,
+      "instructionChars": 4883,
+      "totalChars": 31477,
+      "approxTokens": 9510
     },
     "page · compose": {
       "tools": [
@@ -134,12 +151,14 @@
         "insert_widget",
         "switch_intent",
         "go_to",
-        "propose_notebook_editing"
+        "propose_notebook_editing",
+        "ask_user",
+        "hand_off"
       ],
-      "toolChars": 5881,
-      "instructionChars": 3564,
-      "totalChars": 9445,
-      "approxTokens": 2853
+      "toolChars": 8702,
+      "instructionChars": 4244,
+      "totalChars": 12946,
+      "approxTokens": 3911
     },
     "page · question": {
       "tools": [
@@ -150,12 +169,15 @@
         "search_playbooks",
         "switch_intent",
         "go_to",
-        "propose_notebook_editing"
+        "propose_notebook_editing",
+        "ask_user",
+        "show_options",
+        "hand_off"
       ],
-      "toolChars": 6815,
-      "instructionChars": 1712,
-      "totalChars": 8527,
-      "approxTokens": 2576
+      "toolChars": 10287,
+      "instructionChars": 2500,
+      "totalChars": 12787,
+      "approxTokens": 3863
     },
     "account · question": {
       "tools": [
@@ -163,32 +185,38 @@
         "places_visited",
         "visit_counts",
         "suggest_next_country",
-        "open_trip"
+        "open_trip",
+        "ask_user",
+        "hand_off"
       ],
-      "toolChars": 2857,
-      "instructionChars": 2325,
-      "totalChars": 5182,
-      "approxTokens": 1566
+      "toolChars": 5678,
+      "instructionChars": 3486,
+      "totalChars": 9164,
+      "approxTokens": 2769
     },
     "playbook day · question": {
       "tools": [
         "read_playbook",
         "add_playbook_to_trip",
-        "start_trip_with_playbook"
+        "start_trip_with_playbook",
+        "ask_user",
+        "hand_off"
       ],
-      "toolChars": 1577,
-      "instructionChars": 2129,
-      "totalChars": 3706,
-      "approxTokens": 1120
+      "toolChars": 4398,
+      "instructionChars": 3223,
+      "totalChars": 7621,
+      "approxTokens": 2302
     },
     "playbook list · question": {
       "tools": [
-        "search_this_page"
+        "search_this_page",
+        "ask_user",
+        "hand_off"
       ],
-      "toolChars": 418,
-      "instructionChars": 1610,
-      "totalChars": 2028,
-      "approxTokens": 613
+      "toolChars": 3239,
+      "instructionChars": 2798,
+      "totalChars": 6037,
+      "approxTokens": 1824
     }
   },
   "tools": {
@@ -200,9 +228,17 @@
       "chars": 5796,
       "approxTokens": 1751
     },
+    "ask_user": {
+      "chars": 1573,
+      "approxTokens": 475
+    },
     "search_widgets": {
       "chars": 1288,
       "approxTokens": 389
+    },
+    "hand_off": {
+      "chars": 1248,
+      "approxTokens": 377
     },
     "read_day": {
       "chars": 1245,
@@ -255,6 +291,10 @@
     "suggest_next_country": {
       "chars": 661,
       "approxTokens": 200
+    },
+    "show_options": {
+      "chars": 651,
+      "approxTokens": 197
     },
     "MoveActivity": {
       "chars": 605,

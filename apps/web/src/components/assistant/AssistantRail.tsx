@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { UnderlineTabs, tabId, tabPanelId } from "@/components/ui/underline-tabs";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
+import type { AskAnswer, CarriedAsk } from "@tc/contracts";
 import { clearAskDraft, loadAskDraft, saveAskDraft } from "./askThreadStore";
 import { useOwnedAskName } from "./useAskThread";
 import { cn } from "@/lib/cn";
@@ -199,6 +200,8 @@ function railTabOptions(unread: number) {
  * @param scope - Scope used to tailor the composer placeholder.
  * @param turns - Conversation turns, ordered from oldest to newest.
  * @param suggestions - Questions offered when the conversation is empty.
+ * @param carriedAsks - Asks made before this trip existed, offered as chips until each is pressed.
+ * @param onCarriedAskTaken - Called once a carried ask has been asked, so the caller can drop its chip.
  * @param emptyHint - Text displayed above the suggested questions.
  * @param asksRemaining - Number of questions remaining in the conversation.
  * @param restoreDraft - Question text to restore in the composer.
@@ -225,6 +228,8 @@ export function AssistantRail({
   scope,
   turns,
   suggestions,
+  carriedAsks = [],
+  onCarriedAskTaken,
   emptyHint = EMPTY_HINT[scope.kind],
   asksRemaining,
   restoreDraft = null,
@@ -273,6 +278,14 @@ export function AssistantRail({
    */
   suggestions: string[];
   /**
+   * **Asks carried into a new trip** (ADR-084 §5, M56 D5), from a surface that
+   * could not do them before the trip existed. Unlike `suggestions` they stay
+   * once the thread runs — *Plan with AI*'s kickoff is usually its first turn —
+   * and each runs only when pressed, as an ordinary turn here.
+   */
+  carriedAsks?: readonly CarriedAsk[];
+  onCarriedAskTaken?: (ask: CarriedAsk) => void;
+  /**
    * The sentence shown above the suggestions while the thread is empty.
    *
    * Optional, defaulting to the design's trip-wide copy, because that sentence
@@ -310,7 +323,7 @@ export function AssistantRail({
   // (unsent edits still queued, or view-only access). The rail keeps the typed
   // prompt in that case — a refusal the user has to retype is a refusal that
   // reads as the box being broken.
-  onAsk: (text: string) => void | Promise<boolean | void>;
+  onAsk: (text: string, answer?: AskAnswer) => void | Promise<boolean | void>;
   /**
    * Commits an answer's proposal as ONE atomic batch (M9). Keyed by the turn
    * that carries it — the rail holds no proposal state of its own for the same
@@ -819,6 +832,15 @@ export function AssistantRail({
     }
   };
 
+  // A question's or a card's answer, through the composer's gates as well, and
+  // focus to the composer: the button pressed is gone once the answer is in.
+  const answerShut = asking || threadFull || upgradeGated;
+  const sendAnswer = (text: string, answer: AskAnswer) => {
+    if (answerShut) return;
+    void onAsk(text, answer);
+    composerRef.current?.focus();
+  };
+
   // ⌘K's hand-off, through the same gate as the Ask button. Unlike a typed
   // question it never clears the box, which may hold a draft of its own: one
   // that has to wait, or is refused, goes in after that draft, not over it.
@@ -1119,11 +1141,43 @@ export function AssistantRail({
               turns={turns}
               onApproveProposal={onApproveProposal}
               onRejectProposal={onRejectProposal}
+              onAnswer={sendAnswer}
+              answering={answerShut}
               approvalBlockedReason={approvalBlockedReason}
               touch={isSheet}
               {...(onUndoProposal === undefined ? {} : { onUndoProposal })}
               {...(undoFor === undefined ? {} : { undoFor })}
             />
+          )}
+          {carriedAsks.length > 0 && (
+            <div className="flex flex-col items-start gap-1.5">
+              <p className="text-sm text-slate">You also asked:</p>
+              <ul aria-label="You also asked" className="flex flex-col items-start gap-1.5">
+                {carriedAsks.map((carried) => (
+                  <li key={carried.said}>
+                    <Button
+                      variant="secondary"
+                      size={isSheet ? "touch" : "sm"}
+                      // Gated as a suggestion is, and for its reason.
+                      disabled={asking || upgradeGated || threadFull}
+                      className={cn("whitespace-normal text-left", !isSheet && "h-auto")}
+                      // The chip pressed goes once it is asked, and the rest are
+                      // disabled while the turn runs: focus goes to the
+                      // composer, as an answer's does, not to the page's top.
+                      onClick={() =>
+                        void Promise.resolve(onAsk(carried.said)).then((accepted) => {
+                          if (accepted === false) return;
+                          onCarriedAskTaken?.(carried);
+                          composerRef.current?.focus();
+                        })
+                      }
+                    >
+                      {carried.said}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 

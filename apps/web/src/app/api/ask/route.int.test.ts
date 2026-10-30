@@ -97,7 +97,7 @@ function paletteCommandsIn(body: string): unknown[] {
  * in order, each the parts one step emits: a string is text, anything else a
  * provider part as given (a tool call, or reasoning).
  */
-function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
+function scriptedStepsModel(steps: (string | Record<string, unknown>)[][], prompts: unknown[] = []) {
   let next = 0;
   const usage = {
     inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
@@ -117,6 +117,7 @@ function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
       warnings: [],
     }),
     doStream: async (options: { prompt?: { role?: string; content?: unknown }[] }) => {
+      if (!isClassifier(options)) prompts.push(options.prompt);
       const parts = isClassifier(options) ? [askIntentVerdictText("question", "sure")] : (steps[next++] ?? []);
       const unified = parts.some((part) => typeof part !== "string" && part.type === "tool-call") ? "tool-calls" : "stop";
       return {
@@ -229,6 +230,70 @@ describe("POST /api/ask", () => {
     const chunks = chunksIn(await res.text());
     expect(chunks.filter((c) => c.type === ASK_RETRACT_CHUNK)).toEqual([{ type: ASK_RETRACT_CHUNK, data: { ids: ["t0"] }, transient: true }]);
     expect(visibleText(chunks)).toBe("Kyoto, on two days.");
+  });
+
+  // ADR-084 §2: Home cannot plan a trip, so it hands the task to where it is
+  // done, with a button, and the gap is logged as the backlog it is.
+  it("hands a new trip off to New trip and a change to a trip off to that trip's plan, and logs each gap", async () => {
+    const logged = vi.spyOn(console, "info");
+    const handOffIn = (body: string) =>
+      chunksIn(body)
+        .map((chunk) => (chunk.messageMetadata as { handOff?: unknown } | undefined)?.handOff)
+        .find((handOff) => handOff !== undefined);
+    const handingOff = (input: Record<string, unknown>) =>
+      scriptedStepsModel([
+        [{ type: "tool-call", toolCallId: "off", toolName: "hand_off", input: JSON.stringify(input) }],
+        ["That is done from there."],
+      ]);
+
+    const fresh = await handleBeyondTripAskRequest(ask("help me plan a foodie trip somewhere new"), handingOff({ task: "plan a foodie trip", to: "new_trip" }), () => {});
+    expect(handOffIn(await fresh.text())).toEqual({ task: "plan a foodie trip", to: "new_trip" });
+    const gaps = logged.mock.calls.filter(([line]) => line === "ai.capability_gap").map(([, json]) => JSON.parse(json as string));
+    expect(gaps).toEqual([expect.objectContaining({ surface: "account", task: "plan a foodie trip", to: "new_trip" })]);
+
+    const existing = await handleBeyondTripAskRequest(ask("add a ramen dinner to my Kyoto trip"), handingOff({ task: "add a dinner", to: "plan_page", trip: "Kyoto" }), () => {});
+    expect(handOffIn(await existing.text())).toEqual({ task: "add a dinner", to: "plan_page", command: `go:trip:${kyoto}:view:Plan` });
+    logged.mockRestore();
+  });
+
+  // ADR-084 §2: what the person picked arrives as data on their message, and
+  // the server, not the model, says what it was.
+  it("reads an answer to its question as data, and refuses one that is not an answer", async () => {
+    const answered = (answer: unknown) =>
+      new Request("http://test/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope: { kind: "account" },
+          messages: [
+            { id: "u1", role: "user", parts: [{ type: "text", text: "help me plan a trip" }] },
+            { id: "a1", role: "assistant", parts: [{ type: "text", text: "What should it be about?" }] },
+            { id: "u2", role: "user", parts: [{ type: "text", text: "Food" }, { type: "data-ask-answer", data: answer }] },
+          ],
+        }),
+      });
+    const prompts: unknown[] = [];
+    // The question rides with the answer: the turn that asked it often sent
+    // no text, so without it the next turn reads slugs and nothing they answer.
+    const res = await handleBeyondTripAskRequest(
+      answered({ answeredAsk: "ask-1", question: "What should it be about?", optionIds: ["food"], other: { kind: "number", value: 14 } }),
+      scriptedStepsModel([["Food it is."]], prompts),
+      () => {},
+    );
+    expect(res.status).toBe(200);
+    await res.text();
+    expect(JSON.stringify(prompts[0])).toContain(
+      JSON.stringify(
+        '(They answered your question "What should it be about?" by picking the options ["food"], and as the other answer {"kind":"number","value":14}.)',
+      ).slice(1, -1),
+    );
+
+    const typed = await handleBeyondTripAskRequest(
+      answered({ answeredAsk: "ask-1", optionIds: ["Somewhere I have not been"], other: null }),
+      scriptedStepsModel([["Never reached."]]),
+      () => {},
+    );
+    expect(typed.status).toBe(400);
   });
 
   it("is the account handler behind the route, and refuses a signed-out caller", async () => {
@@ -345,6 +410,23 @@ describe("POST /api/ask on a playbook page", () => {
     const body = await res.text();
     expect(proposalIn(body)).toBeNull();
     expect(spokenIn(body)).toContain("not edit it");
+  });
+
+  // M56 part 5 review: from Home, a viewer's change was handed to a plan page
+  // whose assistant then refused it a second time. No button; the model is told why.
+  it("does not hand a change off to the plan of a trip the asker cannot edit", async () => {
+    const prompts: unknown[] = [];
+    const res = await handleBeyondTripAskRequest(
+      ask("add a dinner to my Rome trip"),
+      scriptedStepsModel(
+        [[{ type: "tool-call", toolCallId: "off", toolName: "hand_off", input: JSON.stringify({ task: "add a dinner", to: "plan_page", trip: "Rome" }) }], ["You can only read Rome."]],
+        prompts,
+      ),
+      () => {},
+    );
+    const handOff = chunksIn(await res.text()).find((chunk) => (chunk.messageMetadata as { handOff?: unknown } | undefined)?.handOff !== undefined);
+    expect(handOff).toBeUndefined();
+    expect(JSON.stringify(prompts[1])).toContain("lets them read it, not change it");
   });
 
   // D9: "The person names the trip and day." A call naming none is answered

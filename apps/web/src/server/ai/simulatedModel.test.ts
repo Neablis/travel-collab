@@ -67,6 +67,8 @@ const TRIP_READOUT = {
   name: "Japan",
   currency: "USD",
   startDate: "2026-09-08",
+  pace: null,
+  tags: [],
   dayCount: 3,
   members: 2,
   travellers: 2,

@@ -363,7 +363,7 @@ describe("the ai.grant record", () => {
     // tool, which `defineTool`'s `postures` narrows further to the `withheld`
     // turn. A granted DOMAIN and an offered TOOL are different facts, and this
     // is the record of the first: `record.tools` below is the second.
-    expect(record.grants).toEqual({ itinerary: "propose", library: "propose", places: "read", system: "read" });
+    expect(record.grants).toEqual({ itinerary: "propose", library: "propose", places: "read", system: "read", ui: "read" });
     expect(record.tools).not.toContain("request_change_tools");
     expect(record.tools).toContain("read_trip");
     expect(record.tools).toContain("AddActivity");
@@ -427,7 +427,7 @@ describe("the ai.grant record", () => {
     });
     const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
 
-    expect(records[0]!.grants).toEqual({ itinerary: "read", library: "read", places: "read", system: "read" });
+    expect(records[0]!.grants).toEqual({ itinerary: "read", library: "read", places: "read", system: "read", ui: "read" });
     // Escalation is impossible, not merely unoffered: nothing to escalate TO.
     if (!admission.ok) throw new Error("refused");
     expect(admission.grant.escalation).toBeNull();
@@ -438,7 +438,8 @@ describe("the ai.grant record", () => {
     expect(records[0]!.tools).not.toContain("request_change_tools");
     expect(records[0]!.tools).not.toContain("AddActivity");
     // ADR-058 decision 9: the minimal read set, and no way to widen it.
-    expect(records[0]!.tools).toEqual(["read_trip", "read_day"]);
+    // The two widgets that need no search to feed them (ADR-084 §3).
+    expect(records[0]!.tools).toEqual(["read_trip", "read_day", "ask_user", "hand_off"]);
     // **A viewer's unclassified turn is a `question`, not an absence.** No model
     // was asked — there was no write half to withhold — and a turn holding only
     // read tools is a question whatever it sounds like, so it routes to the
@@ -827,7 +828,7 @@ describe("an account turn", () => {
     return { ...spied, classifiedOn };
   }
 
-  it("is granted the four aggregate tools and open_trip, and nothing else, on the session alone", async () => {
+  it("is granted the four aggregate tools, open_trip and the two widgets, and nothing else, on the session alone", async () => {
     const { ports, calls, records, classifiedOn } = accountPorts();
     const admission = await evaluateAiGrant({ request: askFor(ACCOUNT_TURN), tripId: null, ports });
 
@@ -839,6 +840,8 @@ describe("an account turn", () => {
       "visit_counts",
       "suggest_next_country",
       "open_trip",
+      "ask_user",
+      "hand_off",
     ]);
     expect(admission.grant).toMatchObject({ surface: "account", posture: "read-only", taskClass: "question", tripId: null });
     // No page to load; the classifier still runs, as the off-topic gate.

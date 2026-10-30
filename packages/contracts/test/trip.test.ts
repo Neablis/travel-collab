@@ -290,6 +290,22 @@ describe("lifecycle commands", () => {
     const events = TripEvent.options.map((o) => o.shape.type.value);
     expect(events).toEqual(expect.arrayContaining(["TripNameSet", "TripDeleted", "TripRestored"]));
   });
+
+  // M56 D4, ADR-084 §6: a BatchableCommand becomes an assistant planning tool,
+  // and the assistant reads a trip's style rather than writing it.
+  it("puts SetTripStyle in TripCommand and never in BatchableCommand", () => {
+    expect(TripCommand.options.map((o) => o.shape.type.value)).toContain("SetTripStyle");
+    expect(TripEvent.options.map((o) => o.shape.type.value)).toContain("TripStyleSet");
+    expect(BatchableCommand.options.map((o) => o.shape.type.value)).not.toContain("SetTripStyle");
+  });
+
+  it("takes a style's tags from the described categories, each once", () => {
+    const style = (tags: string[]) => TripCommand.safeParse({ type: "SetTripStyle", tripId, pace: "slow", tags }).success;
+    expect(style(["beach", "museum"])).toBe(true);
+    expect(style(["beach", "beach"])).toBe(false);
+    expect(style(["lodging"])).toBe(false);
+    expect(TripCommand.safeParse({ type: "SetTripStyle", tripId, pace: "lazy", tags: [] }).success).toBe(false);
+  });
 });
 
 // M11 link 5 — the lineage pointer the foundation design has always listed as

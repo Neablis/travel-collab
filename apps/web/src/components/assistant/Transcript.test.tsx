@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { notebookEditingCommand } from "@/components/palette/commands";
 import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
+import { NEW_TRIP_PATH } from "@/lib/homePath";
+import { takeNewTripHandOff } from "@/lib/pendingCarriedAsks";
 import { offerPaletteCommand } from "./runPaletteCommands";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "./Transcript";
 
@@ -605,6 +607,134 @@ describe("Transcript — changes stored as suggestions", () => {
     expect(note.textContent).toContain("I put 2 suggestions on the board.");
     expect(note.textContent).not.toContain("saved a snapshot");
     expect(note.textContent).toContain("No snapshot this time: A trip keeps at most 20 snapshots.");
+  });
+});
+
+// ADR-084 §2: a turn that cannot do a task ends in a sentence and a button,
+// and a closed question is a picker whose answer goes back as data.
+describe("a turn that ends in a widget", () => {
+  const ASKED: AssistantTurn = {
+    id: "a2",
+    role: "assistant",
+    text: "",
+    tools: [],
+    pending: false,
+    widget: {
+      kind: "ask",
+      ask: {
+        id: "call-1",
+        question: "What should the day be about?",
+        options: [
+          { id: "food", label: "Food" },
+          { id: "sights", label: "Sights" },
+        ],
+        multi: false,
+        allowNone: false,
+      },
+    },
+  };
+
+  const NEW_TRIP_TURNS: AssistantTurn[] = [
+    { id: "u1", role: "user", text: "help me plan a foodie trip somewhere new" },
+    { id: "a2", role: "assistant", text: "", tools: [], pending: false, widget: { kind: "handOff", handOff: { task: "plan a trip", to: "new_trip" } } },
+  ];
+
+  it("hands off with a button that runs New trip's own command", async () => {
+    const startNewTrip = vi.fn();
+    onTestFinished(registerPaletteCommands("test", [{ id: "new-trip", action: "Add", type: "Trip", nearness: "global", run: startNewTrip }]));
+    render(<Transcript turns={NEW_TRIP_TURNS} />);
+    await userEvent.click(screen.getByRole("link", { name: "Start a new trip" }));
+    expect(startNewTrip).toHaveBeenCalledOnce();
+  });
+
+  // M56 part 6: what the person said of the trip is banked before New trip
+  // opens, so the open that the press runs finds it.
+  it("banks the hand-off's prefill and asks before New trip opens", async () => {
+    const prefill = { days: 14, tags: ["meal" as const] };
+    const asks = [{ said: "add a mezcal tasting", kind: "itinerary" as const }];
+    let found: unknown = "not opened";
+    onTestFinished(registerPaletteCommands("test", [{ id: "new-trip", action: "Add", type: "Trip", nearness: "global", run: () => void (found = takeNewTripHandOff()) }]));
+    const handOff: AssistantTurn = { id: "a2", role: "assistant", text: "", tools: [], pending: false, widget: { kind: "handOff", handOff: { task: "plan a food trip", to: "new_trip", prefill, asks } } };
+    render(<Transcript turns={[NEW_TRIP_TURNS[0]!, handOff]} />);
+    await userEvent.click(screen.getByRole("link", { name: "Start a new trip" }));
+    expect(found).toEqual({ prefill, asks });
+  });
+
+  // M56 part 5 review: off Home there is no `new-trip` command, and the
+  // button reloaded `/`, the landing page, with New trip nowhere.
+  it("off Home, starts a new trip by opening New trip on Home", () => {
+    render(<Transcript turns={NEW_TRIP_TURNS} />);
+    expect(screen.getByRole("link", { name: "Start a new trip" }).getAttribute("href")).toBe(NEW_TRIP_PATH);
+  });
+
+  it("says so when the plan it hands off to cannot be opened from this page", async () => {
+    render(
+      <Transcript
+        turns={[
+          {
+            id: "a2",
+            role: "assistant",
+            text: "",
+            tools: [],
+            pending: false,
+            widget: { kind: "handOff", handOff: { task: "add a dinner", to: "plan_page", command: "go:trip:11111111-1111-4111-8111-111111111111:view:Plan" } },
+          },
+        ]}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Open the plan" }));
+    // A status region, so a screen reader whose focus stays on the button hears it.
+    expect(within(screen.getByRole("group", { name: "Where this is done" })).getByRole("status").textContent).toContain("couldn't open that trip");
+  });
+
+  it("says a task nobody can do is not done here, with nothing to press", () => {
+    render(
+      <Transcript
+        turns={[{ id: "a2", role: "assistant", text: "", tools: [], pending: false, widget: { kind: "handOff", handOff: { task: "book a flight", to: "nowhere" } } }]}
+      />,
+    );
+    const handOff = screen.getByRole("group", { name: "Where this is done" });
+    expect(handOff.textContent).toContain("isn't something this app can do");
+    expect(within(handOff).queryByRole("button")).toBeNull();
+  });
+
+  it("sends the picked option as data, and shows the question answered once it is", async () => {
+    const onAnswer = vi.fn();
+    const { rerender } = render(<Transcript turns={[ASKED]} onAnswer={onAnswer} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Sights" }));
+    await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+    expect(onAnswer).toHaveBeenCalledWith("Sights", {
+      answeredAsk: "call-1",
+      question: "What should the day be about?",
+      optionIds: ["sights"],
+      other: null,
+    });
+
+    rerender(<Transcript turns={[ASKED, { id: "u3", role: "user", text: "Sights", answer: { answeredAsk: "call-1", optionIds: ["sights"], other: null } }]} onAnswer={onAnswer} />);
+    expect(screen.queryByRole("button", { name: "Answer" })).toBeNull();
+    // Answered, the picker takes no more picks it could never send.
+    expect(screen.getByRole("radio", { name: "Food" }).matches(":disabled")).toBe(true);
+  });
+
+  // M56 part 5 review: pressed while a turn streams, Answer started a second
+  // turn that took over the first's abort and left its answer pending forever.
+  it("holds Answer and Choose while a turn is in flight", async () => {
+    const onAnswer = vi.fn();
+    const CARDS: AssistantTurn = {
+      id: "a3",
+      role: "assistant",
+      text: "",
+      tools: [],
+      pending: false,
+      widget: { kind: "options", options: { id: "call-2", prompt: "Two to try", cards: [{ kind: "place", id: "place-1", name: "Ichiran" }] } },
+    };
+    render(<Transcript turns={[ASKED, CARDS]} onAnswer={onAnswer} answering />);
+    await userEvent.click(screen.getByRole("radio", { name: "Sights" }));
+    const answer = screen.getByRole("button", { name: "Answer" }) as HTMLButtonElement;
+    const choose = screen.getByRole("button", { name: "Choose Ichiran" }) as HTMLButtonElement;
+    expect([answer.disabled, choose.disabled]).toEqual([true, true]);
+    await userEvent.click(choose);
+    expect(onAnswer).not.toHaveBeenCalled();
   });
 });
 

@@ -315,6 +315,31 @@ export function placeSearchTokenQuota(): QuotaPolicy[] {
 }
 
 /**
+ * World place search (M56 D3): LocationIQ autocomplete behind `/api/places`,
+ * per signed-in account, charged **only on a cache miss**, so a place someone
+ * already searched today costs nothing (`server/places.ts`).
+ *
+ * Its own policy rather than `geocodeQuota`, because a typeahead asks per
+ * pause in typing where the geocode proxy asks per button press: charging it
+ * there would let a few searches in New trip spend a person's stop lookups.
+ * The two globals are sized together against the one vendor allowance: this
+ * 1,000 and geocode's 4,000 are LocationIQ's free 5,000 a day.
+ *
+ * Keyed by account, so it holds one row per account, reused each window, and
+ * needs no sweep or sweep index (only the IP-keyed policies do, `schema.ts`).
+ */
+export function worldPlaceSearchQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "world-place-search-daily",
+      windowMs: DAY_MS,
+      perUser: envCeiling("WORLD_PLACE_SEARCH_RATE_LIMIT_PER_USER_DAILY", 150),
+      global: envCeiling("WORLD_PLACE_SEARCH_RATE_LIMIT_GLOBAL_DAILY", 1000),
+    },
+  ];
+}
+
+/**
  * Dynamic client registration, per client IP (ADR-083 §6, *Registration
  * abuse*). Registration is open to anyone, so this is the only bound on how
  * many `oauth_clients` rows a stranger can write.

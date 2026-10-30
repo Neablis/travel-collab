@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import { ACTIVITY_TAG_ICON } from "@/lib/activityTagIcons";
 import { TAG_CHIP_CLASS, TAG_LABEL } from "@/lib/activityTags";
 import { cn } from "@/lib/cn";
 import { useFocus } from "./context/FocusProvider";
@@ -35,6 +36,7 @@ import { useFocus } from "./context/FocusProvider";
 export function TagFocusLine() {
   const { focusedTag, clearFocusedTag } = useFocus();
   if (focusedTag === null) return null;
+  const Icon = ACTIVITY_TAG_ICON[focusedTag];
 
   return (
     // `flex-wrap` rather than the `min-w-0`/truncate squeeze this carried in
@@ -45,8 +47,9 @@ export function TagFocusLine() {
       {/* The chip is rendered in its own tag colour, so the line and the
           ringed chip on the stop you clicked are visibly the same object. */}
       <span
-        className={cn("inline-flex shrink-0 items-center rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CHIP_CLASS[focusedTag])}
+        className={cn("inline-flex shrink-0 items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CHIP_CLASS[focusedTag])}
       >
+        <Icon className="size-3 shrink-0" aria-hidden />
         {TAG_LABEL[focusedTag]}
       </span>
       <Text as="span" variant="secondary">

@@ -38,6 +38,8 @@ describe("TagFocusLine", () => {
     await userEvent.click(screen.getByRole("button", { name: "set" }));
     const line = screen.getByTestId("tag-focus-line");
     expect(within(line).getByText("Food")).toBeTruthy();
+    // M56 D8: the same icon as the ringed chip on the stop.
+    expect(within(line).getByText("Food").innerHTML).toContain("lucide-utensils-crossed");
   });
 
   it("clears the focus, and takes itself away with it", async () => {

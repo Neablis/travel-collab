@@ -45,13 +45,24 @@ import type { AskToolPosture } from "./grants";
 /**
  * What a tool is ABOUT. Six values fixed by ADR-043 decision 2, and two the
  * playbook pages added (M45 D9): `playbook` is the one playbook on screen and
- * taking it into a trip, `playbookList` a list page's own list.
+ * taking it into a trip, `playbookList` a list page's own list. `ui` is how a
+ * turn ends when prose would strand the person (M56, ADR-084 §3): a question
+ * with a picker, cards to choose from, or a hand-off to where a task is done.
  *
  * A set membership rather than a predicate per tool, deliberately: the
  * requirement is auditability, and a set is readable at a glance where a
  * predicate is not.
  */
-export type ToolDomain = "itinerary" | "library" | "pages" | "places" | "account" | "system" | "playbook" | "playbookList";
+export type ToolDomain =
+  | "itinerary"
+  | "library"
+  | "pages"
+  | "places"
+  | "account"
+  | "system"
+  | "playbook"
+  | "playbookList"
+  | "ui";
 
 /**
  * What a tool DOES — five kinds, and there is still no `commit`: the only thing
@@ -240,6 +251,14 @@ export interface ToolSpec<
    * test does for every tool. Omitted means the model sees the whole input.
    */
   hiddenFromModel?: readonly string[];
+  /**
+   * **The tools whose results this one is made of** (M56): `show_options`
+   * fills its cards only from what `search_places` or `search_playbooks`
+   * returned this turn, so where neither is offered it can never succeed and
+   * its schema would be paid on every step for nothing. `toolsFor` drops it
+   * from any set holding none of these. Omitted means it stands alone.
+   */
+  fedBy?: readonly string[];
   run: (
     input: z.infer<Input>,
     deps: Pick<AssistantDeps, Needs[number]>,

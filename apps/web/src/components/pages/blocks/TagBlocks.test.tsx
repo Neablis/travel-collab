@@ -125,5 +125,7 @@ describe("TripDescriptionBlock", () => {
     expect(screen.getByText("Beach & outdoors")).toBeDefined();
     const chips = within(screen.getByRole("list", { name: "Share of 8 tagged stops" })).getAllByRole("listitem");
     expect(chips.map((chip) => chip.textContent)).toEqual(["Beach63%", "Outdoors50%"]);
+    // M56 D8: the chip carries its tag's icon, not only its tint.
+    expect(chips[1]!.innerHTML).toContain("lucide-trees");
   });
 });

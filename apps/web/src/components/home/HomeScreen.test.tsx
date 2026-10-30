@@ -5,11 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import { ListedTripSummary, type TripSummary } from "@tc/contracts";
 import { tripDetailFixture, historyFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 import { formatMoney } from "@/lib/formatMoney";
+import { NEW_TRIP_PATH } from "@/lib/homePath";
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
+// The router's search params, which a client navigation updates after the new
+// tree has rendered; a test moves them with `arriveAt`.
+let searchParamsMock = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
+  useSearchParams: () => searchParamsMock,
 }));
 
 // Who is reading, which is what decides whether a card's menu offers Delete or
@@ -35,6 +40,8 @@ import { SessionUserProvider } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID, DEMO_TRIPS } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
 import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { rememberNewTripHandOff, takeNewTripHandOff } from "@/lib/pendingCarriedAsks";
+import { runPaletteCommand } from "@/components/palette/paletteRegistry";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
@@ -613,6 +620,59 @@ describe("Home page head", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
+  // M56 part 5 review: an assistant hand-off's "Start a new trip" on a page
+  // without New trip reloaded the landing page. It links here now.
+  // The URL as the address bar and the router both hold it.
+  function arriveAt(path: string) {
+    window.history.replaceState(null, "", path);
+    searchParamsMock = new URLSearchParams(window.location.search);
+  }
+
+  it("opens New trip when it is arrived at to start one, and drops the ask from the address", async () => {
+    arriveAt(NEW_TRIP_PATH);
+    onTestFinished(() => arriveAt("/"));
+    renderHome([tripSummaryFixture()]);
+    expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    expect(window.location.search).toBe("");
+  });
+
+  // M56 part 6 review: a Home with no trips left the hand-off in storage, and
+  // it opened the sheet, prefilled, over the first trip they made later.
+  it("takes a hand-off into the first run on a Home with no trips, and leaves none waiting", async () => {
+    rememberNewTripHandOff({ prefill: { place: "Oaxaca", days: 14 }, asks: [] });
+    arriveAt(NEW_TRIP_PATH);
+    onTestFinished(() => arriveAt("/"));
+    renderHome([]);
+    const firstRun = await screen.findByTestId("first-trip-start");
+    await waitFor(() => expect(within(firstRun).getByLabelText<HTMLInputElement>("Where are you going?").value).toBe("Oaxaca"));
+    expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull();
+    expect(takeNewTripHandOff()).toBeNull();
+  });
+
+  // M56 part 6 review: on a phone the sheet sits under Home's rail, so a
+  // hand-off can arrive while it is open, and its prefill was dropped.
+  it("applies a hand-off taken while New trip is already open", async () => {
+    renderHome([tripSummaryFixture()]);
+    await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
+    const sheet = await screen.findByRole("dialog", { name: /new trip/i });
+    rememberNewTripHandOff({ prefill: { place: "Oaxaca" }, asks: [] });
+    act(() => void runPaletteCommand("new-trip"));
+    expect(within(sheet).getByLabelText<HTMLInputElement>("Where are you going?").value).toBe("Oaxaca");
+  });
+
+  // M56 part 5 review: from a trip page's rail, the router commits the new
+  // URL after Home has rendered, so a read of the address on the first render
+  // saw the trip page's and New trip never opened.
+  it("opens New trip when the router's URL arrives after Home has rendered", async () => {
+    onTestFinished(() => arriveAt("/"));
+    const { rerender } = renderHome([tripSummaryFixture()]);
+    await screen.findByRole("heading", { name: tripSummaryFixture().name });
+    arriveAt(NEW_TRIP_PATH);
+    rerender(<HomeScreen />);
+    expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+
   it("does not invite a next trip while there are other trips to show", async () => {
     renderHome([tripSummaryFixture(), PERU]);
     await screen.findByRole("heading", { name: "Other trips" });
@@ -766,17 +826,17 @@ describe("Home first-run experience", () => {
     render(<HomeScreen />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
-    // The first question, and the field that answers it — no click-through.
-    expect(within(firstRun).getByRole("log", { name: "Conversation" }).textContent).toContain(
-      "Where are you going?",
-    );
+    // The first page, and the search that answers it — no click-through.
+    expect(within(firstRun).getByText("Step 1 of 5")).toBeTruthy();
     expect(within(firstRun).getByLabelText("Where are you going?")).toBeTruthy();
-    // And the opening line, which states the no-generation contract (§31.2)
+    // And the opening line, which states the nothing-made-yet contract (§31.2)
     // in Cass's voice (§35.8). No name to greet with here — the session read
     // below answers with no user — so she does not invent one.
-    expect(within(firstRun).getByRole("log").textContent).toContain(
-      "Hi, I’m Cass. I plan trips here — ask me a few things and I’ll draft your first one. Nothing is made until your last answer.",
-    );
+    expect(
+      within(firstRun).getByText(
+        "Hi, I’m Cass. I plan trips here — five quick picks and I’ll set up your first one. Nothing is made until you say so.",
+      ),
+    ).toBeTruthy();
   });
 
   // §35.8: *"first run: Hi Sam, I'm Cass"* — by the first word of a real name,
@@ -792,9 +852,7 @@ describe("Home first-run experience", () => {
     render(<HomeScreen />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
-    await waitFor(() =>
-      expect(within(firstRun).getByRole("log").textContent).toContain("Hi Sam, I’m Cass."),
-    );
+    expect(await within(firstRun).findByText(/^Hi Sam, I’m Cass\./)).toBeTruthy();
   });
 
   // **One conversation on the screen, not two.** The page head's "New trip"
@@ -823,6 +881,29 @@ describe("Home first-run experience", () => {
     // which would pass on a field that is focused but not typeable.
     await userEvent.keyboard("Lisbon");
     expect((composers[0] as HTMLInputElement).value).toBe("Lisbon");
+  });
+
+  // Where's search exists only on the first page, so a button that aimed at it
+  // did nothing once the inline flow had moved on.
+  it("focuses the inline flow's current page once it is past Where", async () => {
+    fetchMock = vi.fn(async (url: string) =>
+      url.includes("/api/places")
+        ? jsonResponse({ places: [{ kind: "country", countryCode: "JP", name: "Japan", days: 0, hasPlaybooks: false }] })
+        : jsonResponse({ trips: [] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<HomeScreen />);
+    await screen.findByTestId("first-trip-start");
+    await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
+    await userEvent.click(await screen.findByRole("button", { name: /^Japan/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    const notYet = screen.getByRole("radio", { name: "Not yet" });
+
+    await userEvent.click(screen.getByRole("button", { name: "New trip" }));
+
+    // `:focus` on what the query found: the wall bans `document.activeElement`.
+    expect(notYet.matches(":focus")).toBe(true);
   });
 
   // "Building a trip from total scratch is a rough experience" (Mitchell,
@@ -858,7 +939,7 @@ describe("Home first-run experience", () => {
   //
   // The sheet wins now and `FirstTripStart` yields its conversation. Both
   // halves of the original concern still hold, and both are asserted here.
-  it("keeps the sheet and what was typed into it when the list lands empty", async () => {
+  it("keeps the sheet and what was picked in it when the list lands empty", async () => {
     const newTripId = "1a2b3c4d-5e6f-4789-9abc-def012345678";
     let resolveList!: (response: Response) => void;
     const listPending = new Promise<Response>((resolve) => {
@@ -872,6 +953,9 @@ describe("Home first-run experience", () => {
       // (CodeRabbit, PR #196). Each test still drives the session through
       // `getSessionMock` exactly as before; only the transport moved.
       if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.includes("/api/places")) {
+        return jsonResponse({ places: [{ kind: "city", city: "Osaka", days: 0, hasPlaybooks: false }] });
+      }
       if (url.endsWith("/api/trips") && init?.method === "POST") {
         return jsonResponse({ tripId: newTripId }, 201);
       }
@@ -891,21 +975,22 @@ describe("Home first-run experience", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
     const sheet = await screen.findByRole("dialog", { name: /new trip/i });
 
-    // Typing starts before the list has resolved, which is the whole point.
+    // Picking starts before the list has resolved, which is the whole point.
     await userEvent.type(within(sheet).getByLabelText("Where are you going?"), "Osaka");
+    await userEvent.click(await within(sheet).findByRole("button", { name: /^Osaka/ }));
 
     resolveList(jsonResponse({ trips: [] }));
     await screen.findByTestId("first-trip-start");
 
-    // The sheet is still here, and so is what was typed into it.
+    // The sheet is still here, and so is what was picked in it.
     expect(screen.getByRole("dialog", { name: /new trip/i })).toBeTruthy();
-    expect(screen.getByLabelText("Where are you going?")).toHaveProperty("value", "Osaka");
-    // Exactly one composer: the first-run screen yielded its conversation
-    // rather than putting a second field with the same name on the page.
+    expect(within(sheet).getByTestId("new-trip-decided").textContent).toBe("Osaka");
+    // Exactly one search: the first-run screen yielded its pages rather than
+    // putting a second field with the same name on the page.
     expect(screen.getAllByLabelText("Where are you going?")).toHaveLength(1);
     expect(screen.queryByTestId("first-trip-conversation")).toBeNull();
 
-    // And it still works: the typed name reaches the create.
+    // And it still works: the picked place names the trip.
     await userEvent.click(within(sheet).getByRole("button", { name: /^create an empty one$/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -943,10 +1028,13 @@ describe("Home first-run experience", () => {
   // first-run empty state. CodeRabbit (PR #56, finding 3): the previous
   // version only asserted that *some* POST to /api/trips happened, which a
   // POST with no name, or the wrong name, would also satisfy.
-  it("creates a first trip from a name alone", async () => {
+  it("creates a first trip from a picked place alone", async () => {
     const created = { tripId, name: "Japan" };
     let listCallCount = 0;
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/places")) {
+        return jsonResponse({ places: [{ kind: "country", countryCode: "JP", name: "Japan", days: 0, hasPlaybooks: false }] });
+      }
       if (url.endsWith("/api/trips") && init?.method === "POST") return jsonResponse(created, 201);
       if (url.endsWith("/api/trips")) {
         listCallCount += 1;
@@ -971,8 +1059,9 @@ describe("Home first-run experience", () => {
     render(<HomeScreen />);
     await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
     await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
+    await userEvent.click(await screen.findByRole("button", { name: /^Japan/ }));
 
-    // The first turn — *create an empty one* works from the name alone, which is why
+    // The first page — *create an empty one* works from the place alone, which is why
     // M15 needs no separate one-field first-run screen (decision 3).
     await userEvent.click(screen.getByRole("button", { name: "create an empty one" }));
 

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { ActivityTag, ActivityTagCategory, ActivityTagModifier } from "@tc/contracts";
 import { SPEND_SERIES_COLOR } from "@/components/pages/blocks/spendColors";
 import { TAG_CHIP_CLASS, TAG_GROUPS, TAG_LABEL, toggleTag } from "./activityTags";
+import type { LucideIcon } from "lucide-react";
+import { ACTIVITY_TAG_ICON } from "./activityTagIcons";
+import { AVATAR_GLYPHS } from "./avatarGlyphs";
 
 // ADR-070: every tag the contract carries can be read, seen and picked. The
 // `Record<ActivityTag, …>` maps fail to compile on a missing key, but the
@@ -25,9 +28,17 @@ describe("the tag vocabulary", () => {
     expect(groups[0]).toBe(isModifier ? "Needs" : "What it is");
   });
 
-  it("paints no two tags' chips, and no two spend series, alike", () => {
+  // M56 D8: the icon is how a tag reads without its colour, so two tags
+  // sharing one would be told apart by tint alone. And a stop draws its
+  // people's avatar chips beside its tag chips, so a tag wearing an avatar's
+  // glyph reads as a person.
+  it("paints no two tags' chips or icons, and no two spend series, alike", () => {
     const chips = Object.values(TAG_CHIP_CLASS);
     expect(new Set(chips).size).toBe(chips.length);
+    const icons = Object.values(ACTIVITY_TAG_ICON);
+    expect(new Set(icons).size).toBe(icons.length);
+    const avatars: readonly LucideIcon[] = Object.values(AVATAR_GLYPHS);
+    expect(icons.filter((icon) => avatars.includes(icon)).map((icon) => icon.displayName)).toEqual([]);
     const series = Object.values(SPEND_SERIES_COLOR);
     expect(new Set(series).size).toBe(series.length);
   });

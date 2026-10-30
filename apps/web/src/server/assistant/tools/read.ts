@@ -44,7 +44,7 @@
 // conversion happens here and only here. Handing a model both an `index` and a
 // `day` for the same row is how off-by-one answers get written.
 import { z } from "zod";
-import { ActivityKind, ActivityMode, ActivityTag, LocationPrecision, Money, PendingReason, TimeWindow, stopHeadcount, travellerIds, type Guest, type Location, type TripDetail } from "@tc/contracts";
+import { ActivityKind, ActivityMode, ActivityTag, ActivityTagDescribed, LocationPrecision, Money, PendingReason, TimeWindow, TripPace, stopHeadcount, travellerIds, type Guest, type Location, type TripDetail } from "@tc/contracts";
 import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, citiesOfDay, citiesOfStops, findFreeGaps, minutesOf, stopsInTimeOrder, summarizeFreeDays } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
@@ -116,6 +116,12 @@ export interface TripReadout {
   name: string;
   currency: string;
   startDate: string | null;
+  /**
+   * How the trip is meant to feel (M56 D4), set when it was created: a pace,
+   * and the kinds of day it is for. Not the stops' tags, which `read_day` has.
+   */
+  pace: TripPace | null;
+  tags: ActivityTagDescribed[];
   dayCount: number;
   /**
    * How many people are on the trip, and how many of them are travelling
@@ -136,6 +142,8 @@ export const TripReadoutSchema: z.ZodType<TripReadout> = z.object({
   name: z.string(),
   currency: z.string(),
   startDate: z.string().nullable(),
+  pace: TripPace.nullable(),
+  tags: z.array(ActivityTagDescribed),
   dayCount: z.number(),
   members: z.number(),
   travellers: z.number(),
@@ -169,6 +177,8 @@ export function readTrip(detail: TripDetail, guests: readonly Guest[] = []): Tri
     name: detail.name,
     currency: detail.currency,
     startDate: detail.startDate,
+    pace: detail.pace,
+    tags: detail.tags,
     dayCount: detail.days.length,
     members: detail.members.length,
     travellers: travellerIds(detail.members, guests).length,
@@ -266,6 +276,9 @@ export interface TripOverviewReadout {
   name: string;
   currency: string;
   startDate: string | null;
+  /** As on `TripReadout`. */
+  pace: TripPace | null;
+  tags: ActivityTagDescribed[];
   /** The last day's date — with `startDate`, the trip's date range. */
   endDate: string | null;
   dayCount: number;
@@ -301,6 +314,8 @@ export const TripOverviewReadoutSchema: z.ZodType<TripOverviewReadout> = z.objec
   name: z.string(),
   currency: z.string(),
   startDate: z.string().nullable(),
+  pace: TripPace.nullable(),
+  tags: z.array(ActivityTagDescribed),
   endDate: z.string().nullable(),
   dayCount: z.number(),
   members: z.number(),
@@ -436,6 +451,8 @@ export function readTripOverview(detail: TripDetail, guests: readonly Guest[] = 
     name: detail.name,
     currency: detail.currency,
     startDate: detail.startDate,
+    pace: detail.pace,
+    tags: detail.tags,
     endDate: detail.days.at(-1)?.date ?? null,
     dayCount: rows.length,
     members: detail.members.length,

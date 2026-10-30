@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId } from "../src";
+import { ASK_PROPOSAL_FAILED_MESSAGE, ASK_RETRACT_CHUNK, AskAnswer, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId, MAX_CARRIED_ASKS, NEW_TRIP_DAYS_MAX } from "../src";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const DAY_ID = "22222222-2222-4222-8222-222222222222";
@@ -495,5 +495,66 @@ describe("the retraction chunk", () => {
     expect(AskRetractData.safeParse({ ids: ["0", "aitxt-1"] }).success).toBe(true);
     expect(AskRetractData.safeParse({ partIds: ["0"] }).success).toBe(false);
     expect(AskRetractData.safeParse({ ids: [1] }).success).toBe(false);
+  });
+});
+
+describe("asking, showing and handing off (ADR-084 §2)", () => {
+  const ASK = {
+    id: "call-1",
+    question: "What should the trip be about?",
+    options: [
+      { id: "food", label: "Food" },
+      { id: "nightlife", label: "Nightlife" },
+    ],
+    multi: true,
+  };
+
+  it("is three outcomes, each held to the one-outcome rule", () => {
+    expect(AskStreamMetadata.safeParse({ ask: ASK }).success).toBe(true);
+    expect(AskStreamMetadata.safeParse({ handOff: { task: "Book a flight", to: "nowhere" } }).success).toBe(true);
+    const both = AskStreamMetadata.safeParse({ ask: ASK, handOff: { task: "Book a flight", to: "nowhere" } });
+    expect(both.error?.issues[0]?.message).toBe("a chunk carries one outcome, not ask and handOff");
+  });
+
+  it("keeps a plan-page hand-off's command only when the assistant may name it", () => {
+    const tripPlan = `go:trip:${TRIP_ID}:view:Plan`;
+    const read = (command: string, to = "plan_page") => {
+      const parsed = AskStreamMetadata.parse({ handOff: { task: "Add a stop", to, command } });
+      return "handOff" in parsed ? parsed.handOff.command : "no hand-off";
+    };
+    expect(read(tripPlan)).toBe(tripPlan);
+    expect(read("https://example.com/")).toBeUndefined();
+    expect(read(tripPlan, "new_trip")).toBeUndefined();
+  });
+
+  // M56 part 6: what a hand-off to New trip already knew rides to the picker,
+  // and only there; a place is search text, never a pick.
+  it("carries a prefill and asks only on a new_trip hand-off, each held to what the picker and the board take", () => {
+    const prefill = { place: "Oaxaca", days: 14, tags: ["meal"] };
+    const asks = [{ said: "add a mezcal tasting", kind: "itinerary" }];
+    const read = (handOff: Record<string, unknown>) => {
+      const parsed = AskStreamMetadata.safeParse({ handOff: { task: "plan a food trip", ...handOff } });
+      return parsed.success && "handOff" in parsed.data ? parsed.data.handOff : parsed.success;
+    };
+    expect(read({ to: "new_trip", prefill, asks })).toEqual({ task: "plan a food trip", to: "new_trip", prefill, asks });
+    expect(read({ to: "nowhere", prefill, asks })).toEqual({ task: "plan a food trip", to: "nowhere" });
+    expect(read({ to: "new_trip", prefill: { days: NEW_TRIP_DAYS_MAX + 1 } })).toBe(false);
+    expect(read({ to: "new_trip", prefill: { tags: ["lodging"] } })).toBe(false);
+    expect(read({ to: "new_trip", asks: [{ said: "book it", kind: "anything" }] })).toBe(false);
+    expect(read({ to: "new_trip", asks: Array.from({ length: MAX_CARRIED_ASKS + 1 }, (_, i) => ({ said: `ask ${i}`, kind: "itinerary" })) })).toBe(false);
+  });
+
+  it("takes an answer only as ids and a constrained other, never free text", () => {
+    expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: ["food"], other: null }).success).toBe(true);
+    expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: [], other: { kind: "number", value: 14 } }).success).toBe(true);
+    expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: ["Somewhere I have not been"], other: null }).success).toBe(false);
+    expect(AskAnswer.safeParse({ answeredAsk: "call-1", optionIds: [], other: { kind: "text", value: "anything" } }).success).toBe(false);
+  });
+
+  // M56 part 5 review: `min: 14, max: 3` drew a picker nobody could answer.
+  it("refuses a number whose range holds no value", () => {
+    const number = (min: number, max: number) => ({ ...ASK, other: { kind: "number", label: "Days", min, max, unit: { one: "day", many: "days" } } });
+    expect(AskStreamMetadata.safeParse({ ask: number(3, 3) }).success).toBe(true);
+    expect(AskStreamMetadata.safeParse({ ask: number(14, 3) }).success).toBe(false);
   });
 });

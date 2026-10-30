@@ -9,12 +9,14 @@
 import { describe, expect, it } from "vitest";
 import { BatchableCommand } from "@tc/contracts";
 import { ASSISTANT_TOOLS } from "./registry";
+import { handOffTool } from "./tools/ui";
 import {
   SURFACES,
   grantFor,
   minimumRoleFor,
   permitsPropose,
   postureFor,
+  readOnlyAllows,
   toolsFor,
   type EffectCaps,
 } from "./grants";
@@ -36,6 +38,11 @@ const WIDGET_TOOLS = ["search_widgets", "get_widget"];
 // `go_to` is an `itinerary` read, so it is wherever the trip is read; the
 // editing proposal is `pages`/`propose`, so a notebook turn's alone.
 const GO_TO = ["go_to"];
+// ADR-084 §3: how a turn ends when prose would strand the person, on every
+// surface and after everything else but escalation in registry order.
+const UI = ["ask_user", "show_options", "hand_off"];
+// Where no search can feed its cards, `show_options` is withheld (`fedBy`).
+const UI_NO_CARDS = ["ask_user", "hand_off"];
 
 function namesFor(caps: EffectCaps): string[] {
   return toolsFor(grantFor(caps)).map((tool) => tool.name);
@@ -59,6 +66,7 @@ describe("the three tool sets a turn can be offered", () => {
       ...READ_TOOLS,
       ...PLACE_TOOLS,
       ...GO_TO,
+      ...UI,
     ]);
   });
 
@@ -67,7 +75,7 @@ describe("the three tool sets a turn can be offered", () => {
   // joins the set — and `minimumRoleFor`'s editor answer — with no edit here
   // (ADR-015 invariant 5).
   it("is the read tools plus every command plus insert_playbook_day on a trip or day surface", () => {
-    const expected = [...READ_TOOLS, ...PLACE_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day", ...GO_TO];
+    const expected = [...READ_TOOLS, ...PLACE_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day", ...GO_TO, ...UI];
     expect(namesFor({ ...EDITOR, surface: "trip" })).toEqual(expected);
     expect(namesFor({ ...EDITOR, surface: "day" })).toEqual(expected);
   });
@@ -85,6 +93,7 @@ describe("the three tool sets a turn can be offered", () => {
       "switch_intent",
       ...GO_TO,
       "propose_notebook_editing",
+      ...UI,
     ]);
   });
 
@@ -152,7 +161,7 @@ describe("a grant is a minimum over four independent caps", () => {
     ["plan", { plan: "read" }],
     ["classifier", { classifier: "read" }],
   ] as const)("narrows a trip turn to the read tools when %s says read", (_label, override) => {
-    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual([...READ_TOOLS, ...PLACE_TOOLS, ...GO_TO]);
+    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual([...READ_TOOLS, ...PLACE_TOOLS, ...GO_TO, ...UI]);
   });
 
   // The fourth cap, and the one that is not a scalar: the page surface caps
@@ -461,7 +470,7 @@ describe("the account surface", () => {
     for (const role of ["read", "propose"] as const) {
       for (const classifier of ["read", "propose"] as const) {
         const caps = { surface: "account" as const, role, plan: "propose" as const, classifier };
-        expect(toolsFor(grantFor(caps), "question", postureFor(caps)).map((tool) => tool.name)).toEqual(ACCOUNT_TOOLS);
+        expect(toolsFor(grantFor(caps), "question", postureFor(caps)).map((tool) => tool.name)).toEqual([...ACCOUNT_TOOLS, ...UI_NO_CARDS]);
       }
     }
   });
@@ -497,9 +506,10 @@ describe("the playbook pages", () => {
         const caps = { surface, role: "propose" as const, plan: "propose" as const, classifier: "propose" as const };
         for (const taskClass of [undefined, ...TASK_CLASSES]) {
           const offered = toolsFor(grantFor({ ...caps, classifier }), taskClass, postureFor(caps)).map((tool) => tool.name);
-          expect(offered, `${surface}, classifier ${classifier}, class ${taskClass ?? "none"}`).toEqual(
-            classifier === "read" ? names.filter((name) => name === "read_playbook" || name === "search_this_page") : names,
-          );
+          expect(offered, `${surface}, classifier ${classifier}, class ${taskClass ?? "none"}`).toEqual([
+            ...(classifier === "read" ? names.filter((name) => name === "read_playbook" || name === "search_this_page") : names),
+            ...UI_NO_CARDS,
+          ]);
         }
       }
     }
@@ -521,8 +531,51 @@ describe("a read-only turn", () => {
       expect(toolsFor(grantFor(caps), undefined, postureFor(caps)).map((tool) => tool.name)).toEqual([
         "read_trip",
         "read_day",
+        ...UI_NO_CARDS,
       ]);
     }
+  });
+
+  // ADR-084: a viewer, and every account turn (read-only by role), still has
+  // to be able to decline with a button rather than strand the person. The ui
+  // widgets change nothing and ask for nothing more, so they are the one
+  // `steer` family a read-only turn holds.
+  it("holds the ui widgets and no other tool that is not a pure read", () => {
+    for (const surface of Object.keys(SURFACES) as (keyof typeof SURFACES)[]) {
+      const caps = { surface, role: "read" as const, plan: "read" as const, classifier: "read" as const };
+      const offered = toolsFor(grantFor(caps), undefined, postureFor(caps));
+      expect(offered.filter((tool) => tool.domain === "ui").map((tool) => tool.name), surface).toEqual(UI_NO_CARDS);
+      for (const tool of offered.filter((tool) => tool.domain !== "ui")) expect(tool.effect, `${tool.name} on ${surface}`).toBe("read");
+    }
+  });
+
+  // `show_options` fills its cards from `search_places` or `search_playbooks`
+  // results alone, so a set holding neither would pay its schema for a call
+  // that can only be refused (M56 part 5 review: 6 of 9 surfaces).
+  it("offers show_options only beside a tool that can feed it", () => {
+    const feeders = ["search_places", "search_playbooks"];
+    const withCards: string[] = [];
+    for (const surface of Object.keys(SURFACES) as (keyof typeof SURFACES)[]) {
+      for (const role of ["read", "propose"] as const) {
+        for (const taskClass of [undefined, ...TASK_CLASSES]) {
+          const caps = { surface, role, plan: "propose" as const, classifier: "propose" as const };
+          const names = toolsFor(grantFor(caps), taskClass, postureFor(caps)).map((tool) => tool.name);
+          expect(names.includes("show_options"), `${surface}, ${role}, ${taskClass ?? "none"}`).toBe(names.some((name) => feeders.includes(name)));
+          if (names.includes("show_options")) withCards.push(surface);
+        }
+      }
+    }
+    expect([...new Set(withCards)].sort()).toEqual(["day", "page", "trip"]);
+  });
+
+  // The exception is keyed on what the tool does, not on its domain alone: a
+  // `ui` tool that drafts, writes or spends reaches no viewer by being filed
+  // under `ui`.
+  it("withholds a ui tool that is anything but a steer that spends nothing", () => {
+    expect(readOnlyAllows(handOffTool)).toBe(true);
+    for (const effect of ["propose", "write", "spend"] as const) expect(readOnlyAllows({ ...handOffTool, effect }), effect).toBe(false);
+    expect(readOnlyAllows({ ...handOffTool, spend: "vendor" })).toBe(false);
+    expect(readOnlyAllows({ ...handOffTool, domain: "itinerary" })).toBe(false);
   });
 
   // *"I would really not like that any tools with a mutation are even available
@@ -539,7 +592,10 @@ describe("a read-only turn", () => {
           expect(postureFor(caps)).toBe("read-only");
           for (const taskClass of [undefined, ...TASK_CLASSES]) {
             for (const tool of toolsFor(grantFor(caps), taskClass, postureFor(caps))) {
-              expect(tool.effect, `${tool.name} on a read-only ${surface} turn`).toBe("read");
+              // The ui widgets are the one exception, and only as `steer` that
+              // spends nothing (ADR-084 §3): asserted, not mapped to `read`.
+              if (tool.domain === "ui") expect([tool.effect, tool.spend], `${tool.name} on a read-only ${surface} turn`).toEqual(["steer", "none"]);
+              else expect(tool.effect, `${tool.name} on a read-only ${surface} turn`).toBe("read");
               checked += 1;
             }
           }
@@ -553,7 +609,8 @@ describe("a read-only turn", () => {
   // No escalation of any kind: the steer tools are the only way a turn asks
   // for more, and a read-only turn holds none of them.
   it("can never escalate", () => {
-    const steering = ASSISTANT_TOOLS.filter((tool) => tool.effect === "steer").map((tool) => tool.name);
+    // The ui widgets steer how the turn ends, never what it may hold.
+    const steering = ASSISTANT_TOOLS.filter((tool) => tool.effect === "steer" && tool.domain !== "ui").map((tool) => tool.name);
     expect(steering).toEqual(expect.arrayContaining(["request_change_tools", "switch_intent"]));
     for (const surface of ["trip", "day", "page"] as const) {
       const caps = { surface, role: "read" as const, plan: "propose" as const, classifier: "read" as const };

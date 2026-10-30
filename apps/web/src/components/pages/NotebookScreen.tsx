@@ -900,7 +900,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           incoming={handOff}
           onIncomingTaken={() => setHandOff(null)}
           onNewConversation={ask.startNewConversation}
-          onAsk={(text) => void ask.runAsk(text)}
+          onAsk={(text, answer) => void ask.runAsk(text, answer)}
           asking={ask.asking}
           askError={ask.askError}
           simulated={ask.simulated}

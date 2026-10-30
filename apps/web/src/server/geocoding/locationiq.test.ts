@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { UpstreamError } from "../external/upstream";
 import { createLocationIQGeocoder } from "./locationiq";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -279,5 +280,50 @@ describe("LocationIQ geocoder adapter", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Unable to geocode" }), { status: 404 })));
     await expect(createLocationIQGeocoder("KEY123").reverse!({ lat: 0, lng: -30 })).resolves.toBeNull();
   });
-});
 
+  // M56 D3. The id is what a client commits, so it is the OSM object's, which
+  // survives LocationIQ renumbering its own `place_id` on a data reload; a row
+  // without one has no id worth committing, and is left out.
+  it("autocomplete: asks for places by prefix and ids each by its OSM object", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) =>
+      new Response(
+        JSON.stringify([
+          {
+            place_id: "320123",
+            osm_id: "5400890",
+            osm_type: "relation",
+            lat: "38.7077",
+            lon: "-9.1365",
+            display_name: "Lisbon, Lisboa, Portugal",
+            display_place: "Lisbon",
+            display_address: "Lisboa, Portugal",
+            address: { name: "Lisbon", country_code: "pt" },
+          },
+          { place_id: "320124", lat: "38.7", lon: "-9.1", display_name: "Lisbon Heights", display_place: "Lisbon Heights" },
+        ]),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const results = await createLocationIQGeocoder("KEY123").autocomplete!("Lisb", { limit: 4 });
+    expect(results).toEqual([
+      { id: "osm:relation:5400890", name: "Lisbon", detail: "Lisboa, Portugal", countryCode: "PT", lat: 38.7077, lng: -9.1365 },
+    ]);
+    const url = new URL(fetchMock.mock.calls[0]![0] as string);
+    expect(url.pathname).toBe("/v1/autocomplete");
+    expect(url.searchParams.get("q")).toBe("Lisb");
+    expect(url.searchParams.get("limit")).toBe("4");
+    expect(url.searchParams.get("accept-language")).toBe("en");
+  });
+
+  // The cache's back-off acts on `UpstreamError` only (`cache.ts`): a plain
+  // `Error` for a 429 would have a repeat of the same query charged and
+  // refused again.
+  it("autocomplete: a refusal is an UpstreamError with its status and when to come back", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 429, headers: { "Retry-After": "30" } })));
+    const failure = await createLocationIQGeocoder("KEY123").autocomplete!("Lisb").catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamError);
+    expect(failure).toMatchObject({ status: 429, retryAfter: expect.any(Date) });
+  });
+});

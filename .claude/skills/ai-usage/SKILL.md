@@ -131,6 +131,21 @@ event, tripId, userId, proposalId | null, commandCount,
 outcome: "applied" | "refused", code: string | null, latencyMs
 ```
 
+`console.info("ai.capability_gap", record)` — one per turn that ended in a
+`hand_off` (M56, ADR-084 §2): a task the assistant understood and could not do
+from where it was asked. It is the backlog of tools not yet built, so read it
+grouped by `surface` and `to`, then by `task`:
+
+```
+turnId, surface ("trip" | "day" | "page" | "account" | a playbook page),
+task (the model's words, through sanitizeForLog, <=200 chars),
+to: "new_trip" | "plan_page" | "upgrade" | "nowhere"
+```
+
+`to: "nowhere"` is what nobody in the app can do (booking, payments); a run of
+one `task` there is a product question, not a defect. Join to `ai.ask` by
+`turnId`. Fetch it the same way as below, with `query: "ai.capability_gap"`.
+
 **Since ADR-058 a page turn is classified too** (`compose` or `question`), so
 `classification` is set on page turns, and an `outcome: "abort"` with a non-null
 `cause` (`TimeoutError`, "…deadline…") is the SERVER ending a turn at its

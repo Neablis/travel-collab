@@ -351,15 +351,17 @@ describe("the orphan scanner itself", () => {
   // file the router can reach IS counted") is true of every such file, so it is
   // asserted over all of them.
   it("counts every <Preview id> that sits in a component the app renders", () => {
-    const carriers = scanned.filter((f) => isRendered(f) && previewIdsIn(f).length > 0);
-    // The witness: with no carriers there is nothing below to compare and the
-    // assertion passes on an empty set both ways, which is the exact failure
-    // `test-support/witness.ts` exists for. Registered ids all have to be used,
-    // so this is also a floor of one.
+    // The witness, which was "at least one carrier" until M56 part 6 wired the
+    // last shell up and the registry is empty: the comparison below then holds
+    // on an empty set both ways, the failure `test-support/witness.ts` exists
+    // for. So what is counted is what the scanner reads, every rendered `.tsx`
+    // file; a resolver that stopped reaching the app collapses it. Measured at
+    // 327 on 2026-10-30, floored near half. The regex half is the fixture test above's.
     expect(
-      carriers.length,
-      "no rendered file carries a <Preview id> — the scanner or the resolver has broken",
-    ).toBeGreaterThan(0);
+      scanned.filter(isRendered).length,
+      "the resolver reaches almost none of the app's components — it has broken",
+    ).toBeGreaterThan(160);
+    const carriers = scanned.filter((f) => isRendered(f) && previewIdsIn(f).length > 0);
 
     // Compared against the REGISTRY — a hand-maintained literal — and not
     // against `usedByRenderedCode`, which is the same
