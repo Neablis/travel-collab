@@ -80,6 +80,8 @@ export function previewContext(preview: TripPreview, today: string): WidgetConte
     // no role the preview says, and nothing in the fixed set reads one.
     members: preview.people.map((_, i) => ({ userId: personId(i), role: i === 0 ? "owner" : "viewer", travelling: false })),
     forkedFrom: null,
+    pace: null,
+    tags: [],
     days,
     backlog,
     activities,

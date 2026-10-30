@@ -334,6 +334,60 @@ describe("createTripWithSetup", () => {
     });
   });
 
+  // M56 D4. A fresh trip has no pace and no tags, so a setup without them
+  // sends nothing: the domain would refuse it as a no-op.
+  it("sends the pace and tags as one SetTripStyle, and none when there are neither", async () => {
+    const { createTrip, dispatch, newTripId } = stubs("trip-style");
+    await createTripWithSetup({
+      setup: { ...SETUP, arrive: "", pace: "packed", tags: ["nightlife", "drinks"] },
+      applySetup: true,
+      latch: null,
+      createTrip,
+      dispatch,
+      newTripId,
+    });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SetTripStyle",
+      tripId: "trip-style",
+      pace: "packed",
+      tags: ["nightlife", "drinks"],
+    });
+
+    const plain = stubs("trip-plain");
+    await createTripWithSetup({
+      setup: { ...SETUP, arrive: "", pace: null, tags: [] },
+      applySetup: true,
+      latch: null,
+      createTrip: plain.createTrip,
+      dispatch: plain.dispatch,
+      newTripId: plain.newTripId,
+    });
+    expect(plain.dispatch).not.toHaveBeenCalled();
+  });
+
+  // The latch's rule (KI-2026-09-08-a) for the style: what landed is not sent
+  // again, what failed is.
+  it("re-sends a style that failed, and not one that landed", async () => {
+    const { createTrip, dispatch, newTripId } = stubs("trip-style-retry");
+    dispatch.mockResolvedValueOnce(ok({} as CommandOutcome)).mockResolvedValueOnce(fail("style exploded"));
+    const styled: TripSetup = { ...SETUP, pace: "slow", tags: ["beach"] };
+    const first = await createTripWithSetup({ setup: styled, applySetup: true, latch: null, createTrip, dispatch, newTripId });
+    expect(first.ok).toBe(false);
+    if (first.ok) throw new Error("unreachable");
+    expect(first.error).toMatch(/setting the pace and tags failed: style exploded/i);
+
+    dispatch.mockClear();
+    const second = await createTripWithSetup({ setup: styled, applySetup: true, latch: first.latch, createTrip, dispatch, newTripId });
+    expect(second.ok).toBe(true);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripStyle" }));
+
+    dispatch.mockClear();
+    if (!second.ok) throw new Error("unreachable");
+    await createTripWithSetup({ setup: styled, applySetup: true, latch: second.latch, createTrip, dispatch, newTripId });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
   // KI-2026-09-12-e. The retry was safe against a REJECTED command and not
   // against a LOST RESPONSE: the command committed, the browser lost the reply,
   // `createTrip` returned ok:false, the latch never received the tripId, and

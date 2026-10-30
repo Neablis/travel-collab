@@ -27,6 +27,8 @@ export function tripDetailFromState(
     budget: state.budget,
     members: state.members,
     forkedFrom: state.forkedFrom,
+    pace: state.pace ?? null,
+    tags: [...(state.tags ?? [])],
     days: state.days.map((d, i) => ({
       dayId: d.dayId,
       activityIds: [...d.activityIds],

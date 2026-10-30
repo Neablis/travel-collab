@@ -13,6 +13,30 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-30 — `SetTripStyle`, `TripStyleSet`, `TripDetail.pace` and `.tags` (M56 part 4; public API 1.31.0)
+- **New** (`packages/contracts/src/trip.ts`): `TripPace` (`"slow" | "balanced" | "packed"`);
+  the command `SetTripStyle { tripId, pace: TripPace | null, tags: ActivityTagDescribed[] }`,
+  whole-value replace, null and `[]` clear, tags refused when one repeats; and its event
+  `TripStyleSet` v1 with the same payload. In `TripCommand` and `TripEvent`, **not** in
+  `BatchableCommand` (ADR-084 §6): that union generates an assistant planning tool.
+- **Changed** (`packages/contracts/src/detail.ts`): `TripDetail` gains `pace`
+  (`.default(null)`) and `tags` (`.default([])`), so every stored `trip_details.doc` written
+  before them still parses. No migration: the doc is JSONB.
+- Why: M56 D4, the picker's pace and tags answers reach the trip, and the trip's assistant reads
+  them (`read_trip`, and a `Trip pace and tags` data block in the trip instruction).
+- Consumers updated: `packages/domain` (decide, evolve, diff, equality, hydrate, detail, history),
+  `packages/factories`, `apps/web` (`accessPolicy` editor-minimum; `mocks/handlers`;
+  `newTripSubmit` dispatches it; `assistant/tools/read.ts`; `ai/handleAskRequest.ts`;
+  `cloneTrip` keeps the style on a copy, since `executeTripCreation`'s follow-up takes
+  `SetTripStyle` alongside `BatchableCommand`s) — in this same PR.
+- Public API: `API_VERSION` 1.31.0 with its new `API_FINGERPRINT`. Every v1 response that
+  carries a `TripDetail` (16 operations: `GET`/`PATCH`/`DELETE /v1/trips/{tripId}`,
+  `POST /v1/trips`, `POST /v1/trips/import`, restore, the day and activity writes, conflict
+  dismiss, and `GET /history/{seq}` with `POST /history/{undo,redo,revert}`) gains the two
+  fields. No v1 endpoint takes them as input, but undo, redo and revert can change them: they
+  write the diff to the earlier state, which now includes `TripStyleSet`.
+- Breaking? no (additive, defaulted).
+
 ## 2026-10-27 — `ConnectedApp` (M55 part 5)
 - **New** (`packages/contracts/src/publicApi.ts`): `ConnectedApp`, one OAuth grant as Account →
   Connected apps lists it: `grantId`, `clientName`, `redirectHost`, `recognised`, `scopes`,

@@ -60,11 +60,15 @@ const TAGS = [undefined, [], ["meal"], ["lodging", "ticketed"], ["outdoors"]] as
 const CURRENCIES = ["USD", "EUR", "GBP"] as const;
 const BUDGETS = [undefined, null, { amountMinor: 100_00, currency: "USD" }, { amountMinor: 500_00, currency: "USD" }] as const;
 const TRIP_NAMES = ["Renamed A", "Renamed B"] as const;
+// Pace and tags (M56) in the input space for the reason kind/tags are: the diff
+// and equality must reconcile them, and only a generated style shows they do.
+const PACES = [null, "slow", "packed"] as const;
+const STYLE_TAGS = [[], ["beach"], ["beach", "museum"], ["museum", "beach"]] as const;
 
 export type RawOp = { op: number; a: number; b: number; c: number };
 
 export const rawOp = fc.record({
-  op: fc.integer({ min: 0, max: 12 }),
+  op: fc.integer({ min: 0, max: 13 }),
   a: fc.integer({ min: 0, max: 4 }),
   b: fc.integer({ min: 0, max: 4 }),
   c: fc.integer({ min: 0, max: 5 }),
@@ -144,6 +148,8 @@ export function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
       return { type: "DeleteTrip", tripId: TRIP };
     case 12:
       return { type: "RestoreTrip", tripId: TRIP };
+    case 13:
+      return { type: "SetTripStyle", tripId: TRIP, pace: PACES[raw.b % PACES.length]!, tags: STYLE_TAGS[raw.c % STYLE_TAGS.length]!.slice() };
     default:
       return null;
   }
