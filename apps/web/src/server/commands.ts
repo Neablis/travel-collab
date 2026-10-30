@@ -568,9 +568,16 @@ function decideUnits(
   return { ok: true, events, decidedKeys };
 }
 
-// Step 4 for a list of batchable commands, shared by the batch and by a
-// creation's follow-up: decide each in order against the state the ones before
-// it left. A no-op sub-command is SKIPPED, not fatal — one redundant Set*/etc.
+// What may follow a trip's genesis in `executeTripCreation`: the batchable
+// commands, and `SetTripStyle`, which `BatchableCommand` leaves out so that it
+// is no assistant tool (ADR-084 §6). A copy of a styled trip has to carry its
+// style, and no tool reaches that entry point.
+const CreationFollowUp = z.union([BatchableCommand, SetTripStyle]);
+type CreationFollowUp = z.infer<typeof CreationFollowUp>;
+
+// Step 4 for a list of commands, a batch's or a creation's follow-up (the
+// batch's `BatchableCommand`s are a subset): decide each in order against the
+// state the ones before it left. A no-op sub-command is SKIPPED, not fatal — one redundant Set*/etc.
 // must not roll back an otherwise-valid batch (2026-07-25 live-testing
 // finding). Real rejections (day-not-found, activity-already-exists, …) abort.
 function decideInOrder(
@@ -626,12 +633,6 @@ class RolledBack extends Error {
 //
 // There is no retry loop like the batch's: the trip id is minted by the caller
 // for this request, so nothing else can be writing to its stream.
-//
-// The follow-up also takes `SetTripStyle`, which `BatchableCommand` leaves out
-// so that it is no assistant tool (ADR-084 §6): a copy of a styled trip has to
-// carry its style, and no tool reaches this entry point.
-const CreationFollowUp = z.union([BatchableCommand, SetTripStyle]);
-type CreationFollowUp = z.infer<typeof CreationFollowUp>;
 /**
  * Create a trip and apply `then` (batchable commands, or `SetTripStyle`, on that same trip) in one
  * transaction. Returns the trip as the follow-up left it, or a refusal after
