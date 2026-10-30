@@ -1,3 +1,4 @@
+import { PlaybookAskButton } from "@/components/assistant/BeyondTripAssistant";
 import { DiscoverLoading } from "@/components/playbooks/DiscoverSkeleton";
 
 // **Discover's first frame on a client navigation** (Mitchell, 2026-10-30:
@@ -14,7 +15,7 @@ import { DiscoverLoading } from "@/components/playbooks/DiscoverSkeleton";
 export default function DiscoverRouteLoading() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <DiscoverLoading scopeTabs />
+      <DiscoverLoading scopeTabs action={<PlaybookAskButton />} />
     </main>
   );
 }

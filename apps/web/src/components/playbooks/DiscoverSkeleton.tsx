@@ -13,8 +13,8 @@ const SKELETON_COUNT = 6;
 
 /**
  * Discover's title row and its one line, with `action` (the page's Ask) at the
- * row's end. `min-h-9` is the Ask button's height, so the row does not grow
- * when a plan that has Ask draws it after the first frame.
+ * row's end. `min-h-9` is the Ask button's height, so the row is the same
+ * height for a reader without it.
  */
 export function DiscoverIntro({ action }: { action?: React.ReactNode }) {
   return (
@@ -55,16 +55,19 @@ export function DiscoverDaysSkeleton() {
  * box here would be lost when the page's own replaces it. `scopeTabs` is
  * whether the reader has the Everyone / Yours / Saved tabs, which only an
  * account does: the frame cannot ask who is reading, but the route it stands
- * in for knows which copy it is (`lib/playbooksReader.ts`).
+ * in for knows which copy it is (`lib/playbooksReader.ts`). `action` is the
+ * screen's Ask, real rather than an outline: the plan it is drawn from is
+ * served by the layout above the boundary, and M45 decision 3 has it in the
+ * first paint.
  */
-export function DiscoverLoading({ scopeTabs }: { scopeTabs: boolean }) {
+export function DiscoverLoading({ scopeTabs, action }: { scopeTabs: boolean; action?: React.ReactNode }) {
   // Row for row the screen's own column, at its measured heights (phone, then
   // from `md` up): tabs 44/40px, search 52/44px, the phone's Filters button
   // 44px, the desktop filter row 32px, the results line 28px. The search block
   // keeps the phone's `py-1`, which the screen's sticky bar has there.
   return (
     <div className="flex flex-col gap-5">
-      <DiscoverIntro />
+      <DiscoverIntro action={action} />
       <SkeletonRegion label="Loading the search" className="flex flex-col gap-5">
         <span className="flex flex-col gap-5 py-1 md:py-0">
           {scopeTabs && <Skeleton className="h-11 w-64 md:h-10" />}

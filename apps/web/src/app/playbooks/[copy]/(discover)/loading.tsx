@@ -1,3 +1,4 @@
+import { PlaybookAskButton } from "@/components/assistant/BeyondTripAssistant";
 import { DiscoverLoading } from "@/components/playbooks/DiscoverSkeleton";
 
 // The cached copy's first frame (`../../live/(discover)/loading.tsx` says why
@@ -6,7 +7,7 @@ import { DiscoverLoading } from "@/components/playbooks/DiscoverSkeleton";
 export default function CachedDiscoverRouteLoading() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <DiscoverLoading scopeTabs={false} />
+      <DiscoverLoading scopeTabs={false} action={<PlaybookAskButton />} />
     </main>
   );
 }
