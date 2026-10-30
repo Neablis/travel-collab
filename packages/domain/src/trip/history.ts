@@ -240,10 +240,20 @@ export function describeUserBatch(stateBefore: TripState | null, events: TripEve
   return parts.join("; ");
 }
 
-// The whole style, since the event replaces the whole style.
-function describeStyle(pace: TripPace | null, tags: readonly ActivityTagDescribed[]): string {
+// The event replaces the whole style, but a member reads the entry: it names
+// the half that is set, and an empty half only when the trip had one before
+// (it was cleared), never as "none".
+function describeStyle(
+  state: TripState | null,
+  pace: TripPace | null,
+  tags: readonly ActivityTagDescribed[],
+): string {
   if (pace === null && tags.length === 0) return "Cleared the trip's pace and tags";
-  return `Set the trip's pace to ${pace ?? "none"} and its tags to ${tags.length === 0 ? "none" : tags.join(", ")}`;
+  if (pace !== null && tags.length > 0) return `Set the trip's pace to ${pace} and its tags to ${tags.join(", ")}`;
+  if (pace !== null) {
+    return `Set the trip's pace to ${pace}${(state?.tags ?? []).length > 0 ? " and cleared its tags" : ""}`;
+  }
+  return `Set the trip's tags to ${tags.join(", ")}${(state?.pace ?? null) !== null ? " and cleared its pace" : ""}`;
 }
 
 // `state` is the state BEFORE the event — names resolve even when a payload
@@ -267,7 +277,7 @@ function describeEvent(state: TripState | null, event: TripEvent): string {
         ? "Cleared the budget"
         : `Set the budget to ${(event.payload.budget.amountMinor / 100).toFixed(2)} ${event.payload.budget.currency}`;
     case "TripStyleSet":
-      return describeStyle(event.payload.pace, event.payload.tags);
+      return describeStyle(state, event.payload.pace, event.payload.tags);
     case "ActivityAdded":
       return `Added "${event.payload.title}" to ${
         event.payload.dayId === null ? "the backlog" : dayLabel(state, event.payload.dayId)

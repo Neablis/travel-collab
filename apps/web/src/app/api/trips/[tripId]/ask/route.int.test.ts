@@ -1661,6 +1661,13 @@ describe("POST /api/trips/:id/ask", () => {
       expect(rendered).toContain("slow");
       // The rule that tells the model what the line is for, not only the data.
       expect(rendered).toContain("fit what you suggest to it");
+
+      // Tags with no pace: the rule must not tell the model there is a pace
+      // the data line says is null.
+      const tagsOnly = standingOf(tripDetailFactory.build({ pace: null, tags: ["beach"] }));
+      const tagsRendered = instructionsFor({ kind: "trip" }, 3, "read-only", null, false, tagsOnly);
+      expect(tagsRendered).toContain("no pace was chosen");
+      expect(tagsRendered).not.toContain("with a pace");
     });
 
     // **The other half of KI-12, and the half no prompt can supply.** Being

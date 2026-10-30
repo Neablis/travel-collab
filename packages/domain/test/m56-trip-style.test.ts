@@ -84,4 +84,20 @@ describe("SetTripStyle", () => {
     if (!cleared.ok) throw new Error(`rejected: ${cleared.rejection.code}`);
     expect(describeUserBatch(base(), cleared.events)).toBe("Cleared the trip's pace and tags");
   });
+
+  // A half-set style names only the half it sets, and says a half was
+  // cleared only when the trip had one before.
+  it("describes a half-set style by what it sets", () => {
+    const tagsOnly = decide(base(), style(null, ["beach"]));
+    if (!tagsOnly.ok) throw new Error(`rejected: ${tagsOnly.rejection.code}`);
+    expect(describeUserBatch(base(), tagsOnly.events)).toBe("Set the trip's tags to beach");
+    const paceOnly = decide(base(), style("slow", []));
+    if (!paceOnly.ok) throw new Error(`rejected: ${paceOnly.rejection.code}`);
+    expect(describeUserBatch(base(), paceOnly.events)).toBe("Set the trip's pace to slow");
+
+    const paced = paceOnly.events.reduce(evolveTrip, base());
+    const swapped = decide(paced, style(null, ["museum"]));
+    if (!swapped.ok) throw new Error(`rejected: ${swapped.rejection.code}`);
+    expect(describeUserBatch(paced, swapped.events)).toBe("Set the trip's tags to museum and cleared its pace");
+  });
 });
