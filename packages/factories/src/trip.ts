@@ -220,6 +220,8 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
       // rather than generated, for the same reason non-owner roles are —
       // nothing a fixture replays produces one.
       forkedFrom: null,
+      pace: null,
+      tags: [],
       days,
       backlog,
       activities,

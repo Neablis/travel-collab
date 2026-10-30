@@ -1,4 +1,4 @@
-import type { ActivitySnapshot, Money, TripLineage, TripMember, TripStatus } from "@tc/contracts";
+import type { ActivitySnapshot, ActivityTagDescribed, Money, TripLineage, TripMember, TripPace, TripStatus } from "@tc/contracts";
 
 // The canonical stored field set, not a second copy of it (KI-2026-09-05-o).
 // `z.infer` is the OUTPUT type, so the contract's `.default()`s resolve to
@@ -36,5 +36,9 @@ export type TripState = {
   dismissedConflictIds: string[]; // sorted; content-derived conflict ids the user dismissed
   currency: string; // ISO-4217; defaults to "USD"
   budget: Money | null; // defaults to null
+  // M56 D4, `TripStyleSet`. Optional, and absent reads as null and []: a
+  // state built from a doc written before them has neither.
+  pace?: TripPace | null;
+  tags?: ActivityTagDescribed[];
   status: TripStatus; // "deleted" is a soft delete; the stream survives
 };

@@ -64,6 +64,17 @@ describe("read_trip says who the totals are for", () => {
   });
 });
 
+// M56 D4: what the trip was created to feel like reaches the trip's assistant,
+// at every length.
+describe("read_trip says the trip's pace and tags", () => {
+  it("in the per-day readout and in the overview", () => {
+    const short = tripDetailFactory.build({ pace: "slow", tags: ["beach", "museum"] });
+    expect(readTripForModel(short)).toMatchObject({ pace: "slow", tags: ["beach", "museum"] });
+    const long = { ...tripThrough(repeat(OVERVIEW_ABOVE_DAYS + 1, ["Tokyo"])), pace: "packed" as const, tags: ["nightlife" as const] };
+    expect(readTripForModel(long)).toMatchObject({ pace: "packed", tags: ["nightlife"] });
+  });
+});
+
 // Guests spec P2: the totals the read recosts (overlayMembers) price members
 // AND guests, so the headcounts the readouts report must count both — a
 // `travellers: 2` beside a `tripCostTotal` priced for 3 would make the model

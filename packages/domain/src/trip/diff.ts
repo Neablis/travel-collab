@@ -50,6 +50,8 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
   if (!moneyEqual(working.budget, target.budget)) {
     push({ type: "TripBudgetSet", version: 1, payload: { tripId: target.tripId, budget: target.budget } });
   }
+  // One event for both, so it reconciles both; `push` drops it when neither differs.
+  push({ type: "TripStyleSet", version: 1, payload: { tripId: target.tripId, pace: target.pace ?? null, tags: [...(target.tags ?? [])] } });
 
   // 2. Activities that no longer exist in the target.
   for (const id of Object.keys(working.activities)) {

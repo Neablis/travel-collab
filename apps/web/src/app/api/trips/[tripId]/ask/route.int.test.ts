@@ -1647,6 +1647,19 @@ describe("POST /api/trips/:id/ask", () => {
       expect(standingOf(started)).toEqual({ planned: true, dated: false });
     });
 
+    // M56 D4: the plan page's assistant is told the trip's pace and tags
+    // before it reads anything, on any posture, as data rather than inside a
+    // sentence of ours.
+    it("reads the trip's pace and tags, and carries them as data", () => {
+      const styled = tripDetailFactory.build({ pace: "slow", tags: ["beach", "museum"] });
+      const standing = standingOf(styled);
+      expect(standing.style).toEqual({ pace: "slow", tags: ["beach", "museum"] });
+
+      const blocks = instructionBlocks({ kind: "trip" }, 3, "read-only", null, false, standing);
+      expect(blocks).toContainEqual({ kind: "data", label: "Trip pace and tags", value: { pace: "slow", tags: ["beach", "museum"] } });
+      expect(instructionsFor({ kind: "trip" }, 3, "read-only", null, false, standing)).toContain("slow");
+    });
+
     // **The other half of KI-12, and the half no prompt can supply.** Being
     // told to name the trip is worth nothing if the turn was not handed the
     // tool — which is exactly where this sat until now: P5's `TASK_CLASSES_FOR`
