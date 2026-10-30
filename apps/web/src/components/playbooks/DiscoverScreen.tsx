@@ -7,7 +7,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { Popover } from "@/components/ui/popover";
 import { Sheet } from "@/components/ui/sheet";
-import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { cn } from "@/lib/cn";
@@ -29,6 +28,7 @@ import {
 import { PlaceSearch, type PlacePick } from "@/components/places/PlaceSearch";
 import { DISCOVER_URL_DEFAULTS, discoverQueryString, parseDiscoverQuery, type DiscoverUrlState } from "./discoverUrl";
 import { DiscoverCard, editorialSize } from "./DiscoverCard";
+import { DiscoverDaysSkeleton, DiscoverIntro } from "./DiscoverSkeleton";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
 import { PlaybookAskButton, PlaybookAssistant } from "@/components/assistant/BeyondTripAssistant";
@@ -100,9 +100,6 @@ function emptyCopy(failed: boolean, { scope, narrowed }: AskedFor): { title: str
       };
   }
 }
-
-/** How many skeleton cards stand in while the first read is in flight. */
-const SKELETON_COUNT = 6;
 
 /** The URL's state, and the budget band, which is not in it (`discoverUrl.ts`). */
 type Filters = DiscoverUrlState & { budget: BudgetBand };
@@ -452,22 +449,9 @@ export function DiscoverScreen({
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        {/* Ask, for the page's assistant (M45 D9), drawn only for an account
-            whose plan has it. */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Heading level={1}>Discover</Heading>
-          <PlaybookAskButton />
-        </div>
-        {/* One line (§35.5), with its second verb back: *"planned and rated"*
-            waited for M12 to give anybody a way to rate (M27 D8) — a header
-            claiming ratings above cards that carried none would have been the
-            first thing a reader disbelieved. 15px has no token; `text-base`
-            (14px) is the nearer step that keeps the type scale. */}
-        <Text className="mt-1.5 max-w-160 text-slate text-pretty">
-          Days other people planned and rated. Find one for your city and drop it into your trip.
-        </Text>
-      </div>
+      {/* Ask, for the page's assistant (M45 D9), drawn only for an account
+          whose plan has it. */}
+      <DiscoverIntro action={<PlaybookAskButton />} />
 
       <SyncFailure read={feed} what="the library" />
       <LibraryMoved read={feed}>
@@ -868,11 +852,7 @@ export function DiscoverScreen({
           rather than flashing the page empty, which is what makes changing a
           filter feel like a filter rather than a navigation. */}
       {feed.loading && feed.data === null ? (
-        <SkeletonRegion label="Loading days" className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: SKELETON_COUNT }, (_, i) => (
-            <Skeleton key={i} className="h-44 rounded-lg" />
-          ))}
-        </SkeletonRegion>
+        <DiscoverDaysSkeleton />
       ) : days.length === 0 ? (
         /* One way out, not two. "Drop the filters" and "Search everywhere" did
            the identical thing — both reset to `NO_FILTERS` — and the first was
