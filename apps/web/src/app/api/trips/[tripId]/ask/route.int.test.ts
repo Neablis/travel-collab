@@ -291,7 +291,7 @@ async function seedTrip(): Promise<string> {
  * — so a fixed city would make "the day this turn proposes" depend on what
  * every other test in the suite happened to leave behind.
  */
-async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: string }> {
+async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: string; city: string }> {
   const city = `Playbookville-${randomUUID().slice(0, 8)}`;
 
   const sourceTrip = randomUUID();
@@ -342,7 +342,7 @@ async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: stri
     },
     ACTOR_ID,
   );
-  return { tripId, savedDayId: saved.value.savedDayId };
+  return { tripId, savedDayId: saved.value.savedDayId, city };
 }
 
 /** One Notebook page on `tripId`, the way the Notebook's own route makes one. */
@@ -2018,6 +2018,23 @@ describe("POST /api/trips/:id/ask", () => {
       // not a spot check: a write anywhere in it fails this.
       expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
       expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
+    });
+
+    // M56 part 5 review: a day card is filled from what `search_playbooks`
+    // returned, read off the SDK's step result. Nothing else crosses that
+    // bridge, so a shape it cannot read would refuse every day card unseen.
+    it("shows a day card for a day the search returned, and drops one it did not", async () => {
+      const { tripId, savedDayId, city } = await tripAndPublishedDay();
+      const model = scriptedStepsModel([
+        [toolCall("search_playbooks", { cities: [city] })],
+        [toolCall("show_options", { prompt: "Pick a day", days: [savedDayId, "invented-day"] })],
+        ["Either suits a slow morning."],
+      ]);
+      const chunks = await chunksOf(
+        await handleAskRequest(req(tripId, { messages: [userMessage("show me a day to add")], scope: { kind: "trip" } }), tripId, model),
+      );
+      const finish = chunks.find((c) => c.type === "finish") as { messageMetadata?: { options?: { cards: unknown[] } } } | undefined;
+      expect(finish?.messageMetadata?.options?.cards).toEqual([{ kind: "day", id: savedDayId, name: "A day in Kyoto", cities: [city], stopCount: 2 }]);
     });
 
     // **A viewer's assistant is minimal** (ADR-058 decision 9; Mitchell,

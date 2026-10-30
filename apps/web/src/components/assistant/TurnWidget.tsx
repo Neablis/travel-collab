@@ -207,7 +207,14 @@ function HandOffCard({ handOff }: { handOff: AssistantHandOff }) {
             {button}
           </Button>
         ))}
-      {unopened && <p className="text-sm text-a-asst-ink">I couldn&apos;t open that trip from this page.</p>}
+      {/* In place before the press and filled by it, so a screen reader, whose
+          focus stays on the button, is told. Pulled up by the gap while empty
+          rather than hidden: a display:none region is not in place. */}
+      {command !== undefined && (
+        <p role="status" className="text-sm text-a-asst-ink empty:-mt-2">
+          {unopened ? "I couldn't open that trip from this page." : null}
+        </p>
+      )}
     </div>
   );
 }

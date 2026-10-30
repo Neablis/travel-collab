@@ -11,6 +11,7 @@ import { HAND_OFF_TARGETS, type HandOffTo } from "@tc/contracts";
 import { EFFECT_LEVEL, type ToolDomain } from "./defineTool";
 import { SURFACES, grantFor, postureFor, toolsFor, type SurfaceKind } from "./grants";
 import { rule, type PromptBlock } from "./prompt";
+import type { TaskClass } from "./taskClass";
 import { ASSISTANT_TOOLS } from "./registry";
 import { GO_TO_TOOL_NAME } from "./tools/navigate";
 import { HAND_OFF_TOOL_NAME, ASK_USER_TOOL_NAME, SHOW_OPTIONS_TOOL_NAME } from "./tools/ui";
@@ -98,10 +99,15 @@ export function capabilitiesOf(surface: SurfaceKind, limit: ChangeLimit = null):
   return { changes, elsewhere, targets };
 }
 
-/** Whether a turn on this surface, so limited, is offered `show_options`: only beside a search that feeds it. */
-function showsOptions(surface: SurfaceKind, limit: ChangeLimit): boolean {
+/**
+ * Whether a turn on this surface, so limited and of this class, is offered
+ * `show_options`: only beside a search that feeds it. The class narrows the
+ * set as the turn's own grant does (a notebook compose turn holds no search),
+ * and no class means a set nobody narrowed.
+ */
+function showsOptions(surface: SurfaceKind, limit: ChangeLimit, taskClass: TaskClass | undefined): boolean {
   const caps = { surface, role: limit === "role" ? "read" : "propose", plan: limit === "plan" ? "read" : "propose", classifier: "propose" } as const;
-  return toolsFor(grantFor(caps), undefined, postureFor(caps)).some((tool) => tool.name === SHOW_OPTIONS_TOOL_NAME);
+  return toolsFor(grantFor(caps), taskClass, postureFor(caps)).some((tool) => tool.name === SHOW_OPTIONS_TOOL_NAME);
 }
 
 const ROUTE_WORDS: Readonly<Record<CapabilityRoute, (aboutTrip: boolean) => string>> = {
@@ -113,7 +119,7 @@ const ROUTE_WORDS: Readonly<Record<CapabilityRoute, (aboutTrip: boolean) => stri
 };
 
 /** The block, as rules: what this page changes, where the rest is done, and how a turn ends instead of refusing. */
-export function capabilityBlock(surface: SurfaceKind, limit: ChangeLimit = null): PromptBlock[] {
+export function capabilityBlock(surface: SurfaceKind, limit: ChangeLimit = null, taskClass?: TaskClass): PromptBlock[] {
   const { changes, elsewhere } = capabilitiesOf(surface, limit);
   const aboutTrip = ABOUT_A_TRIP.has(surface);
   return [
@@ -127,7 +133,11 @@ export function capabilityBlock(surface: SurfaceKind, limit: ChangeLimit = null)
     `When you understood ${limit === "role" ? "any other task" : "a task"} and cannot do it from here, never just say so: end the turn with ${HAND_OFF_TOOL_NAME}. A trip that does not exist yet is "new_trip". What nobody in this app can do (booking, payments, live prices, visas) is "nowhere", with one sentence.`,
     ...(limit === "plan" ? [`Their plan does not include changes: for a change they ask for, ${HAND_OFF_TOOL_NAME} to "upgrade".`] : []),
     `When a few answers would settle what they want, call ${ASK_USER_TOOL_NAME} instead of guessing or asking in prose.${
-      showsOptions(surface, limit) ? ` To offer places or published days a tool returned this turn, call ${SHOW_OPTIONS_TOOL_NAME}.` : ""
+      // "Once you have its results": a day card is filled from what the search
+      // returned when its step ends, so one called beside the search is refused.
+      showsOptions(surface, limit, taskClass)
+        ? ` To offer places or published days a search returned this turn, call ${SHOW_OPTIONS_TOOL_NAME} once you have its results.`
+        : ""
     }`,
   ].map(rule);
 }

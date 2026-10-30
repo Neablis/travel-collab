@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import type { ListedTripSummary, TripSummary } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
@@ -559,12 +559,16 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // it here through the page-head button's own `startNewTrip`. Once the list is
   // known, since that decides which way it opens, and not while a demo copy
   // holds it shut. The param goes at once, so a reload or Back does not reopen
-  // it. Read once, on the first client render; the effect has no deps because
-  // `startNewTrip` is a new function every render and the ref is its guard.
-  const arrivedToStart = useRef(typeof window !== "undefined" && new URLSearchParams(window.location.search).has(NEW_TRIP_PARAM));
+  // it. Read from the router, not `window`: on a client navigation the router
+  // commits the new URL after this tree first renders. The effect has no deps
+  // because `startNewTrip` is a new function every render; the ref opens it
+  // once per arrival, until the param's removal reaches the router.
+  const arrivedToStart = useSearchParams().has(NEW_TRIP_PARAM);
+  const startedOnArrival = useRef(false);
   useEffect(() => {
-    if (!arrivedToStart.current || trips === null || unauthenticated || cloningDemo) return;
-    arrivedToStart.current = false;
+    if (!arrivedToStart) startedOnArrival.current = false;
+    if (!arrivedToStart || startedOnArrival.current || trips === null || unauthenticated || cloningDemo) return;
+    startedOnArrival.current = true;
     const url = new URL(window.location.href);
     url.searchParams.delete(NEW_TRIP_PARAM);
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
