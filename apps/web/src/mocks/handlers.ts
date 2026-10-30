@@ -1059,8 +1059,10 @@ export function makeReportHandlers(
 
 /**
  * `GET /api/places?q=` (M12 link 7) over a fixed list of places, typed against
- * `PlaceMatch` so a mock row that fits neither the city nor the country arm is
- * a type error rather than a surprise in a component.
+ * `PlaceMatch` so a mock row that fits none of the city, country and world arms
+ * is a type error rather than a surprise in a component. A world row (M56 D3)
+ * stands in for the vendor's autocomplete, answered only to `world=1` as the
+ * real route does; the list says whether the caller is signed in.
  *
  * Deliberately naive, like every handler here: a case-insensitive prefix match
  * on the label, the given order kept, and the real route's empty-box
@@ -1069,10 +1071,14 @@ export function makeReportHandlers(
  */
 export function makePlaceSearchHandler(places: PlaceMatch[]) {
   return http.get("/api/places", ({ request }) => {
-    const q = new URL(request.url).searchParams.get("q")?.trim().toLowerCase();
+    const params = new URL(request.url).searchParams;
+    const q = params.get("q")?.trim().toLowerCase();
+    const world = params.get("world") === "1";
     const body: PlaceSearchResponse = {
       places: q
-        ? places.filter((p) => (p.kind === "city" ? p.city : p.name).toLowerCase().startsWith(q))
+        ? places.filter(
+            (p) => (world || p.kind !== "world") && (p.kind === "city" ? p.city : p.name).toLowerCase().startsWith(q),
+          )
         : [],
     };
     return HttpResponse.json(body);

@@ -1,10 +1,15 @@
+import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
+import { z } from "zod";
 import { SavedDayVisibility } from "@tc/contracts";
-import type { PlaceMatch } from "@/lib/cities";
+import { WorldPlaceMatch, type PlaceMatch } from "@/lib/cities";
 import { countryName } from "@/lib/place";
 import { searchCities } from "./cities";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
+import { pgCacheStore, readThrough, type CacheStore } from "./external/cache";
+import { geocoderConfigured, getGeocoder, type PlaceSuggestion } from "./geocoding";
+import { consumeQuota, worldPlaceSearchQuota } from "./quota";
 
 // The place index behind `GET /api/places?q=` (M12 link 7): the city index
 // `searchCities` already answers, plus countries, in one labelled list.
@@ -97,8 +102,11 @@ function copied(
   return answer.then((rows) => rows.map((row) => ({ ...row })));
 }
 
+/** A row the library answers, as opposed to the vendor's `world` rows. */
+type LibraryMatch = Exclude<PlaceMatch, { kind: "world" }>;
+
 /** The name a searcher types towards and the sort ties on, whichever kind the place is. */
-function labelOf(place: PlaceMatch): string {
+function labelOf(place: LibraryMatch): string {
   return place.kind === "city" ? place.city : place.name;
 }
 
@@ -124,21 +132,26 @@ function labelOf(place: PlaceMatch): string {
  *   3. a tie goes to the country, the wider place;
  *   4. then UTF-16 code-unit order on the label, never `localeCompare` —
  *      `siblingCities` in `playbooks.ts` records why.
+ *
+ * Given `world` (a signed-in reader, `worldSearchFor`), the vendor's places
+ * follow the library's in the vendor's order, in the room the library leaves.
  */
-export async function searchPlaces(q: string): Promise<PlaceMatch[]> {
+export async function searchPlaces(q: string, world: WorldSearch | null = null): Promise<PlaceMatch[]> {
   const needle = q.toLowerCase();
   const [cities, countries] = await Promise.all([searchCities(q), publishedCountriesMemoised()]);
 
-  const places: PlaceMatch[] = [
-    ...cities.map((c): PlaceMatch => ({ kind: "city", city: c.city, days: c.days })),
-    ...countries.flatMap(({ countryCode, days }): PlaceMatch[] => {
+  const places: LibraryMatch[] = [
+    ...cities.map((c): LibraryMatch => ({ kind: "city", city: c.city, days: c.days, hasPlaybooks: c.days > 0 })),
+    ...countries.flatMap(({ countryCode, days }): LibraryMatch[] => {
       const name = countryName(countryCode) ?? countryCode;
-      return name.toLowerCase().startsWith(needle) ? [{ kind: "country", countryCode, name, days }] : [];
+      return name.toLowerCase().startsWith(needle)
+        ? [{ kind: "country", countryCode, name, days, hasPlaybooks: days > 0 }]
+        : [];
     }),
   ];
 
-  const exact = (p: PlaceMatch) => (labelOf(p).toLowerCase() === needle ? 0 : 1);
-  return places
+  const exact = (p: LibraryMatch) => (labelOf(p).toLowerCase() === needle ? 0 : 1);
+  const library = places
     .sort((a, b) => {
       const byExact = exact(a) - exact(b);
       if (byExact !== 0) return byExact;
@@ -148,4 +161,109 @@ export async function searchPlaces(q: string): Promise<PlaceMatch[]> {
       return la < lb ? -1 : la > lb ? 1 : 0;
     })
     .slice(0, SEARCH_LIMIT);
+  // A full list has no room for the world, so it is not asked, or charged.
+  if (world === null || library.length >= SEARCH_LIMIT) return library;
+  return [...library, ...(await worldPlaces(q, library, world))].slice(0, SEARCH_LIMIT);
+}
+
+// The world half of place search (M56 D3, ADR-084 §7), for a signed-in reader
+// only. Each normalised query is one `external_data_cache` row through
+// `readThrough`, which charges the account's quota on a miss and on nothing
+// else. Place names do not move, so a row is kept a month.
+const WORLD_CACHE_MS = 30 * 24 * 60 * 60 * 1000;
+// Typeahead: a slow vendor must not hold the library's answer for long.
+const WORLD_TIMEOUT_MS = 2_500;
+// Under three letters a prefix names too many places to be worth a call; a
+// query longer than any place name is not a search and would make a long key.
+const WORLD_MIN_QUERY = 3;
+const WORLD_MAX_QUERY = 80;
+const WORLD_LIMIT = 5;
+const WorldPlaces = z.array(WorldPlaceMatch);
+
+/** What the world branch is given: the vendor call, the account's charge, and the cache. */
+export interface WorldSearch {
+  autocomplete: (q: string) => Promise<PlaceSuggestion[]>;
+  /** One call charged to the reader's own `worldPlaceSearchQuota`; `false` is a refusal. */
+  charge: () => Promise<boolean>;
+  store: CacheStore;
+  now: Date;
+}
+
+/** The world branch for signed-in `readerId`, or `null` when no vendor is configured. */
+export function worldSearchFor(readerId: string): WorldSearch | null {
+  if (!geocoderConfigured()) return null;
+  const geocoder = getGeocoder();
+  const autocomplete = geocoder.autocomplete?.bind(geocoder);
+  if (autocomplete === undefined) return null;
+  return {
+    autocomplete: (q) => autocomplete(q, { limit: WORLD_LIMIT }),
+    charge: async () => (await consumeQuota(worldPlaceSearchQuota(), readerId)).allowed,
+    store: pgCacheStore(),
+    now: new Date(),
+  };
+}
+
+/**
+ * Vendor places for `q`, less any the library already offers
+ * (`notInLibrary`). Empty when the vendor fails or the quota refuses, so the
+ * library still answers.
+ */
+async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearch): Promise<WorldPlaceMatch[]> {
+  const query = q.trim().replace(/\s+/g, " ");
+  if (query.length < WORLD_MIN_QUERY || query.length > WORLD_MAX_QUERY) return [];
+  const cached = await readThrough({
+    // Hashed, because `readThrough` logs the key on a failed call and the table
+    // keeps it: what a searcher typed belongs in neither.
+    key: `locationiq:autocomplete:${createHash("sha256").update(query.toLowerCase()).digest("hex")}`,
+    schema: WorldPlaces,
+    store: world.store,
+    now: world.now,
+    charge: world.charge,
+    timeoutMs: WORLD_TIMEOUT_MS,
+    call: async () => ({
+      kind: "fresh",
+      // Checked row by row here, because `readThrough` hands a fresh value back
+      // unparsed: one row the vendor left without a name or a coordinate would
+      // otherwise fail the route's parse and take the library's answer with it.
+      value: (await world.autocomplete(query)).flatMap((s): WorldPlaceMatch[] => {
+        const row = WorldPlaceMatch.safeParse({ kind: "world", ...s, hasPlaybooks: false });
+        return row.success ? [row.data] : [];
+      }),
+      expiresAt: new Date(world.now.getTime() + WORLD_CACHE_MS),
+      lastModified: null,
+      sourceUpdatedAt: null,
+    }),
+  }).catch((error: unknown) => {
+    // `readThrough` throws only for the cache table itself.
+    console.warn(`[places] world search: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  });
+  return notInLibrary(cached?.value ?? [], library);
+}
+
+/**
+ * `world` less the rows that are the library's own places, each of which the
+ * library already offers, labelled as having playbooks.
+ *
+ * Each library place hides ONE world row, never every row with its name: a
+ * library Paris is not Paris, Texas, and Portland, Oregon is not Portland,
+ * Maine. A country is matched by name and code, so the country Georgia does
+ * not hide the US state. A city row knows no country, so the vendor's
+ * top-ranked namesake is taken to be it and the rest, each with its own
+ * region line, stay.
+ *
+ * Both guesses can miss, giving a duplicate or a hidden namesake, never a
+ * wrong commit. When the vendor ranks a different namesake first (Cambridge,
+ * MA over the library's Cambridge, UK), that one is hidden and the library's
+ * place comes back as an unlabelled world row. And a world city with a
+ * library country's name and code (Luxembourg, Singapore, Monaco) spends the
+ * country's claim when ranked first, so the country itself then passes as a
+ * world row beside the library's. A library place the vendor matched
+ * mid-name is not in `library` at all (KI-2026-10-30-c).
+ */
+function notInLibrary(world: WorldPlaceMatch[], library: LibraryMatch[]): WorldPlaceMatch[] {
+  const keyOf = (name: string, countryCode?: string) => `${name.toLowerCase()}|${countryCode ?? ""}`;
+  const unclaimed = new Set(library.map((p) => (p.kind === "country" ? keyOf(p.name, p.countryCode) : keyOf(p.city))));
+  // `delete` answers whether the key was there, and spends it: the claim is used once.
+  return world.filter((p) => !unclaimed.delete(keyOf(p.name, p.countryCode)) && !unclaimed.delete(keyOf(p.name)));
 }
