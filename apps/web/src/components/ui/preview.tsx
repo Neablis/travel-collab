@@ -1,5 +1,5 @@
 import { Construction } from "lucide-react";
-import { PREVIEW_REGISTRY, type PreviewId } from "@/lib/preview-registry";
+import { PREVIEW_REGISTRY, type PreviewEntry, type PreviewId } from "@/lib/preview-registry";
 
 // A caller's own positioning class (e.g. TripBoardScreen's assistant-rail
 // `fixed inset-y-0 right-0 z-50`) has the same specificity as the `relative`
@@ -27,7 +27,9 @@ export function Preview({
   children: React.ReactNode;
   className?: string;
 }) {
-  const { milestone } = PREVIEW_REGISTRY[id];
+  // Widened to the entry type: with the registry empty, `PreviewId` is `never`
+  // and so would `milestone` be, which the template literal below refuses.
+  const { milestone }: PreviewEntry = (PREVIEW_REGISTRY as Readonly<Record<string, PreviewEntry>>)[id]!;
   const callerSetsPosition = className !== undefined && POSITION_KEYWORD.test(className);
   return (
     <div

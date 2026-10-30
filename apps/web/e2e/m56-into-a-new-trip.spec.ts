@@ -100,7 +100,7 @@ test("Home's rail hands a trip to New trip prefilled, and its other ask is a chi
   await chip.click();
   await expect(rail(page).getByRole("log", { name: "Conversation" })).toContainText(mezcal);
   // Nothing ran unasked (D5): the one turn sent is the press.
-  expect(asks).toEqual([mezcal]);
+  await expect.poll(() => asks).toEqual([mezcal]);
   await expect(chips).toBeHidden();
   await page.reload();
   await page.getByTestId("ask-pill").click();

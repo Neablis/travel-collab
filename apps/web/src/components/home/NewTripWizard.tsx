@@ -533,7 +533,7 @@ function Pages({
    * **Create, and go to the trip.** *Plan with AI* also leaves the trip a
    * kickoff, which its board sends with the rail open (M56 D1): written here
    * from the answers, not by the model, so the first turn says what was picked.
-   * Carried asks ride either way, as chips.
+   * Carried asks ride either way, as chips, and with `createEmpty` too.
    *
    * A chosen day that did not land keeps the sheet up long enough to say
    * which — navigating past the only place that says it would lose it.
@@ -553,9 +553,12 @@ function Pages({
     onDone(result.latch.tripId, true);
   }
 
+  /** No kickoff, but a hand-off's carried asks still become the trip's chips (M56 D5). */
   async function createEmpty() {
     const result = await run(false);
-    if (result !== null) onDone(result.latch.tripId, false);
+    if (result === null) return;
+    if (carriedAsks.length > 0) rememberIntoTrip(result.latch.tripId, { kickoff: null, asks: [...carriedAsks] });
+    onDone(result.latch.tripId, false);
   }
 
   const step = stepLabel(state);
