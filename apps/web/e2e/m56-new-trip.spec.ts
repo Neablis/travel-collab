@@ -75,3 +75,42 @@ test("five pages and Review make a trip holding every answer, and a new place re
     tags: ["meal", "museum"],
   });
 });
+
+// Mitchell on his iPhone, 2026-10-30: in the New trip sheet the last row of
+// step 5's tag tiles sat under the footer until the body was scrolled. The
+// small phone is the case: 375x667 is the shortest a supported iPhone gets,
+// and `hasTouch` makes Chromium answer `(pointer: coarse)` as the phone does.
+test.describe("New trip on a small phone", () => {
+  test.use({ viewport: { width: 375, height: 667 }, hasTouch: true });
+
+  test("shows every tag tile on step 5 without scrolling the sheet's body", async ({ page }) => {
+    await signInAsDevUser(page, `m56s${randomUUID().replace(/-/g, "").slice(0, 10)}`);
+    // A trip first: the sheet is for an account that has one; first run is Home's card.
+    const made = await page.request.post("/api/trips", { data: { name: e2eTripName("M56Phone") } });
+    expect(made.ok()).toBe(true);
+    await page.goto("/home");
+    await page.getByRole("button", { name: "New trip" }).click();
+    const sheet = page.getByRole("dialog", { name: "New trip" });
+    const next = sheet.getByRole("button", { name: "Next" });
+
+    await pickNewTripPlace(sheet, e2eTripName("M56PhoneWhere"));
+    await next.click();
+    await sheet.getByRole("radio", { name: "Not yet" }).click();
+    await next.click();
+    await sheet.getByRole("radio", { name: "A week" }).click();
+    await next.click();
+    await sheet.getByRole("radio", { name: "Packed" }).click();
+    await next.click();
+    await expect(sheet.getByText("Step 5 of 5")).toBeVisible();
+
+    const body = sheet.getByTestId("new-trip-page");
+    const tiles = sheet.getByRole("checkbox");
+    await expect(tiles).toHaveCount(12);
+    const bodyBox = (await body.boundingBox())!;
+    const lastBox = (await tiles.last().boundingBox())!;
+    expect(lastBox.y + lastBox.height, "the last tile's foot against the body's").toBeLessThanOrEqual(bodyBox.y + bodyBox.height);
+    expect(await body.evaluate((el) => el.scrollHeight - el.clientHeight), "the body's overflow").toBeLessThanOrEqual(0);
+    // Smaller, but still a finger's target both ways.
+    expect(Math.min(lastBox.width, lastBox.height)).toBeGreaterThanOrEqual(44);
+  });
+});
