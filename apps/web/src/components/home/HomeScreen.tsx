@@ -30,6 +30,7 @@ import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { pendingPlaybookAddDay } from "@/lib/pendingPlaybookAdd";
+import { takeNewTripHandOff, type NewTripHandOff } from "@/lib/pendingCarriedAsks";
 import { plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { newTripCommand } from "@/components/palette/commands";
@@ -146,6 +147,9 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
   // settle on the second, which `viewer?.id` would flatten into the first.
   const viewerId = viewer === null ? null : viewer?.id;
   const [newTripOpen, setNewTripOpen] = useState(false);
+  // What an assistant's hand-off to New trip knew (ADR-084 §5), for the open
+  // it was taken by: its prefill, and the asks the new trip shows as chips.
+  const [newTripHandOff, setNewTripHandOff] = useState<NewTripHandOff | null>(null);
   // True while the "Make this trip mine" copy this page inherited from `/demo`
   // is in flight — see `lib/pendingDemoClone.ts` for why the intent arrives
   // here at all. It also holds the first-run wizard shut — both while it is
@@ -230,6 +234,7 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
    */
   function startNewTrip() {
     if (!hasNoTrips) {
+      setNewTripHandOff(takeNewTripHandOff());
       setNewTripOpen(true);
       return;
     }
@@ -375,6 +380,22 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
     const savedDayId = pendingPlaybookAddDay();
     if (savedDayId !== null) router.replace(`/playbooks/day/${encodeURIComponent(savedDayId)}`);
   }, [trips, unauthenticated, cloningDemo, router]);
+
+  // **A hand-off to New trip from another page** (ADR-084 §5): a trip's rail
+  // has no New trip of its own and sends the person here, so a waiting
+  // hand-off opens the sheet. Behind the demo copy, for the playbook return's
+  // reason; and not on a Home with no trips, whose New trip is the inline
+  // first run (`startNewTrip`'s note), which takes no hand-off.
+  const handOffAttempted = useRef(false);
+  useEffect(() => {
+    if (handOffAttempted.current || trips === null || unauthenticated || hasNoTrips) return;
+    if (cloningDemo || demoCloneAttempted.current) return;
+    handOffAttempted.current = true;
+    const handOff = takeNewTripHandOff();
+    if (handOff === null) return;
+    setNewTripHandOff(handOff);
+    setNewTripOpen(true);
+  }, [trips, unauthenticated, hasNoTrips, cloningDemo]);
 
   /** Delete's and Leave's optimistic half: off the list now, and a grid card on its way out. */
   function startLeaving(trip: TripSummary) {
@@ -657,7 +678,11 @@ export function HomeScreen({ initialTrips = null, initialToday = null }: HomeScr
           // above. The inline conversation is what yields, because it is not
           // the surface the reader is typing into.
           open={newTripOpen}
-          onOpenChange={setNewTripOpen}
+          onOpenChange={(open) => {
+            setNewTripOpen(open);
+            if (!open) setNewTripHandOff(null);
+          }}
+          {...(newTripHandOff === null ? {} : { prefill: newTripHandOff.prefill, carriedAsks: newTripHandOff.asks })}
           createTrip={createTripApi}
           dispatch={sendTripCommand}
           // **Full screen on a phone, the rail above it** (SPEC §32.2: *"the

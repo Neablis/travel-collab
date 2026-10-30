@@ -37,6 +37,7 @@ import {
 } from "@/components/lenses/LensSkeletons";
 import { useIsAbovePhone, useIsPhone, useIsPhoneKnown, useIsTabletWidth } from "@/lib/useIsPhone";
 import { useHydrated } from "@/lib/useHydrated";
+import { takeIntoTrip, type CarriedAsk } from "@/lib/pendingCarriedAsks";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { buttonVariants } from "@/components/ui/button";
@@ -332,6 +333,22 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // once the rail has taken it: the rail remounts on Hide and Show, and when
   // the header skeleton comes back, and must not find it again.
   const [handOff, setHandOff] = useState<{ text: string } | null>(null);
+  // **What New trip left for this trip** (M56 D1, D5): *Plan with AI*'s
+  // kickoff goes in as ⌘K's text does, which is the person's own press of
+  // Plan with AI; a carried ask is only a chip until it is pressed. Taken once
+  // the board renders, when there is a rail to open.
+  const [carriedAsks, setCarriedAsks] = useState<readonly CarriedAsk[]>([]);
+  // `openAsk` is new each render, and the take is once per trip.
+  const openAskLatest = useRef(openAsk);
+  openAskLatest.current = openAsk;
+  useEffect(() => {
+    if (!boardRenders || isDemoTripId(tripId)) return;
+    const into = takeIntoTrip(tripId);
+    if (into === null) return;
+    setCarriedAsks(into.asks);
+    openAskLatest.current();
+    if (into.kickoff !== null) setHandOff({ text: into.kickoff });
+  }, [boardRenders, tripId]);
   usePhoneAskEntry(
     boardRenders && !isDemoTripId(tripId) ? openAsk : undefined,
     assistant.open,
@@ -1863,6 +1880,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               scope={askScope}
               turns={thread}
               suggestions={isPhone ? phoneAsk.quickAsks : assistantSuggestions}
+              carriedAsks={carriedAsks}
+              onCarriedAskTaken={(taken) => setCarriedAsks((asks) => asks.filter((each) => each !== taken))}
               // Undefined on the desktop, which leaves the rail's own trip-wide
               // sentence — §23 changes the phone and nothing above 768px.
               emptyHint={assistantPresentation === "sheet" ? phoneAsk.emptyHint : undefined}
