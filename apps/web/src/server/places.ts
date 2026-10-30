@@ -251,6 +251,15 @@ async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearc
  * not hide the US state. A city row knows no country, so the vendor's
  * top-ranked namesake is taken to be it and the rest, each with its own
  * region line, stay.
+ *
+ * Both guesses can miss, giving a duplicate or a hidden namesake, never a
+ * wrong commit. When the vendor ranks a different namesake first (Cambridge,
+ * MA over the library's Cambridge, UK), that one is hidden and the library's
+ * place comes back as an unlabelled world row. And a world city with a
+ * library country's name and code (Luxembourg, Singapore, Monaco) spends the
+ * country's claim when ranked first, so the country itself then passes as a
+ * world row beside the library's. A library place the vendor matched
+ * mid-name is not in `library` at all (KI-2026-10-30-c).
  */
 function notInLibrary(world: WorldPlaceMatch[], library: LibraryMatch[]): WorldPlaceMatch[] {
   const keyOf = (name: string, countryCode?: string) => `${name.toLowerCase()}|${countryCode ?? ""}`;
