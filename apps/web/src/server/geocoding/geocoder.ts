@@ -49,6 +49,20 @@ export interface GeocodeOptions {
   countryCodes?: readonly string[];
 }
 
+// One place a typeahead offers (M56 D3): a destination, not a stop, so it
+// carries what a trip is created from and none of a stop's address breakdown.
+export interface PlaceSuggestion {
+  // The vendor's id for the place, stable across searches, so a client commits
+  // the place it was shown rather than a string it typed (ADR-084 §7).
+  id: string;
+  // What the place is called ("Lisbon") and where it is ("Lisbon, Portugal").
+  name: string;
+  detail: string;
+  countryCode?: string; // ISO-3166 alpha-2, uppercase
+  lat: number;
+  lng: number;
+}
+
 // The swappable seam (ADR-007). Callers depend only on this; each adapter hides
 // its vendor. We persist normalized GeocodeResults, never raw vendor payloads.
 export interface Geocoder {
@@ -66,4 +80,7 @@ export interface Geocoder {
   // came with, never to rename a stop. Optional so a stub that never needs it
   // stays two methods; a geocoder without it checks nothing.
   reverse?(point: LatLng): Promise<GeocodeResult | null>;
+  // Settlements, regions and countries whose name starts with what was typed,
+  // for place search (M56 D3). Optional for `reverse`'s reason.
+  autocomplete?(query: string, opts?: { limit?: number }): Promise<PlaceSuggestion[]>;
 }

@@ -1,10 +1,14 @@
 import { sql } from "drizzle-orm";
+import { z } from "zod";
 import { SavedDayVisibility } from "@tc/contracts";
-import type { PlaceMatch } from "@/lib/cities";
+import { WorldPlaceMatch, type PlaceMatch } from "@/lib/cities";
 import { countryName } from "@/lib/place";
 import { searchCities } from "./cities";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
+import { pgCacheStore, readThrough, type CacheStore } from "./external/cache";
+import { geocoderConfigured, getGeocoder, type PlaceSuggestion } from "./geocoding";
+import { consumeQuota, worldPlaceSearchQuota } from "./quota";
 
 // The place index behind `GET /api/places?q=` (M12 link 7): the city index
 // `searchCities` already answers, plus countries, in one labelled list.
@@ -97,8 +101,11 @@ function copied(
   return answer.then((rows) => rows.map((row) => ({ ...row })));
 }
 
+/** A row the library answers, as opposed to the vendor's `world` rows. */
+type LibraryMatch = Exclude<PlaceMatch, { kind: "world" }>;
+
 /** The name a searcher types towards and the sort ties on, whichever kind the place is. */
-function labelOf(place: PlaceMatch): string {
+function labelOf(place: LibraryMatch): string {
   return place.kind === "city" ? place.city : place.name;
 }
 
@@ -124,21 +131,26 @@ function labelOf(place: PlaceMatch): string {
  *   3. a tie goes to the country, the wider place;
  *   4. then UTF-16 code-unit order on the label, never `localeCompare` —
  *      `siblingCities` in `playbooks.ts` records why.
+ *
+ * Given `world` (a signed-in reader, `worldSearchFor`), the vendor's places
+ * follow the library's in the vendor's order, in the room the library leaves.
  */
-export async function searchPlaces(q: string): Promise<PlaceMatch[]> {
+export async function searchPlaces(q: string, world: WorldSearch | null = null): Promise<PlaceMatch[]> {
   const needle = q.toLowerCase();
   const [cities, countries] = await Promise.all([searchCities(q), publishedCountriesMemoised()]);
 
-  const places: PlaceMatch[] = [
-    ...cities.map((c): PlaceMatch => ({ kind: "city", city: c.city, days: c.days })),
-    ...countries.flatMap(({ countryCode, days }): PlaceMatch[] => {
+  const places: LibraryMatch[] = [
+    ...cities.map((c): LibraryMatch => ({ kind: "city", city: c.city, days: c.days, hasPlaybooks: c.days > 0 })),
+    ...countries.flatMap(({ countryCode, days }): LibraryMatch[] => {
       const name = countryName(countryCode) ?? countryCode;
-      return name.toLowerCase().startsWith(needle) ? [{ kind: "country", countryCode, name, days }] : [];
+      return name.toLowerCase().startsWith(needle)
+        ? [{ kind: "country", countryCode, name, days, hasPlaybooks: days > 0 }]
+        : [];
     }),
   ];
 
-  const exact = (p: PlaceMatch) => (labelOf(p).toLowerCase() === needle ? 0 : 1);
-  return places
+  const exact = (p: LibraryMatch) => (labelOf(p).toLowerCase() === needle ? 0 : 1);
+  const library = places
     .sort((a, b) => {
       const byExact = exact(a) - exact(b);
       if (byExact !== 0) return byExact;
@@ -148,4 +160,75 @@ export async function searchPlaces(q: string): Promise<PlaceMatch[]> {
       return la < lb ? -1 : la > lb ? 1 : 0;
     })
     .slice(0, SEARCH_LIMIT);
+  // A full list has no room for the world, so it is not asked, or charged.
+  if (world === null || library.length >= SEARCH_LIMIT) return library;
+  return [...library, ...(await worldPlaces(q, library, world))].slice(0, SEARCH_LIMIT);
+}
+
+// The world half of place search (M56 D3, ADR-084 §7), for a signed-in reader
+// only. Each normalised query is one `external_data_cache` row through
+// `readThrough`, which charges the account's quota on a miss and on nothing
+// else. Place names do not move, so a row is kept a month.
+const WORLD_CACHE_MS = 30 * 24 * 60 * 60 * 1000;
+// Typeahead: a slow vendor must not hold the library's answer for long.
+const WORLD_TIMEOUT_MS = 2_500;
+// Under three letters a prefix names too many places to be worth a call; a
+// query longer than any place name is not a search and would make a long key.
+const WORLD_MIN_QUERY = 3;
+const WORLD_MAX_QUERY = 80;
+const WORLD_LIMIT = 5;
+const WorldPlaces = z.array(WorldPlaceMatch);
+
+/** What the world branch is given: the vendor call, the account's charge, and the cache. */
+export interface WorldSearch {
+  autocomplete: (q: string) => Promise<PlaceSuggestion[]>;
+  /** One call charged to the reader's own `worldPlaceSearchQuota`; `false` is a refusal. */
+  charge: () => Promise<boolean>;
+  store: CacheStore;
+  now: Date;
+}
+
+/** The world branch for signed-in `readerId`, or `null` when no vendor is configured. */
+export function worldSearchFor(readerId: string): WorldSearch | null {
+  if (!geocoderConfigured()) return null;
+  const geocoder = getGeocoder();
+  const autocomplete = geocoder.autocomplete?.bind(geocoder);
+  if (autocomplete === undefined) return null;
+  return {
+    autocomplete: (q) => autocomplete(q, { limit: WORLD_LIMIT }),
+    charge: async () => (await consumeQuota(worldPlaceSearchQuota(), readerId)).allowed,
+    store: pgCacheStore(),
+    now: new Date(),
+  };
+}
+
+/**
+ * Vendor places for `q`, less any the library already offers by the same
+ * name: that one is the library's row, labelled as having playbooks. Empty
+ * when the vendor fails or the quota refuses, so the library still answers.
+ */
+async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearch): Promise<WorldPlaceMatch[]> {
+  const query = q.trim().replace(/\s+/g, " ");
+  if (query.length < WORLD_MIN_QUERY || query.length > WORLD_MAX_QUERY) return [];
+  const cached = await readThrough({
+    key: `locationiq:autocomplete:${query.toLowerCase()}`,
+    schema: WorldPlaces,
+    store: world.store,
+    now: world.now,
+    charge: world.charge,
+    timeoutMs: WORLD_TIMEOUT_MS,
+    call: async () => ({
+      kind: "fresh",
+      value: (await world.autocomplete(query)).map((s): WorldPlaceMatch => ({ kind: "world", ...s, hasPlaybooks: false })),
+      expiresAt: new Date(world.now.getTime() + WORLD_CACHE_MS),
+      lastModified: null,
+      sourceUpdatedAt: null,
+    }),
+  }).catch((error: unknown) => {
+    // `readThrough` throws only for the cache table itself.
+    console.warn(`[places] world search: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  });
+  const offered = new Set(library.map((p) => labelOf(p).toLowerCase()));
+  return (cached?.value ?? []).filter((p) => !offered.has(p.name.toLowerCase()));
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { locationFactory } from "@tc/factories";
 import type { PlaceMatch } from "@/lib/cities";
 import type { DiscoverResponse } from "@/lib/playbooks";
@@ -8,7 +8,9 @@ import { executeTripCommand } from "@/server/commands";
 import { forgetCitySearches } from "@/server/cities";
 import { db } from "@/server/db/client";
 import { savedDays } from "@/server/db/schema";
+import type { PlaceSuggestion } from "@/server/geocoding";
 import { forgetCountrySearches } from "@/server/places";
+import { dailyPolicy, peekQuota, worldPlaceSearchQuota } from "@/server/quota";
 
 // Place search (M12 link 7), against the real index and the real save path —
 // so `countries` here is whatever `newSavedDayRow` derived, not a value the
@@ -26,6 +28,19 @@ let currentUserId = AUTHOR;
 
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
+}));
+
+// The vendor seam (ADR-007), replaced wholesale, never the real LocationIQ.
+// Each query answers two places named after it, so a test can tell which
+// query reached the vendor, and the first collides with a library city.
+const autocomplete = vi.fn(async (q: string): Promise<PlaceSuggestion[]> => [
+  { id: `osm:relation:${q}`, name: q, detail: `${q}, Somewhere`, countryCode: "PT", lat: 38.7, lng: -9.1 },
+  { id: `osm:node:${q}-heights`, name: `${q} Heights`, detail: `${q} Heights, Elsewhere`, lat: 1, lng: 2 },
+]);
+vi.mock("@/server/geocoding", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/geocoding")>()),
+  geocoderConfigured: () => true,
+  getGeocoder: () => ({ forward: vi.fn(), forwardAddress: vi.fn(), autocomplete }),
 }));
 
 const { GET } = await import("./route");
@@ -80,7 +95,9 @@ async function search(q: string): Promise<{ status: number; places: PlaceMatch[]
 
 /** How many published days the index says touch country `code`, 0 when it is absent. */
 async function countryDays(q: string, code: string): Promise<number> {
-  const hit = (await search(q)).places.find((p) => p.kind === "country" && p.countryCode === code);
+  const hit = (await search(q)).places.find(
+    (p): p is Extract<PlaceMatch, { kind: "country" }> => p.kind === "country" && p.countryCode === code,
+  );
   return hit?.days ?? 0;
 }
 
@@ -92,23 +109,85 @@ async function discover(query: string): Promise<string[]> {
 
 beforeEach(() => {
   currentUserId = AUTHOR;
+  autocomplete.mockClear();
 });
+
+afterEach(() => vi.unstubAllEnvs());
+
+/** What the world search has charged `userId` today. */
+const worldUsed = async (userId: string) => (await peekQuota(dailyPolicy(worldPlaceSearchQuota()), userId)).used;
 
 describe("GET /api/places", () => {
   // ADR-061: Discover's search box works for a reader with no account. Their
-  // own IP, for `publicLibraryLimit.ts`'s per-IP count.
-  it("answers a reader with no account exactly as it answers a signed-in one", async () => {
+  // own IP, for `publicLibraryLimit.ts`'s per-IP count. D3: that reader gets
+  // the library and nothing from the vendor, which only an account is charged for.
+  it("answers a reader with no account from the library only, and never asks the world", async () => {
     const city = `Anoncity${RUN}`;
     await publish(await saveDayAt([{ city, countryCode: "PT" }]));
-    const signedIn = await search(city);
-    expect(signedIn.places).toEqual([{ kind: "city", city, days: 1 }]);
 
     currentUserId = "";
     const res = await GET(
       new Request(`http://test/api/places?q=${city}`, { headers: { "x-forwarded-for": `anon-${RUN}` } }),
     );
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { places: PlaceMatch[] }).places).toEqual(signedIn.places);
+    expect(((await res.json()) as { places: PlaceMatch[] }).places).toEqual([
+      { kind: "city", city, days: 1, hasPlaybooks: true },
+    ]);
+    expect(autocomplete).not.toHaveBeenCalled();
+  });
+
+  // D3 and ADR-084 §7: a signed-in reader also gets the world, after the
+  // library, and a world place the library already holds is offered once, as
+  // the library's, labelled.
+  it("answers a signed-in reader with world places after the library's, the library's labelled", async () => {
+    const city = `Worldcity${RUN}`;
+    await publish(await saveDayAt([{ city, countryCode: "PT" }]));
+
+    const { status, places } = await search(city);
+    expect(status).toBe(200);
+    expect(places).toEqual([
+      { kind: "city", city, days: 1, hasPlaybooks: true },
+      {
+        kind: "world",
+        id: `osm:node:${city}-heights`,
+        name: `${city} Heights`,
+        detail: `${city} Heights, Elsewhere`,
+        lat: 1,
+        lng: 2,
+        hasPlaybooks: false,
+      },
+    ]);
+  });
+
+  // ADR-052 decision 8, which `readThrough` holds: the quota is charged on a
+  // miss only, so the second search, answered from the cache, costs nothing.
+  it("answers a repeated world search from the cache, and charges it once", async () => {
+    currentUserId = `places-cache-${RUN}`;
+    const q = `Cachedtown${RUN}`;
+    expect(await worldUsed(currentUserId)).toBe(0);
+    const first = await search(q);
+    expect(first.places.filter((p) => p.kind === "world")).toHaveLength(2);
+    expect(await worldUsed(currentUserId)).toBe(1);
+
+    const second = await search(q.toLowerCase());
+    expect(second.places).toEqual(first.places);
+    expect(autocomplete).toHaveBeenCalledTimes(1);
+    expect(await worldUsed(currentUserId)).toBe(1);
+  });
+
+  // The per-account limit: past it the vendor is not asked, and the library
+  // still answers, so the box falls back to what an anonymous reader sees.
+  it("stops asking the world past the account's daily limit, and still answers from the library", async () => {
+    currentUserId = `places-limited-${RUN}`;
+    vi.stubEnv("WORLD_PLACE_SEARCH_RATE_LIMIT_PER_USER_DAILY", "1");
+    expect((await search(`Firsttown${RUN}`)).places.filter((p) => p.kind === "world")).toHaveLength(2);
+
+    const city = `Limitcity${RUN}`;
+    await publish(await saveDayAt([{ city, countryCode: "PT" }]));
+    const refused = await search(city);
+    expect(refused.status).toBe(200);
+    expect(refused.places).toEqual([{ kind: "city", city, days: 1, hasPlaybooks: true }]);
+    expect(autocomplete).toHaveBeenCalledTimes(1);
   });
 
   it("answers an empty or blank query with an empty list, not everything", async () => {
@@ -161,7 +240,7 @@ describe("GET /api/places", () => {
     await publish(await saveDayAt([{ city: "Monte Carlo", countryCode: "MC" }]));
     const country = (q: string) =>
       search(q).then((r) => r.places.filter((p) => p.kind === "country" && p.countryCode === "MC"));
-    expect(await country("mona")).toEqual([{ kind: "country", countryCode: "MC", name: "Monaco", days: expect.any(Number) }]);
+    expect(await country("mona")).toEqual([{ kind: "country", countryCode: "MC", name: "Monaco", days: expect.any(Number), hasPlaybooks: true }]);
     expect(await country("mc")).toEqual([]);
   });
 

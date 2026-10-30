@@ -1055,8 +1055,10 @@ export function makeReportHandlers(
 
 /**
  * `GET /api/places?q=` (M12 link 7) over a fixed list of places, typed against
- * `PlaceMatch` so a mock row that fits neither the city nor the country arm is
- * a type error rather than a surprise in a component.
+ * `PlaceMatch` so a mock row that fits none of the city, country and world arms
+ * is a type error rather than a surprise in a component. A world row (M56 D3)
+ * stands in for the vendor's autocomplete: the list says whether the caller is
+ * signed in, as the real route's answer does.
  *
  * Deliberately naive, like every handler here: a case-insensitive prefix match
  * on the label, the given order kept, and the real route's empty-box
