@@ -103,6 +103,20 @@ describe("duplicateTrip", () => {
     expect(source!.startDate).toBe("2027-06-01");
   });
 
+  // M56 part 4: every trip the picker creates has a style, so a copy that
+  // dropped it (or could not carry it) would lose what the assistant is told.
+  it("keeps the source's pace and tags", async () => {
+    const tripId = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Japan" }, actor);
+    await executeTripCommand({ type: "SetTripStyle", tripId, pace: "slow", tags: ["museum", "beach"] }, actor);
+
+    const result = await duplicateTrip(tripId, actor);
+    expect(result.ok && { pace: result.detail.pace, tags: result.detail.tags }).toEqual({
+      pace: "slow",
+      tags: ["museum", "beach"],
+    });
+  });
+
   it("does not copy the source trip's pages", async () => {
     const tripId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Japan" }, actor);
@@ -282,6 +296,21 @@ describe("cloning a share link", () => {
     // The stranger is still nothing to the source.
     expect((await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, stranger)).ok).toBe(false);
     expect((await getTripDetail(tripId))!.days).toHaveLength(0);
+  });
+
+  it("keeps the pace and tags the link showed", async () => {
+    const tripId = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, actor);
+    await executeTripCommand({ type: "SetTripStyle", tripId, pace: "packed", tags: ["show"] }, actor);
+    const share = await createShare(tripId, actor);
+    expect(share.ok).toBe(true);
+    if (!share.ok) return;
+
+    const result = await cloneSharedTrip(share.value.token, stranger);
+    expect(result.ok && { pace: result.detail.pace, tags: result.detail.tags }).toEqual({
+      pace: "packed",
+      tags: ["show"],
+    });
   });
 
   it("refuses an unknown token", async () => {
