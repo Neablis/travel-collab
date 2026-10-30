@@ -15,6 +15,7 @@ const SENTENCES: Record<string, (trip: string, title: string | null) => string> 
   TripStartDateSet: (trip) => `Changed the dates of ${trip}`,
   TripBudgetSet: (trip) => `Set the budget for ${trip}`,
   TripCurrencySet: (trip) => `Changed the currency of ${trip}`,
+  TripStyleSet: (trip) => `Set the pace and tags of ${trip}`,
   TripDeleted: (trip) => `Deleted ${trip}`,
   TripRestored: (trip) => `Restored ${trip}`,
   DayAdded: (trip) => `Added a day to ${trip}`,
