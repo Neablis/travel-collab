@@ -556,6 +556,23 @@ nothing smuggles mutable state into a resolver, which decision 3c already forbid
    `trip.cities` cannot be addressed until cities exist as a collection rather than as
    `Location.city` derived per activity by `cityFor()`.
 
+## Amendment 2026-10-31 (M43, decision 4): `open` gets its own row shape, and an action is a declared link
+
+*What needs you* (`open`) was a `repeat` widget drawn as a two-column table, and the design is
+not a table (`.design-sync/handoff/design/Trip Planner Redesign.dc.html`, `openBlock`). It
+becomes a list of items, each `{ label, sub, right, tone, act }`:
+
+- `label` and `sub` are text; `right` is the action's text (*Fix in Plan*, *Plan it*,
+  *Place them*); `tone` is a closed set (`warning`, `info`, `plain`) the renderer maps to tokens.
+- **`act` is a `LinkTarget`** (`packages/pages/src/linkTarget.ts`), data the renderer turns into
+  an href with the same `linkHref` blocks already use. It is never a control the widget emits
+  and never a URL string the widget builds.
+
+So `Rendered` gains one kind for it. Decision 3 stands unchanged: the output is still a closed
+union of data, rendered as text nodes and links the renderer owns, and no markup crosses the
+seam. A later widget that wants rows with an action reuses this kind rather than adding another.
+`open` also takes filters now (M43 decision 5), so its "declares no filters" comment goes.
+
 ## Alternatives rejected
 
 - **Keep the switch and add cases.** It is the status quo, it costs one component edit per

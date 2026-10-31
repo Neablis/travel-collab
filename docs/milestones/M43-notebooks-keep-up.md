@@ -1,7 +1,9 @@
 # M43 — A trip's notebooks keep up with their templates
 
-**Status:** **Proposed 2026-10-06; moved last 2026-10-12, after M49, by Mitchell (nothing it fixes is hurting today). Not scoped yet**: the decisions below are
-recommendations and none has been answered. Minted from `docs/candidates.md` (see
+**Status:** **Scoped 2026-10-31 with Mitchell**: decisions 2 to 5 are answered below, each as
+recommended; the ADR-037 amendment of that date records decision 4. Plan:
+`docs/plans/2026-10-31-M43-notebooks-keep-up.md` (four parts). Proposed 2026-10-06; moved last
+2026-10-12, after M49, by Mitchell (nothing it fixes is hurting today). Minted from `docs/candidates.md` (see
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
 **Shrunk 2026-10-17, by Mitchell, to what is not built.** Seed back-fill and reset were built
 before this milestone was scoped (see *Already built* below), so they leave the scope and the gate.
@@ -40,7 +42,7 @@ Candidates absorbed (each deleted by this gate):
   (2026-09-13)
 - *`open` takes filters: which kind of open item, and over which days* (2026-09-13)
 
-## Decisions it needs (recommendations; none answered)
+## Decisions (answered 2026-10-31 by Mitchell, each as recommended)
 
 1. ~~*Add missing seeds* is automatic; *Reset to template* is a confirmed action.~~ **Answered
    by what was built** (2026-10-17): add-missing is an owner's button, and reset is a confirmed,
@@ -59,6 +61,28 @@ Candidates absorbed (each deleted by this gate):
 5. **The type filter offers the three row classes** (conflict, empty day, parked), not the six
    labels. `Conflict.kind` is an open string, so a closed six-value control would make any kind the
    domain adds later unreachable by the filter. The date filter is the existing `dates` dimension.
+
+**Answers, 2026-10-31 (Mitchell):**
+
+- **2: a `pages.kind` column.** Migration `0070` adds it, backfilled from `context->>'kind'`
+  (one winner per trip, the way `0032` chose its `seed_key`), with a partial unique index on
+  `(trip_id) WHERE kind = 'overview'`. `PageContext.kind` is retired in
+  `docs/contracts/CHANGELOG.md`. The survey found a hole this closes: both page-create routes
+  (`/api/trips/:id/pages`, `/api/v1/trips/:id/pages`) accept `context.kind = 'overview'` from an
+  editor and would create a second, undeletable Overview. After part 1 a person can never set a
+  page's kind; only seeding does.
+- **3: derive when the stored title is a default.** At read time an Overview whose stored title
+  is `Overview` (or a legacy seed title) is shown as `Overview — <trip name>`; any other stored
+  title is the user's rename and is shown as stored. Reset writes `Overview` back, so it derives
+  again. No migration and no flag: the event log cannot tell a reset from a rename.
+- **4: follow the design.** `open` renders its own row shape `{ label, sub, right, tone, act }`
+  where `act` is a declared `LinkTarget` the renderer turns into a link (ADR-037 amendment,
+  2026-10-31). Parked ideas are **one** grouped row (`N ideas are parked`, the first two titles,
+  *Place them*), as the design draws it, not a row per idea.
+- **5: three classes, and `open` follows the notebook's date scope.** The class filter offers
+  conflict, empty day and parked. The Days filter is the existing `dates` dimension; an explicit
+  Days filter wins, otherwise the notebook's date scope applies (`followsDateScope`). Parked
+  ideas carry no date, so only the class filter hides them.
 
 ## Scope
 
