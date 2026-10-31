@@ -334,7 +334,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       const outcome = presetOutcome(entry);
       if (outcome.status !== "ok") continue;
       seen.push(entry.name);
-      expect(["inline", "block", "rows", "link"], `${entry.name} rendered an unknown kind`).toContain(outcome.rendered.kind);
+      expect(["inline", "block", "rows", "link", "items"], `${entry.name} rendered an unknown kind`).toContain(outcome.rendered.kind);
     }
     // The witness, and it is EVERY preset rather than a floor plucked from the
     // air: a row a person can click that cannot render against a trip with a
@@ -361,6 +361,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     // URL, and this asserts the widgets stay inside it.
     let inspected = 0;
     let links = 0;
+    let items = 0;
     for (const entry of presetCatalog()) {
       const outcome = presetOutcome(entry);
       if (outcome.status !== "ok" || outcome.rendered.kind === "block") continue;
@@ -372,6 +373,17 @@ describe("every widget renders (ADR-037 decision 2)", () => {
         links++;
         expect(entry.widget).toBe("link.external");
         expect(outcome.rendered.href).toMatch(/^https?:\/\//);
+        continue;
+      }
+      // **Rows that go somewhere carry a target, never an address** (ADR-037,
+      // amended 2026-10-31): the app builds the href, so the only strings in
+      // an item are words, and its `act` is one of the targets `linkHref` knows.
+      if (outcome.rendered.kind === "items") {
+        items += outcome.rendered.items.length;
+        for (const item of outcome.rendered.items) {
+          expect(["notebook", "day", "view"]).toContain(item.act.kind);
+          expect(Object.keys(item).sort()).toEqual(["act", "label", "right", "sub", "tone"]);
+        }
         continue;
       }
       const segs =
@@ -387,6 +399,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     // conditional sweeps here were missing their own (#134).
     expect(inspected, "no segment was inspected").toBeGreaterThan(0);
     expect(links, "the link widget never rendered its link").toBe(1);
+    expect(items, "no row with an action was inspected").toBeGreaterThan(0);
   });
 
   it("gives every block payload a `kind`, which is what BlockView dispatches on", () => {

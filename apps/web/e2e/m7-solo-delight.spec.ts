@@ -226,10 +226,12 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await expect(page.getByText("no cities yet")).toBeVisible();
   await expect(page.getByText("no days yet")).toBeVisible();
   // What needed a decision is in Bookings now (M30), and reads there as it
-  // did here: in words, never a blank.
+  // did here: in words, never a blank — the design's own line (M43 decision 4),
+  // and no row list beside it.
   await page.getByTestId("link-card").filter({ hasText: "Bookings" }).click();
   await expect(page.getByRole("heading", { name: "Bookings", level: 1 })).toBeVisible();
-  await expect(page.getByText(/nothing is waiting on you/i)).toBeVisible();
+  await expect(page.getByText("Nothing is waiting on you — every day has something on it and no two stops collide.")).toBeVisible();
+  await expect(page.getByRole("list", { name: "What needs you" })).toHaveCount(0);
   await expect(page.getByText("nothing left to book")).toBeVisible();
   // Non-vacuous from the other side: the placeholders it used to carry are
   // gone, not merely unasserted.
