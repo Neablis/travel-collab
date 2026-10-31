@@ -28,7 +28,7 @@ export function pickOverviewPage<T extends PageSummary>(
   phase: TripPhase | null,
 ): OverviewPick<T> {
   const today = overviewShowsToday(phase) ? pages.find((p) => p.seedKey === TODAY_SEED_KEY) : undefined;
-  const page = linkedPageId !== null ? pages.find((p) => p.id === linkedPageId) : (today ?? pages.find((p) => isOverviewPage(p.context)));
+  const page = linkedPageId !== null ? pages.find((p) => p.id === linkedPageId) : (today ?? pages.find((p) => isOverviewPage(p)));
   if (page !== undefined) return { ok: true, page };
   // A linked notebook that has since been deleted, or a hand-edited URL.
   if (linkedPageId !== null) return { ok: false, message: "This notebook is not in this trip." };

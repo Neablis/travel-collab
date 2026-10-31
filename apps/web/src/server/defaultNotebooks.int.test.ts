@@ -63,7 +63,7 @@ describe("addMissingDefaultPages", () => {
     const kept = seeded.filter((p) => p.id !== gone.id);
     expect((await executePageCommand({ type: "DeletePage", tripId, pageId: gone.id }, ownerId)).ok).toBe(true);
     // An edit to a seed that is NOT missing, so "untouched" means something.
-    const overview = kept.find((p) => p.context.kind === "overview")!;
+    const overview = kept.find((p) => p.kind === "overview")!;
     expect((await executePageCommand({ type: "EditPage", tripId, pageId: overview.id, content: docWith("ours") }, ownerId)).ok).toBe(true);
     const before = await listPages(tripId);
 
@@ -121,7 +121,7 @@ describe("Today, on every trip", () => {
     const tripId = await tripOwnedBy(owner());
     const seeded = await listPages(tripId);
     expect(seeded.slice(0, 2).map((p) => [p.seedKey, p.context])).toEqual([
-      ["overview", { tripId, kind: "overview" }],
+      ["overview", { tripId }],
       ["today", { tripId, dateScope: "today" }],
     ]);
   });
@@ -192,7 +192,7 @@ describe("addMissingDefaultPages, asked for one default", () => {
   it("adds that notebook and leaves the other missing ones missing", async () => {
     const ownerId = owner();
     const tripId = await tripOwnedBy(ownerId);
-    for (const page of (await listPages(tripId)).filter((p) => p.context.kind !== "overview" && p.seedKey !== "today")) {
+    for (const page of (await listPages(tripId)).filter((p) => p.kind !== "overview" && p.seedKey !== "today")) {
       expect((await executePageCommand({ type: "DeletePage", tripId, pageId: page.id }, ownerId)).ok).toBe(true);
     }
 
@@ -254,7 +254,7 @@ describe("resetPageToDefault", () => {
     const ownerId = owner();
     const tripId = await tripOwnedBy(ownerId);
     const seeded = await listPages(tripId);
-    const overview = seeded.find((p) => p.context.kind === "overview")!;
+    const overview = seeded.find((p) => p.kind === "overview")!;
     await executePageCommand(
       { type: "EditPage", tripId, pageId: overview.id, title: "Our plan", content: docWith("our own words") },
       ownerId,
@@ -310,7 +310,7 @@ describe("the default-notebook actions are the owner's", () => {
     const viewerId = `viewer-${randomUUID()}`;
     await grantMembership(db, { tripId, userId: editorId, role: "editor", invitedBy: ownerId, now });
     await grantMembership(db, { tripId, userId: viewerId, role: "viewer", invitedBy: ownerId, now });
-    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!;
+    const overview = (await listPages(tripId)).find((p) => p.kind === "overview")!;
     return { tripId, ownerId, editorId, viewerId, overview };
   }
 
@@ -344,6 +344,26 @@ describe("the seed-key backfill (migration 0032)", () => {
 
   const migration = readFileSync(fileURLToPath(new URL("../../drizzle/0032_notebook_seed_key.sql", import.meta.url)), "utf8");
   const backfill = /-- seed-key backfill: begin\n([\s\S]*?)-- seed-key backfill: end/.exec(migration)![1]!;
+  // Then 0070's, which came after: a replay must agree with both in turn.
+  const kindMigration = readFileSync(fileURLToPath(new URL("../../drizzle/0070_pages_kind.sql", import.meta.url)), "utf8");
+  const kindBackfill = /-- kind backfill: begin\n([\s\S]*?)-- kind backfill: end/.exec(kindMigration)![1]!;
+
+  /**
+   * The Overview as these trips held it before M43: its old marker in the
+   * context of its row and of its `PageCreated` (which `seedKeyOf` still reads
+   * a pre-key Overview off), and no `kind` column yet.
+   */
+  async function asBeforeKind(trips: string[]) {
+    const overviewIds = sql`(select id::text from pages where seed_key = 'overview')`;
+    await db
+      .update(events)
+      .set({ payload: sql`jsonb_set(${events.payload}, '{context,kind}', '"overview"')` })
+      .where(and(inArray(events.streamId, trips), eq(events.type, "PageCreated"), sql`${events.payload}->>'pageId' in ${overviewIds}`));
+    await db
+      .update(pages)
+      .set({ context: sql`jsonb_set(${pages.context}, '{kind}', '"overview"')`, kind: null })
+      .where(and(inArray(pages.tripId, trips), eq(pages.seedKey, "overview")));
+  }
 
   it("keys the seeds that existed, the renamed one included, and a rebuild keys them alike", async () => {
     const ownerId = owner();
@@ -382,8 +402,10 @@ describe("the seed-key backfill (migration 0032)", () => {
     await seededBeforeToday(untouched);
 
     const trips = [tripId, untouched];
+    await asBeforeKind(trips);
     await db.update(pages).set({ seedKey: null }).where(inArray(pages.tripId, trips));
     await db.execute(sql.raw(backfill));
+    await db.execute(sql.raw(kindBackfill));
 
     const keysOf = async (trip: string) =>
       Object.fromEntries((await listPages(trip)).map((p) => [p.id, p.seedKey ?? null]));
@@ -429,8 +451,10 @@ describe("the seed-key backfill (migration 0032)", () => {
     await applyPageEvents(db, appended.envelopes);
     expect((await executePageCommand({ type: "DeletePage", tripId, pageId: money.id }, ownerId)).ok).toBe(true);
 
+    await asBeforeKind([tripId]);
     await db.update(pages).set({ seedKey: null }).where(eq(pages.tripId, tripId));
     await db.execute(sql.raw(backfill));
+    await db.execute(sql.raw(kindBackfill));
     const rowsOf = () => db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.id));
     const backfilled = await rowsOf();
     expect(backfilled.find((p) => p.id === copyId)?.seedKey).toBe("money");

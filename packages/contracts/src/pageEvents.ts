@@ -101,6 +101,15 @@ export type DeletePage = z.infer<typeof DeletePage>;
 export const PageCommand = z.discriminatedUnion("type", [CreatePage, EditPage, DeletePage]);
 export type PageCommand = z.infer<typeof PageCommand>;
 
+/**
+ * A logged page's context. An event is never rewritten, so a `PageCreated`
+ * from before M43 still carries the Overview's old marker, `kind: "overview"`,
+ * and it is kept here for one reader: `seedKeyOf`, which reads a pre-key seed
+ * off it. Everything else takes `pageContextOf`, which drops it; a page's kind
+ * is `Page.kind` now (M43 decision 2).
+ */
+const LoggedPageContext = PageContext.extend({ kind: z.literal("overview").optional() });
+
 export const PageCreatedV1 = z.object({
   type: z.literal("PageCreated"),
   version: z.literal(1),
@@ -108,7 +117,7 @@ export const PageCreatedV1 = z.object({
     tripId: z.string().guid(),
     pageId: z.string().guid(),
     title: z.string().min(1),
-    context: PageContext,
+    context: LoggedPageContext,
     content: PageDoc,
     /**
      * Who the page belongs to, carried in the payload rather than read off the
@@ -177,6 +186,12 @@ export const PAGE_EVENT_TYPES: readonly PageEvent["type"][] = Object.keys(
   PAGE_EVENT_TYPE_SET,
 ) as PageEvent["type"][];
 
+/** A `PageCreated`'s context without the legacy marker (`LoggedPageContext`). */
+export function pageContextOf(payload: PageCreatedV1["payload"]): PageContext {
+  const { kind: _legacy, ...context } = payload.context;
+  return context;
+}
+
 /** Whether an envelope's `type` belongs to the page aggregate. */
 export function isPageEventType(type: string): type is PageEvent["type"] {
   return Object.prototype.hasOwnProperty.call(PAGE_EVENT_TYPE_SET, type);
@@ -185,8 +200,8 @@ export function isPageEventType(type: string): type is PageEvent["type"] {
 // The seeded titles as they were when `seedKey` was added (2026-09-27), and
 // FROZEN: they describe events already written, not the templates. A template
 // renamed later must not change what an old `PageCreated` meant. Keys are the
-// templates' own, which never change. The Overview is read off `kind`, as every
-// other reader of it does, because a pre-M30 trip's Overview has an older title.
+// templates' own, which never change. The Overview is read off its old `kind`
+// marker (`LoggedPageContext`), because a pre-M30 trip's Overview has an older title.
 const LEGACY_SEED_TITLES: Readonly<Record<string, string>> = {
   "Before you go": "before-you-go",
   Bookings: "bookings-and-confirmations",

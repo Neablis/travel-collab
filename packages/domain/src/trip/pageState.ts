@@ -1,5 +1,5 @@
-import type { EventEnvelope, PageCommand, PageContext, PageDoc, PageEvent } from "@tc/contracts";
-import { PageEvent as PageEventSchema, SYSTEM_ACTOR_ID, isPageEventType, seedKeyOf } from "@tc/contracts";
+import type { EventEnvelope, PageCommand, PageContext, PageDoc, PageEvent, PageKind } from "@tc/contracts";
+import { OVERVIEW_KIND, PageEvent as PageEventSchema, SYSTEM_ACTOR_ID, isPageEventType, pageContextOf, pageKindOf, seedKeyOf } from "@tc/contracts";
 
 /**
  * The page aggregate: notebook pages folded from the trip's own stream.
@@ -43,7 +43,8 @@ export type PagesState = Record<string, PageState>;
 export function evolvePages(state: PagesState, event: PageEvent): PagesState {
   switch (event.type) {
     case "PageCreated": {
-      const { pageId, title, context, content, actorId } = event.payload;
+      const { pageId, title, content, actorId } = event.payload;
+      const context = pageContextOf(event.payload);
       const { key, derived } = seedKeyOf(event.payload);
       // Re-inserted rather than overwritten, so the page sits AFTER every live
       // page: key order is genesis order (a page id is a uuid, never an
@@ -176,7 +177,6 @@ export function pageStatesEqual(a: PageState, b: PageState): boolean {
     a.title === b.title &&
     a.actorId === b.actorId &&
     a.seedKey === b.seedKey &&
-    a.context.kind === b.context.kind &&
     a.context.tripId === b.context.tripId &&
     // Absent is "all" (`PageContext.dateScope`), and `{ date }` is an object.
     docsEqual(a.context.dateScope ?? "all", b.context.dateScope ?? "all") &&
@@ -226,8 +226,8 @@ export function diffPageStates(current: PagesState, target: PagesState, tripId: 
     // A whole-page edit rather than a minimal one: `PageEdited` carries the
     // fields that CHANGED, and sending both when either moved would be a
     // smaller diff to compute and a larger one to store. Title and content are
-    // the only two an edit can touch — `context.kind` is identity (`updatePage`
-    // refuses to write it) and `actorId` is ownership, so a page whose only
+    // the only two an edit can touch — `seedKey` is identity (no command moves
+    // it) and `actorId` is ownership, so a page whose only
     // difference is one of those cannot be reached by any command and is a
     // corrupt target rather than an edit.
     edited.push({
@@ -266,10 +266,10 @@ export const OVERVIEW_UNDELETABLE =
 
 /**
  * Today's seed key (M52; `TODAY_SEED_KEY` in `@tc/pages`, which this package
- * cannot import). Today is undeletable by its key rather than a `kind`: its
- * context already carries `dateScope`, and a key no edit moves is identity
- * enough. `apps/web/src/server/undeletablePages.contract.test.ts` fails if this
- * rule and `isUndeletablePage` disagree.
+ * cannot import). Today is undeletable by its key rather than a `kind`: a
+ * key no edit moves is identity enough.
+ * `apps/web/src/server/undeletablePages.contract.test.ts` fails if this rule
+ * and `isUndeletablePage` disagree.
  */
 const TODAY_SEED_KEY = "today";
 
@@ -277,8 +277,8 @@ export const TODAY_UNDELETABLE =
   "Today comes with the trip and cannot be deleted. You can reset it to its default instead.";
 
 /** The refusal for deleting this page, or `null` for a page that may go. */
-export function undeletableReason(page: { context: PageContext; seedKey: string | null }): string | null {
-  if (page.context.kind === "overview") return OVERVIEW_UNDELETABLE;
+export function undeletableReason(page: { kind?: PageKind | null | undefined; seedKey: string | null }): string | null {
+  if (page.kind === OVERVIEW_KIND) return OVERVIEW_UNDELETABLE;
   if (page.seedKey === TODAY_SEED_KEY) return TODAY_UNDELETABLE;
   return null;
 }
@@ -373,7 +373,9 @@ export function decidePageCommand(
       if (current === undefined) {
         return { ok: false, rejection: { code: "page-not-found", message: "No such page." } };
       }
-      const undeletable = undeletableReason(current);
+      // The fold keeps no kind of its own: it is the seed key's (`pageKindOf`),
+      // as the `pages.kind` column is.
+      const undeletable = undeletableReason({ kind: pageKindOf(current.seedKey), seedKey: current.seedKey });
       if (undeletable !== null) {
         return { ok: false, rejection: { code: "page-undeletable", message: undeletable } };
       }

@@ -1,4 +1,4 @@
-import { CURRENT_PAGE_DOC_VERSION, newPageDoc } from "@tc/contracts";
+import { CURRENT_PAGE_DOC_VERSION, OVERVIEW_KIND, newPageDoc } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { asc, eq, inArray } from "drizzle-orm";
@@ -77,7 +77,8 @@ describe("executePageCommand", () => {
       id: pageId,
       tripId,
       title: "Overview",
-      context: { tripId, kind: "overview" },
+      context: { tripId },
+    kind: OVERVIEW_KIND,
       content: { v: 1, type: "doc", content: [], fromANewerBuild: true } as never,
       createdAt: now,
       updatedAt: now,
@@ -152,7 +153,7 @@ describe("executePageCommand", () => {
   it("refuses to delete the Overview", async () => {
     const tripId = await seedTrip();
     const seeded = await listPages(tripId);
-    const overview = seeded.find((p) => p.context.kind === "overview");
+    const overview = seeded.find((p) => p.kind === "overview");
     expect(overview).toBeDefined();
     const result = await executePageCommand(
       { type: "DeletePage", tripId, pageId: overview!.id },
@@ -201,7 +202,7 @@ describe("executePageCommand", () => {
   it("edits a page that existed before the log knew about pages", async () => {
     const tripId = await seedTrip();
     const seeded = await listPages(tripId); // lazily seeds the Overview ROW, no event
-    const overview = seeded.find((p) => p.context.kind === "overview")!;
+    const overview = seeded.find((p) => p.kind === "overview")!;
     expect((await readStream(db, tripId)).map((e) => e.type)).not.toContain("PageCreated");
 
     const result = await executePageCommand(
@@ -223,7 +224,7 @@ describe("executePageCommand", () => {
   // §7 draws "Comes with your trip" vs "Yours" off exactly this field.
   it("backfills the page's own owner rather than whoever edited it", async () => {
     const tripId = await seedTrip();
-    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!;
+    const overview = (await listPages(tripId)).find((p) => p.kind === "overview")!;
     expect(overview.actorId).toBe("system");
 
     await executePageCommand(
@@ -316,7 +317,7 @@ describe("executePageCommand", () => {
   it("GOLDEN: the pages table rebuilds from the log", async () => {
     const tripId = await seedTrip();
     const seeded = await listPages(tripId); // rows, no events — four since M30 (ADR-056)
-    const overview = seeded.find((p) => p.context.kind === "overview")!;
+    const overview = seeded.find((p) => p.kind === "overview")!;
     const legacyId = randomUUID();
     await db.insert(pages).values({
       id: legacyId,
@@ -377,7 +378,7 @@ describe("executePageCommand", () => {
     await db.delete(pages).where(eq(pages.id, packing));
     await db.update(pages).set({ content: docWith("drifted") as never }).where(eq(pages.id, overview.id));
     await db.update(pages).set({ title: "drifted" }).where(eq(pages.id, legacyId));
-    await db.insert(pages).values({ ...live.find((r) => r.id === overview.id)!, id: scratch, title: "Scratch", seedKey: null });
+    await db.insert(pages).values({ ...live.find((r) => r.id === overview.id)!, id: scratch, title: "Scratch", seedKey: null, kind: null });
 
     await rebuildProjections();
 
@@ -544,7 +545,7 @@ describe("executePageCommand with expectedUpdatedAt", () => {
   // revision is the row's. The first guarded save of it must not be refused.
   it("takes a guarded edit of a page that existed before the log knew about pages", async () => {
     const tripId = await seedTrip();
-    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!;
+    const overview = (await listPages(tripId)).find((p) => p.kind === "overview")!;
     const result = await edit(tripId, overview.id, "our plan", overview.updatedAt);
     expect(result.ok).toBe(true);
   });

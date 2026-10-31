@@ -13,6 +13,31 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-31 — `Page.kind` replaces `PageContext.kind` (M43 part 1; public API 2.0.0)
+- **Retired** (`packages/contracts/src/pages.ts`): `PageContext.kind`. A create or a PATCH naming
+  it has it stripped, as any unknown context key is.
+- **New:** `PageKind` (`"overview"`), `OVERVIEW_KIND`, `Page.kind` (and so `PageSummary.kind`,
+  `PageListEntry.kind`), present on the trip's Overview only, and `pageKindOf(seedKey)`: the
+  Overview's seed key is the Overview. No input carries a kind, and only the seeder writes a seed
+  key, so only seeding makes an Overview. `pages.kind` is a column with a partial unique index,
+  one Overview per trip (migration `0070`, which backfills it from the `overview` seed key 0032
+  chose off `context->>'kind'`, and strips `kind` from every stored context).
+- **Events** (`pageEvents.ts`): `PageCreatedV1.payload.context` still reads the old marker on an
+  event written before this (`LoggedPageContext`), for `seedKeyOf` alone; `pageContextOf` drops it.
+  No event is rewritten and no new event field is added.
+- Why: M43 decision 2 (Mitchell, 2026-10-31). Both page-create routes accepted
+  `context.kind = 'overview'` from an editor and made a second, undeletable Overview.
+- Consumers updated: `@tc/domain` (`undeletableReason` reads `kind`, the fold takes
+  `pageContextOf`), `@tc/pages` (`isOverviewPage`/`isUndeletablePage` read `kind`; the Overview
+  template's context is `{ tripId }`; `OVERVIEW_KIND` moved here from `@tc/pages`), `apps/web`
+  (schema, projection, lazy seeder, `deleteSkippedRow`, the lens, link picker, Overview pick, MSW,
+  `openapi.json`), in this same PR.
+- Public API: `API_VERSION` 1.31.0 → **2.0.0**, new `API_FINGERPRINT`, `openapi.json`
+  regenerated. Page responses carry `kind` on the Overview and no longer carry `context.kind`; a
+  field removed from a response is a major bump by `openapi.ts`'s rule.
+- Breaking? yes for a reader of `context.kind`, which now never appears. Migration `0070` must run
+  before this build serves.
+
 ## 2026-10-30 — `AssistantAsk.options` at most `MAX_OPTION_CARDS` (4) (M56 part 15)
 - **Changed** (`packages/contracts/src/assistant.ts`): `AssistantAsk.options` is 2 to
   `MAX_OPTION_CARDS`, down from 2 to 6, the same constant `AssistantOptions.cards` uses (PR 652).

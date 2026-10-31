@@ -28,6 +28,7 @@ import {
   SetCoverPositionBody,
   SetTravellingInput,
   SYSTEM_ACTOR_ID,
+  pageKindOf,
   stopTotal,
   travellerIds,
   TripCommand,
@@ -745,7 +746,8 @@ export function makePagesHandlers(
       const { seedKey } = AddDefaultPagesInput.parse(await request.json());
       const now = new Date().toISOString();
       for (const seed of instantiateMissingDefaults(tripId, pages.filter((p) => p.tripId === tripId), () => crypto.randomUUID(), [], seedKey)) {
-        pages.push({ ...seed, tripId, createdAt: now, updatedAt: now, actorId: SYSTEM_ACTOR_ID });
+        const kind = pageKindOf(seed.seedKey);
+        pages.push({ ...seed, ...(kind === null ? {} : { kind }), tripId, createdAt: now, updatedAt: now, actorId: SYSTEM_ACTOR_ID });
       }
       return HttpResponse.json({
         pages: pages.filter((p) => p.tripId === tripId).map((p) => ({ ...p, preview: notebookPreviewOf(p.content) })),

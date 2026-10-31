@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { pageFixture } from "@tc/factories";
-import { SYSTEM_ACTOR_ID } from "@tc/contracts";
+import { OVERVIEW_KIND, SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -44,7 +44,8 @@ function notebooks(tripId: string) {
     id: crypto.randomUUID(),
     tripId,
     title: "Overview",
-    context: { tripId, kind: "overview" },
+    context: { tripId },
+    kind: OVERVIEW_KIND,
     actorId: SYSTEM_ACTOR_ID,
     seedKey: "overview",
   });

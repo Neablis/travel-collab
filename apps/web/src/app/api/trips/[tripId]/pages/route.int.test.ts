@@ -66,7 +66,7 @@ describe("/api/trips/:id/pages", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.pages).toHaveLength(DEFAULT_TEMPLATES.length);
-      expect(body.pages[0].context.kind).toBe("overview");
+      expect(body.pages[0].kind).toBe("overview");
     });
 
     it("creates a page", async () => {

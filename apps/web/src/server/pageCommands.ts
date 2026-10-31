@@ -2,7 +2,6 @@ import {
   CURRENT_PAGE_DOC_VERSION,
   PAGE_CHANGED_CODE,
   PageCommand,
-  PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
   PageEvent as PageEventSchema,
   SYSTEM_ACTOR_ID,
@@ -20,7 +19,6 @@ import {
   evolvePages,
   foldEnvelopes,
   foldPages,
-  OVERVIEW_UNDELETABLE,
   undeletableReason,
   type PageDecision,
   type PagesState,
@@ -330,14 +328,9 @@ async function deleteSkippedRow(
   // else and is not this function's to overturn.
   if (PageDocSchema.safeParse(row.content).success) return null;
 
-  // The Overview and Today stay undeletable (SPEC §25, M52), and an
-  // unreadable `context` is refused rather than guessed: not being able to
-  // prove a page is ordinary is not the same as proving it is.
-  const context = PageContextSchema.safeParse(row.context);
-  if (!context.success) {
-    return { ok: false, rejection: { code: "page-undeletable", message: OVERVIEW_UNDELETABLE } };
-  }
-  const undeletable = undeletableReason({ context: context.data, seedKey: row.seedKey });
+  // The Overview and Today stay undeletable (SPEC §25, M52), read off the
+  // row's own columns, which an unreadable document does not touch.
+  const undeletable = undeletableReason(row);
   if (undeletable !== null) return { ok: false, rejection: { code: "page-undeletable", message: undeletable } };
   return {
     ok: true,

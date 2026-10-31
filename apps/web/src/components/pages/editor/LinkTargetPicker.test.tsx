@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { TripDetail } from "@tc/contracts";
+import { OVERVIEW_KIND, type TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { clearQueryCache } from "@/lib/queryCache";
 import { LinkTargetPicker } from "./LinkTargetPicker";
@@ -26,7 +26,7 @@ const server = setupServer(
       viewerId: "dev-alice",
       pages: [
         {
-          id: OVERVIEW, tripId: params.tripId, title: "Overview", context: { tripId: params.tripId, kind: "overview" },
+          id: OVERVIEW, tripId: params.tripId, title: "Overview", context: { tripId: params.tripId }, kind: OVERVIEW_KIND,
           createdAt: "2026-09-26T00:00:00.000Z", updatedAt: "2026-09-26T00:00:00.000Z", actorId: "system",
           seedKey: "overview",
           preview: { firstLine: "Here is your itinerary.", widgetCount: 6 },
