@@ -3,9 +3,12 @@
 Milestone: `docs/milestones/M43-notebooks-keep-up.md` (decisions 2–5 answered 2026-10-31).
 Deleted in the gate-close commit. Part 0 is `ccr-96adddf8-iksgbh` (prose only, merges last).
 
-Every part targets `main` and merges on its own. **Order:** parts 1 and 3 start together.
-Part 2 waits for part 1 on `main` (it reads the Overview through `pages.kind`); part 4 waits for
-part 3 on `main` (same widget module). Migration number: **`0070`** (part 1 only; the journal's
+**Stacked, on Mitchell's word (2026-10-31: "stack prs and don't block on development").** Two
+stacks start together: part 1 → part 2, and part 3 → part 4. Part 2 branches from part 1's head
+and its PR targets part 1's branch (it reads the Overview through `pages.kind`); part 4 branches
+from part 3's head and targets part 3's branch (same widget module). Each stacked PR's body names
+the PR it waits on. Merge in order; retarget a stacked PR to `main` after its base merges if
+GitHub does not (`stacked-prs.md` §4). Migration number: **`0070`** (part 1 only; the journal's
 last entry is `0069_oauth_and_hmac_secrets`). Part 1's migration is Mitchell's to apply with
 `migrate-production` after merge.
 
@@ -50,7 +53,7 @@ notebooks* adds nothing on a complete trip.
 
 ## Part 2 — The Overview's title follows the trip (D3) · `claude/m43-part2-overview-title`
 
-Waits for part 1 on `main`.
+Stacked on part 1.
 
 Theme: an Overview whose stored title is a default reads as `Overview — <trip name>`.
 
@@ -98,7 +101,7 @@ three row kinds with tints, and each action navigates.
 
 ## Part 4 — *What needs you* filters by class and by days (D5) · `claude/m43-part4-open-filters`
 
-Waits for part 3 on `main`.
+Stacked on part 3.
 
 Theme: a class filter (conflict, empty day, parked) and the `dates` dimension, following the
 notebook's date scope when no Days filter is set.
