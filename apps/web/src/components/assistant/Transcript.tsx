@@ -516,6 +516,7 @@ export function Transcript({
                 widget={turn.widget}
                 answered={answered.has(widgetIdOf(turn.widget))}
                 busy={answering}
+                {...(turn.serverTurnId === undefined ? {} : { turnId: turn.serverTurnId })}
                 {...(onAnswer === undefined ? {} : { onAnswer })}
               />
             )}

@@ -26,10 +26,13 @@ const INTO_TRIP_KEY = "pending_into_trip";
 /** Ten minutes, `pendingPlaybookAdd`'s budget: a create is seconds, a walk of the picker a few minutes. */
 export const PENDING_CARRIED_ASKS_MAX_AGE_MS = 10 * 60 * 1000;
 
-const HandOffRecord = z.object({ prefill: NewTripPrefill, asks: CarriedAsks, at: z.number() });
+// `turnId` (M57) is the assistant turn that handed off: it rides every hop so
+// the trip made from it, and each chip pressed there, can name the turn.
+const TurnId = z.string().guid().optional();
+const HandOffRecord = z.object({ prefill: NewTripPrefill, asks: CarriedAsks, turnId: TurnId, at: z.number() });
 export type NewTripHandOff = Omit<z.infer<typeof HandOffRecord>, "at">;
 
-const IntoTripRecord = z.object({ tripId: z.string(), kickoff: z.string().min(1).max(500).nullable(), asks: CarriedAsks, at: z.number() });
+const IntoTripRecord = z.object({ tripId: z.string(), kickoff: z.string().min(1).max(500).nullable(), asks: CarriedAsks, turnId: TurnId, at: z.number() });
 export type IntoTrip = Omit<z.infer<typeof IntoTripRecord>, "at" | "tripId">;
 
 /** Every access is wrapped: Safari's private mode throws on `localStorage`. */
@@ -81,7 +84,7 @@ export function rememberNewTripHandOff(handOff: NewTripHandOff, now: number = Da
 /** The waiting hand-off, cleared, or `null`. */
 export function takeNewTripHandOff(now: number = Date.now()): NewTripHandOff | null {
   const record = take(HAND_OFF_KEY, HandOffRecord, now);
-  return record === null ? null : { prefill: record.prefill, asks: record.asks };
+  return record === null ? null : { prefill: record.prefill, asks: record.asks, ...(record.turnId === undefined ? {} : { turnId: record.turnId }) };
 }
 
 /** Bank what the new trip's board picks up, just before New trip goes to it. */
@@ -96,7 +99,9 @@ export function rememberIntoTrip(tripId: string, into: IntoTrip, now: number = D
  */
 export function takeIntoTrip(tripId: string, now: number = Date.now()): IntoTrip | null {
   const record = take(INTO_TRIP_KEY, IntoTripRecord, now);
-  return record === null || record.tripId !== tripId ? null : { kickoff: record.kickoff, asks: record.asks };
+  return record === null || record.tripId !== tripId
+    ? null
+    : { kickoff: record.kickoff, asks: record.asks, ...(record.turnId === undefined ? {} : { turnId: record.turnId }) };
 }
 
 /**
@@ -129,5 +134,28 @@ export function saveCarriedAsks(thread: string, asks: readonly CarriedAsk[]): vo
     else storage()?.setItem(carriedKey(thread), JSON.stringify(asks));
   } catch {
     // See `remember`: the chips are still on screen, only not past a reload.
+  }
+}
+
+/**
+ * The turn the chips on conversation `thread` came from (M57), kept beside
+ * them for the same reload; `undefined` when none, or on a trip that predates it.
+ */
+export function loadCarriedTurn(thread: string): string | undefined {
+  try {
+    const raw = storage()?.getItem(`${carriedKey(thread)}:turn`) ?? null;
+    return raw === null ? undefined : z.string().guid().safeParse(raw).data;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Keeps `turnId` as the source of conversation `thread`'s chips; none removes it. Never throws. */
+export function saveCarriedTurn(thread: string, turnId: string | undefined): void {
+  try {
+    if (turnId === undefined) storage()?.removeItem(`${carriedKey(thread)}:turn`);
+    else storage()?.setItem(`${carriedKey(thread)}:turn`, turnId);
+  } catch {
+    // See `remember`.
   }
 }

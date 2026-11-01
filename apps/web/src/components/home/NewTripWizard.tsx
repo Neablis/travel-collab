@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import Link from "next/link";
 import { Check, Lock } from "lucide-react";
-import { insertSavedDay, searchPlaces, searchPlaybooks, type ApiResult, type BoardCommand, type CommandOutcome } from "@/lib/apiClient";
+import { insertSavedDay, postTurnOutcome, searchPlaces, searchPlaybooks, type ApiResult, type BoardCommand, type CommandOutcome } from "@/lib/apiClient";
 import type { PlaceMatch } from "@/lib/cities";
 import { displayNameFor, firstNameOf } from "@/lib/displayName";
 import { TAG_LABEL } from "@/lib/activityTags";
@@ -103,8 +103,10 @@ export type NewTripWizardProps = {
 export type KeyedHandOff = NewTripHandOff & { seq: number };
 
 /** The pages' props for `handOff`. Their `key` is `handOff?.seq`, set beside these. */
-export function handOffPagesProps(handOff: KeyedHandOff | undefined): { prefill?: NewTripPrefill; carriedAsks?: readonly CarriedAsk[] } {
-  return handOff === undefined ? {} : { prefill: handOff.prefill, carriedAsks: handOff.asks };
+export function handOffPagesProps(handOff: KeyedHandOff | undefined): { prefill?: NewTripPrefill; carriedAsks?: readonly CarriedAsk[]; handOffTurnId?: string } {
+  return handOff === undefined
+    ? {}
+    : { prefill: handOff.prefill, carriedAsks: handOff.asks, ...(handOff.turnId === undefined ? {} : { handOffTurnId: handOff.turnId }) };
 }
 
 export function NewTripWizard({
@@ -360,6 +362,8 @@ type PagesProps = {
   };
   prefill?: NewTripPrefill;
   carriedAsks?: readonly CarriedAsk[];
+  /** The assistant turn the hand-off came from (M57): named by the trip made from it, and by its chips. */
+  handOffTurnId?: string;
 };
 
 /** A page's first control a keyboard would reach: the roving radios' unchosen ones are `-1`. */
@@ -410,6 +414,7 @@ function Pages({
   firstName,
   prefill,
   carriedAsks = [],
+  handOffTurnId,
 }: PagesProps & { firstName: string | null }) {
   const [state, setState] = useState<NewTripState>(() => (prefill === undefined ? NEW_TRIP_START : prefilled(prefill)));
   const [submitting, setSubmitting] = useState(false);
@@ -542,7 +547,10 @@ function Pages({
     const result = await run(true);
     if (result === null) return;
     const kickoff = planWithAi ? kickoffFor(answers) : null;
-    if (kickoff !== null || carriedAsks.length > 0) rememberIntoTrip(result.latch.tripId, { kickoff, asks: [...carriedAsks] });
+    void postTurnOutcome(handOffTurnId, "trip_created_from_hand_off");
+    if (kickoff !== null || carriedAsks.length > 0) {
+      rememberIntoTrip(result.latch.tripId, { kickoff, asks: [...carriedAsks], ...(handOffTurnId === undefined ? {} : { turnId: handOffTurnId }) });
+    }
     if (result.missedDays.length > 0) {
       // Open the trip replaces the pressed button; the page holds the line
       // that says which day failed.
@@ -557,7 +565,10 @@ function Pages({
   async function createEmpty() {
     const result = await run(false);
     if (result === null) return;
-    if (carriedAsks.length > 0) rememberIntoTrip(result.latch.tripId, { kickoff: null, asks: [...carriedAsks] });
+    void postTurnOutcome(handOffTurnId, "trip_created_from_hand_off");
+    if (carriedAsks.length > 0) {
+      rememberIntoTrip(result.latch.tripId, { kickoff: null, asks: [...carriedAsks], ...(handOffTurnId === undefined ? {} : { turnId: handOffTurnId }) });
+    }
     onDone(result.latch.tripId, false);
   }
 

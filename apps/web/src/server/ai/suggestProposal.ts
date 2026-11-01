@@ -99,7 +99,7 @@ const INSTEAD = "So they are here to review instead of on the board.";
  */
 export async function suggestProposal(
   proposal: AssistantProposal,
-  { tripId, userId, question, requestedBy }: { tripId: string; userId: string; question: string; requestedBy?: string },
+  { tripId, userId, question, requestedBy, turnId }: { tripId: string; userId: string; question: string; requestedBy?: string; turnId?: string },
 ): Promise<{ metadata: AskStreamMetadata; outcome: ProposalOutcome }> {
   const card = (code: NotSuggestedCode, reason: string) => ({
     metadata: { proposal: { ...proposal, notSuggested: `${reason} ${INSTEAD}` } },
@@ -124,7 +124,7 @@ export async function suggestProposal(
     // still gets the suggestion, and the chat says the snapshot was skipped.
     const snapshot = await saveSnapshot(tripId, userId, { name: snapshotNameFor(question) });
     if (snapshot.ok) snapshotId = snapshot.value.id;
-    const created = await createSuggestion(tripId, userId, input.data, undefined, { via: "assistant", requestedBy });
+    const created = await createSuggestion(tripId, userId, input.data, undefined, { via: "assistant", requestedBy, turnId });
     if (!created.ok) {
       // Cleared first, and its failure only logged: a cleanup that throws
       // must not swap the refusal's own reason for the catch's generic one,

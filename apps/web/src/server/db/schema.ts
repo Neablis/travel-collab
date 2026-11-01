@@ -944,6 +944,10 @@ export const tripSuggestions = pgTable(
     // asker of the chat's `@assistant` turn that stored it (ADR-067's
     // 2026-10-23 amendment). Null keeps the old rule, any editor.
     requestedBy: text("requested_by"),
+    // The assistant turn that stored it (M57, ADR-085): an `ai_usage.id`, so a
+    // later accept joins to the turn. Null for one a person sent, and for rows
+    // written before 0072. No foreign key (ADR-025).
+    turnId: uuid("turn_id"),
   },
   // No index on `trip_id`: every read goes through the changes table below.
 );
@@ -1643,6 +1647,23 @@ export const aiCapabilityGaps = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [index("ai_capability_gaps_turn").on(t.turnId), index("ai_capability_gaps_created").on(t.createdAt)],
+);
+
+// **What a person did with a turn's answer** (M57, ADR-085): one row per press
+// or approval, joined to the turn by `turn_id` (an `ai_usage.id`, no foreign
+// key — ADR-025). `kind` is a `TurnOutcomeKind` (turnOutcomes.ts); `actor` the
+// person who acted, who is the turn's asker for every kind but a suggestion
+// accepted by someone else. Never the text of anything.
+export const aiTurnOutcomes = pgTable(
+  "ai_turn_outcomes",
+  {
+    id: uuid("id").primaryKey(),
+    turnId: uuid("turn_id").notNull(),
+    kind: text("kind").notNull(),
+    at: timestamp("at", { withTimezone: true, mode: "date" }).notNull(),
+    actor: text("actor").notNull(),
+  },
+  (t) => [index("ai_turn_outcomes_turn").on(t.turnId), index("ai_turn_outcomes_at").on(t.at)],
 );
 
 // **One row per tool call** (M31 Phase 1, ADR-062 §5) — which tools work, and

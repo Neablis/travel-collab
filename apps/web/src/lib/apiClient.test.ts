@@ -5,6 +5,7 @@ import * as apiClientModule from "@/lib/apiClient";
 import {
   acceptInvite,
   applyAssistantProposal,
+  postTurnOutcome,
   askAssistant,
   cloneSharedTrip,
   createSavedDay,
@@ -366,6 +367,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
       inserts: [],
       skipped: [],
     }),
+  postTurnOutcome: () => postTurnOutcome(UUID, "hand_off_pressed"),
 };
 
 // Pure URL builders, and the two failure-shape builders every client module

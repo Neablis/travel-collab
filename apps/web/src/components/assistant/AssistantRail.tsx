@@ -10,7 +10,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { Input } from "@/components/ui/input";
 import { UnderlineTabs, tabId, tabPanelId } from "@/components/ui/underline-tabs";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
-import type { AskScope } from "@/lib/apiClient";
+import { postTurnOutcome, type AskScope } from "@/lib/apiClient";
 import type { AskAnswer, CarriedAsk } from "@tc/contracts";
 import { clearAskDraft, loadAskDraft, saveAskDraft } from "./askThreadStore";
 import { useOwnedAskName } from "./useAskThread";
@@ -202,6 +202,7 @@ function railTabOptions(unread: number) {
  * @param suggestions - Questions offered when the conversation is empty.
  * @param carriedAsks - Asks made before this trip existed, offered as chips until each is pressed.
  * @param onCarriedAskTaken - Called once a carried ask has been asked, so the caller can drop its chip.
+ * @param carriedTurnId - The turn that handed the asks off, named when one is pressed (M57).
  * @param emptyHint - Text displayed above the suggested questions.
  * @param asksRemaining - Number of questions remaining in the conversation.
  * @param restoreDraft - Question text to restore in the composer.
@@ -230,6 +231,7 @@ export function AssistantRail({
   suggestions,
   carriedAsks = [],
   onCarriedAskTaken,
+  carriedTurnId,
   emptyHint = EMPTY_HINT[scope.kind],
   asksRemaining,
   restoreDraft = null,
@@ -285,6 +287,8 @@ export function AssistantRail({
    */
   carriedAsks?: readonly CarriedAsk[];
   onCarriedAskTaken?: (ask: CarriedAsk) => void;
+  /** The hand-off turn the chips came from (M57); a chip pressed reports it. */
+  carriedTurnId?: string | undefined;
   /**
    * The sentence shown above the suggestions while the thread is empty.
    *
@@ -1167,6 +1171,7 @@ export function AssistantRail({
                       onClick={() =>
                         void Promise.resolve(onAsk(carried.said)).then((accepted) => {
                           if (accepted === false) return;
+                          void postTurnOutcome(carriedTurnId, "carried_ask_pressed");
                           onCarriedAskTaken?.(carried);
                           composerRef.current?.focus();
                         })

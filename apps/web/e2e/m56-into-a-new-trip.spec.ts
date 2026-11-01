@@ -66,6 +66,12 @@ test("Home's rail hands a trip to New trip prefilled, and its other ask is a chi
   await createMappedTrip(page, e2eTripName("M56Carry seed"), 1);
   await page.goto("/home");
 
+  // What the presses reported (M57): a turn's outcomes join to it on the server.
+  const outcomes: string[] = [];
+  page.on("request", (r) => {
+    if (new URL(r.url()).pathname === "/api/ask/outcome") outcomes.push((r.postDataJSON() as { kind: string }).kind);
+  });
+
   const mezcal = "add a mezcal tasting";
   await page.getByRole("button", { name: "Ask", exact: true }).click();
   const composer = rail(page).getByPlaceholder("Ask about your trips…");
@@ -114,4 +120,6 @@ test("Home's rail hands a trip to New trip prefilled, and its other ask is a chi
   await page.getByTestId("ask-pill").click();
   await expect(rail(page).getByRole("log", { name: "Conversation" })).toContainText(mezcal);
   await expect(chips).toBeHidden();
+  // The turn id rode the hand-off, the new trip and the chip, across a reload.
+  await expect.poll(() => outcomes).toEqual(["hand_off_pressed", "trip_created_from_hand_off", "carried_ask_pressed"]);
 });
