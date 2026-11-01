@@ -1578,7 +1578,7 @@ export interface AiGrantRecord {
   userId: string | null;
   outcome: "granted" | "refused";
   surface: SurfaceKind | null;
-  /** The granted (domain, effect) pairs — the whole of what this turn may do. */
+  /** The granted (domain, effect) pairs — the whole of what this turn may do, including what a persona switch adds. */
   grants: Partial<Record<string, EffectLevel>> | null;
   /** The tools actually offered, in registry order. */
   tools: string[] | null;
@@ -1633,6 +1633,22 @@ export async function evaluateAiGrant(input: AdmissionInput): Promise<AiAdmissio
 
 
 /**
+ * What the turn may do at any step: the entry persona's pairs, each raised to
+ * the level a persona it can switch to holds. A switch to Discover adds the
+ * library and the vendor-spending lookup, and a record that left them out would
+ * understate what the turn could spend.
+ */
+function grantsOverTheTurn(grant: AiGrant): Partial<Record<string, EffectLevel>> {
+  const over: Partial<Record<string, EffectLevel>> = { ...grant.grants };
+  for (const serving of Object.values(grant.switches)) {
+    for (const [domain, level] of Object.entries(serving.grants)) {
+      if (over[domain] !== "propose") over[domain] = level;
+    }
+  }
+  return over;
+}
+
+/**
  * The `ai.grant` record for a turn that was let through.
  *
  * Paired with `refusedRecord`: the two fill the same field set, each nulling
@@ -1646,7 +1662,7 @@ function grantedRecord(grant: AiGrant): AiGrantRecord {
     userId: grant.userId,
     outcome: "granted",
     surface: grant.surface,
-    grants: grant.grants,
+    grants: grantsOverTheTurn(grant),
     tools: grant.tools.map((tool) => tool.name),
     model: grant.modelId,
     simulated: grant.simulated,

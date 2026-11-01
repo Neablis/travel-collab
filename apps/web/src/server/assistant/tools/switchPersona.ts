@@ -9,20 +9,26 @@
 // escalation's and `switch_intent` the page's.
 //
 // **The edge is checked twice, and the second is the one that counts.** `to` is
-// an enum of every persona any `switch_persona` edge leads to, because the AI
-// SDK keys a turn's tools by name and a turn builds one set up front; the
-// intent latch then refuses an edge that does not leave the persona the turn
-// is in, a guard the turn's caps fail, and a second switch. A refusal names
-// what is open, so the model can act on it rather than retry blind.
+// an enum of the personas a `switch_persona` edge leads to from an entry
+// persona, because the AI SDK keys a turn's tools by name, a turn builds one
+// set up front, and only an entry persona still holds the tool (a switched one
+// has spent it), so the enum never offers the persona the step is in. The
+// intent latch then refuses an edge the graph lacks, a guard the turn's caps
+// fail, and a second switch. A refusal names what is open, so the model can act
+// on it rather than retry blind.
 import { z } from "zod";
 import { defineTool } from "@/server/assistant/defineTool";
-import { EDGES, type PersonaId } from "@/server/assistant/personas";
+import { EDGES, ENTRY, type PersonaId } from "@/server/assistant/personas";
 
 export const SWITCH_PERSONA_TOOL_NAME = "switch_persona";
 
+const ENTRY_PERSONAS = new Set<PersonaId>(Object.values(ENTRY));
+
 // Derived from the table, so a persona given its first `switch_persona` edge
 // is in the schema with no edit here.
-const TARGETS = [...new Set(EDGES.filter((e) => e.kind === "switch" && e.via === SWITCH_PERSONA_TOOL_NAME).map((e) => e.to))] as [PersonaId, ...PersonaId[]];
+const TARGETS = [
+  ...new Set(EDGES.filter((e) => e.kind === "switch" && e.via === SWITCH_PERSONA_TOOL_NAME && ENTRY_PERSONAS.has(e.from)).map((e) => e.to)),
+] as [PersonaId, ...PersonaId[]];
 
 const SwitchPersonaInput = z.object({
   to: z.enum(TARGETS).describe("The persona whose tools the next step should hold."),
