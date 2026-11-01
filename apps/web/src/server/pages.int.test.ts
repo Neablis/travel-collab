@@ -214,6 +214,12 @@ describe("pages repository", () => {
     const sent = await executePageCommand({ type: "EditPage", tripId, pageId: overview!.id, title: shown }, "user-1");
     expect(sent.ok, JSON.stringify(sent)).toBe(true);
     expect((await getPage(overview!.id))!.title).toBe("Overview — Rome, at last");
+
+    // The same, under a name a rename gave rather than the one it was created with.
+    const resent = await executePageCommand({ type: "EditPage", tripId, pageId: overview!.id, title: "Overview — Rome, at last" }, "user-1");
+    expect(resent.ok, JSON.stringify(resent)).toBe(true);
+    await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, again" }, "user-1");
+    expect((await getPage(overview!.id))!.title).toBe("Overview — Rome, again");
   });
 
   // KI-6 regression. Two concurrent first visits (two tabs, or a double-fetch)
