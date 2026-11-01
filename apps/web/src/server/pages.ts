@@ -2,9 +2,10 @@ import { asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { SYSTEM_ACTOR_ID, migratePageDoc, pageKindOf } from "@tc/contracts";
 import type { Page, PageDoc, PageListEntry, PageSummary, CreatePageInput } from "@tc/contracts";
-import { findWidgetError, instantiateDefaults, notebookPreviewOf, type SeededPage } from "@tc/pages";
-import { db } from "./db/client";
-import { pages } from "./db/schema";
+import { findWidgetError, instantiateDefaults, isOverviewPage, notebookPreviewOf, overviewDisplayTitle, type SeededPage } from "@tc/pages";
+import { db, type Queryable } from "./db/client";
+import { pages, tripSummaries } from "./db/schema";
+import { demoTripDetail } from "./demoTrip";
 import { DEMO_TRIPS, isDemoTripId } from "@/lib/demoTrip";
 import { isUuid } from "@/server/ids";
 
@@ -171,7 +172,8 @@ function demoPageById(id: string): (typeof pages.$inferInsert) | null {
 }
 
 export async function listPages(tripId: string): Promise<PageSummary[]> {
-  return (await listPageRows(tripId)).map(toSummary);
+  const [rows, tripName] = await Promise.all([listPageRows(tripId), tripNameOf(tripId)]);
+  return rows.map((row) => shownTitled(toSummary(row), tripName));
 }
 
 /**
@@ -180,7 +182,27 @@ export async function listPages(tripId: string): Promise<PageSummary[]> {
  * also the public API's source and its rows must stay `PageSummary`.
  */
 export async function listPageEntries(tripId: string): Promise<PageListEntry[]> {
-  return (await listPageRows(tripId)).map(toEntry);
+  const [rows, tripName] = await Promise.all([listPageRows(tripId), tripNameOf(tripId)]);
+  return rows.map((row) => shownTitled(toEntry(row), tripName));
+}
+
+// The Overview's title is read, not stored (M43 decision 3): every function
+// here that hands a page out passes it through `shownTitled`, and so does the
+// page a command hands back (`readPage` in pageCommands.ts), or an editor's
+// save would answer with the stored "Overview" and the heading would flip.
+async function tripNameOf(tripId: string, reader: Queryable = db): Promise<string | null> {
+  if (isDemoTripId(tripId)) return demoTripDetail(tripId).name;
+  const [row] = await reader.select({ name: tripSummaries.name }).from(tripSummaries).where(eq(tripSummaries.tripId, tripId));
+  return row?.name ?? null;
+}
+
+function shownTitled<T extends PageSummary>(page: T, tripName: string | null): T {
+  return tripName === null || !isOverviewPage(page) ? page : { ...page, title: overviewDisplayTitle(page.title, tripName) };
+}
+
+/** A page with the title it is shown under: an Overview nobody has named reads as its trip's. */
+export async function withShownTitle(page: Page, reader: Queryable = db): Promise<Page> {
+  return isOverviewPage(page) ? shownTitled(page, await tripNameOf(page.tripId, reader)) : page;
 }
 
 async function listPageRows(tripId: string): Promise<(typeof pages.$inferSelect)[]> {
@@ -240,9 +262,9 @@ export async function getPage(id: string): Promise<Page | null> {
   // A demo page id never reached a table, so it has to be answered from the
   // same fold `listPages` hands out — otherwise every id in that list 404s.
   const demo = demoPageById(id);
-  if (demo !== null) return toPage(demo as typeof pages.$inferSelect);
+  if (demo !== null) return withShownTitle(toPage(demo as typeof pages.$inferSelect));
   const [row] = await db.select().from(pages).where(eq(pages.id, id));
-  return row ? toPage(row) : null;
+  return row ? withShownTitle(toPage(row)) : null;
 }
 
 /**

@@ -74,6 +74,33 @@ test("a new trip comes with four notebooks, and the Overview links to the other 
   await expect(page.getByRole("heading", { name: "Spend by day" })).toBeVisible();
 });
 
+// M43 decision 3: the Overview is titled after its trip, read fresh, so a
+// renamed trip renames it. The rename is waited out at the server, and the
+// index is a fresh read, so neither title can be the optimistic DOM's.
+test("renaming the trip renames its Overview", async ({ page }) => {
+  const tripName = e2eTripName("Braga");
+  const renamed = e2eTripName("Braga, renamed");
+  await page.goto("/home");
+  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("link", { name: tripName }).click();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+
+  await page.getByRole("button", { name: `${tripName} — Trip settings` }).click();
+  const field = page.getByRole("textbox", { name: "Trip name" });
+  await field.fill(renamed);
+  await Promise.all([
+    page.waitForResponse(
+      (r) => /\/api\/trips\/[^/]+\/commands$/.test(new URL(r.url()).pathname) && r.request().method() === "POST" && r.ok(),
+    ),
+    field.press("Enter"),
+  ]);
+  await page.keyboard.press("Escape");
+
+  await openNotebookIndex(page);
+  await page.getByRole("region", { name: "Your notebooks" }).getByRole("link", { name: /^Overview/ }).click();
+  await expect(page.getByRole("heading", { name: `Overview — ${renamed}`, exact: true, level: 1 })).toBeVisible();
+});
+
 // The Japan demo's Overview, which is where "reads like a professional
 // itinerary" was asked about (Mitchell, 2026-09-26) — a new trip's is empty.
 // Signed out, as the demo's visitors are. The whole walk is what a printed

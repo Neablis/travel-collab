@@ -9,11 +9,16 @@ import { listPageEntries, listPages, getPage } from "./pages";
 import { executePageCommand } from "./pageCommands";
 import { grantMembership } from "./access/members";
 import { entitleAccounts } from "./test-support/entitledAccount";
+import { mintToken } from "./api-tokens";
+import { issueGrant } from "./entitlements/grants";
+import { livePlanVersion } from "./entitlements/planVersions";
+import { upsertUser } from "./users";
 
 let currentUserId = "user-1";
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => ({ user: { id: currentUserId } })) }));
 // After the mock, so the route picks up the mocked `auth`.
 const { POST } = await import("@/app/api/trips/[tripId]/pages/route");
+const { PATCH: PATCH_V1 } = await import("@/app/api/v1/trips/[tripId]/pages/[pageId]/route");
 
 // The seeded titles, read from the templates rather than typed here.
 //
@@ -24,12 +29,14 @@ const { POST } = await import("@/app/api/trips/[tripId]/pages/route");
 // that is a claim about the words. The count still is, and stays asserted
 // below: a template added to the seeded set changes what every new trip gets,
 // which is a decision, not a rename.
-const SEEDED_TITLES = DEFAULT_TEMPLATES.map((t) => t.title);
+// The Overview's is shown as the trip's (M43 decision 3).
+const TRIP_NAME = "Rome 2027";
+const SEEDED_TITLES = DEFAULT_TEMPLATES.map((t) => (t.key === "overview" ? `Overview — ${TRIP_NAME}` : t.title));
 const SEEDED_TITLES_SORTED = [...SEEDED_TITLES].sort();
 
 async function seedTrip() {
   const tripId = randomUUID();
-  await executeTripCommand({ type: "CreateTrip", tripId, name: "Rome 2027" }, "user-1");
+  await executeTripCommand({ type: "CreateTrip", tripId, name: TRIP_NAME }, "user-1");
   return { tripId };
 }
 
@@ -76,7 +83,7 @@ describe("pages repository", () => {
     const money = siblings.find((p) => p.title === "Money")!;
     const outcome = await executePageCommand({ type: "DeletePage", tripId, pageId: money.id }, "user-1");
     expect(outcome.ok).toBe(true);
-    expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Overview", "Today", "Before you go", "Bookings"]);
+    expect((await listPages(tripId)).map((p) => p.title)).toEqual([`Overview — ${TRIP_NAME}`, "Today", "Before you go", "Bookings"]);
   });
 
   // §25: the Overview *"appears in the Notebook index like any other page"* and
@@ -145,6 +152,74 @@ describe("pages repository", () => {
     );
     expect(promoted.ok && promoted.page?.kind, "a page cannot promote itself").toBeUndefined();
     expect((await executePageCommand({ type: "DeletePage", tripId, pageId: mineId }, "user-1")).ok).toBe(true);
+  });
+
+  // M43 decision 3: the Overview reads as its trip's until somebody names it.
+  // Every read is checked — the list, the app's list, one page, and the page an
+  // edit hands back — because each is a separate place the row becomes a title.
+  it("shows the Overview under the trip's current name, and a name somebody gave it as given", async () => {
+    const { tripId } = await seedTrip();
+    await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, at last" }, "user-1");
+    const [overview] = await listPages(tripId);
+    expect(overview!.title).toBe("Overview — Rome, at last");
+    expect((await listPageEntries(tripId))[0]!.title).toBe("Overview — Rome, at last");
+    expect((await getPage(overview!.id))!.title).toBe("Overview — Rome, at last");
+    const touched = await executePageCommand(
+      { type: "EditPage", tripId, pageId: overview!.id, content: newPageDoc([]) },
+      "user-1",
+    );
+    expect(touched.ok && touched.page?.title).toBe("Overview — Rome, at last");
+
+    const named = await executePageCommand({ type: "EditPage", tripId, pageId: overview!.id, title: "Our plan" }, "user-1");
+    expect(named.ok && named.page?.title).toBe("Our plan");
+    await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, again" }, "user-1");
+    expect((await listPages(tripId))[0]!.title).toBe("Our plan");
+    expect((await getPage(overview!.id))!.title).toBe("Our plan");
+  });
+
+  // The plan's "saving the derived text unchanged must not freeze it". A v1 or
+  // MCP client edits by sending back the page it read, title and all, and that
+  // title is the derived one; stored, the Overview would stop following the trip.
+  it("an Overview edited through v1 with the title it was shown keeps following the trip's name", async () => {
+    const owner = `pages-v1-${randomUUID().slice(0, 8)}`;
+    await upsertUser({ id: owner, email: null, name: null, image: null });
+    const premium = livePlanVersion("premium");
+    await issueGrant({ userId: owner, planId: premium.planId, planVersion: premium.version, source: "admin", grantedBy: "test-fixture", expiresAt: null });
+    const minted = await mintToken(owner, { name: "pages", scopes: ["notebook:read", "notebook:write"], tripIds: null, expiresInDays: 30 });
+    if (!minted.ok) throw new Error(minted.reason);
+    const tripId = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: TRIP_NAME }, owner);
+    const [overview] = await listPages(tripId);
+    const res = await PATCH_V1(
+      new Request("http://localhost/x", {
+        method: "PATCH",
+        headers: { authorization: `Bearer ${minted.created.secret}`, "content-type": "application/json" },
+        body: JSON.stringify({ title: overview!.title, content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "Ours" }] }]) }),
+      }),
+      { params: Promise.resolve({ tripId, pageId: overview!.id }) },
+    );
+    expect(res.status, await res.clone().text()).toBe(200);
+    expect(JSON.stringify((await getPage(overview!.id))!.content), "the edit's content is saved").toContain("Ours");
+    await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, at last" }, owner);
+    expect((await getPage(overview!.id))!.title).toBe("Overview — Rome, at last");
+  });
+
+  // A client that read the Overview before a co-traveller renamed the trip
+  // sends back the title under the OLD name; that is still the shown title.
+  it("an Overview title read before a trip rename, sent back after it, keeps following the trip's name", async () => {
+    const { tripId } = await seedTrip();
+    const [overview] = await listPages(tripId);
+    const shown = overview!.title;
+    await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, at last" }, "user-1");
+    const sent = await executePageCommand({ type: "EditPage", tripId, pageId: overview!.id, title: shown }, "user-1");
+    expect(sent.ok, JSON.stringify(sent)).toBe(true);
+    expect((await getPage(overview!.id))!.title).toBe("Overview — Rome, at last");
+
+    // The same, under a name a rename gave rather than the one it was created with.
+    const resent = await executePageCommand({ type: "EditPage", tripId, pageId: overview!.id, title: "Overview — Rome, at last" }, "user-1");
+    expect(resent.ok, JSON.stringify(resent)).toBe(true);
+    await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, again" }, "user-1");
+    expect((await getPage(overview!.id))!.title).toBe("Overview — Rome, again");
   });
 
   // KI-6 regression. Two concurrent first visits (two tabs, or a double-fetch)

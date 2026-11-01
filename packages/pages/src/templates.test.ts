@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CreatePageInput, PageDoc, pageKindOf } from "@tc/contracts";
-import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY, getTemplate, instantiateDefaults, isUndeletablePage } from "./templates";
+import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY, getTemplate, instantiateDefaults, isUndeletablePage, overviewDisplayTitle } from "./templates";
 import { dayTrip, wallAt } from "./test-support/dayTrip";
 import { notebookPreviewOf } from "./linkTarget";
 import { insertWidget } from "./insert";
@@ -36,6 +36,16 @@ describe("templates", () => {
     const seeded = instantiateDefaults("t", () => "id").map((p) => ({ ...p, kind: pageKindOf(p.seedKey) }));
     const undeletable = seeded.filter(isUndeletablePage).map((p) => p.seedKey);
     expect(undeletable).toEqual(["overview", "today"]);
+  });
+
+  // M43 decision 3: the stored seed title reads as the trip's; anything else is
+  // a person's name for the page and stays. "Trip Overview" was never an
+  // Overview's seed (it was the unmarked `trip-overview` notebook's), so an
+  // Overview holding it was named so by somebody.
+  it("shows an unnamed Overview as the trip's, and a named one as named", () => {
+    expect(overviewDisplayTitle("Overview", "Lisbon 2028")).toBe("Overview — Lisbon 2028");
+    expect(overviewDisplayTitle("Trip Overview", "Lisbon 2028")).toBe("Trip Overview");
+    expect(overviewDisplayTitle("Our plan", "Lisbon 2028")).toBe("Our plan");
   });
 
   // **The Overview and Today are not IN the gallery; every other seeded

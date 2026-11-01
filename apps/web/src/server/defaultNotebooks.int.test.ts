@@ -71,7 +71,7 @@ describe("addMissingDefaultPages", () => {
     expect(added.ok).toBe(true);
 
     const after = await listPages(tripId);
-    expect(after.map((p) => p.title).sort()).toEqual(DEFAULT_TEMPLATES.map((t) => t.title).sort());
+    expect(after.map((p) => p.seedKey).sort()).toEqual(DEFAULT_TEMPLATES.map((t) => t.key).sort());
     // The survivors are the same rows, same ids, not re-seeded.
     for (const page of before) expect(after.find((p) => p.id === page.id)).toEqual(page);
     // Back under the id it had, so every link to it still resolves — the
@@ -266,15 +266,18 @@ describe("resetPageToDefault", () => {
 
     // Same id, the template's title, and the template's document, whose links
     // name this trip's siblings by seed key and so need nothing built per trip.
+    // The title is stored as the template's, so it reads as the trip's again
+    // (M43 decision 3).
     expect(reset.page?.id).toBe(overview.id);
-    expect(reset.page?.title).toBe(OVERVIEW_TEMPLATE.title);
+    expect(reset.page?.title).toBe("Overview — Lisbon 2028");
+    expect((await listPages(tripId)).find((p) => p.id === overview.id)?.title).toBe("Overview — Lisbon 2028");
     expect(PageDoc.parse(reset.page?.content)).toEqual(PageDoc.parse(OVERVIEW_TEMPLATE.content));
 
     // One more edit in the trip's log, not a delete and recreate.
     const stream = await readStream(db, tripId);
     const last = stream.at(-1)!;
     expect(last.type).toBe("PageEdited");
-    expect((last.payload as { pageId: string }).pageId).toBe(overview.id);
+    expect(last.payload as { pageId: string; title: string }).toMatchObject({ pageId: overview.id, title: OVERVIEW_TEMPLATE.title });
     expect(stream.map((e) => e.type)).not.toContain("PageDeleted");
 
     // And the version before it is recoverable from the log.

@@ -584,6 +584,18 @@ export function isOverviewPage(page: { kind?: PageKind | null | undefined }): bo
 }
 
 /**
+ * The title an Overview is shown under: `Overview — <trip name>` while its
+ * stored title is its seed's (the Overview has been seeded "Overview" since it
+ * existed), so a renamed trip renames it too; the stored title when a person
+ * has named it. Derived on every read and never stored, because the log cannot
+ * tell a reset from a rename. Only for the Overview (`isOverviewPage`); any
+ * other page shows what it stores.
+ */
+export function overviewDisplayTitle(storedTitle: string, tripName: string): string {
+  return storedTitle === overviewPage.title ? `${overviewPage.title} — ${tripName}` : storedTitle;
+}
+
+/**
  * Whether this page comes with the trip for good: the Overview, and Today
  * (M52, Mitchell 2026-10-23). The rule `decidePageCommand` refuses a delete
  * on, read here for the index's control so it offers no delete the server

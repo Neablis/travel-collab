@@ -1,5 +1,6 @@
 import {
   CURRENT_PAGE_DOC_VERSION,
+  OVERVIEW_KIND,
   PAGE_CHANGED_CODE,
   PageCommand,
   PageDoc as PageDocSchema,
@@ -28,6 +29,7 @@ import {
   defaultDocumentFor,
   instantiateMissingDefaults,
   missingDefaultTemplates,
+  overviewDisplayTitle,
   TODAY_SEED_KEY,
   type SeedCandidate,
 } from "@tc/pages";
@@ -39,7 +41,7 @@ import { appendToStream, readStream } from "./eventStore";
 import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { checkPageDocForWrite, toPage } from "./pages";
+import { checkPageDocForWrite, toPage, withShownTitle } from "./pages";
 import { applyPageEvents } from "./projections";
 
 export type PageCommandResult =
@@ -98,12 +100,29 @@ export async function executePageCommand(
   }
   const unchecked = command;
 
-  return commitPageStep(unchecked.tripId, actorId, "editor", async ({ tx, pages: pagesState }) => {
+  return commitPageStep(unchecked.tripId, actorId, "editor", async ({ tx, history, pages: pagesState }) => {
     let command = unchecked;
     if (command.type === "EditPage" && command.content !== undefined) {
       const checked = checkPageDocForWrite(command.content, pagesState[command.pageId]?.content);
       if (!checked.ok) return { ok: false, error: { code: "invalid-page", message: checked.message } };
       command = { ...command, content: checked.doc };
+    }
+    // **The Overview's shown title, sent back, is not a rename** (M43 part 2).
+    // Every read hands out `Overview — <trip>`, and a v1 or MCP client edits by
+    // returning the page it read; stored, that text would stop the Overview
+    // following the trip's name for good. Every name the trip has had counts,
+    // not just today's: a client that read before a co-traveller's rename sends
+    // back the old one, and `expectedUpdatedAt` cannot catch that, because a
+    // rename does not move the page.
+    const current = command.type === "EditPage" ? pagesState[command.pageId] : undefined;
+    if (
+      command.type === "EditPage" &&
+      current !== undefined &&
+      pageKindOf(current.seedKey) === OVERVIEW_KIND &&
+      command.title !== undefined &&
+      tripNamesOf(history).map((name) => overviewDisplayTitle(current.title, name)).includes(command.title)
+    ) {
+      command = { ...command, title: undefined };
     }
     let decision = decidePageCommand(pagesState, command, actorId);
 
@@ -347,7 +366,7 @@ async function readPage(
   pageId: string,
 ): Promise<Page | null> {
   const [row] = await tx.select().from(pages).where(eq(pages.id, pageId));
-  return row === undefined ? null : toPage(row);
+  return row === undefined ? null : withShownTitle(toPage(row), tx);
 }
 
 /**
@@ -461,6 +480,15 @@ function genesisOf(history: readonly EventEnvelope[]): SeedCandidate[] {
     if (!seen.has(event.payload.pageId)) seen.set(event.payload.pageId, { id: event.payload.pageId, seedKey: seedKeyOf(event.payload).key });
   }
   return [...seen.values()];
+}
+
+/** Every name the trip has been given, its current one last. */
+function tripNamesOf(history: readonly EventEnvelope[]): string[] {
+  return history.flatMap((envelope) => {
+    if (envelope.type !== "TripCreated" && envelope.type !== "TripNameSet") return [];
+    const name = (envelope.payload as { name?: unknown } | null)?.name;
+    return typeof name === "string" ? [name] : [];
+  });
 }
 
 // Postgres's unique_violation, and the constraint it names. Walks the `cause` chain, as `eventStore.ts` does: drizzle wraps the driver's
