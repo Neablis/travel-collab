@@ -100,7 +100,7 @@ export async function executePageCommand(
   }
   const unchecked = command;
 
-  return commitPageStep(unchecked.tripId, actorId, "editor", async ({ tx, pages: pagesState, tripName }) => {
+  return commitPageStep(unchecked.tripId, actorId, "editor", async ({ tx, history, pages: pagesState }) => {
     let command = unchecked;
     if (command.type === "EditPage" && command.content !== undefined) {
       const checked = checkPageDocForWrite(command.content, pagesState[command.pageId]?.content);
@@ -110,13 +110,17 @@ export async function executePageCommand(
     // **The Overview's shown title, sent back, is not a rename** (M43 part 2).
     // Every read hands out `Overview — <trip>`, and a v1 or MCP client edits by
     // returning the page it read; stored, that text would stop the Overview
-    // following the trip's name for good.
+    // following the trip's name for good. Every name the trip has had counts,
+    // not just today's: a client that read before a co-traveller's rename sends
+    // back the old one, and `expectedUpdatedAt` cannot catch that, because a
+    // rename does not move the page.
     const current = command.type === "EditPage" ? pagesState[command.pageId] : undefined;
     if (
       command.type === "EditPage" &&
       current !== undefined &&
       pageKindOf(current.seedKey) === OVERVIEW_KIND &&
-      command.title === overviewDisplayTitle(current.title, tripName)
+      command.title !== undefined &&
+      tripNamesOf(history).map((name) => overviewDisplayTitle(current.title, name)).includes(command.title)
     ) {
       command = { ...command, title: undefined };
     }
@@ -158,12 +162,11 @@ export async function executePageCommand(
   });
 }
 
-/** What a step inside `commitPageStep` sees: the stream as read, the page aggregate with its genesis folded in, and the trip's name. */
+/** What a step inside `commitPageStep` sees: the stream as read, and the page aggregate with its genesis folded in. */
 type PageStep = {
   tx: Parameters<typeof appendToStream>[0];
   history: EventEnvelope[];
   pages: PagesState;
-  tripName: string;
 };
 
 /** A step's answer: the events to append (none is a no-op), and which page to read back. */
@@ -232,7 +235,7 @@ async function commitPageStep(
       const genesis = await missingGenesis(tx, tripId, foldPages(history));
       const pagesState = genesis.reduce((acc, event) => evolvePages(acc, event), foldPages(history));
 
-      const outcome = await step({ tx, history, pages: pagesState, tripName: tripState.name });
+      const outcome = await step({ tx, history, pages: pagesState });
       if (!outcome.ok) return outcome;
 
       // A no-op: an edit session that ended where it began (typed, then undone),
@@ -477,6 +480,15 @@ function genesisOf(history: readonly EventEnvelope[]): SeedCandidate[] {
     if (!seen.has(event.payload.pageId)) seen.set(event.payload.pageId, { id: event.payload.pageId, seedKey: seedKeyOf(event.payload).key });
   }
   return [...seen.values()];
+}
+
+/** Every name the trip has been given, its current one last. */
+function tripNamesOf(history: readonly EventEnvelope[]): string[] {
+  return history.flatMap((envelope) => {
+    if (envelope.type !== "TripCreated" && envelope.type !== "TripNameSet") return [];
+    const name = (envelope.payload as { name?: unknown } | null)?.name;
+    return typeof name === "string" ? [name] : [];
+  });
 }
 
 // Postgres's unique_violation, and the constraint it names. Walks the `cause` chain, as `eventStore.ts` does: drizzle wraps the driver's

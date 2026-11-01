@@ -199,7 +199,20 @@ describe("pages repository", () => {
       { params: Promise.resolve({ tripId, pageId: overview!.id }) },
     );
     expect(res.status, await res.clone().text()).toBe(200);
+    expect(JSON.stringify((await getPage(overview!.id))!.content), "the edit's content is saved").toContain("Ours");
     await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, at last" }, owner);
+    expect((await getPage(overview!.id))!.title).toBe("Overview — Rome, at last");
+  });
+
+  // A client that read the Overview before a co-traveller renamed the trip
+  // sends back the title under the OLD name; that is still the shown title.
+  it("an Overview title read before a trip rename, sent back after it, keeps following the trip's name", async () => {
+    const { tripId } = await seedTrip();
+    const [overview] = await listPages(tripId);
+    const shown = overview!.title;
+    await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, at last" }, "user-1");
+    const sent = await executePageCommand({ type: "EditPage", tripId, pageId: overview!.id, title: shown }, "user-1");
+    expect(sent.ok, JSON.stringify(sent)).toBe(true);
     expect((await getPage(overview!.id))!.title).toBe("Overview — Rome, at last");
   });
 
