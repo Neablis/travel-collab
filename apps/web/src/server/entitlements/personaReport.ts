@@ -118,9 +118,14 @@ export async function personaReport(map: PersonaMapDef, days: number, now: Date 
     const taken =
       edge.kind === "switch"
         ? edge.from === edge.to
-          ? steps
-              .filter((step) => step.persona === edge.from && (edge.via === "request_change_tools" ? step.escalated : edge.via === "switch_intent" && step.pivoted))
-              .map((step) => step.turnId)
+          ? // The flags latch onto every later step of a turn, so count the turn once (the edge fixes the persona).
+            [
+              ...new Set(
+                steps
+                  .filter((step) => step.persona === edge.from && (edge.via === "request_change_tools" ? step.escalated : edge.via === "switch_intent" && step.pivoted))
+                  .map((step) => step.turnId),
+              ),
+            ]
           : crossings.filter((step) => step.fromPersona === edge.from && step.persona === edge.to).map((step) => step.turnId)
         : [
             ...gapRows.filter((gap) => gap.persona === edge.from && gap.target === edge.via).map((gap) => gap.turnId),

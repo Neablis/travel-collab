@@ -197,7 +197,20 @@ describe("personaReport", () => {
     expect(edge("open_trip")).toMatchObject({ count: 1, turns: 1 });
   });
 
-  it("returns nulls, not NaN or zero,, for a window with no turns", async () => {
+  it("counts a latched escalation once, not once per later step of the turn", async () => {
+    const now = freshNow();
+    // request_change_tools fires at step 1; the flag stays set on steps 1 to 4.
+    await turn(daysBefore(now, 1), {
+      entry: "schedule",
+      steps: [{ persona: "schedule" }, ...[1, 2, 3].map(() => ({ persona: "schedule", escalated: true }))],
+    });
+
+    const report = await personaReport(MAP, 30, now);
+
+    expect(report.edges.find((e) => e.via === "request_change_tools")).toMatchObject({ count: 1, turns: 1 });
+  });
+
+  it("returns nulls, not NaN or zero, for a window with no turns", async () => {
     const report = await personaReport(MAP, 7, freshNow());
 
     expect(report).toMatchObject({ turns: 0, outcomeTurns: 0, switches: 0, costPerTurnMicroUsd: null, costPerOutcomeMicroUsd: null, recent: [] });
