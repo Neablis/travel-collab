@@ -174,10 +174,12 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
     // M57 part 4, the persona switch (the three `s-` prompts). Schedule enters,
     // and holds no place search, so a message that needs a real place crosses
     // to Discover once, before the search, and never by asking the person.
-    // The seeded trip has no hotel on day 2; Trunk Hotel (day 1) is where the
-    // trip sleeps that night, which is the one the prompt means.
+    // The seeded trip has no hotel on day 2, so the prompt names Trunk Hotel,
+    // where it sleeps. A vague "a ramen place" has several candidates, so ADR-084
+    // has the turn show up to 4 options and the person pick (the same shape as
+    // d-coffee-near-now): it proposes nothing, and a proposal here is a guess.
     case "s-ramen-near-hotel":
-      return { ...CHANGE, mustCallOneOf: [["search_places", "find_places_near_now"]], switchesTo: "discover", switchesBefore: ["search_places", "AddActivity"], neverAsksToSwitch: true };
+      return { ...CHANGE, proposes: false, mustCall: ["search_places", "show_options"], switchesTo: "discover", switchesBefore: ["search_places"], neverAsksToSwitch: true };
     // A named place is a real one to look up. Not graded on `proposes`: the
     // stub answers an unknown name with invented neighbours (`placeStub.ts`),
     // and the model may fairly decline to cite one; the guarantee under test is

@@ -40,7 +40,7 @@
     { "id": "d-closed-find-similar", "intent": "change", "trip": "today", "text": "our next stop is closed today, find us something similar nearby instead" },
     { "id": "u-plan-new-trip", "intent": "change", "surface": "account", "text": "I am not sure, can you help me plan a real foodie adventure? Somewhere I havent been before, 2 weeks long" },
     { "id": "u-change-from-home", "intent": "change", "surface": "account", "text": "add a ramen dinner to my Kyoto trip" },
-    { "id": "s-ramen-near-hotel", "intent": "change", "text": "find a ramen place near day 2's hotel and add it" },
+    { "id": "s-ramen-near-hotel", "intent": "change", "text": "find a ramen place near Trunk Hotel for day 2 dinner and add it" },
     { "id": "s-named-place", "intent": "change", "text": "add lunch at Contramar on day 1" },
     { "id": "s-move-museum", "intent": "change", "text": "move the museum to the afternoon on day 2" },
     { "id": "u-book-flight", "intent": "change", "text": "book us flights to Tokyo for the first day" }
