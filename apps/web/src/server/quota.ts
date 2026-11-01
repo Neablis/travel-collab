@@ -541,6 +541,23 @@ export function publicLibraryQuota(): QuotaPolicy[] {
 }
 
 /**
+ * The outcome endpoint's quota (M57): a press of a hand-off or a chip, from a
+ * signed-in browser. A person presses a handful of these in a session and each
+ * is one small insert, so 60 a minute per person is far above use and bounds a
+ * loop; the global ceiling bounds the many-accounts version.
+ */
+export function turnOutcomeQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "turn-outcome-minute",
+      windowMs: 60 * 1000,
+      perUser: envCeiling("TURN_OUTCOME_RATE_LIMIT_PER_USER_MINUTE", 60),
+      global: envCeiling("TURN_OUTCOME_RATE_LIMIT_GLOBAL_MINUTE", 3000),
+    },
+  ];
+}
+
+/**
  * Charge one request against every policy, in order. Returns the first refusal.
  *
  * FAILS CLOSED. A counter-store error refuses the request rather than waving it

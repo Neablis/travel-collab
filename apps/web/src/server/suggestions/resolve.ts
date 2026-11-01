@@ -7,6 +7,7 @@ import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { isUuid } from "../ids";
 import { getTripDetail } from "../projections";
+import { recordTurnOutcome } from "../turnOutcomes";
 import { ASKER_ONLY, expireStale, isExpired, mayReview, refuse, roleOn, SUGGESTION_TTL_DAYS, toChanges, type ChangeRow, type SuggestionResult, type SuggestionRow } from "./shared";
 
 /**
@@ -146,6 +147,13 @@ async function accept(
       return refuse("already-resolved", "This suggestion was already resolved.");
     }
     throw error;
+  }
+  // The per-change Accept button is the main way a suggestion is accepted, so
+  // it records the turn's outcome as `acceptSuggestionChanges` does (M57). The
+  // turn id is the stored row's own, never the browser's; the unique index on
+  // (turn, kind) makes accepting a suggestion's changes one by one one row.
+  if (suggestion.turnId !== null) {
+    await recordTurnOutcome(suggestion.turnId, "suggestion_accepted", reviewerId, { anyAsker: true, now: new Date(now) });
   }
   return { ok: true, value: toChanges([{ ...change, ...resolution }], suggestion) };
 }

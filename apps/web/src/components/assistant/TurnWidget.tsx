@@ -9,6 +9,7 @@ import { PlaceSearch } from "@/components/places/PlaceSearch";
 import { runPaletteCommand } from "@/components/palette/paletteRegistry";
 import { TAG_LABEL } from "@/lib/activityTags";
 import { NEW_TRIP_PATH } from "@/lib/homePath";
+import { postTurnOutcome } from "@/lib/apiClient";
 import { rememberNewTripHandOff } from "@/lib/pendingCarriedAsks";
 
 /** The widget a turn ended in (ADR-084 §2): a question, cards, or a hand-off. */
@@ -32,7 +33,10 @@ export function TurnWidget({
   answered,
   busy = false,
   onAnswer,
+  turnId,
 }: {
+  /** The server's id for the turn that drew this (M57), for the outcome a press reports. */
+  turnId?: string;
   widget: TurnWidgetState;
   answered: boolean;
   busy?: boolean;
@@ -50,7 +54,7 @@ export function TurnWidget({
         <OptionCards options={widget.options} busy={busy} {...(live && { onAnswer })} />
       );
     case "handOff":
-      return <HandOffCard handOff={widget.handOff} />;
+      return <HandOffCard handOff={widget.handOff} turnId={turnId} />;
   }
 }
 
@@ -207,7 +211,7 @@ const HAND_OFF_COPY: Readonly<Record<HandOffTo, { says: string; button: string |
  * this page has one (Home), and otherwise a link to Home that opens it there,
  * with what the hand-off knew of the trip (`lib/pendingCarriedAsks.ts`).
  */
-function HandOffCard({ handOff }: { handOff: AssistantHandOff }) {
+function HandOffCard({ handOff, turnId }: { handOff: AssistantHandOff; turnId: string | undefined }) {
   const { says, button } = HAND_OFF_COPY[handOff.to];
   // The plan page's command exists once the palette has read the trips, and
   // only for one it lists: when it is not there, say so rather than nothing.
@@ -218,7 +222,11 @@ function HandOffCard({ handOff }: { handOff: AssistantHandOff }) {
       <p className="text-sm text-a-asst-ink">{says}</p>
       {button !== null &&
         (handOff.to === "upgrade" ? (
-          <Link href="/plans" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+          <Link
+            href="/plans"
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
+            onClick={() => void postTurnOutcome(turnId, "hand_off_pressed")}
+          >
             {button}
           </Link>
         ) : handOff.to === "new_trip" ? (
@@ -228,14 +236,19 @@ function HandOffCard({ handOff }: { handOff: AssistantHandOff }) {
             onClick={(event) => {
               // Banked first, on either path: the palette's open reads it at
               // once, and Home's `?new=trip` reads it on arrival.
-              rememberNewTripHandOff({ prefill: handOff.prefill ?? {}, asks: handOff.asks ?? [] });
+              rememberNewTripHandOff({ prefill: handOff.prefill ?? {}, asks: handOff.asks ?? [], ...(turnId === undefined ? {} : { turnId }) });
+              void postTurnOutcome(turnId, "hand_off_pressed");
               if (runPaletteCommand("new-trip")) event.preventDefault();
             }}
           >
             {button}
           </Link>
         ) : command === undefined ? null : (
-          <Button type="button" variant="secondary" size="sm" onClick={() => setUnopened(!runPaletteCommand(command))}>
+          <Button type="button" variant="secondary" size="sm" onClick={() => {
+              void postTurnOutcome(turnId, "hand_off_pressed");
+              setUnopened(!runPaletteCommand(command));
+            }}
+          >
             {button}
           </Button>
         ))}

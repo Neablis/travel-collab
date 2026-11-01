@@ -1,3 +1,4 @@
+import type { ClientOutcomeKind } from "@/lib/turnOutcomeKinds";
 import {
   ActivityTag,
   ActivityTagDescribed,
@@ -2152,6 +2153,28 @@ export async function askAssistant(
 export type PlanOutcome = CommandOutcome & { message: string; simulated: boolean };
 
 /**
+ * Tell the server what was done with a turn's answer (M57): a hand-off or a
+ * chip pressed, a trip made from a hand-off. Callers ignore the result: a
+ * refusal is nothing the person should hear about. `keepalive` lets the
+ * request leave with a page the press is navigating away from.
+ */
+export async function postTurnOutcome(turnId: string | undefined, kind: ClientOutcomeKind): Promise<ApiResult<null>> {
+  if (turnId === undefined) return { ok: true, value: null };
+  try {
+    const res = await fetch(apiUrl("/api/ask/outcome"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turnId, kind }),
+      keepalive: true,
+    });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: null };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/**
  * Approve a proposal — the ONE atomic batch (ADR-013), one history entry, one
  * undo.
  *
@@ -2167,6 +2190,8 @@ export type PlanOutcome = CommandOutcome & { message: string; simulated: boolean
 export async function applyAssistantProposal(
   tripId: string,
   proposal: AssistantProposal,
+  // The turn that proposed it (M57); the proposal's own id names no ledger row.
+  turnId?: string,
 ): Promise<ApiResult<PlanOutcome>> {
   const scope = tripKeys.all(tripId);
   beginWrite(scope);
@@ -2176,6 +2201,7 @@ export async function applyAssistantProposal(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         proposalId: proposal.proposalId,
+        ...(turnId === undefined ? {} : { turnId }),
         commands: proposal.commands,
         inserts: proposal.inserts,
       }),

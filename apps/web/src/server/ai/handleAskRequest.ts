@@ -72,6 +72,7 @@ import { WIDGET_SHAPE_WORDS } from "@/server/assistant/tools/widgets";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
 import { settleAiSteps } from "@/server/quota";
+import { recordTurnOutcome } from "@/server/turnOutcomes";
 import { OFF_TOPIC } from "@/server/ai/askIntent";
 import { clockTimesLine, nowBlocks, turnNowOf, type AskScope } from "@/server/assistant/context";
 import { buildTripGlobals } from "@/server/tripGlobals";
@@ -1169,7 +1170,7 @@ export async function handleAskRequest(
         suggestOnFinish(
           () => finalProposal,
           fromChat ? storesFromChat : storesAsSuggestion,
-          (proposal) => suggestProposal(proposal, { tripId, userId, question, ...(fromChat ? { requestedBy: userId } : {}) }),
+          (proposal) => suggestProposal(proposal, { tripId, userId, question, turnId, ...(fromChat ? { requestedBy: userId } : {}) }),
           (proposal, outcome) => recordAskOutcome(askOutcomeRecord({ turnId, tripId, userId }, proposal.commands.length, outcome)),
         ),
       ),
@@ -1929,6 +1930,13 @@ const ApplyProposalRequest = z.object({
    * tripId is checked against the URL regardless of what this says.
    */
   proposalId: z.string().min(1).optional(),
+  /**
+   * The turn that proposed it (M57): the id the final chunk carried. The
+   * proposal's own id is a random uuid and names nothing in the ledger, so the
+   * client sends this beside it. Only joined to the ledger when that turn was
+   * this approver's (`recordTurnOutcome`); a wrong one writes nothing.
+   */
+  turnId: z.string().guid().optional(),
   // No `.min(1)` any more: an inserts-only approval carries no commands at all.
   // "At least one change" is still enforced, below, over both lists together —
   // it stopped being a question this field can answer on its own.
@@ -2065,6 +2073,7 @@ export async function handleApplyProposalRequest(
     );
   }
   sink({ ...record, outcome: "applied", code: null });
+  if (parsed.value.turnId !== undefined) await recordTurnOutcome(parsed.value.turnId, "proposal_applied", userId);
   // `detail` is the trip the guard read, before the batch (M52 decision 17).
   // The commands the batch RAN, not the ones posted: a library insert's stops
   // are named only by the commands it expanded into (KI-2026-10-23-a).

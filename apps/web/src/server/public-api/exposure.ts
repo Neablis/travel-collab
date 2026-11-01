@@ -137,6 +137,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "The assistant — a token cannot spend model budget",
     reaches: [{ module: "@/server/ai/handleAskRequest" }],
   },
+  "ask/outcome": {
+    status: "never",
+    why: "The assistant — a token cannot spend model budget",
+    reaches: [{ module: "@/server/ai/handleAskRequest" }],
+  },
   "trips/[tripId]/ask": {
     status: "never",
     why: "The assistant — a token cannot spend model budget",

@@ -7,7 +7,7 @@ import { getTripDetail } from "@/server/projections";
 import { getTripHistory } from "@/server/history";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { db } from "@/server/db/client";
-import { rateLimitCounters, savedDayAdds, savedDays, tripMemberships, tripMessages } from "@/server/db/schema";
+import { aiTurnOutcomes, aiUsage, rateLimitCounters, savedDayAdds, savedDays, tripMemberships, tripMessages } from "@/server/db/schema";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import type { Geocoder, GeocodeResult } from "@/server/geocoding";
@@ -53,6 +53,23 @@ async function grantViewer(tripId: string, userId: string) {
     createdAt: new Date().toISOString(),
   });
 }
+
+async function seedTurn(userId: string): Promise<string> {
+  const id = randomUUID();
+  await db.insert(aiUsage).values({
+    id,
+    userId,
+    endpoint: "ask",
+    outcome: "completed",
+    taskClass: "plan",
+    turnModel: "test/model",
+    steps: 1,
+    createdAt: new Date(),
+  });
+  return id;
+}
+
+const outcomesOf = (turnId: string) => db.select().from(aiTurnOutcomes).where(eq(aiTurnOutcomes.turnId, turnId));
 
 // The default sink is `console.info`, and `test:int` should not be buried in
 // per-approval log lines. Two tests below pass their own sink deliberately,
@@ -312,6 +329,32 @@ describe("POST /api/trips/:id/ask/apply", () => {
         code: null,
       });
       expect(records[0]!.latencyMs).toBeGreaterThanOrEqual(0);
+    });
+
+    // The proposal's own id is a random uuid and names nothing in the ledger,
+    // so the approval carries the turn's id beside it (M57 part 3).
+    it("records proposal_applied against the turn the approval carried, and not against another account's turn, nor for a refused batch", async () => {
+      const tripId = await seedTrip();
+      const mine = await seedTurn(ACTOR_ID);
+      const theirs = await seedTurn(VIEWER_ID);
+      const commands = await twoStopsOnDayOne(tripId);
+      expect((await handleApplyProposalRequest(req(tripId, { proposalId: randomUUID(), turnId: mine, commands }), tripId, undefined, silent)).status).toBe(200);
+      expect(await outcomesOf(mine)).toMatchObject([{ kind: "proposal_applied", actor: ACTOR_ID }]);
+
+      await handleApplyProposalRequest(req(tripId, { turnId: theirs, commands: await twoStopsOnDayOne(tripId) }), tripId, undefined, silent);
+      expect(await outcomesOf(theirs)).toEqual([]);
+
+      const refusedTurn = await seedTurn(ACTOR_ID);
+      await handleApplyProposalRequest(
+        req(tripId, {
+          turnId: refusedTurn,
+          commands: [{ type: "AddActivity", tripId, activityId: randomUUID(), dayId: randomUUID(), title: "Nowhere" }],
+        }),
+        tripId,
+        undefined,
+        silent,
+      );
+      expect(await outcomesOf(refusedTurn)).toEqual([]);
     });
 
     it("logs a refused batch as refused, with the domain's own code", async () => {

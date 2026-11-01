@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { BatchableCommand, type Origin, type SuggestionChange, type TripDetail } from "@tc/contracts";
 import { predictBatch } from "@tc/domain/predict";
 import { roleAtLeast } from "../accessPolicy";
+import { recordTurnOutcome } from "../turnOutcomes";
 import { announceChange } from "../chat/changeLine";
 import { executeTripCommandBatch } from "../commands";
 import { db } from "../db/client";
@@ -157,6 +158,11 @@ export async function acceptSuggestionChanges(
     }
     throw error;
   }
+  // One row per assistant turn whose suggestion this accepted, however many of
+  // its changes (M57). The turn id is the row's own, so the asker check that
+  // guards a browser-sent id is not the question here.
+  const turns = new Set(ordered.flatMap((r) => (r.suggestion.turnId === null ? [] : [r.suggestion.turnId])));
+  await Promise.all([...turns].map((turnId) => recordTurnOutcome(turnId, "suggestion_accepted", reviewerId, { anyAsker: true, now: new Date(now) })));
   return { ok: true, value: ordered.flatMap((r) => toChange({ ...r.change, ...resolution }, r.suggestion) ?? []) };
 }
 
