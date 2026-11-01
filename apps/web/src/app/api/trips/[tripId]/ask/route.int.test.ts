@@ -831,6 +831,13 @@ async function chunksOf(res: Response): Promise<Record<string, unknown>[]> {
     .map((line) => JSON.parse(line.slice("data: ".length)) as Record<string, unknown>);
 }
 
+/** What the stream's metadata named beyond the turn's own id (M57) and where it goes: the outcomes, none for a plain answer. */
+function outcomeKeysOf(chunks: Record<string, unknown>[]): string[] {
+  return chunks.flatMap((chunk) =>
+    Object.keys((chunk.messageMetadata as object | undefined) ?? {}).filter((key) => key !== "turnId" && key !== "paletteCommands"),
+  );
+}
+
 function textOf(chunks: Record<string, unknown>[]): string {
   return chunks
     .filter((chunk) => chunk.type === "text-delta")
@@ -1847,7 +1854,7 @@ describe("POST /api/trips/:id/ask", () => {
       const chunks = await chunksOf(res);
       expect(records[0]!.offeredTools.sort()).toEqual([...VIEWER_TOOL_NAMES].sort());
       // No proposal on the wire, and no write tool call in it either.
-      expect(chunks.some((c) => c.type === "finish" && c.messageMetadata !== undefined)).toBe(false);
+      expect(outcomeKeysOf(chunks)).toEqual([]);
       expect(records[0]!.toolCalls.every((c) => (VIEWER_TOOL_NAMES as readonly string[]).includes(c.name))).toBe(true);
     });
 
@@ -1916,13 +1923,16 @@ describe("POST /api/trips/:id/ask", () => {
 
       expect(await finishOf({ messages: [userMessage("show this on the map")], scope: { kind: "trip" } })).toEqual({
         paletteCommands: [{ id: "view:Map", needsApproval: false }],
+        turnId: expect.any(String),
       });
       const pageId = await seedPage(tripId);
       expect(await finishOf({ messages: [userMessage("show this on the map")], scope: { kind: "page", pageId } })).toEqual({
         paletteCommands: [{ id: `go:trip:${tripId}:view:Map`, needsApproval: false }],
+        turnId: expect.any(String),
       });
       expect(await finishOf({ messages: [userMessage("turn on editing")], scope: { kind: "page", pageId } })).toEqual({
         paletteCommands: [{ id: "notebook-editing", needsApproval: true, on: true }],
+        turnId: expect.any(String),
       });
     });
 
@@ -2057,7 +2067,7 @@ describe("POST /api/trips/:id/ask", () => {
       const tripId = await seedTrip();
       const res = await ask(tripId, { messages: [userMessage("what's planned?")], scope: { kind: "trip" } });
       const chunks = await chunksOf(res);
-      expect(chunks.every((c) => c.messageMetadata === undefined)).toBe(true);
+      expect(outcomeKeysOf(chunks)).toEqual([]);
     });
 
     // Ruling B: the client stops sniffing the model's prose for this.

@@ -65,6 +65,7 @@ export type _CostKeys = Assert<
     | "planVersionRef"
     | "latencyMs"
     | "planExamples"
+    | "entryPersona"
   >
 >;
 export type _SpendKeys = Assert<Exact<keyof ModelSpend, "model" | "tokensIn" | "tokensOut">>;
@@ -91,6 +92,9 @@ export type _StepKeys = Assert<
     | "durationMs"
     | "provider"
     | "gatewayGenerationId"
+    | "persona"
+    | "fromPersona"
+    | "edgeKind"
   >
 >;
 

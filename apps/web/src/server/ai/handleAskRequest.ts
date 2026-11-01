@@ -76,6 +76,7 @@ import { OFF_TOPIC } from "@/server/ai/askIntent";
 import { clockTimesLine, nowBlocks, turnNowOf, type AskScope } from "@/server/assistant/context";
 import { buildTripGlobals } from "@/server/tripGlobals";
 import type { SurfaceKind } from "@/server/assistant/grants";
+import type { PersonaId } from "@/server/assistant/personas";
 import { readPreferences } from "@/server/users";
 import { MAX_DAYS_READ_PER_TURN, MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
 import { MAX_READ_DAYS, OVERVIEW_ABOVE_DAYS, PlaybookSearchReadoutSchema } from "@/server/assistant/tools/read";
@@ -553,6 +554,7 @@ export async function handleAskRequest(
   let planExampleCount: number | null = null;
   const recorder = createAskRecorder({
     turnId,
+    entryPersona: grant.persona,
     // The request's own start, read before admission, so the turn's latency
     // includes admission and the classifier's round-trip (Copilot on #301).
     startedAt,
@@ -1123,7 +1125,10 @@ export async function handleAskRequest(
           return Object.keys(outcome).length === 0 ? undefined : outcome;
         }
         if (part.type !== "finish") return undefined;
-        return withPaletteCommands(withUiOutcome(finalOutcome(), uiOutcome, { turnId, surface: grant.surface }), paletteCommands);
+        return withTurnId(
+          withPaletteCommands(withUiOutcome(finalOutcome(), uiOutcome, { turnId, surface: grant.surface, persona: grant.persona }), paletteCommands),
+          turnId,
+        );
       },
       onError: (error) => {
         // **This only words an error; it does not decide the turn failed.**
@@ -1441,6 +1446,7 @@ export async function handleBeyondTripAskRequest(
   let wrapUpReason: AskWrapUp | null = null;
   const recorder = createAskRecorder({
     turnId,
+    entryPersona: grant.persona,
     startedAt,
     tier: grant.tier,
     stepPlan: (index) => stepPlans.get(index),
@@ -1556,8 +1562,8 @@ export async function handleBeyondTripAskRequest(
         }
         if (part.type !== "finish") return undefined;
         const proposal = playbookProposal.collected();
-        const outcome = withUiOutcome(proposal === null ? undefined : { proposal }, uiOutcome, { turnId, surface: grant.surface });
-        return withPaletteCommands(outcome, paletteCommands);
+        const outcome = withUiOutcome(proposal === null ? undefined : { proposal }, uiOutcome, { turnId, surface: grant.surface, persona: grant.persona });
+        return withTurnId(withPaletteCommands(outcome, paletteCommands), turnId);
       },
       onError: askFailureMessage,
     });
@@ -1651,9 +1657,17 @@ function suggestOnFinish(
       }
       const { metadata, outcome } = await store(proposal);
       record(proposal, outcome);
-      // Where the turn takes you is not part of what was stored, so it stays.
-      const carried = (chunk.messageMetadata as AskStreamMetadata | undefined)?.paletteCommands;
-      controller.enqueue({ ...chunk, messageMetadata: carried === undefined ? metadata : { ...metadata, paletteCommands: carried } });
+      // Where the turn takes you, and which turn it was, are not part of what
+      // was stored, so both stay.
+      const { paletteCommands, turnId } = (chunk.messageMetadata as AskStreamMetadata | undefined) ?? {};
+      controller.enqueue({
+        ...chunk,
+        messageMetadata: {
+          ...metadata,
+          ...(paletteCommands === undefined ? {} : { paletteCommands }),
+          ...(turnId === undefined ? {} : { turnId }),
+        },
+      });
     },
   });
 }
@@ -1674,6 +1688,16 @@ function withPaletteCommands(
 }
 
 /**
+ * The server's id for the turn, on the final chunk (M57). It is the key of the
+ * turn's ledger rows, which is what lets the client name the turn an outcome
+ * (a proposal applied, a suggestion accepted) belongs to. Never an outcome
+ * itself, so it rides beside whichever one the turn has.
+ */
+function withTurnId(outcome: AskStreamMetadata | undefined, turnId: string): AskStreamMetadata {
+  return { ...(outcome ?? {}), turnId };
+}
+
+/**
  * The turn's outcome, or the widget it ended in where it has none (ADR-084).
  * A change the turn drafted wins, keeping one outcome per chunk: the card is
  * what the turn came to. A hand-off that is the outcome is logged as the
@@ -1682,7 +1706,7 @@ function withPaletteCommands(
 function withUiOutcome(
   outcome: AskStreamMetadata | undefined,
   ui: UiOutcomeBuffer,
-  gap: { turnId: string; surface: SurfaceKind },
+  gap: { turnId: string; surface: SurfaceKind; persona: PersonaId },
 ): AskStreamMetadata | undefined {
   const widget: UiOutcome | null = ui.outcome();
   if (widget === null) return outcome;

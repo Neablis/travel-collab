@@ -13,6 +13,18 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-01 — `AskStreamMetadata` carries the server's turn id (M57 part 2)
+- **New** (`packages/contracts/src/assistant.ts`): an optional `turnId` (a GUID) beside `paletteCommands`
+  on every branch of `AskStreamMetadata`. It is a sibling, not an outcome, so the one-outcome rule
+  and `OUTCOME_KEYS` are untouched; the silent branch accepts it too. The shared object was renamed
+  from `WITH_COMMANDS` to `WITH_SIBLINGS` (file-local).
+- Why: ADR-085 decision 5. A turn's later outcomes (a proposal applied, a suggestion accepted) are
+  joined to its ledger rows by the id the server minted, which the client never had.
+- Consumers updated: `apps/web` — `handleAskRequest.ts` puts it on the final chunk of both doors
+  (and keeps it through `suggestOnFinish`), `lib/apiClient.ts` reads it as a `turn` event, and
+  `useAskThread.ts` keeps it on the assistant turn.
+- Breaking? no — optional; a client that ignores it is unchanged, and a pre-M57 server sends none.
+
 ## 2026-10-31 — `OpenClass`, `ChoicesRef` and `OpenClassRef`: *What needs you*'s class filter (M43 part 4)
 - **New** (`packages/contracts/src/pages.ts`): `OpenClass`, the three row classes `open` draws
   (`conflict`, `empty-day`, `parked`); `ChoicesRef(values)`, the one stored shape of a `choices`

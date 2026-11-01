@@ -1556,6 +1556,10 @@ export const aiUsage = pgTable(
     // lookup failed` log tells those apart); null means it never ran — not a
     // plan turn, or `RAG_PLAN_RETRIEVAL` off. A count, never the ids.
     planExamples: integer("plan_examples"),
+    // The persona the turn entered at (M57, ADR-085): where the page put it,
+    // before any switch. A `PersonaId`; text with no CHECK, like every enum
+    // column here. Null on rows written before 0071.
+    entryPersona: text("entry_persona"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [
@@ -1606,9 +1610,39 @@ export const aiUsageSteps = pgTable(
     // (no dollars, above). Null off the Gateway and for rows before 0038.
     provider: text("provider"),
     gatewayGenerationId: text("gateway_generation_id"),
+    // The persona this step ran as (M57, ADR-085), and, when the step is the
+    // first after a switch, where it came from and by what kind of edge
+    // (`switch` | `hand-off`). Null on rows before 0071; `from_persona` and
+    // `edge_kind` are null on every step that did not cross an edge.
+    persona: text("persona"),
+    fromPersona: text("from_persona"),
+    edgeKind: text("edge_kind"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.turnId, t.stepIndex] }), index("ai_usage_steps_created").on(t.createdAt)],
+);
+
+// **One row per capability gap** (M57, ADR-085; ADR-084 §2): a task the
+// assistant understood and handed off because no tool does it. It was the
+// `ai.capability_gap` log line alone, which Vercel keeps briefly; a row is
+// what lets "which persona declines what" be a query.
+//
+// `task` is the model's own words for it, through `sanitizeForLog` and capped
+// at write time — never the person's message. Not keyed by turn: a turn ends
+// on one outcome, but the id is only a join, and no foreign key (ADR-025).
+export const aiCapabilityGaps = pgTable(
+  "ai_capability_gaps",
+  {
+    id: uuid("id").primaryKey(),
+    // An `ai_usage.id`.
+    turnId: uuid("turn_id").notNull(),
+    persona: text("persona").notNull(),
+    /** The hand-off's `to` (`HandOffTo`). */
+    target: text("target").notNull(),
+    task: text("task").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [index("ai_capability_gaps_turn").on(t.turnId), index("ai_capability_gaps_created").on(t.createdAt)],
 );
 
 // **One row per tool call** (M31 Phase 1, ADR-062 §5) — which tools work, and

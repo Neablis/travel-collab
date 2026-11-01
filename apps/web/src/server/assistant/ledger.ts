@@ -32,6 +32,7 @@
 //      exactly once per turn on `onEnd`, abort and error, so the ledger is a
 //      fourth reader of that latch and not a fourth place that has to get
 //      once-only right.
+import type { Edge, PersonaId } from "./personas";
 import type { TaskClass } from "./taskClass";
 
 /**
@@ -136,6 +137,12 @@ export interface TurnCost {
    * prompt, a failed or timed-out lookup included (only the log tells those apart).
    */
   planExamples: number | null;
+  /**
+   * The persona the turn entered at (M57, ADR-085): the page's, before any
+   * switch. Absent (read as null) on a ledger built by a producer that
+   * predates M57; the recorder always sets it.
+   */
+  entryPersona?: PersonaId | null;
 }
 
 /**
@@ -247,6 +254,12 @@ export interface StepSpend {
    * cost is looked up from the Gateway by this id, never stored here (rule 2).
    */
   gatewayGenerationId: string | null;
+  /** The persona this step ran as (M57); optional like the two below, for fixtures that predate it. Equal to the entry persona until a step switches. */
+  persona?: PersonaId | null;
+  /** The persona the step before it ran as, on the step that crossed an edge; null on every other. */
+  fromPersona?: PersonaId | null;
+  /** Which kind of edge the step crossed to get to `persona`; null with `fromPersona`. */
+  edgeKind?: Edge["kind"] | null;
 }
 
 /**

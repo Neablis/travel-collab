@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
-import { aiUsage, rateLimitCounters, tripMemberships } from "@/server/db/schema";
+import { aiCapabilityGaps, aiUsage, rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
@@ -249,7 +249,15 @@ describe("POST /api/ask", () => {
     const fresh = await handleBeyondTripAskRequest(ask("help me plan a foodie trip somewhere new"), handingOff({ task: "plan a foodie trip", to: "new_trip" }), () => {});
     expect(handOffIn(await fresh.text())).toEqual({ task: "plan a foodie trip", to: "new_trip" });
     const gaps = logged.mock.calls.filter(([line]) => line === "ai.capability_gap").map(([, json]) => JSON.parse(json as string));
-    expect(gaps).toEqual([expect.objectContaining({ surface: "account", task: "plan a foodie trip", to: "new_trip" })]);
+    expect(gaps).toEqual([expect.objectContaining({ surface: "account", persona: "account", task: "plan a foodie trip", to: "new_trip" })]);
+    // M57: the same gap is a row, keyed by the turn id the log line carries.
+    const [{ turnId: gapTurnId }] = gaps as [{ turnId: string }];
+    const rows = await vi.waitFor(async () => {
+      const found = await db.select().from(aiCapabilityGaps).where(eq(aiCapabilityGaps.turnId, gapTurnId));
+      expect(found).toHaveLength(1);
+      return found;
+    });
+    expect(rows[0]).toMatchObject({ persona: "account", target: "new_trip", task: "plan a foodie trip" });
 
     const existing = await handleBeyondTripAskRequest(ask("add a ramen dinner to my Kyoto trip"), handingOff({ task: "add a dinner", to: "plan_page", trip: "Kyoto" }), () => {});
     expect(handOffIn(await existing.text())).toEqual({ task: "add a dinner", to: "plan_page", command: `go:trip:${kyoto}:view:Plan` });

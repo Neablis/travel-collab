@@ -39,6 +39,12 @@ export type AssistantTurn =
       tools: ToolNote[];
       pending: boolean;
       /**
+       * The server's id for this turn (M57), once the final chunk carried it:
+       * the key of its ledger rows, so an outcome later (a proposal applied)
+       * can name the turn it came from. Not the client `id` above.
+       */
+      serverTurnId?: string;
+      /**
        * The turn's proposal, once the stream's final chunk carried one (M9).
        * Optional rather than a third union member: a proposal belongs TO an
        * answer — the prose above it says what would change and the card is

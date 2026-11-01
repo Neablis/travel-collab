@@ -121,6 +121,38 @@ describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
     ]);
   });
 
+  // M57: the persona columns are measured like the rest, so a replay that
+  // learns a step crossed an edge must overwrite the first write's guess.
+  it("writes the entry persona and each step's persona, and a replay overwrites them", async () => {
+    const turnId = randomUUID();
+    const first = withRows(turnId);
+    await recordTurnLedger({
+      cost: { ...first.cost, entryPersona: "trip-planner" },
+      capacity: [],
+      toolCalls: [],
+      stepSpend: first.stepSpend.map((step) => ({ ...step, persona: "trip-planner" })),
+    });
+    const replay = withRows(turnId);
+    await recordTurnLedger({
+      cost: { ...replay.cost, entryPersona: "trip-planner" },
+      capacity: [],
+      toolCalls: [],
+      stepSpend: replay.stepSpend.map((step) =>
+        step.index === 0
+          ? { ...step, persona: "trip-planner" as const }
+          : { ...step, persona: "page-writer" as const, fromPersona: "trip-planner" as const, edgeKind: "switch" as const },
+      ),
+    });
+
+    const [row] = await db.select().from(aiUsage).where(eq(aiUsage.id, turnId));
+    expect(row!.entryPersona).toBe("trip-planner");
+    const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, turnId));
+    expect(steps.map((step) => [step.stepIndex, step.persona, step.fromPersona, step.edgeKind]).sort()).toEqual([
+      [0, "trip-planner", null, null],
+      [1, "page-writer", "trip-planner", "switch"],
+    ]);
+  });
+
   // A replay carries the latest measurement, so the second write's values win
   // for every measured column — each row updated to ITS OWN new values, which
   // a multi-row upsert only does if it reads `excluded`.
@@ -333,6 +365,7 @@ describe("the row carries no content", () => {
         "classifierTokensOut",
         "createdAt",
         "endpoint",
+        "entryPersona",
         "id",
         "latencyMs",
         "outcome",
@@ -361,10 +394,13 @@ describe("the row carries no content", () => {
         "cacheWriteTokens",
         "createdAt",
         "durationMs",
+        "edgeKind",
         "escalated",
         "finishReason",
+        "fromPersona",
         "gatewayGenerationId",
         "model",
+        "persona",
         "pivoted",
         "provider",
         "stepIndex",

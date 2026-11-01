@@ -18,6 +18,7 @@ import type { DroppedInsert } from "@tc/contracts";
 import type { AskScope } from "@/server/assistant/context";
 import type { TaskClass } from "@/server/assistant/taskClass";
 import type { AskPivot } from "@/server/assistant/intents";
+import type { Edge, PersonaId } from "@/server/assistant/personas";
 import {
   NO_METER,
   type LedgerTaskClass,
@@ -585,9 +586,19 @@ export interface AskStepPlan {
   tier: string | null;
   escalated: boolean;
   pivoted: boolean;
+  /**
+   * The persona the step ran as (M57). Absent means the turn's entry persona,
+   * which is every step until a persona switch exists (part 4); a step that
+   * crossed an edge says where from and by what kind.
+   */
+  persona?: PersonaId;
+  fromPersona?: PersonaId;
+  edgeKind?: Edge["kind"];
 }
 
 export interface AskRecorderParams {
+  /** The persona the page enters this turn at (M57), resolved by admission. */
+  entryPersona: PersonaId;
   tripId: string | null;
   /** The ledger's door. Absent is a trip's `ask`; the account door passes `ask.account` (M45). */
   endpoint?: TurnCost["endpoint"];
@@ -945,6 +956,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
         planVersionRef: params.planVersionRef ?? null,
         latencyMs,
         planExamples: params.planExamples?.() ?? null,
+        entryPersona: params.entryPersona,
       },
       capacity: meter.capacity(),
       toolCalls: meter.toolCalls().map((call) => ({
@@ -976,6 +988,9 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       escalated: plan?.escalated ?? false,
       pivoted: plan?.pivoted ?? false,
       durationMs,
+      persona: plan?.persona ?? params.entryPersona,
+      fromPersona: plan?.fromPersona ?? null,
+      edgeKind: plan?.edgeKind ?? null,
       ...gatewayRoutingOf(step.providerMetadata),
     };
   }

@@ -24,6 +24,9 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import * as Sentry from "@sentry/nextjs";
 import { executeTripCommand } from "@/server/commands";
 import { simulatedModel } from "@/server/ai/simulatedModel";
+import { db } from "@/server/db/client";
+import { aiUsage, aiUsageSteps } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 const ACTOR_ID = "ask-telemetry-owner";
 
@@ -48,6 +51,8 @@ interface StreamedMetric {
 }
 
 const sent: Envelope[] = [];
+// The server turn id the stream's final chunk carried (M57), read from the body.
+let streamedTurnId: string | undefined;
 
 /**
  * v10 streams child spans as standalone `span` envelope items rather than
@@ -151,7 +156,8 @@ beforeAll(async () => {
     );
     expect(response.status).toBe(200);
     // The stream's callbacks only fire as it is read.
-    await response.text();
+    const body = await response.text();
+    streamedTurnId = body.match(/"turnId":"([0-9a-f-]{36})"/)?.[1];
   });
 
   await Sentry.flush(5000);
@@ -229,6 +235,42 @@ describe("POST /api/trips/:id/ask — AI telemetry", () => {
     // The flag is off by default in every Vercel environment, and a simulated
     // turn contacted no provider — the attribute anyone computing cost filters on.
     expect(attr(turns as unknown as StreamedSpan, "simulated")).toBe(true);
+  });
+
+  // M57 (ADR-085): the ledger is where cost and quality per persona become SQL,
+  // so a row that does not say which persona ran is a query that cannot be asked.
+  describe("the ledger rows (M57)", () => {
+    // `recordTurnLedger` is tracked on the turn's `settled` promise, not on the
+    // response, so the row may land a moment after the body closed.
+    const rowFor = async (turnId: string) => {
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const [row] = await db.select().from(aiUsage).where(eq(aiUsage.id, turnId));
+        if (row !== undefined) return row;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      throw new Error("the ledger row never landed");
+    };
+
+    it("names the server's turn id on the final chunk, and it is the ledger row's key", async () => {
+      expect(streamedTurnId).toBeDefined();
+      const row = await rowFor(streamedTurnId!);
+      expect(row.userId).toBe(ACTOR_ID);
+    });
+
+    it("records the persona the turn entered at, and the persona each step ran as", async () => {
+      expect(streamedTurnId).toBeDefined();
+      const row = await rowFor(streamedTurnId!);
+      // A trip page enters at the trip planner (personas.ts `ENTRY`).
+      expect(row.entryPersona).toBe("trip-planner");
+      const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, streamedTurnId!));
+      expect(steps.length).toBeGreaterThan(0);
+      // Until a step can switch, every step runs as the entry persona and crosses no edge.
+      for (const step of steps) {
+        expect(step.persona).toBe("trip-planner");
+        expect(step.fromPersona).toBeNull();
+        expect(step.edgeKind).toBeNull();
+      }
+    });
   });
 
   // The privacy rule, checked against the bytes: Sentry's integration defaults
