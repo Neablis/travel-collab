@@ -62,7 +62,7 @@ describe("the Personas tab", () => {
     render(<PersonasTab report={REPORT} />);
     const row = within(screen.getByTestId("recent-11111111-1111-4111-8111-111111111111"));
     expect(row.getByText(/Schedule then Discover, \$0\.0020, completed, proposal_applied/)).toBeTruthy();
-    await userEvent.click(row.getByRole("button", { name: "Breakdown" }));
+    await userEvent.click(row.getByRole("button", { name: "Breakdown of answer 1" }));
     expect(fetchTurnTrace).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
   });
 

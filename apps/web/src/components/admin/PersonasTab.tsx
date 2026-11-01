@@ -196,7 +196,7 @@ export function PersonasTab({ report }: { report: PersonaReport }) {
           <EmptyState title={`No assistant turns in the last ${report.windowDays} days`} />
         ) : (
           <ul aria-label="Recent turns" className="flex flex-col divide-y divide-hairline">
-            {report.recent.map((turn) => (
+            {report.recent.map((turn, index) => (
               <li key={turn.turnId} className="py-2 text-sm text-ink" data-testid={`recent-${turn.turnId}`}>
                 <p>
                   {turn.personaPath.length === 0 ? "unrecorded persona" : turn.personaPath.map(label).join(" then ")}
@@ -207,7 +207,7 @@ export function PersonasTab({ report }: { report: PersonaReport }) {
                 <Text variant="secondary" className="text-xs">
                   {new Date(turn.at).toUTCString()}
                 </Text>
-                <TurnBreakdown turnId={turn.turnId} />
+                <TurnBreakdown turnId={turn.turnId} ordinal={index + 1} />
               </li>
             ))}
           </ul>
