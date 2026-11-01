@@ -1,7 +1,9 @@
 "use client";
 import { useContext, useMemo } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type ReaderCapability } from "@tc/pages";
+import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type Item, type ReaderCapability } from "@tc/pages";
 import { cn } from "@/lib/cn";
 import { usePeople, usePersonas, useGuests } from "./people";
 import { cityAccents } from "./cityAccents";
@@ -9,6 +11,7 @@ import { Segs } from "./WidgetSegs";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
 import { LinkCardPending } from "./blocks/LinkCardBlock";
+import { linkHref } from "./blocks/linkHref";
 import { MacroEditorContext, usePageToday } from "./editor/MacroEditorContext";
 import { useReaderCapabilities } from "./readerCapabilities";
 
@@ -160,6 +163,17 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // different questions sit behind `attribute` and they used to share one
   // shrug — see `MacroResult`'s `because`.
   if (outcome.status === "empty") {
+    // A widget whose empty state is the good one (`open`: the trip is settled)
+    // draws the design's success line (`emptyLine`), a block on the success
+    // tint. In the muted chip it read as a placeholder, and at phone width its
+    // sentence wrapped into a stadium-shaped pill.
+    if (def?.emptyIsGood && outcome.because === undefined) {
+      return (
+        <span data-testid="macro-empty-good" className="my-1 block rounded-md bg-success-tint px-3.5 py-3 text-sm text-success-ink">
+          {def.emptyText}
+        </span>
+      );
+    }
     return <EmptyChip tone="muted" label={outcome.because ?? def?.emptyText ?? "—"} />;
   }
   // ADR-052 decision 4: the trip has what is needed and the outside source has
@@ -236,8 +250,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
     // formed their own shrink-to-fit anonymous table inside a full-width card
     // — same roles, same text, and the value column floating in the middle of
     // the card instead of at its right edge. Both review bots caught it on PR
-    // 149; the geometry walk in `m14-notebook-widgets.spec.ts` is what would
-    // have.
+    // 149; a geometry walk is what would have.
     case "rows": {
       // How many columns the table has: the widest row's, so a row that leaves
       // one empty still leaves it open. A resolver emits the same number of
@@ -258,14 +271,17 @@ export function MacroView({ detail, context, user = null, globals = null, extern
           )}
           // **`min-content`, not `0`, as the lead's floor.** Mitchell, on the
           // preview: *"The Issue text is still going down side of page"* — on a
-          // 1728px DESKTOP, so the phone rule was not the whole of it.
+          // 1728px DESKTOP, so the phone rule was not the whole of it. He saw it
+          // on `open`, which has since left this table (M43 decision 4); the
+          // cause stays wherever a value column holds prose.
           //
           // `minmax(0, 1fr)` says the lead may be squeezed to nothing, and an
           // `auto` value column will do exactly that when its content is prose:
           // `auto` resolves toward max-content, and the only thing stopping it
-          // is the other track's minimum. At zero there is none, so a row whose
-          // value is a conflict's description drove "Empty day" down to a word
-          // — or a letter — a line.
+          // is the other track's minimum. At zero there is none, so a
+          // `stop.rows` whose Notes column holds a paragraph drives the stop's
+          // name down to a word — or a letter — a line. The geometry walk in
+          // `m14-notebook-widgets.spec.ts` holds that case.
           //
           // `min-content` is the honest floor: a track may not be starved below
           // what its own content needs. It costs nothing to the widgets whose
@@ -417,6 +433,8 @@ export function MacroView({ detail, context, user = null, globals = null, extern
           {rendered.text}
         </a>
       );
+    case "items":
+      return <ItemRows items={rendered.items} label={def?.title} tripId={context.tripId} interactive={!editing} />;
     default: {
       // The same enforcement `BlockView` carries, for the same measured reason:
       // `strict` does NOT imply `noImplicitReturns` and this repo sets only
@@ -428,4 +446,53 @@ export function MacroView({ detail, context, user = null, globals = null, extern
       return exhaustive;
     }
   }
+}
+
+// A tone is a word from the widget and a pair of tokens here (ADR-037,
+// amended 2026-10-31): `openBlock`'s `bg` and `ink`, by name.
+const ITEM_TONE: Record<Item["tone"], string> = {
+  warning: "bg-warning-tint text-warning-ink",
+  info: "bg-info-tint text-info-ink",
+  plain: "bg-moss text-ink",
+};
+
+/**
+ * Rows that each ask for something and go where it is done (`open`, M43
+ * decision 4) — the design's `isRows` block, the same on the desktop panel and
+ * the phone sheet. Spans for the reason the table above gives: a widget sits
+ * inside a `<p>`. The href comes from `linkHref`, as a link card's does, and
+ * in Editing a row is not a link, for that card's reason: a tap there is for
+ * the document.
+ */
+function ItemRows({ items, label, tripId, interactive }: {
+  items: readonly Item[]; label: string | undefined; tripId: string; interactive: boolean;
+}) {
+  const pathname = usePathname() ?? "";
+  return (
+    <span role="list" aria-label={label} className="my-1 flex flex-col gap-1.5">
+      {items.map((item, i) => {
+        const row = cn("flex items-center gap-3.5 rounded-md px-3.5 py-3 no-underline", ITEM_TONE[item.tone]);
+        const body = (
+          <>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-sm font-semibold">{item.label}</span>
+              {item.sub === "" ? null : <span className="truncate text-xs text-slate">{item.sub}</span>}
+            </span>
+            <span className="shrink-0 font-mono text-xs">{item.right}</span>
+          </>
+        );
+        return (
+          <span role="listitem" key={i} className="flex flex-col">
+            {interactive ? (
+              <Link href={linkHref(item.act, tripId, pathname)} className={cn(row, "focus-visible:outline-2 focus-visible:outline-brand")}>
+                {body}
+              </Link>
+            ) : (
+              <span className={row}>{body}</span>
+            )}
+          </span>
+        );
+      })}
+    </span>
+  );
 }

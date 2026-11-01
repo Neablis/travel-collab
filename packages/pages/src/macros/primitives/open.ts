@@ -1,8 +1,11 @@
 import { z } from "zod";
-import type { MacroDef, RepeatPayload, RepeatRow, RepeatValue, WidgetContext } from "../../registry-types";
-import { chip, rowLabel, rowValue, rowsOf, text } from "../../registry-types";
+import type { TripDetail } from "@tc/contracts";
+import type { Item, ItemsPayload, MacroDef, WidgetContext } from "../../registry-types";
+import { itemsOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
-import { dayLabel } from "../../format";
+import { dayLabel, formatShortDate } from "../../format";
+import { dayCity } from "../../dayCity";
+import type { ActTarget } from "../../linkTarget";
 
 // `open` — "What needs you". SPEC §25's second half of the Overview page.
 //
@@ -39,7 +42,7 @@ import { dayLabel } from "../../format";
 // of the bind controls entirely: a widget with nothing to bind shows no bind
 // row, and §26 wants the settings panel to say only true things.
 /**
- * What each conflict kind is CALLED in the left column.
+ * What each conflict kind is CALLED at the start of its row.
  *
  * Every row here said "Overlap", which was true of one of the four kinds
  * `detectConflicts` emits and a lie about the other three: an impossible
@@ -66,26 +69,48 @@ const CONFLICT_LABEL: Record<string, string> = {
  *
  * "Conflict" rather than the raw `kind`: a stored identifier printed into a
  * page is how `time-overlap` would end up as a label somebody reads, and the
- * description beside it already says what happened.
+ * row still says which day it is on.
  */
 const FALLBACK_CONFLICT_LABEL = "Conflict";
+
+/**
+ * The same kinds, counted: "3 overlaps on Day 1".
+ *
+ * `detectConflicts` raises one overlap per PAIR of stops, so three stops that
+ * all collide are three conflicts. One row each drew three identical lines with
+ * one link, and nobody could tell why there were three (PR 660 review). So
+ * conflicts fold to one row per day and kind (Mitchell, 2026-11-01); the row's
+ * link already lands on the day where every one of them is visible.
+ */
+const CONFLICT_PLURAL: Record<string, string> = {
+  "time-overlap": "overlaps",
+  "impossible-geography": "journeys too far",
+  "anchor-violation": "anchors broken",
+  "over-budget": "over budget",
+};
+const FALLBACK_CONFLICT_PLURAL = "conflicts";
 
 const OpenParams = z.object({});
 type OpenParams = z.infer<typeof OpenParams>;
 
-const segOf = (v: RepeatValue) => (v.name === "label" ? text(v.text) : chip(v.name, v.text));
-const renderRows = (payload: RepeatPayload) =>
-  rowsOf(
-    payload.rows.map((row) => ({
-      lead: [segOf(row.lead)],
-      cells: row.cells.map((cell) => cell.map(segOf)),
-      ...(row.kind === undefined ? {} : { kind: row.kind }),
-    })),
-  );
+const toDay = (day: TripDetail["days"][number]): ActTarget => ({ kind: "day", day: { kind: "dayId", dayId: day.dayId } });
+// Where a conflict that names no day (the budget) is fixed.
+const PLAN: ActTarget = { kind: "view", view: "Plan" };
+// Where a parked idea is placed: the rack, opened — not plain Plan, which
+// lands with the rack shut and the ideas this row named off screen.
+const RACK: ActTarget = { kind: "rack" };
 
-export const open: MacroDef<OpenParams, RepeatPayload> = {
+/** "Aug 1 · Kyoto": whichever of the two the day has, so a missing one leaves no stray dot. */
+function whereAndWhen(day: TripDetail["days"][number], activities: TripDetail["activities"]): string {
+  return [formatShortDate(day.date), dayCity(day, activities)].filter((part) => part !== null).join(" · ");
+}
+
+export const open: MacroDef<OpenParams, ItemsPayload> = {
   name: "open",
   title: "What needs you",
+  // Still `repeat` to the picker and the editor: one line per thing is what it
+  // is to someone choosing it. Only its payload left `RepeatPayload` (M43
+  // decision 4), and `WidgetShape` is a contract this change does not touch.
   shape: "repeat",
   params: OpenParams,
   inputs: [],
@@ -93,53 +118,77 @@ export const open: MacroDef<OpenParams, RepeatPayload> = {
   description: "Everything waiting on a decision: overlaps, empty days and parked ideas.",
   // The empty state is the good one here, and it should read like it. Every
   // other primitive's `emptyText` reports an absence the reader might not have
-  // wanted ("no days to show"); this one reports that the trip is settled.
-  emptyText: "nothing is waiting on you",
+  // wanted ("no days to show"); this one reports that the trip is settled, in
+  // the design's words (`openBlock`'s `emptyLine`).
+  emptyText: "Nothing is waiting on you — every day has something on it and no two stops collide.",
+  emptyIsGood: true,
   preview: "one row per thing waiting on a decision",
-  resolve: ({ trip }: WidgetContext, _params): MacroResult<RepeatPayload> => {
+  resolve: ({ trip }: WidgetContext, _params): MacroResult<ItemsPayload> => {
     if (!trip) return needsTrip();
 
-    const rows: RepeatRow[] = [];
+    const items: Item[] = [];
 
     // 1. Conflicts. Dismissed ones are NOT open items — dismissing one is the
     //    decision this widget is asking for, so a list that kept showing it
     //    would be asking twice. `dismissedConflictIds` is the same set the
     //    board filters on, read the same way.
+    //
+    //    A conflict is "on" the first day holding one of its stops. Over budget's
+    //    subject is the trip itself, so it is on no day, and its own sentence
+    //    takes the line a date and city would.
+    //
+    //    One row per day and kind, in the order each first appears. Conflicts
+    //    on no day fold by kind alone and show the first one's sentence, which
+    //    names one stop: "First of N" stops a row that counts two from reading
+    //    as a row about that stop alone (PR 660 review).
     const dismissed = new Set(trip.dismissedConflictIds);
+    const folded = new Map<string, { kind: string; index: number; description: string; count: number }>();
     for (const conflict of trip.conflicts) {
       if (dismissed.has(conflict.id)) continue;
-      rows.push({
-        lead: rowLabel(CONFLICT_LABEL[conflict.kind] ?? FALLBACK_CONFLICT_LABEL),
-        cells: [[rowValue(conflict.description)]],
-      });
+      const index = trip.days.findIndex((day) => conflict.subjects.some((id) => day.activityIds.includes(id)));
+      const key = `${index}:${conflict.kind}`;
+      const seen = folded.get(key);
+      if (seen) seen.count += 1;
+      else folded.set(key, { kind: conflict.kind, index, description: conflict.description, count: 1 });
+    }
+    for (const { kind, index, description, count } of folded.values()) {
+      const label = count === 1
+        ? CONFLICT_LABEL[kind] ?? FALLBACK_CONFLICT_LABEL
+        : `${count} ${CONFLICT_PLURAL[kind] ?? FALLBACK_CONFLICT_PLURAL}`;
+      const day = trip.days[index];
+      items.push(
+        day === undefined
+          ? { label, sub: count === 1 ? description : `First of ${count}: ${description}`, right: "Fix in Plan", tone: "warning", act: PLAN }
+          : { label: `${label} on ${dayLabel(index)}`, sub: whereAndWhen(day, trip.activities), right: "Fix in Plan", tone: "warning", act: toDay(day) },
+      );
     }
 
     // 2. Empty days. A day with no stops is a decision not yet made, and it is
     //    the one item here that is about a day rather than a thing on one.
     for (const [index, day] of trip.days.entries()) {
       if (day.activityIds.length > 0) continue;
-      rows.push({
-        lead: rowLabel("Empty day"),
-        cells: [[rowValue(dayLabel(index))]],
+      items.push({ label: `${dayLabel(index)} has nothing on it`, sub: whereAndWhen(day, trip.activities), right: "Plan it", tone: "info", act: toDay(day) });
+    }
+
+    // 3. Parked ideas — the unscheduled rack, as ONE row however long it is,
+    //    so twenty saved places do not bury the two things that are broken.
+    //    An id with no activity behind it is not counted: `activities` and
+    //    `backlog` are two fields of one projection and can only disagree
+    //    mid-write, which is a reason to say one fewer, not to name a blank.
+    const parked = trip.backlog.flatMap((id) => trip.activities[id]?.title ?? []);
+    if (parked.length > 0) {
+      items.push({
+        label: parked.length === 1 ? "1 idea is parked" : `${parked.length} ideas are parked`,
+        sub: parked.slice(0, 2).join(" · "),
+        right: "Place them",
+        tone: "plain",
+        act: RACK,
       });
     }
 
-    // 3. Parked ideas — the unscheduled rack, by its other name. An id with no
-    //    activity behind it is skipped rather than rendered as a blank row:
-    //    `activities` and `backlog` are two fields of one projection and can
-    //    only disagree if that projection is mid-write, which is a reason to
-    //    show one fewer row, not a reason to show an empty one.
-    for (const activityId of trip.backlog) {
-      const activity = trip.activities[activityId];
-      if (activity === undefined) continue;
-      rows.push({
-        lead: rowLabel("Parked"),
-        cells: [[rowValue(activity.title)]],
-      });
-    }
-
-    if (rows.length === 0) return empty();
-    return ok({ kind: "repeat-rows", rows });
+    if (items.length === 0) return empty();
+    return ok({ kind: "items", items });
   },
-  render: renderRows,
+  render: itemsOf,
 };
+

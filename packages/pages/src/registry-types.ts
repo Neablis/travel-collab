@@ -9,7 +9,7 @@ import type {
 } from "./chartPayloads";
 import type { WeatherPayload } from "./weatherPayload";
 import type { SunPayload } from "./sunPayload";
-import type { LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
+import type { ActTarget, LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
 import type { ItineraryPayload } from "./itineraryPayload";
 import type { TripNowClock } from "./now";
 import type { ChatMessage } from "@tc/contracts";
@@ -261,6 +261,28 @@ export interface RepeatPayload {
   headings?: readonly string[];
 }
 
+/**
+ * One row that asks for something and says where to go to do it (ADR-037,
+ * amended 2026-10-31: M43 decision 4). `open` is the first; a later widget
+ * whose rows carry an action reuses this rather than adding a kind.
+ *
+ * `right` is the action's words ("Fix in Plan"). `tone` is a closed set the
+ * renderer maps to tokens, so no colour crosses the seam. `act` is a target,
+ * never a URL or a control: `apps/web` builds the href with the same
+ * `linkHref` a link card uses, and that stays the one place routes are known.
+ */
+export interface Item {
+  label: string;
+  sub: string;
+  right: string;
+  tone: "warning" | "info" | "plain";
+  act: ActTarget;
+}
+export interface ItemsPayload {
+  kind: "items";
+  items: Item[];
+}
+
 // ---------------------------------------------------------------------------
 // What a widget RENDERS (ADR-037 decision 3 — the CSR protection)
 // ---------------------------------------------------------------------------
@@ -335,7 +357,9 @@ export type Rendered =
   // whole value IS an address, and its `href` has passed the params schema's
   // http/https check before `render` sees it. `MacroView` draws it as an
   // `<a target="_blank" rel="noopener noreferrer">`, and nothing else does.
-  | { kind: "link"; href: string; text: string };
+  | { kind: "link"; href: string; text: string }
+  // `ItemsPayload.items`, passed through: already text and a declared target.
+  | { kind: "items"; items: readonly Item[] };
 
 // Convenience constructors, so a widget's `render` reads as data rather than as
 // object literals with a discriminator repeated seven times.
@@ -353,6 +377,8 @@ export const blockOf = (block: BlockPayload): Rendered => ({ kind: "block", bloc
 export const linkOf = (href: string, t: string): Rendered => ({ kind: "link", href, text: t });
 export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rendered =>
   headings === undefined ? { kind: "rows", rows } : { kind: "rows", rows, headings };
+/** A widget's action rows as a `Rendered` of kind `items`, passed through unchanged (M43 decision 4). */
+export const itemsOf = (payload: ItemsPayload): Rendered => ({ kind: "items", items: payload.items });
 
 // What a widget TAKES, declared so a UI can choose a control for it
 // (ADR-035 decision 2, SPEC §18). A Zod schema says a param is a string; it
@@ -741,6 +767,10 @@ export interface MacroDef<P, T> {
   requires?: ReaderCapability;
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
+  // Nothing to show is the GOOD news (`open`: the trip is settled), so the
+  // renderer draws `emptyText` as the design's success line, not the muted
+  // chip that reads as something missing. Absent for every other widget.
+  emptyIsGood?: true;
   // The insert sidebar's sample. **A fixed string, never a computed value**
   // (ADR-037 decision 5): a preview asserting numbers the live widget computes
   // makes the sidebar and the page contradict each other in one session, which
@@ -756,4 +786,4 @@ export interface MacroDef<P, T> {
 }
 
 // Existentially-typed entry for the registry map.
-export type AnyMacroDef = MacroDef<Record<string, unknown>, InlinePayload | BlockPayload | RepeatPayload>;
+export type AnyMacroDef = MacroDef<Record<string, unknown>, InlinePayload | BlockPayload | RepeatPayload | ItemsPayload>;

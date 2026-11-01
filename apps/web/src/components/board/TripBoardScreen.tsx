@@ -747,25 +747,35 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
    * **A link card to a day** (M30, ADR-056) arrives as `?view=Plan&day=<dayId>`:
    * the day is focused once the trip is here, and Plan's own day-sync scrolls
    * to it. By id, so a link made before days were reordered still lands on its
-   * day. Once per value, so clearing the focus afterwards is not undone.
+   * day. Once per arrival, as `rack=open` is: clearing the focus afterwards is
+   * not undone, and the ref forgets the day once the param goes (a tab pick
+   * drops it), so a second tap on the same link focuses its day again.
    */
   const linkedDay = searchParams.get("day");
   const appliedDayLink = useRef<string | null>(null);
   useEffect(() => {
-    if (linkedDay === null || activeTrip === null || appliedDayLink.current === linkedDay) return;
+    if (linkedDay === null) {
+      appliedDayLink.current = null;
+      return;
+    }
+    if (activeTrip === null || appliedDayLink.current === linkedDay) return;
     appliedDayLink.current = linkedDay;
     const index = activeTrip.days.findIndex((day) => day.dayId === linkedDay);
     if (index !== -1) setFocusedDay(index);
   }, [linkedDay, activeTrip, setFocusedDay]);
   /**
    * **A link to a stop** (M46 D3), `?view=Plan&stop=<activityId>`, read as
-   * `?day=` is: once per value, by id, and only among this trip's stops. Its
+   * `?day=` is: once per arrival, by id, and only among this trip's stops. Its
    * day is selected and the stop focused, as *Go to › Stop* does.
    */
   const linkedStop = searchParams.get("stop");
   const appliedStopLink = useRef<string | null>(null);
   useEffect(() => {
-    if (linkedStop === null || activeTrip === null || appliedStopLink.current === linkedStop) return;
+    if (linkedStop === null) {
+      appliedStopLink.current = null;
+      return;
+    }
+    if (activeTrip === null || appliedStopLink.current === linkedStop) return;
     appliedStopLink.current = linkedStop;
     const index = activeTrip.days.findIndex((day) => day.activityIds.includes(linkedStop));
     if (index === -1) return;
@@ -862,6 +872,23 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // reducer with its own unit tests), not here.
   const [rack, setRack] = useState<RackDisclosure>({ open: false, openedByDrag: false });
   const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
+  /**
+   * **"Place them"** (`open`'s parked row, M43 decision 4) arrives as
+   * `?view=Plan&rack=open`, and the rack opens as the design's `blOpen: true`
+   * does: Plan alone lands with the ideas the row named shut away. Once per
+   * arrival, as `?day=` is, so shutting it afterwards is not undone.
+   */
+  const linkedRack = searchParams.get("rack") === "open";
+  const appliedRackLink = useRef(false);
+  useEffect(() => {
+    if (!linkedRack) {
+      appliedRackLink.current = false;
+      return;
+    }
+    if (appliedRackLink.current) return;
+    appliedRackLink.current = true;
+    setRack((state) => rackDisclosure(state, { type: "reveal" }));
+  }, [linkedRack]);
   // The day whose group a column's "Unscheduled" chip last asked the rack to
   // show (PR #269). `seq` so a second click on the same chip reveals again —
   // after the reader has scrolled the rack elsewhere, say.

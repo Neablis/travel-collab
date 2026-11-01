@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { open } from "./open";
-import type { RepeatPayload, WidgetContext } from "../../registry-types";
+import type { ItemsPayload, WidgetContext } from "../../registry-types";
 import type { MacroResult } from "../../result";
 
 const TRIP_ID = "11111111-1111-1111-1111-111111111111";
+const DAY_1 = "22222222-2222-2222-2222-222222222221";
+const DAY_2 = "22222222-2222-2222-2222-222222222222";
+const DAY_3 = "22222222-2222-2222-2222-222222222223";
 
 function tripWith(patch: Partial<TripDetail>): TripDetail {
   return {
@@ -17,116 +20,226 @@ function tripWith(patch: Partial<TripDetail>): TripDetail {
   } as TripDetail;
 }
 
-const resolve = (trip: TripDetail): MacroResult<RepeatPayload> =>
+const resolve = (trip: TripDetail): MacroResult<ItemsPayload> =>
   open.resolve({ trip, page: { tripId: TRIP_ID }, user: null, globals: null } as unknown as WidgetContext, {});
 
-/** The lead label of every row, in order — what the reader actually sees down the left. */
-function leads(result: MacroResult<RepeatPayload>): string[] {
+/** Every item, in order — what the reader sees down the list. */
+function items(result: MacroResult<ItemsPayload>): ItemsPayload["items"] {
   if (result.status !== "ok") return [];
-  return result.value.rows.map((r) => r.lead.text);
+  return result.value.items;
 }
+const labels = (result: MacroResult<ItemsPayload>) => items(result).map((item) => item.label);
 
-function texts(result: MacroResult<RepeatPayload>): string[] {
-  if (result.status !== "ok") return [];
-  return result.value.rows.flatMap((r) => r.cells.flat().map((v) => v.text));
-}
-
-const dayWith = (activityIds: string[]) => ({ dayId: "d", activityIds, date: null, costSubtotal: 0 });
-const idea = (title: string) => ({
+const dayWith = (dayId: string, activityIds: string[], date: string | null = null) =>
+  ({ dayId, activityIds, date, costSubtotal: 0 });
+const stop = (title: string, city?: string) => ({
   activityId: "a", tripId: TRIP_ID, title, dayId: null, position: 0,
-  timeWindow: null, location: null, cost: null, notes: null, kind: "idea", tags: [],
+  timeWindow: null, location: city === undefined ? null : { name: title, city }, cost: null, notes: null, kind: "planned", tags: [],
+});
+const conflictOf = (kind: string, id: string, subjects = ["a1"]) => ({
+  id, kind, severity: "warn" as const, subjects, description: `${kind} happened`, resolutions: [],
 });
 
-describe("`open` — what needs you (SPEC §25)", () => {
+describe("`open` — what needs you (SPEC §25, M43 decision 4)", () => {
   it("says a settled trip is settled, rather than listing nothing", () => {
     // The empty state is the GOOD one here: a trip with a full day, no
     // conflicts and an empty rack has nothing waiting on anyone.
-    const result = resolve(tripWith({ days: [dayWith(["a1"])] }));
+    const result = resolve(tripWith({ days: [dayWith(DAY_1, ["a1"])] }));
     expect(result.status).toBe("empty");
   });
 
-  it("lists an overlap, an empty day and a parked idea — one row each", () => {
+  it("draws the design's three rows — a conflict, an empty day and the parked ideas — each with its way to fix it", () => {
     const result = resolve(
       tripWith({
-        days: [dayWith(["a1"]), dayWith([])],
-        conflicts: [
-          // `time-overlap`, which is what `detectConflicts` actually emits.
-          // This fixture said `"overlap"` — a kind the domain has never
-          // produced — and passed, because every conflict was labelled
-          // "Overlap" regardless (CodeRabbit, PR 170).
-          { id: "c1", kind: "time-overlap", severity: "warn", subjects: ["a1"], description: "Two stops at 09:00", resolutions: [] },
-        ],
+        days: [dayWith(DAY_1, ["a1", "a3"], "2026-08-01"), dayWith(DAY_2, [], "2026-08-02")],
+        conflicts: [conflictOf("time-overlap", "c1", ["a1", "a3"])],
         backlog: ["a2"],
-        activities: { a2: idea("Ghibli Museum") } as unknown as TripDetail["activities"],
+        activities: {
+          a1: stop("Breakfast", "Kyoto"), a3: stop("Shrine", "Kyoto"), a2: stop("Ghibli Museum"),
+        } as unknown as TripDetail["activities"],
       }),
     );
-    expect(leads(result)).toEqual(["Overlap", "Empty day", "Parked"]);
-    expect(texts(result)).toEqual(["Two stops at 09:00", "Day 2", "Ghibli Museum"]);
+    expect(items(result)).toEqual([
+      {
+        label: "Overlap on Day 1", sub: "Aug 1 · Kyoto", right: "Fix in Plan", tone: "warning",
+        act: { kind: "day", day: { kind: "dayId", dayId: DAY_1 } },
+      },
+      {
+        label: "Day 2 has nothing on it", sub: "Aug 2", right: "Plan it", tone: "info",
+        act: { kind: "day", day: { kind: "dayId", dayId: DAY_2 } },
+      },
+      {
+        label: "1 idea is parked", sub: "Ghibli Museum", right: "Place them", tone: "plain",
+        // The rack, not plain Plan: the design's act is `blOpen: true`, and
+        // Plan alone lands with the rack shut and the ideas off screen.
+        act: { kind: "rack" },
+      },
+    ]);
+  });
+
+  it("groups every parked idea into ONE row, naming the first two", () => {
+    // The design's rack row: one row per idea buried the conflicts under the
+    // backlog on a trip with twenty saved places.
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1"])],
+        backlog: ["p1", "p2", "p3"],
+        activities: { p1: stop("Ghibli Museum"), p2: stop("Golden Gai"), p3: stop("Onsen") } as unknown as TripDetail["activities"],
+      }),
+    );
+    expect(items(result).map(({ label, sub }) => ({ label, sub }))).toEqual([
+      { label: "3 ideas are parked", sub: "Ghibli Museum · Golden Gai" },
+    ]);
   });
 
   it("names each kind of conflict for what it is, not all of them 'Overlap'", () => {
     // **Every row said "Overlap"**, which was true of one of the four kinds
     // `packages/domain/src/trip/conflicts.ts` emits and a lie about the other
-    // three: an impossible journey, a broken anchor and a trip over budget were
-    // all announced as overlaps, with a correct description sitting beside the
-    // wrong label (CodeRabbit, PR 170).
-    //
-    // The kinds are listed here rather than imported: `Conflict.kind` is
-    // `z.string()` in the contract, and this package may not import
-    // `@tc/domain`. So this is a transcription, and the fallback below is what
-    // makes a missed one degrade instead of lie.
-    const conflictOf = (kind: string, id: string) => ({
-      id, kind, severity: "warn" as const, subjects: ["a1"], description: `${kind} happened`, resolutions: [],
-    });
+    // three (CodeRabbit, PR 170). The kinds are listed here rather than
+    // imported: `Conflict.kind` is `z.string()` in the contract, and this
+    // package may not import `@tc/domain`.
     const result = resolve(
       tripWith({
-        days: [dayWith(["a1"])],
+        days: [dayWith(DAY_1, ["a1"])],
         conflicts: [
           conflictOf("time-overlap", "c1"),
           conflictOf("impossible-geography", "c2"),
           conflictOf("anchor-violation", "c3"),
-          conflictOf("over-budget", "c4"),
+          conflictOf("over-budget", "c4", [TRIP_ID]),
         ],
       }),
     );
-    expect(leads(result)).toEqual(["Overlap", "Too far", "Anchor", "Over budget"]);
+    expect(labels(result)).toEqual(["Overlap on Day 1", "Too far on Day 1", "Anchor on Day 1", "Over budget"]);
+  });
+
+  it("puts a conflict on the day that holds its stops, not on the first day", () => {
+    // Every other fixture here is on Day 1, so index 0 hard-coded passed them
+    // all while a Day 2 overlap read "on Day 1" and linked there.
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1"]), dayWith(DAY_2, ["a2", "a3"], "2026-08-02")],
+        conflicts: [conflictOf("time-overlap", "c1", ["a2", "a3"])],
+        activities: { a2: stop("Market", "Osaka"), a3: stop("Castle", "Osaka") } as unknown as TripDetail["activities"],
+      }),
+    );
+    expect(items(result)).toEqual([
+      {
+        label: "Overlap on Day 2", sub: "Aug 2 · Osaka", right: "Fix in Plan", tone: "warning",
+        act: { kind: "day", day: { kind: "dayId", dayId: DAY_2 } },
+      },
+    ]);
+  });
+
+  it("folds same-kind conflicts on one day into ONE row that counts them (Mitchell, 2026-11-01)", () => {
+    // `detectConflicts` raises one overlap per PAIR, so three stops that all
+    // collide are three conflicts. One row each printed three identical lines
+    // with the same link, and the reader could not tell why there were three.
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1", "a2", "a3"], "2026-08-01")],
+        conflicts: [
+          conflictOf("time-overlap", "c12", ["a1", "a2"]),
+          conflictOf("time-overlap", "c13", ["a1", "a3"]),
+          conflictOf("time-overlap", "c23", ["a2", "a3"]),
+        ],
+        activities: { a1: stop("Breakfast", "Kyoto"), a2: stop("Shrine", "Kyoto"), a3: stop("Market", "Kyoto") } as unknown as TripDetail["activities"],
+      }),
+    );
+    expect(items(result)).toEqual([
+      {
+        label: "3 overlaps on Day 1", sub: "Aug 1 · Kyoto", right: "Fix in Plan", tone: "warning",
+        act: { kind: "day", day: { kind: "dayId", dayId: DAY_1 } },
+      },
+    ]);
+  });
+
+  it("keeps different kinds, and the same kind on different days, as separate rows", () => {
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1", "a2"]), dayWith(DAY_2, ["a3", "a4"])],
+        conflicts: [
+          conflictOf("time-overlap", "c1", ["a1", "a2"]),
+          conflictOf("impossible-geography", "c2", ["a1", "a2"]),
+          conflictOf("time-overlap", "c3", ["a3", "a4"]),
+        ],
+      }),
+    );
+    expect(labels(result)).toEqual(["Overlap on Day 1", "Too far on Day 1", "Overlap on Day 2"]);
+  });
+
+  it("folds conflicts on no day by kind alone, and says the sentence under it is only the first", () => {
+    // Two parked stops whose time windows break their anchors: `anchorViolated`
+    // checks the window alone, so a stop in the rack still raises one, on no
+    // day. The row counts two, so a sub that kept only Museum's sentence read
+    // as a row about Museum alone (PR 660 review).
+    const anchor = (id: string, subject: string, title: string) => ({
+      ...conflictOf("anchor-violation", id, [subject]),
+      description: `"${title}" has an anchor its current placement (an unscheduled slot) does not satisfy.`,
+    });
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1"])],
+        conflicts: [anchor("c1", "p1", "Museum"), anchor("c2", "p2", "Night market")],
+      }),
+    );
+    expect(items(result)).toEqual([
+      {
+        label: "2 anchors broken",
+        sub: 'First of 2: "Museum" has an anchor its current placement (an unscheduled slot) does not satisfy.',
+        right: "Fix in Plan", tone: "warning", act: { kind: "view", view: "Plan" },
+      },
+    ]);
+  });
+
+  it("has a plural for every kind it has a label for", () => {
+    // A kind with a label but no plural folds to "2 conflicts": true, but a
+    // step back from what the same kind says when there is one of it.
+    const kinds = ["time-overlap", "impossible-geography", "anchor-violation", "over-budget"];
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1", "a2"])],
+        conflicts: kinds.flatMap((kind) => [conflictOf(kind, `${kind}-1`, ["a1"]), conflictOf(kind, `${kind}-2`, ["a2"])]),
+      }),
+    );
+    expect(labels(result)).toEqual([
+      "2 overlaps on Day 1", "2 journeys too far on Day 1", "2 anchors broken on Day 1", "2 over budget on Day 1",
+    ]);
+  });
+
+  it("sends a conflict on no day to the Plan, saying what happened", () => {
+    // Over budget names the trip, not a stop, so there is no day for it to be
+    // "on" and no date or city for the line under it: the domain's own
+    // sentence goes there instead.
+    const result = resolve(tripWith({ days: [dayWith(DAY_1, ["a1"])], conflicts: [conflictOf("over-budget", "c4", [TRIP_ID])] }));
+    expect(items(result)).toEqual([
+      { label: "Over budget", sub: "over-budget happened", right: "Fix in Plan", tone: "warning", act: { kind: "view", view: "Plan" } },
+    ]);
   });
 
   it("calls an unknown kind a conflict rather than printing its stored name", () => {
-    // A kind the domain adds later. "Conflict" is true of anything, and the
-    // description beside it already says what happened — where printing the raw
-    // `kind` would put a stored identifier on a page somebody reads.
-    const result = resolve(
-      tripWith({
-        days: [dayWith(["a1"])],
-        conflicts: [
-          { id: "c9", kind: "something-new", severity: "warn", subjects: ["a1"], description: "Something new", resolutions: [] },
-        ],
-      }),
-    );
-    expect(leads(result)).toEqual(["Conflict"]);
-    expect(texts(result)).toEqual(["Something new"]);
+    const result = resolve(tripWith({ days: [dayWith(DAY_1, ["a1"])], conflicts: [conflictOf("something-new", "c9")] }));
+    expect(labels(result)).toEqual(["Conflict on Day 1"]);
   });
 
   it("drops a dismissed conflict, because dismissing it WAS the decision", () => {
     // Asking twice about something already answered is the failure this guards:
-    // the board filters the same set the same way, and an Overview that
-    // disagrees with Plan is worse than no Overview (§25).
-    const conflict = { id: "c1", kind: "time-overlap", severity: "warn" as const, subjects: ["a1"], description: "Two stops at 09:00", resolutions: [] };
-    const days = [dayWith(["a1"])];
-    expect(leads(resolve(tripWith({ days, conflicts: [conflict] })))).toEqual(["Overlap"]);
-    expect(resolve(tripWith({ days, conflicts: [conflict], dismissedConflictIds: ["c1"] })).status).toBe("empty");
+    // the board filters the same set the same way (§25).
+    const days = [dayWith(DAY_1, ["a1"])];
+    const conflicts = [conflictOf("time-overlap", "c1")];
+    expect(labels(resolve(tripWith({ days, conflicts })))).toEqual(["Overlap on Day 1"]);
+    expect(resolve(tripWith({ days, conflicts, dismissedConflictIds: ["c1"] })).status).toBe("empty");
   });
 
-  it("skips a backlog id with no activity behind it rather than drawing a blank row", () => {
-    // The two fields are one projection and can only disagree mid-write. One
-    // fewer row is right; an empty row is not.
-    const result = resolve(tripWith({ days: [dayWith(["a1"])], backlog: ["ghost"] }));
+  it("skips a backlog id with no activity behind it rather than counting it", () => {
+    // The two fields are one projection and can only disagree mid-write.
+    const result = resolve(tripWith({ days: [dayWith(DAY_1, ["a1"])], backlog: ["ghost"] }));
     expect(result.status).toBe("empty");
   });
 
   it("numbers an empty day by its position in the trip, not by its id", () => {
-    const result = resolve(tripWith({ days: [dayWith(["a1"]), dayWith(["a1"]), dayWith([])] }));
-    expect(texts(result)).toEqual(["Day 3"]);
+    const result = resolve(tripWith({ days: [dayWith(DAY_1, ["a1"]), dayWith(DAY_2, ["a1"]), dayWith(DAY_3, [])] }));
+    expect(items(result)).toEqual([
+      { label: "Day 3 has nothing on it", sub: "", right: "Plan it", tone: "info", act: { kind: "day", day: { kind: "dayId", dayId: DAY_3 } } },
+    ]);
   });
 });
