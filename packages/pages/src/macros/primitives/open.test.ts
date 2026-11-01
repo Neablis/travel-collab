@@ -3,6 +3,7 @@ import type { TripDetail } from "@tc/contracts";
 import { open } from "./open";
 import type { ItemsPayload, WidgetContext } from "../../registry-types";
 import type { MacroResult } from "../../result";
+import { renderMacro } from "../../registry";
 
 const TRIP_ID = "11111111-1111-1111-1111-111111111111";
 const DAY_1 = "22222222-2222-2222-2222-222222222221";
@@ -20,8 +21,8 @@ function tripWith(patch: Partial<TripDetail>): TripDetail {
   } as TripDetail;
 }
 
-const resolve = (trip: TripDetail): MacroResult<ItemsPayload> =>
-  open.resolve({ trip, page: { tripId: TRIP_ID }, user: null, globals: null } as unknown as WidgetContext, {});
+const resolve = (trip: TripDetail, params: Record<string, unknown> = {}): MacroResult<ItemsPayload> =>
+  open.resolve({ trip, page: { tripId: TRIP_ID }, user: null, globals: null } as unknown as WidgetContext, params);
 
 /** Every item, in order — what the reader sees down the list. */
 function items(result: MacroResult<ItemsPayload>): ItemsPayload["items"] {
@@ -43,9 +44,11 @@ const conflictOf = (kind: string, id: string, subjects = ["a1"]) => ({
 describe("`open` — what needs you (SPEC §25, M43 decision 4)", () => {
   it("says a settled trip is settled, rather than listing nothing", () => {
     // The empty state is the GOOD one here: a trip with a full day, no
-    // conflicts and an empty rack has nothing waiting on anyone.
+    // conflicts and an empty rack has nothing waiting on anyone. No
+    // `because`: that is what lets `MacroView` draw the success line, which a
+    // filtered empty must not get.
     const result = resolve(tripWith({ days: [dayWith(DAY_1, ["a1"])] }));
-    expect(result.status).toBe("empty");
+    expect(result).toEqual({ status: "empty" });
   });
 
   it("draws the design's three rows — a conflict, an empty day and the parked ideas — each with its way to fix it", () => {
@@ -241,5 +244,76 @@ describe("`open` — what needs you (SPEC §25, M43 decision 4)", () => {
     expect(items(result)).toEqual([
       { label: "Day 3 has nothing on it", sub: "", right: "Plan it", tone: "info", act: { kind: "day", day: { kind: "dayId", dayId: DAY_3 } } },
     ]);
+  });
+});
+
+// M43 decision 5: a class filter over the three row classes, and the `dates`
+// dimension every day-selecting widget has, which a page's date scope fills
+// when the widget leaves it open.
+describe("`open` filters by class and by days (M43 decision 5)", () => {
+  // Day 1 holds a clash, days 2 and 3 are empty, one idea is parked, and the
+  // trip is over budget — every kind of row, so each filter has something to drop.
+  const trip = tripWith({
+    days: [dayWith(DAY_1, ["a1", "a3"], "2026-08-01"), dayWith(DAY_2, [], "2026-08-02"), dayWith(DAY_3, [], "2026-08-03")],
+    conflicts: [conflictOf("time-overlap", "c1", ["a1", "a3"]), conflictOf("over-budget", "c4", [TRIP_ID])],
+    backlog: ["p1"],
+    activities: { a1: stop("Breakfast"), a3: stop("Shrine"), p1: stop("Ghibli Museum") } as unknown as TripDetail["activities"],
+  });
+
+  it("drops the parked row when the class filter leaves parked out", () => {
+    expect(labels(resolve(trip, { class: ["conflict", "empty-day"] }))).toEqual([
+      "Overlap on Day 1", "Over budget", "Day 2 has nothing on it", "Day 3 has nothing on it",
+    ]);
+    expect(labels(resolve(trip, { class: ["parked"] }))).toEqual(["1 idea is parked"]);
+  });
+
+  it("keeps only the chosen day's conflicts and empty days, and what is on no day", () => {
+    // A parked idea has no date and the budget is the whole trip's, so a Days
+    // filter cannot place either: only the class filter hides them.
+    expect(labels(resolve(trip, { dates: ["2026-08-02"] }))).toEqual(["Over budget", "Day 2 has nothing on it", "1 idea is parked"]);
+    expect(labels(resolve(trip, { dates: { from: "2026-08-01", through: "2026-08-01" } }))).toEqual([
+      "Overlap on Day 1", "Over budget", "1 idea is parked",
+    ]);
+  });
+
+  it("filters folded conflict rows by class and by day, keeping each day's count whole", () => {
+    // Parts 3 and 4 both rewrote the conflict loop: the fold must sit inside
+    // the class filter and above the Days filter, or one of them goes missing.
+    const clashing = tripWith({
+      days: [dayWith(DAY_1, ["a1", "a2", "a3"], "2026-08-01"), dayWith(DAY_2, ["a4", "a5"], "2026-08-02")],
+      conflicts: [
+        conflictOf("time-overlap", "c12", ["a1", "a2"]),
+        conflictOf("time-overlap", "c13", ["a1", "a3"]),
+        conflictOf("time-overlap", "c45", ["a4", "a5"]),
+        conflictOf("time-overlap", "c45b", ["a4", "a5"]),
+      ],
+    });
+    expect(labels(resolve(clashing, { dates: ["2026-08-02"] }))).toEqual(["2 overlaps on Day 2"]);
+    expect(labels(resolve(clashing, { class: ["conflict"] }))).toEqual(["2 overlaps on Day 1", "2 overlaps on Day 2"]);
+    expect(resolve(clashing, { class: ["empty-day", "parked"] })).toEqual({ status: "empty", because: "Nothing here needs you." });
+  });
+
+  it("does not call the trip settled when a filter is what left nothing", () => {
+    // The settled line says every day has something on it and no two stops
+    // collide. With Parked alone ticked, or the Days filter on a day with
+    // stops, neither is known — here both are false.
+    const narrower = { status: "empty", because: "Nothing here needs you." };
+    const unparked = { ...trip, backlog: [] };
+    expect(resolve(unparked, { class: ["parked"] })).toEqual(narrower);
+    const quiet = tripWith({
+      days: [dayWith(DAY_1, ["a1"], "2026-08-01"), dayWith(DAY_2, ["a3"], "2026-08-02"), dayWith(DAY_3, [], "2026-08-03")],
+      activities: { a1: stop("Breakfast"), a3: stop("Shrine") } as unknown as TripDetail["activities"],
+    });
+    expect(resolve(quiet, { dates: ["2026-08-02"] })).toEqual(narrower);
+  });
+
+  it("follows the notebook's date scope when no Days filter is set", () => {
+    const today: WidgetContext = {
+      trip, globals: null, user: null, today: null,
+      page: { tripId: TRIP_ID, dateScope: "today" }, now: { at: Date.parse("2026-08-03T12:00:00Z"), deviceZone: "UTC" },
+    };
+    const rendered = renderMacro(today, "open", {});
+    const rows = rendered.status === "ok" && rendered.rendered.kind === "items" ? rendered.rendered.items.map((item) => item.label) : [];
+    expect(rows).toEqual(["Over budget", "Day 3 has nothing on it", "1 idea is parked"]);
   });
 });

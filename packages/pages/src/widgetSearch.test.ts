@@ -74,6 +74,16 @@ describe("a match", () => {
     expect(widgetDetail(field.id)!.fields!.field!.length).toBeGreaterThan(3);
     expect(searchWidgets("link to a notebook").matches[0]!.detail).toContain("notebooks");
   });
+
+  // `class` is a refined array, not a `ZodEnum`, so `params` gives it no list,
+  // and with no pointer a model guesses `"conflict"` or `["Conflicts"]`.
+  it("points at get_widget for a `choices` param's values, and get_widget has them", () => {
+    const match = searchWidgets("What needs you").matches.find((m) => m.insert.name === "open")!;
+    expect(match.params?.class).toBeNull();
+    expect(match.detail).toContain("values a choices param takes");
+    const input = widgetDetail(match.id)!.inputs.find((i) => i.name === "class");
+    expect(input?.type === "choices" && input.options.map((o) => o.value)).toEqual(["conflict", "empty-day", "parked"]);
+  });
 });
 
 describe("findability", () => {

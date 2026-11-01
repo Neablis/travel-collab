@@ -375,3 +375,42 @@ describe("a spend breakdown's filters follow what it is split by", () => {
     expect(bindSummary("cost.breakdown", { by: "kind", tag: "meal" }, detail, globals)).toBe("Food");
   });
 });
+
+// *What needs you*'s class filter (M43 decision 5), off `open`'s registered
+// declaration: a box per row class, every one ticked while nothing is stored.
+describe("`open`'s class filter", () => {
+  const classes = getMacro("open")!.inputs.filter((i) => i.type === "choices");
+  const box = (label: string) => screen.getByRole("checkbox", { name: label }) as HTMLInputElement;
+
+  it("stores the classes left ticked, in class order, and nothing once all three are back", async () => {
+    const user = userEvent.setup();
+    render(<Harness name="open" inputs={classes} />);
+    expect(within(screen.getByRole("group", { name: "One stop's detail: show" })).getAllByRole("checkbox")).toHaveLength(3);
+    await user.click(box("Conflicts"));
+    expect(stored()).toEqual({ class: ["empty-day", "parked"] });
+    await user.click(box("Conflicts"));
+    expect(stored()).toEqual({});
+  });
+
+  it("keeps the last ticked class, since showing nothing is no filter, and says why", async () => {
+    const user = userEvent.setup();
+    render(<Harness name="open" inputs={classes} initial={{ class: ["parked"] }} />);
+    // Still in the tab order: a `disabled` box is skipped by Tab and read as
+    // "dimmed" with no reason, so a keyboard user never learns it is the last.
+    const last = screen.getByRole("checkbox", { name: "Parked ideas", description: "At least one stays shown" }) as HTMLInputElement;
+    expect(last.disabled).toBe(false);
+    expect(last.getAttribute("aria-disabled")).toBe("true");
+    await user.click(last);
+    expect(last.checked).toBe(true);
+    expect(stored()).toEqual({ class: ["parked"] });
+    await user.click(box("Empty days"));
+    expect(stored()).toEqual({ class: ["empty-day", "parked"] });
+    expect(box("Parked ideas").hasAttribute("aria-disabled")).toBe(false);
+    expect(screen.queryByRole("checkbox", { name: "Parked ideas", description: "At least one stays shown" })).toBeNull();
+  });
+
+  it("names the classes shown in the 'Pointed at' summary, and nothing for all three", () => {
+    expect(bindSummary("open", { class: ["conflict", "parked"] }, detail, null)).toBe("Conflicts, Parked ideas");
+    expect(bindSummary("open", {}, detail, null)).toBe("everything");
+  });
+});

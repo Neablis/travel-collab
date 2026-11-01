@@ -450,6 +450,12 @@ export type WidgetInput =
   // switched away and back are the same `{}`.
   | { name: string; type: "toggle"; label: string; default: boolean }
   | { name: string; type: "choice"; label: string; options: readonly { value: string; label: string }[]; default: string }
+  // **Several picked from a short closed list** (M43 decision 5: `open`'s row
+  // classes). Unlike `choice` it narrows what a widget reads, so it is a
+  // filter: absent is every option, and the control stores the picked ones in
+  // `options` order, never none — the shape the widget's own params schema
+  // declares (`ChoicesRef` over its own options).
+  | { name: string; type: "choices"; label: string; options: readonly { value: string; label: string }[] }
   // **Where an internal link goes** (M30, ADR-056): a notebook, a day or a tab
   // of this trip, stored as a `LinkTarget` — ids, never a URL — and chosen from
   // a search-as-you-type combobox of what exists. Unset is `unbound("target")`.
@@ -496,9 +502,10 @@ type Assert<T extends true> = T;
  * `unbound("field")`, which the field picker can fix.
  *
  * `toggle` and `choice` join them because they are not bindings at all: each
- * has a declared `default`, and absent IS that default.
+ * has a declared `default`, and absent IS that default. `choices` joins them
+ * on decision 2's reasoning: absent is every option.
  */
-type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice" | "text";
+type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice" | "choices" | "text";
 
 export type NeedsCoversEveryBindableInput = Assert<
   Exclude<WidgetInputType, NeverUnbound> extends UnboundNeeds ? true : false

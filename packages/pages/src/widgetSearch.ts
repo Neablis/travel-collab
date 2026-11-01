@@ -322,6 +322,9 @@ const PLACEHOLDER_BY_TYPE: Partial<Record<WidgetInput["type"], unknown>> = {
 const DETAIL_BY_TYPE: Partial<Record<WidgetInput["type"], string>> = {
   field: "call get_widget for the field paths it takes",
   target: "call get_widget for this trip's notebooks, days and tabs it can link to",
+  // Not listed in `params`: those are single values, and a `choices` param
+  // stores a list (`ChoicesRef`), which a model copying one value would get wrong.
+  choices: "call get_widget for the values a choices param takes; it stores a list of them, in that order",
 };
 
 function matchOf(entry: WidgetIndexEntry): WidgetMatch {

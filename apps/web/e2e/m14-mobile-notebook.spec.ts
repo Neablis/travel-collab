@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures/test";
-import { commandsFor } from "@tc/factories";
+import { commandsFor, type CommandsForOverrides } from "@tc/factories";
 import { newPageDoc } from "@tc/contracts";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { e2eTripName } from "./tripNames";
@@ -31,12 +31,12 @@ function overviewRow(page: import("@playwright/test").Page) {
 
 async function openTripOverview(
   page: import("@playwright/test").Page,
-  { bookedStop }: { bookedStop?: string } = {},
+  { bookedStop, scenario }: { bookedStop?: string; scenario?: CommandsForOverrides } = {},
 ): Promise<string> {
   const { tripId } = await page.request
     .post("/api/trips", { data: { name: e2eTripName("PhoneNotebook") } })
     .then((r) => r.json());
-  for (const command of commandsFor("threeDayTrip", tripId)) {
+  for (const command of commandsFor("threeDayTrip", tripId, scenario)) {
     await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
   }
   // `threeDayTrip` has nothing pending, and a walk through the Overview's
@@ -269,6 +269,37 @@ test.describe("phone Notebook (SPEC §19)", () => {
     await expect(
       page.getByTestId("widget-settings").getByRole("button", { name: /: dates/ }),
     ).not.toHaveText("All days");
+  });
+
+  test("What needs you is pointed at a class and a day in the sheet's bind step", async ({ page }) => {
+    // M43 decision 5 on a phone: the same `WidgetBindControls` as the desktop
+    // column, here in the insert sheet's step 2. Three empty days and one
+    // parked idea, so each filter has rows to drop: unticking Parked and
+    // picking Day 2 leaves Day 2's row alone.
+    await openTripOverview(page, { scenario: { activitiesPerDay: 0, unscheduledCount: 1 } });
+
+    await page.getByRole("button", { name: "Insert a widget" }).click();
+    const sheet = page.getByRole("dialog");
+    await sheet.getByRole("searchbox", { name: "Search widgets" }).fill("needs");
+    await sheet.getByRole("button", { name: /What needs you/ }).click();
+
+    const parked = sheet.getByRole("checkbox", { name: "Parked ideas" });
+    await expect(parked).toBeChecked();
+    await parked.click();
+    await expect(parked).not.toBeChecked();
+    const days = sheet.getByRole("button", { name: /: dates/ });
+    expect((await days.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    await days.click();
+    await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toContainText(/Showing Conflicts, Empty days → /);
+    await sheet.getByRole("button", { name: "Insert it" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    await finishEditing(page);
+    const rows = page.getByRole("list", { name: "What needs you" }).getByRole("listitem");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Day 2 has nothing on it");
   });
 
   test("Reading is the default, and it takes the phone's authoring surface away too", async ({ page }) => {

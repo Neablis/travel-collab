@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
-import { FilterDimension } from "@tc/contracts";
+import { ChoicesRef, FilterDimension } from "@tc/contracts";
+import { z } from "zod";
 import { distinctApplies, getMacro, inputsFor, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
@@ -18,15 +19,10 @@ describe("registry", () => {
     // matters: a registry that still answered to `cost.day` would let a page
     // keep an un-migrated node forever and nobody would find out.
     //
-    // **`open` is the thirteenth entry and the twelve primitives are still
-    // twelve** (SPEC §25). It is a registered widget that declares no
-    // `selection`, which is the distinction ADR-039 decision 1 actually draws:
-    // a primitive is `entity + filters + shape`, and `open` has no entity to
-    // narrow — it is the trip's whole open list by definition. So it is in
-    // `MACRO_NAMES` and deliberately NOT in `PRIMITIVE_NAMES`, and the sweep
-    // below that once equated the two is what caught it.
-    // `country.facts` ("Know before you go", M14 link 11) is registered on
-    // `open`'s terms: no selection, so not a primitive. `day.sun` and
+    // `open` (SPEC §25) shipped with no `selection`, the trip's whole open
+    // list; since M43 decision 5 it narrows by days, so it is a day primitive.
+    // `country.facts` ("Know before you go", M14 link 11) declares no
+    // selection, so it is not a primitive. `day.sun` and
     // `day.fromHome` (the same link) ARE primitives — day entity, day filters —
     // and so is `day.weather`, which also declares `needs` (ADR-052), and
     // `cost.breakdown` ("Spend by kind" / "Spend by tag"), a stop primitive
@@ -95,7 +91,7 @@ describe("registry", () => {
   // exercise each macro's own validator rather than just reading its keys.
   // `choice` is absent because no one value fits every choice: each is sampled
   // from its own declared options below, all of them.
-  const SAMPLE: Record<Exclude<WidgetInput["type"], "choice">, unknown> = {
+  const SAMPLE: Record<Exclude<WidgetInput["type"], "choice" | "choices">, unknown> = {
     // The non-default value, which is the only one a toggle ever stores.
     toggle: false,
     day: { kind: "index", index: 0 },
@@ -131,7 +127,14 @@ describe("registry", () => {
       if (def.inputs.length === 0) continue;
       // A `multiple` field input stores a list of what the single one stores.
       const sampleOf = (i: WidgetInput) =>
-        i.type === "choice" ? i.options.at(-1)!.value : i.type === "field" && i.multiple ? [SAMPLE.field] : SAMPLE[i.type];
+        i.type === "choice"
+          ? i.options.at(-1)!.value
+          : // A `choices` list is its own options' vocabulary (`ChoicesRef`): the first and last, in order.
+            i.type === "choices"
+            ? [i.options[0]!.value, i.options.at(-1)!.value]
+            : i.type === "field" && i.multiple
+              ? [SAMPLE.field]
+              : SAMPLE[i.type];
       const bound = Object.fromEntries(def.inputs.map((i) => [i.name, sampleOf(i)]));
       const parsed = def.params.safeParse(bound);
       // Every option a choice offers is one the schema keeps, its default too:
@@ -456,7 +459,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // **The two lists are no longer equal, and that is the point of keeping
     // them separate.** This used to assert `PRIMITIVE_NAMES === MACRO_NAMES`,
     // with a comment calling it "the state ADR-039 was aiming at". `open`
-    // (SPEC §25) is registered and declares no selection, exactly the case
+    // (SPEC §25) was registered with no selection, exactly the case
     // `PRIMITIVE_NAMES`' own doc comment predicted — *"a widget added tomorrow
     // without one should drop out of those sweeps and fail the count beside
     // them"*. It did, on the first run. So the invariant is restated as the
@@ -464,7 +467,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // registered widget without a selection is not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
     expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual([
-      "country.facts", "link.external", "link.internal", "open", "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
+      "country.facts", "link.external", "link.internal", "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
       "chat.recent",
     ].sort());
   });
@@ -555,7 +558,9 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // burn-down), never which members it reads.
     // Nor is `person`: `person.share`'s `who` says whose money the sentence
     // is about, and the `person` dimension stays refused (the test above).
-    const NOT_A_DIMENSION = new Set(["field", "toggle", "choice", "person"]);
+    // Nor `choices`: `open`'s row classes are its own vocabulary, not a
+    // dimension of the selection (M43 decision 5).
+    const NOT_A_DIMENSION = new Set(["field", "toggle", "choice", "choices", "person"]);
     for (const name of PRIMITIVE_NAMES) {
       const def = getMacro(name)!;
       const filterControls = def.inputs.filter((i) => !NOT_A_DIMENSION.has(i.type)).map((i) => i.name);
@@ -758,5 +763,30 @@ describe("renderMacro on a page scoped to today", () => {
 
   it("renders an empty state that says today is no trip day, off the trip's dates, not a removed day", () => {
     expect(renderMacro(scopedAt("2027-05-30T12:00:00Z"), "day.detail", {})).toEqual({ status: "empty", because: "Nothing planned today" });
+  });
+});
+
+// `OpenClassRef` (M43 decision 5): one spelling per set of `open`'s row
+// classes, so two equal filters are equal in the document.
+describe("`open`'s class param", () => {
+  it("keeps a set in class order and refuses any other spelling of it", () => {
+    const parses = (value: unknown) => getMacro("open")!.params.safeParse({ class: value }).success;
+    expect(parses(["conflict", "parked"])).toBe(true);
+    expect(parses(["parked", "conflict"])).toBe(false);
+    expect(parses(["parked", "parked"])).toBe(false);
+    expect(parses([])).toBe(false);
+    expect(parses(["time-overlap"])).toBe(false);
+  });
+
+  // ADR-037 decision 9: one stored shape per input TYPE. A second `choices`
+  // input gets the same rule over its own options, not a refine of its own
+  // that may drift from what `ChoicesFilter` writes.
+  it("is the one `choices` shape, which any closed list takes", () => {
+    const parses = (value: unknown) => ChoicesRef(z.enum(["north", "east", "south"])).safeParse(value).success;
+    expect(parses(["north", "south"])).toBe(true);
+    expect(parses(["south", "north"])).toBe(false);
+    expect(parses(["east", "east"])).toBe(false);
+    expect(parses([])).toBe(false);
+    expect(parses(["conflict"])).toBe(false);
   });
 });

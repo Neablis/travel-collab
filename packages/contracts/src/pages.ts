@@ -240,6 +240,39 @@ export type DatesRef = z.infer<typeof DatesRef>;
 export const AttributeFieldRef = z.enum(ATTRIBUTE_FIELD_PATHS);
 export type AttributeFieldRef = z.infer<typeof AttributeFieldRef>;
 
+/**
+ * The three kinds of row *What needs you* (`open`) draws: a conflict, an empty
+ * day, the parked ideas (M43 decision 5).
+ *
+ * **The row classes, not `Conflict.kind`.** That is an open string the domain
+ * can add to, so a control listing its values would leave any kind added later
+ * unreachable; every conflict is one class however it is labelled.
+ */
+export const OpenClass = z.enum(["conflict", "empty-day", "parked"]);
+export type OpenClass = z.infer<typeof OpenClass>;
+
+/**
+ * What a `choices` input stores (ADR-037 decision 9: one stored shape per input
+ * type): the options picked from `values`, each once, in `values` order, never
+ * empty. Absent is every option — a filter left alone means everything (ADR-039
+ * decision 2) — so the key is stored only when something is hidden. One
+ * spelling per set, as `DateListRef`, so two equal filters are equal in the
+ * document; showing nothing is not a filter anybody means.
+ */
+export const ChoicesRef = <T extends z.ZodEnum>(values: T) => {
+  const order = values.options as readonly string[];
+  return z
+    .array(values)
+    .min(1, "pick at least one, or leave the key out for all")
+    .refine((list) => list.every((value, i) => i === 0 || order.indexOf(list[i - 1] as string) < order.indexOf(value as string)), {
+      message: `list each once, in ${order.join(", ")} order`,
+    });
+};
+
+/** `open`'s `class` param: the row classes it shows. */
+export const OpenClassRef = ChoicesRef(OpenClass);
+export type OpenClassRef = z.infer<typeof OpenClassRef>;
+
 export const FILTER_VALUE_SCHEMAS = {
   day: DayRef,
   city: CityRef,

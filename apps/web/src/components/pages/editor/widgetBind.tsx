@@ -8,6 +8,7 @@ import { CheckboxField } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DaysFilter, daysSummary } from "./DaysFilter";
+import { ChoicesFilter, pickedChoices } from "./ChoicesFilter";
 import { FieldPicker } from "./FieldPicker";
 import { FieldColumns } from "./FieldColumns";
 import { LinkTargetPicker } from "./LinkTargetPicker";
@@ -220,6 +221,8 @@ export function optionsFor(
     // The widget's own list, and no "All" row: a choice always has a value,
     // its `default` when nothing is stored.
     case "choice":
+    // A set from the widget's own list: `ChoicesFilter` draws a box per option.
+    case "choices":
       return input.options;
     // The trip's members and guests, by name. **No "All" row**: there is no
     // "everybody" for a sentence about one person, so unset is
@@ -366,6 +369,12 @@ export function bindSummary(
         // as well as a range — `DaysFilter` owns both.
         const summary = daysSummary(params, detail);
         return summary === "All days" ? null : summary;
+      }
+      if (input.type === "choices") {
+        // Every option is the widest answer, so it says nothing, like "All days".
+        const picked = pickedChoices(input, params[input.name]);
+        if (picked.length === input.options.length) return null;
+        return input.options.filter((o) => picked.includes(o.value)).map((o) => o.label).join(", ");
       }
       const value = valueOf(input, params, detail);
       if (value === "") return null;
@@ -544,6 +553,20 @@ export function WidgetBindControls({
                 title={input.label}
               />
             </div>
+          );
+        }
+        // A group of boxes, named by its own legend, so no `FormField` either.
+        if (input.type === "choices") {
+          return (
+            <ChoicesFilter
+              key={input.name}
+              input={input}
+              params={params}
+              onChange={onChange}
+              layout={layout}
+              id={`${idPrefix}-${input.name}`}
+              name={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : undefined}
+            />
           );
         }
         const control =

@@ -143,8 +143,9 @@ const SINGLE_VALUED: ReadonlySet<string> = new Set(["day", "tags", "city", "kind
  * taking a day or a target needs no edit here (ADR-037 decision 1's rule,
  * applied to the tool).
  *
- * Three spellings, and one guard:
+ * Four spellings, and one guard:
  *
+ *   * a `choices` input given one value is the list of it, in options order;
  *   * a `day` input given a NUMBER is that day, by id — "day 3" is how every
  *     tool and rule names a day, and the id keeps the widget on its day when
  *     days are reordered, which is what the picker stores too;
@@ -186,6 +187,20 @@ export function spelledParams(
       value = value[0];
       spelled[input.name] = value;
     }
+    // **The other direction, for the one list-valued filter.** A `choices`
+    // param stores a set, but "just the conflicts" is one value and every
+    // other filter takes one, so a bare string is the list of it. A list is
+    // put in the options' order, the one spelling a set has (`withChoices`
+    // stores it so too), and anything foreign is left for the schema to refuse.
+    if (input.type === "choices") {
+      const picked = typeof value === "string" ? [value] : value;
+      if (Array.isArray(picked)) {
+        const order = input.options.map((o) => o.value);
+        const rank = (v: unknown) => (typeof v === "string" && order.includes(v) ? order.indexOf(v) : order.length);
+        value = [...picked].sort((a, b) => rank(a) - rank(b));
+        spelled[input.name] = value;
+      }
+    }
     if (input.type === "day" && typeof value === "number") {
       const day = dayOf(deps.trip, value);
       if (isRefusal(day)) return day;
@@ -225,7 +240,7 @@ export const insertWidgetTool = defineTool({
     "Insert one live trip-data widget into the page at the cursor. Find it with search_widgets first and pass a " +
     "match's `insert` as it stands, adding only the filters or params the user asked for; names cannot be invented. " +
     "Every filter is optional — omit them all and the widget covers the whole trip, which is a real answer and " +
-    "usually the right one. Each filter takes ONE value (tag: \"meal\"), never a list. A day is a 1-based day number. A link to a notebook, day or tab names its target by " +
+    "usually the right one. Each filter takes ONE value (tag: \"meal\"), never a list, except a choices param, which takes a list (class: [\"conflict\"]). A day is a 1-based day number. A link to a notebook, day or tab names its target by " +
     "the numbers get_widget gives; a link to a website takes only an address the user typed in this message.",
   domain: "pages",
   effect: "write",

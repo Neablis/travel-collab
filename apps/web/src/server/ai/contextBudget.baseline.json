@@ -155,10 +155,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 8723,
-      "instructionChars": 4244,
-      "totalChars": 12967,
-      "approxTokens": 3918
+      "toolChars": 8791,
+      "instructionChars": 4310,
+      "totalChars": 13101,
+      "approxTokens": 3958
     },
     "page · question": {
       "tools": [
@@ -232,6 +232,10 @@
       "chars": 1594,
       "approxTokens": 482
     },
+    "insert_widget": {
+      "chars": 1293,
+      "approxTokens": 391
+    },
     "search_widgets": {
       "chars": 1288,
       "approxTokens": 389
@@ -247,10 +251,6 @@
     "find_free_time": {
       "chars": 1239,
       "approxTokens": 374
-    },
-    "insert_widget": {
-      "chars": 1225,
-      "approxTokens": 370
     },
     "find_days": {
       "chars": 1072,
