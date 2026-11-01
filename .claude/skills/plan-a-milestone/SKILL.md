@@ -48,4 +48,11 @@ do the code survey.
    build → test seen red → scoped checks → push (opened ready, not draft) → review → fixes →
    CI green → merged.
 
+**Plan template.** The required contents in step 4 are the source of truth; the shape they go
+in is `docs/plans/TEMPLATE.md`, copied from the M46 plan. Start a plan by copying the
+template, not by re-deriving the shape: header (milestone, ADR, part 0 branch), path and
+line-number conventions, an Order table, shared survey facts, then per part a theme line, a
+File / Entry point / Change / Test table, and a preview walk, ending with the gate. If the
+template and this skill disagree, the skill wins and the template gets fixed.
+
 Done when part 0 is open, the plan names every part, and the tasks exist. Next: `build-a-part`.
