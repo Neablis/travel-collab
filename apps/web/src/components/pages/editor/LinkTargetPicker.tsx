@@ -80,7 +80,7 @@ export function targetOptions(
     value: notebookValue(page),
     label: page.title,
     group: "Notebooks",
-    detail: isOverviewPage(page.context) ? "The trip's itinerary" : (page.preview?.firstLine ?? undefined),
+    detail: isOverviewPage(page) ? "The trip's itinerary" : (page.preview?.firstLine ?? undefined),
   }));
   const dayOptions: FieldOption[] = detail.days.map((day, index) => {
     const cities = globals?.days[index]?.cities ?? [];

@@ -23,6 +23,7 @@ import { EDIT_SESSION_IDLE_MS } from "./useEditSession";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/",
 }));
 
 // The real save guard, behind a spy, so one test can make the editor's output

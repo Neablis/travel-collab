@@ -43,6 +43,7 @@ import type {
   TripMember,
   PageContent,
   PageContext,
+  PageKind,
   ChatLink,
   ChatMessageKind,
 } from "@tc/contracts";
@@ -562,6 +563,10 @@ export const pages = pgTable(
     // or null. Projected from `PageCreated` like every other field here, and
     // never moved by an edit: a renamed seed is still that seed (2026-09-27).
     seedKey: text("seed_key"),
+    // `Page.kind`: "overview" on the trip's Overview, null on every other page
+    // (M43 decision 2). Projected beside `seedKey`, whose kind it is
+    // (`pageKindOf`), so it moves wherever the Overview's key moves.
+    kind: text("kind").$type<PageKind>(),
   },
   (t) => [
     index("pages_trip").on(t.tripId),
@@ -575,6 +580,10 @@ export const pages = pgTable(
     uniqueIndex("pages_seed_key_unique")
       .on(t.tripId, t.seedKey)
       .where(sql`${t.seedKey} is not null`),
+    // One Overview per trip, as data rather than as every writer's care.
+    uniqueIndex("pages_overview_unique")
+      .on(t.tripId)
+      .where(sql`${t.kind} = 'overview'`),
   ],
 );
 

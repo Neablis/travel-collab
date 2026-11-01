@@ -164,6 +164,13 @@ const InputSchema = z.discriminatedUnion("type", [
     options: z.array(z.object({ value: z.string(), label: z.string() })).readonly(),
     default: z.string(),
   }),
+  // `open`'s row classes: a list of `options` values, in their order; absent is all.
+  z.object({
+    type: z.literal("choices"),
+    name: z.string(),
+    label: z.string(),
+    options: z.array(z.object({ value: z.string(), label: z.string() })).readonly(),
+  }),
   z.object({ type: z.literal("text"), name: z.string(), label: z.string(), placeholder: z.string() }),
 ]);
 

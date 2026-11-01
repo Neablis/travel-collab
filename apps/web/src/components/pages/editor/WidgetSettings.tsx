@@ -154,9 +154,8 @@ function WidgetEntry({
         />
       ) : (
         // ADR-035 decision 2: `inputs: []` is a real answer, not an unfinished
-        // one — `open` (SPEC §25) is the trip's whole list by definition. Saying
-        // so is better than an empty entry, which reads as something failing to
-        // load.
+        // one — `trip.strip` is the whole trip by definition. Saying so is
+        // better than an empty entry, which reads as something failing to load.
         <Text variant="muted">This widget has nothing to point — it shows the whole trip.</Text>
       )}
 

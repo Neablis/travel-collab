@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
-import { SYSTEM_ACTOR_ID } from "@tc/contracts";
+import { SYSTEM_ACTOR_ID, pageKindOf } from "@tc/contracts";
 import { TEMPLATE_LIBRARY, instantiateDefaults } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler, makeSavedNotebookHandlers } from "@/mocks/handlers";
 import type { AskEvent, AskWhere, AskWireMessage } from "@/lib/apiClient";
@@ -357,7 +357,8 @@ describe("NotebookScreen", () => {
     const ADD = { name: "Add missing default notebooks" };
     const defaults = () =>
       instantiateDefaults(TRIP_ID, () => crypto.randomUUID()).map((seed) =>
-        pageFixture({ ...seed, tripId: TRIP_ID, actorId: SYSTEM_ACTOR_ID }),
+        // With the kind the seeder's row gets (M43).
+        pageFixture({ ...seed, kind: pageKindOf(seed.seedKey) ?? undefined, tripId: TRIP_ID, actorId: SYSTEM_ACTOR_ID }),
       );
 
     it("offers the owner the action only while a default is missing, and adding brings it back", async () => {

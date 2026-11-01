@@ -6,11 +6,14 @@ import {
   TripEvent,
   TripMember,
   isPageEventType,
+  pageContextOf,
+  pageKindOf,
   seedKeyOf,
   serializePageDoc,
   type EventEnvelope,
   PageCreatedV1,
   type PageContent,
+  type PageKind,
   type PageDoc,
 } from "@tc/contracts";
 import { describeByTags, projectTripDetails, projectTripSummaries } from "@tc/domain";
@@ -105,10 +108,10 @@ export async function applyPageEvents(tx: Queryable, envelopes: EventEnvelope[])
       case "PageCreated": {
         const fromLog = {
           title: event.payload.title,
-          context: event.payload.context,
+          context: pageContextOf(event.payload),
           content: storedContent(event.payload.content),
           actorId: event.payload.actorId,
-          seedKey: await projectedSeedKey(tx, event.payload),
+          ...seedKeyColumns(await projectedSeedKey(tx, event.payload)),
         };
         await tx
           .insert(pages)
@@ -157,7 +160,7 @@ async function projectedSeedKey(tx: Queryable, payload: PageCreatedV1["payload"]
   if (key === null) return null;
   const heldElsewhere = and(eq(pages.tripId, payload.tripId), eq(pages.seedKey, key), ne(pages.id, payload.pageId));
   if (!derived) {
-    await tx.update(pages).set({ seedKey: null }).where(heldElsewhere);
+    await tx.update(pages).set(seedKeyColumns(null)).where(heldElsewhere);
     return key;
   }
   const [holder] = await tx.select({ id: pages.id }).from(pages).where(heldElsewhere);
@@ -204,7 +207,16 @@ async function passSeedKeyOnRows(tx: Queryable, tripId: string, key: string, seq
       return implied.derived && implied.key === key;
     })
     .sort((a, b) => a.seq - b.seq);
-  if (heir !== undefined) await tx.update(pages).set({ seedKey: key }).where(eq(pages.id, heir.payload.pageId));
+  if (heir !== undefined) await tx.update(pages).set(seedKeyColumns(key)).where(eq(pages.id, heir.payload.pageId));
+}
+
+/**
+ * A row's seed key and the kind it makes the page (`pageKindOf`), written
+ * together wherever the key is, so the Overview's kind moves with its key and
+ * the `pages_overview_unique` row is always the `overview`-keyed one.
+ */
+function seedKeyColumns(key: string | null): { seedKey: string | null; kind: PageKind | null } {
+  return { seedKey: key, kind: pageKindOf(key) };
 }
 
 /**

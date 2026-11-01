@@ -1,9 +1,9 @@
-import { CURRENT_PAGE_DOC_VERSION, newPageDoc } from "@tc/contracts";
+import { CURRENT_PAGE_DOC_VERSION, OVERVIEW_KIND, newPageDoc } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { asc, eq, inArray } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
-import { executePageCommand } from "./pageCommands";
+import { addMissingDefaultPages, executePageCommand } from "./pageCommands";
 import { readStream } from "./eventStore";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
@@ -69,6 +69,9 @@ describe("executePageCommand", () => {
   });
 
   // The rescue must not become a way around SPEC §25's undeletable Overview.
+  // The row is keyed `overview` with no `kind`, as the build before M43 seeds
+  // it while both builds are live: the Overview is its seed key, as the fold
+  // reads it, and the column only backs the one-per-trip index.
   it("still refuses to delete the Overview when its document will not parse", async () => {
     const tripId = await seedTrip();
     const pageId = randomUUID();
@@ -77,7 +80,9 @@ describe("executePageCommand", () => {
       id: pageId,
       tripId,
       title: "Overview",
-      context: { tripId, kind: "overview" },
+      context: { tripId },
+      seedKey: "overview",
+      kind: null,
       content: { v: 1, type: "doc", content: [], fromANewerBuild: true } as never,
       createdAt: now,
       updatedAt: now,
@@ -91,6 +96,30 @@ describe("executePageCommand", () => {
 
     const rows = await db.select().from(pages).where(eq(pages.id, pageId));
     expect(rows).toHaveLength(1);
+  });
+
+  // KI-6's lost race, met at the other index: an Overview insert can break
+  // `pages_seed_key_unique` and `pages_overview_unique` at once, and Postgres
+  // names whichever it checks first. A marked row the fold cannot see (its
+  // document is unreadable) stands in for the lazy seeder's, so only the
+  // Overview index fires when "add missing" plants the seed.
+  it("answers a seed refused by the one-Overview index as a race lost", async () => {
+    const tripId = await seedTrip();
+    const now = new Date().toISOString();
+    await db.insert(pages).values({
+      id: randomUUID(),
+      tripId,
+      title: "Overview",
+      context: { tripId },
+      kind: OVERVIEW_KIND,
+      content: { v: 1, type: "doc", content: [], fromANewerBuild: true } as never,
+      createdAt: now,
+      updatedAt: now,
+      actorId: OWNER,
+    });
+
+    const result = await addMissingDefaultPages(tripId, OWNER);
+    expect(result.ok || result.error.code).toBe("concurrency-conflict");
   });
 
   it("writes the row and the event in one transaction", async () => {
@@ -152,7 +181,7 @@ describe("executePageCommand", () => {
   it("refuses to delete the Overview", async () => {
     const tripId = await seedTrip();
     const seeded = await listPages(tripId);
-    const overview = seeded.find((p) => p.context.kind === "overview");
+    const overview = seeded.find((p) => p.kind === "overview");
     expect(overview).toBeDefined();
     const result = await executePageCommand(
       { type: "DeletePage", tripId, pageId: overview!.id },
@@ -201,7 +230,7 @@ describe("executePageCommand", () => {
   it("edits a page that existed before the log knew about pages", async () => {
     const tripId = await seedTrip();
     const seeded = await listPages(tripId); // lazily seeds the Overview ROW, no event
-    const overview = seeded.find((p) => p.context.kind === "overview")!;
+    const overview = seeded.find((p) => p.kind === "overview")!;
     expect((await readStream(db, tripId)).map((e) => e.type)).not.toContain("PageCreated");
 
     const result = await executePageCommand(
@@ -223,7 +252,7 @@ describe("executePageCommand", () => {
   // §7 draws "Comes with your trip" vs "Yours" off exactly this field.
   it("backfills the page's own owner rather than whoever edited it", async () => {
     const tripId = await seedTrip();
-    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!;
+    const overview = (await listPages(tripId)).find((p) => p.kind === "overview")!;
     expect(overview.actorId).toBe("system");
 
     await executePageCommand(
@@ -316,7 +345,7 @@ describe("executePageCommand", () => {
   it("GOLDEN: the pages table rebuilds from the log", async () => {
     const tripId = await seedTrip();
     const seeded = await listPages(tripId); // rows, no events — four since M30 (ADR-056)
-    const overview = seeded.find((p) => p.context.kind === "overview")!;
+    const overview = seeded.find((p) => p.kind === "overview")!;
     const legacyId = randomUUID();
     await db.insert(pages).values({
       id: legacyId,
@@ -377,7 +406,7 @@ describe("executePageCommand", () => {
     await db.delete(pages).where(eq(pages.id, packing));
     await db.update(pages).set({ content: docWith("drifted") as never }).where(eq(pages.id, overview.id));
     await db.update(pages).set({ title: "drifted" }).where(eq(pages.id, legacyId));
-    await db.insert(pages).values({ ...live.find((r) => r.id === overview.id)!, id: scratch, title: "Scratch", seedKey: null });
+    await db.insert(pages).values({ ...live.find((r) => r.id === overview.id)!, id: scratch, title: "Scratch", seedKey: null, kind: null });
 
     await rebuildProjections();
 
@@ -544,7 +573,7 @@ describe("executePageCommand with expectedUpdatedAt", () => {
   // revision is the row's. The first guarded save of it must not be refused.
   it("takes a guarded edit of a page that existed before the log knew about pages", async () => {
     const tripId = await seedTrip();
-    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!;
+    const overview = (await listPages(tripId)).find((p) => p.kind === "overview")!;
     const result = await edit(tripId, overview.id, "our plan", overview.updatedAt);
     expect(result.ok).toBe(true);
   });

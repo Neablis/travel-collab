@@ -701,3 +701,40 @@ describe("link.external", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 });
+
+// M43 decision 4: "What needs you" is the design's rows, not a table — each a
+// link to where the thing is fixed, built from the target the widget declared.
+// Seen red against the two-column table this replaced.
+describe("open", () => {
+  const DAY_2 = "22222222-2222-2222-2222-222222222223";
+  const waiting: TripDetail = {
+    ...backloggedDetail,
+    days: [...backloggedDetail.days, { dayId: DAY_2, activityIds: [], date: "2026-08-02", costSubtotal: 0 }],
+    conflicts: [{ id: "c1", kind: "time-overlap", severity: "warn", subjects: ["a1"], description: "Two stops at 09:00", resolutions: [] }],
+  };
+
+  it("draws one linked row per thing waiting, each going where it is fixed", () => {
+    render(<MacroView detail={waiting} context={ctx} name="open" params={{}} />);
+    const list = screen.getByRole("list", { name: "What needs you" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    const dayOne = baseDetail.days[0]!.dayId;
+    expect(within(list).getByRole("link", { name: /Overlap on Day 1/ }).getAttribute("href")).toBe(`?view=Plan&day=${dayOne}`);
+    expect(within(list).getByRole("link", { name: /Day 2 has nothing on it/ }).getAttribute("href")).toBe(`?view=Plan&day=${DAY_2}`);
+    expect(within(list).getByRole("link", { name: /1 idea is parked/ }).getAttribute("href")).toBe("?view=Plan&rack=open");
+  });
+
+  it("does not navigate away from a page being edited", () => {
+    // A link card's rule (`LinkCardBlock`): in Editing a tap is for the
+    // document, so the rows stay but none is a link.
+    render(<MacroView detail={waiting} context={ctx} name="open" params={{}} editing />);
+    expect(within(screen.getByRole("list", { name: "What needs you" })).getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("says a settled trip is settled on the success line, not in the muted chip", () => {
+    // `costedDetail`: its one day has a stop, nothing collides, nothing is parked.
+    // The chip prints the same sentence, so the text alone cannot tell them apart.
+    render(<MacroView detail={costedDetail} context={ctx} name="open" params={{}} />);
+    expect(screen.getByTestId("macro-empty-good").textContent).toMatch(/^Nothing is waiting on you/);
+  });
+});

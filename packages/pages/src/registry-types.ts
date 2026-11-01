@@ -9,7 +9,7 @@ import type {
 } from "./chartPayloads";
 import type { WeatherPayload } from "./weatherPayload";
 import type { SunPayload } from "./sunPayload";
-import type { LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
+import type { ActTarget, LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
 import type { ItineraryPayload } from "./itineraryPayload";
 import type { TripNowClock } from "./now";
 import type { ChatMessage } from "@tc/contracts";
@@ -261,6 +261,28 @@ export interface RepeatPayload {
   headings?: readonly string[];
 }
 
+/**
+ * One row that asks for something and says where to go to do it (ADR-037,
+ * amended 2026-10-31: M43 decision 4). `open` is the first; a later widget
+ * whose rows carry an action reuses this rather than adding a kind.
+ *
+ * `right` is the action's words ("Fix in Plan"). `tone` is a closed set the
+ * renderer maps to tokens, so no colour crosses the seam. `act` is a target,
+ * never a URL or a control: `apps/web` builds the href with the same
+ * `linkHref` a link card uses, and that stays the one place routes are known.
+ */
+export interface Item {
+  label: string;
+  sub: string;
+  right: string;
+  tone: "warning" | "info" | "plain";
+  act: ActTarget;
+}
+export interface ItemsPayload {
+  kind: "items";
+  items: Item[];
+}
+
 // ---------------------------------------------------------------------------
 // What a widget RENDERS (ADR-037 decision 3 — the CSR protection)
 // ---------------------------------------------------------------------------
@@ -335,7 +357,9 @@ export type Rendered =
   // whole value IS an address, and its `href` has passed the params schema's
   // http/https check before `render` sees it. `MacroView` draws it as an
   // `<a target="_blank" rel="noopener noreferrer">`, and nothing else does.
-  | { kind: "link"; href: string; text: string };
+  | { kind: "link"; href: string; text: string }
+  // `ItemsPayload.items`, passed through: already text and a declared target.
+  | { kind: "items"; items: readonly Item[] };
 
 // Convenience constructors, so a widget's `render` reads as data rather than as
 // object literals with a discriminator repeated seven times.
@@ -353,6 +377,8 @@ export const blockOf = (block: BlockPayload): Rendered => ({ kind: "block", bloc
 export const linkOf = (href: string, t: string): Rendered => ({ kind: "link", href, text: t });
 export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rendered =>
   headings === undefined ? { kind: "rows", rows } : { kind: "rows", rows, headings };
+/** A widget's action rows as a `Rendered` of kind `items`, passed through unchanged (M43 decision 4). */
+export const itemsOf = (payload: ItemsPayload): Rendered => ({ kind: "items", items: payload.items });
 
 // What a widget TAKES, declared so a UI can choose a control for it
 // (ADR-035 decision 2, SPEC §18). A Zod schema says a param is a string; it
@@ -424,6 +450,12 @@ export type WidgetInput =
   // switched away and back are the same `{}`.
   | { name: string; type: "toggle"; label: string; default: boolean }
   | { name: string; type: "choice"; label: string; options: readonly { value: string; label: string }[]; default: string }
+  // **Several picked from a short closed list** (M43 decision 5: `open`'s row
+  // classes). Unlike `choice` it narrows what a widget reads, so it is a
+  // filter: absent is every option, and the control stores the picked ones in
+  // `options` order, never none — the shape the widget's own params schema
+  // declares (`ChoicesRef` over its own options).
+  | { name: string; type: "choices"; label: string; options: readonly { value: string; label: string }[] }
   // **Where an internal link goes** (M30, ADR-056): a notebook, a day or a tab
   // of this trip, stored as a `LinkTarget` — ids, never a URL — and chosen from
   // a search-as-you-type combobox of what exists. Unset is `unbound("target")`.
@@ -470,9 +502,10 @@ type Assert<T extends true> = T;
  * `unbound("field")`, which the field picker can fix.
  *
  * `toggle` and `choice` join them because they are not bindings at all: each
- * has a declared `default`, and absent IS that default.
+ * has a declared `default`, and absent IS that default. `choices` joins them
+ * on decision 2's reasoning: absent is every option.
  */
-type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice" | "text";
+type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice" | "choices" | "text";
 
 export type NeedsCoversEveryBindableInput = Assert<
   Exclude<WidgetInputType, NeverUnbound> extends UnboundNeeds ? true : false
@@ -741,6 +774,10 @@ export interface MacroDef<P, T> {
   requires?: ReaderCapability;
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
+  // Nothing to show is the GOOD news (`open`: the trip is settled), so the
+  // renderer draws `emptyText` as the design's success line, not the muted
+  // chip that reads as something missing. Absent for every other widget.
+  emptyIsGood?: true;
   // The insert sidebar's sample. **A fixed string, never a computed value**
   // (ADR-037 decision 5): a preview asserting numbers the live widget computes
   // makes the sidebar and the page contradict each other in one session, which
@@ -756,4 +793,4 @@ export interface MacroDef<P, T> {
 }
 
 // Existentially-typed entry for the registry map.
-export type AnyMacroDef = MacroDef<Record<string, unknown>, InlinePayload | BlockPayload | RepeatPayload>;
+export type AnyMacroDef = MacroDef<Record<string, unknown>, InlinePayload | BlockPayload | RepeatPayload | ItemsPayload>;

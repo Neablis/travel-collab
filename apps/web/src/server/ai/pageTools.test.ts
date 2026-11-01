@@ -137,6 +137,19 @@ describe("insert_widget", () => {
     ]);
     expect(await call("insert_widget", { name: "cost", params: { day: 9 } })).toMatchObject({ ok: false, refused: expect.stringContaining("3 days") });
   });
+
+  // A choices param stores a list, but "just the conflicts" reads as one value
+  // and every other filter takes one: the bare string is that list of one, and
+  // a list is stored in the options' order, the one spelling a set has.
+  it("reads a choices param written as one value as the list of that value, in options order", async () => {
+    const { call, getInserts } = buildPageTools();
+    expect(await call("insert_widget", { name: "open", params: { class: "conflict" } })).toEqual({ ok: true, name: "open" });
+    expect(await call("insert_widget", { name: "open", params: { class: ["parked", "conflict"] } })).toEqual({ ok: true, name: "open" });
+    expect(getInserts().nodes).toEqual([
+      { type: "macro", attrs: { name: "open", params: { class: ["conflict"] } } },
+      { type: "macro", attrs: { name: "open", params: { class: ["conflict", "parked"] } } },
+    ]);
+  });
 });
 
 // ADR-057 let both link widgets in, each behind a guard, reversing ADR-056

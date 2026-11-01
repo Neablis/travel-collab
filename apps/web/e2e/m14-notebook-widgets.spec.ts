@@ -1020,6 +1020,7 @@ async function addStopViaApi(
     cost?: { amountMinor: number; currency: string };
     kind?: string;
     tags?: string[];
+    notes?: string;
   } = {},
 ): Promise<void> {
   const response = await page.request.post(`/api/trips/${tripId}/commands`, {
@@ -1552,67 +1553,151 @@ test("the settings column pins below the sticky chrome, not behind it", async ({
   );
 });
 
-test("a long value does not squeeze a repeat table's lead column to nothing", async ({ page }) => {
-  // Mitchell, on the preview, at 1728px with a screenshot: *"The Issue text is
-  // still going down side of page"*. "Still" is the finding — the 767px rule
-  // that stacks these tables on a phone fixed the symptom where he first saw
-  // it, and this is the same cause on a desktop, which that rule never touched.
+test("What needs you lists a conflict, an empty day and the parked ideas, and each row goes where it is fixed", async ({ page }) => {
+  // M43 decision 4: the design's rows (`openBlock`), not a two-column table.
+  // What is held is the three row kinds and where a tap on one lands; the
+  // table's geometry is the walk below's, on a widget that still draws one.
   //
-  // `grid-template-columns: minmax(0, 1fr) auto`. The lead's minimum was ZERO,
-  // and an `auto` value track resolves toward max-content — the only thing
-  // stopping it is the other track's floor. With none, a row whose value is a
-  // conflict's description drives "Empty day" down to a word a line.
-  //
-  // Reproduced with a real conflict rather than a fixture: two stops that
-  // overlap in time on one day, with titles long enough that the domain's
-  // description is the longest thing in the table.
-  //
-  // Red-checked by putting the zero floor back: `the lead wrapped:
-  // 182.578125px tall for one line of 23.8px ("Overlap")`. One seven-letter
-  // word, seven lines — which is what "going down the side of the page" is.
+  // A real conflict rather than a fixture: two stops that overlap in time on
+  // Day 1, so the domain's own engine raises it. Day 2 is left empty, and one
+  // stop is parked.
   await page.setViewportSize({ width: 1280, height: 900 });
   await tripWithTwoDays(page);
   const tripId = new URL(page.url()).pathname.split("/")[2]!;
   const detail = await page.request.get(`/api/trips/${tripId}`);
   const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
   const dayId = trip.days[0]!.dayId;
-  await addStopViaApi(page, tripId, "Breakfast at the covered market by the river", {
-    dayId,
-    timeWindow: { start: "09:00", end: "11:00" },
-  });
-  await addStopViaApi(page, tripId, "The long walk up to the shrine above the town", {
-    dayId,
-    timeWindow: { start: "10:00", end: "12:00" },
-  });
+  await addStopViaApi(page, tripId, "Breakfast at the covered market", { dayId, timeWindow: { start: "09:00", end: "11:00" } });
+  await addStopViaApi(page, tripId, "The walk up to the shrine", { dayId, timeWindow: { start: "10:00", end: "12:00" } });
+  await addStopViaApi(page, tripId, "Port cellar tour");
 
   await openSeededPage(page);
   await insertFromList(page, /What needs you/, "needs");
+  await finishEditing(page);
 
-  const table = page.getByRole("table").first();
-  const lead = table.getByRole("rowheader").first();
+  // **Exactly three, in the design's order** — a row per day and conflict
+  // kind, a row per empty day, and ONE for the rack.
+  const rows = page.getByRole("list", { name: "What needs you" }).getByRole("listitem");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("Overlap on Day 1");
+  await expect(rows.nth(1)).toContainText("Day 2 has nothing on it");
+  await expect(rows.nth(2)).toContainText("1 idea is parked");
+
+  // The conflict's row opens the Plan on its day: the target the widget
+  // declared, made an href by `linkHref` and nowhere else.
+  await rows.nth(0).getByRole("link", { name: /Fix in Plan/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}\\?view=Plan&day=${dayId}$`));
+  await expect(page.getByRole("tab", { name: "Plan" })).toHaveAttribute("aria-selected", "true");
+  const columns = page.getByTestId("day-column");
+  const dayOneTitle = columns.first().getByRole("button", { name: /^Day 1/ });
+  await expect(dayOneTitle).toHaveAttribute("aria-pressed", "true");
+  // **And again, after looking at another day** (PR 660 review): a `day=`
+  // kept by the tab change, and a link remembered as applied, left the second
+  // tap on whichever day was focused last.
+  const overviewTab = page.getByRole("tab", { name: "Overview" });
+  await columns.nth(1).getByRole("button", { name: /^Day 2/ }).click();
+  await expect(dayOneTitle).toHaveAttribute("aria-pressed", "false");
+  await overviewTab.click();
+  await rows.nth(0).getByRole("link", { name: /Fix in Plan/ }).click();
+  await expect(dayOneTitle).toHaveAttribute("aria-pressed", "true");
+
+  // **"Place them" lands with the rack open**, the design's `blOpen: true`:
+  // Plan alone arrived with the rack shut and the parked idea off screen.
+  // Back to Overview by its tab, never `goBack`: a history step drops
+  // `rack=open` by itself, and a tab pick has to drop it too.
+  const placeThem = page.getByRole("list", { name: "What needs you" }).getByRole("link", { name: /Place them/ });
+  const rackToggle = page.getByTestId("unscheduled-rack").getByRole("button", { name: /^Unscheduled/ });
+  await overviewTab.click();
+  await placeThem.click();
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}\\?view=Plan&rack=open$`));
+  await expect(rackToggle).toHaveAttribute("aria-expanded", "true");
+  // **And again, after shutting it** (PR 660 review): a `rack=open` left in
+  // the URL by the tab change kept the arrival looking applied, so the second
+  // tap landed shut.
+  await rackToggle.click();
+  await expect(rackToggle).toHaveAttribute("aria-expanded", "false");
+  await overviewTab.click();
+  await placeThem.click();
+  await expect(rackToggle).toHaveAttribute("aria-expanded", "true");
+});
+
+test("a long value does not squeeze a repeat table's lead column to nothing", async ({ page }) => {
+  // Mitchell, on the preview, at 1728px: *"The Issue text is still going down
+  // side of page"*. He saw it on `open`, which draws rows of its own now (M43
+  // decision 4); the table and its cause remain for every other repeat widget.
+  // `stop.rows` with a Notes column is the widest case: a paragraph in an
+  // `auto` value track beside a one-word lead, which a zero floor lets that
+  // track squeeze to a letter a line.
+  //
+  // Red-checked by putting `minmax(0, 1fr)` back in `MacroView`.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  const notes =
+    "Buy the return ticket at the bottom station, because the machine at the top takes cash only and the last car down leaves well before the restaurant closes.";
+  await addStopViaApi(page, tripId, "Funicular", { notes });
+
+  await openSeededPage(page);
+  await insertLinesFor(page, "Stop");
+  const addColumn = settingsPanel(page).getByRole("combobox", { name: "Add a column" });
+  await addColumn.click();
+  await addColumn.fill("notes");
+  await page.getByRole("option", { name: "Notes", exact: true }).click();
+
+  const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Notes" }) });
+  const lead = table.getByRole("rowheader", { name: "Funicular" });
   await expect(lead).toBeVisible();
 
-  // **The witness: the value really is long.** A table whose description
-  // happened to be short would pass this with the floor removed, which is the
-  // vacuity every other geometry walk here has been caught by.
-  const valueBox = await boxOf(table.getByRole("cell").first());
+  // **The witness: the value really is long.** A short one would pass with
+  // the floor removed, the vacuity every geometry walk here has been caught by.
+  const valueBox = await boxOf(table.getByRole("cell").filter({ hasText: "Buy the return ticket" }));
   expect(valueBox.width, "the value is not long enough for this walk to prove anything").toBeGreaterThan(200);
 
-  // One line, not a column of words. Measured against the lead's own line
-  // height rather than a pixel: "goes down the side of the page" is a box
-  // several lines tall where its text is one line long.
+  // One line, not a column of letters, measured against the lead's own line
+  // height. `py-2` is 8px top and bottom, so one line is `line + 16`.
   const geometry = await lead.evaluate((el) => ({
     height: el.getBoundingClientRect().height,
     line: parseFloat(getComputedStyle(el).lineHeight),
-    text: el.textContent ?? "",
   }));
-  expect(geometry.text.length, "the lead is empty, so this measures nothing").toBeGreaterThan(3);
-  // `py-2` is 8px top and bottom on the cell, so one line of text is
-  // `line + 16`. Two lines would clear `line * 2`.
-  expect(
-    geometry.height,
-    `the lead wrapped: ${geometry.height}px tall for one line of ${geometry.line}px ("${geometry.text}")`,
-  ).toBeLessThan(geometry.line * 2);
+  expect(geometry.height, `the lead wrapped: ${geometry.height}px tall for one line of ${geometry.line}px`).toBeLessThan(geometry.line * 2);
+});
+
+test("What needs you hides a class and narrows to a day from its settings, and keeps both after a reload", async ({ page }) => {
+  // M43 decision 5. The same trip as above: an overlap on Day 1, Day 2 empty,
+  // one idea parked. Each filter alone leaves two rows; both together leave
+  // Day 2's alone, so the one row is the proof that each did its part.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  const detail = await page.request.get(`/api/trips/${tripId}`);
+  const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
+  const dayId = trip.days[0]!.dayId;
+  await addStopViaApi(page, tripId, "Breakfast at the covered market", { dayId, timeWindow: { start: "09:00", end: "11:00" } });
+  await addStopViaApi(page, tripId, "The walk up to the shrine", { dayId, timeWindow: { start: "10:00", end: "12:00" } });
+  await addStopViaApi(page, tripId, "Port cellar tour");
+
+  await openSeededPage(page);
+  await insertFromList(page, /What needs you/, "needs");
+  const panel = settingsPanel(page);
+  const parked = panel.getByRole("checkbox", { name: "Parked ideas" });
+  await expect(parked).toBeChecked();
+  await parked.click();
+  await expect(parked).not.toBeChecked();
+  const days = panel.getByRole("button", { name: "What needs you: dates" });
+  await days.click();
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
+  await page.keyboard.press("Escape");
+  await expect(days).not.toHaveText("All days");
+  // The class survived the second filter: a merge, not a replace.
+  await expect(parked).not.toBeChecked();
+  await finishEditing(page);
+
+  const rows = page.getByRole("list", { name: "What needs you" }).getByRole("listitem");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("Day 2 has nothing on it");
+  await page.reload();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("Day 2 has nothing on it");
 });
 
 test("the trip strip fits its column on a 20-day trip, with no sideways scroll", async ({ page }) => {

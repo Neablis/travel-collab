@@ -30,7 +30,7 @@ async function sharedTrip() {
   const viewerId = `viewer-${randomUUID()}`;
   await grantMembership(db, { tripId, userId: editorId, role: "editor", invitedBy: ownerId, now });
   await grantMembership(db, { tripId, userId: viewerId, role: "viewer", invitedBy: ownerId, now });
-  const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!;
+  const overview = (await listPages(tripId)).find((p) => p.kind === "overview")!;
   return { tripId, ownerId, editorId, viewerId, pageId: overview.id };
 }
 
@@ -72,7 +72,7 @@ describe("POST /pages/defaults with a seed key", () => {
     currentUserId = ownerId;
     const url = `http://test/api/trips/${tripId}/pages/defaults`;
     // Every default that can go: the Overview and Today cannot (M52).
-    for (const page of (await listPages(tripId)).filter((p) => p.context.kind !== "overview" && p.seedKey !== "today")) {
+    for (const page of (await listPages(tripId)).filter((p) => p.kind !== "overview" && p.seedKey !== "today")) {
       const res = await DELETE(new Request(url, { method: "DELETE" }), { params: Promise.resolve({ tripId, pageId: page.id }) });
       expect(res.status).toBe(200);
     }

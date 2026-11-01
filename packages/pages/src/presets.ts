@@ -622,7 +622,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "open",
     params: {},
     title: "What needs you",
-    summary: "Lists everything waiting on a decision, such as overlapping stops, empty days and parked ideas, one row each.",
+    summary: "Lists everything waiting on a decision, such as overlapping stops, empty days and parked ideas, each with a link to where it is fixed.",
     keywords: ["open", "todo", "decide", "decisions", "waiting", "overlap", "conflict", "empty", "parked", "unscheduled"],
     preview: "one row per thing waiting on a decision",
   },

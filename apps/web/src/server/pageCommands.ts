@@ -1,12 +1,13 @@
 import {
   CURRENT_PAGE_DOC_VERSION,
+  OVERVIEW_KIND,
   PAGE_CHANGED_CODE,
   PageCommand,
-  PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
   PageEvent as PageEventSchema,
   SYSTEM_ACTOR_ID,
   migratePageDoc,
+  pageKindOf,
   seedKeyOf,
   serializePageDoc,
   type EventEnvelope,
@@ -20,7 +21,6 @@ import {
   evolvePages,
   foldEnvelopes,
   foldPages,
-  OVERVIEW_UNDELETABLE,
   undeletableReason,
   type PageDecision,
   type PagesState,
@@ -29,6 +29,7 @@ import {
   defaultDocumentFor,
   instantiateMissingDefaults,
   missingDefaultTemplates,
+  overviewDisplayTitle,
   TODAY_SEED_KEY,
   type SeedCandidate,
 } from "@tc/pages";
@@ -40,7 +41,7 @@ import { appendToStream, readStream } from "./eventStore";
 import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { checkPageDocForWrite, toPage } from "./pages";
+import { checkPageDocForWrite, toPage, withShownTitle } from "./pages";
 import { applyPageEvents } from "./projections";
 
 export type PageCommandResult =
@@ -99,12 +100,29 @@ export async function executePageCommand(
   }
   const unchecked = command;
 
-  return commitPageStep(unchecked.tripId, actorId, "editor", async ({ tx, pages: pagesState }) => {
+  return commitPageStep(unchecked.tripId, actorId, "editor", async ({ tx, history, pages: pagesState }) => {
     let command = unchecked;
     if (command.type === "EditPage" && command.content !== undefined) {
       const checked = checkPageDocForWrite(command.content, pagesState[command.pageId]?.content);
       if (!checked.ok) return { ok: false, error: { code: "invalid-page", message: checked.message } };
       command = { ...command, content: checked.doc };
+    }
+    // **The Overview's shown title, sent back, is not a rename** (M43 part 2).
+    // Every read hands out `Overview — <trip>`, and a v1 or MCP client edits by
+    // returning the page it read; stored, that text would stop the Overview
+    // following the trip's name for good. Every name the trip has had counts,
+    // not just today's: a client that read before a co-traveller's rename sends
+    // back the old one, and `expectedUpdatedAt` cannot catch that, because a
+    // rename does not move the page.
+    const current = command.type === "EditPage" ? pagesState[command.pageId] : undefined;
+    if (
+      command.type === "EditPage" &&
+      current !== undefined &&
+      pageKindOf(current.seedKey) === OVERVIEW_KIND &&
+      command.title !== undefined &&
+      tripNamesOf(history).map((name) => overviewDisplayTitle(current.title, name)).includes(command.title)
+    ) {
+      command = { ...command, title: undefined };
     }
     let decision = decidePageCommand(pagesState, command, actorId);
 
@@ -269,12 +287,14 @@ async function commitPageStep(
     // outside the stream, landing between this transaction's read and its
     // write: "add missing" then plants a key the table has just been given.
     // That is a race lost, which a retry resolves, not a server fault.
-    if (uniqueViolation(error)?.constraint !== SEED_KEY_INDEX) throw error;
+    // An Overview breaks `pages_overview_unique` too, and Postgres names
+    // whichever index it checks first (OID order, which a restore can change).
+    if (!SEED_RACE_INDEXES.has(uniqueViolation(error)?.constraint)) throw error;
     return RACE_LOST;
   }
 }
 
-const SEED_KEY_INDEX = "pages_seed_key_unique";
+const SEED_RACE_INDEXES = new Set<string | undefined>(["pages_seed_key_unique", "pages_overview_unique"]);
 
 // Read from the `pages` row, the only place a page's `updatedAt` lives (the
 // fold carries no timestamps, and a lazily seeded page has no event to carry
@@ -330,14 +350,10 @@ async function deleteSkippedRow(
   // else and is not this function's to overturn.
   if (PageDocSchema.safeParse(row.content).success) return null;
 
-  // The Overview and Today stay undeletable (SPEC §25, M52), and an
-  // unreadable `context` is refused rather than guessed: not being able to
-  // prove a page is ordinary is not the same as proving it is.
-  const context = PageContextSchema.safeParse(row.context);
-  if (!context.success) {
-    return { ok: false, rejection: { code: "page-undeletable", message: OVERVIEW_UNDELETABLE } };
-  }
-  const undeletable = undeletableReason({ context: context.data, seedKey: row.seedKey });
+  // The Overview and Today stay undeletable (SPEC §25, M52), read off the
+  // row's seed key, which an unreadable document does not touch. The key, as
+  // the fold reads it, not `pages.kind`: see `toSummary` in `pages.ts`.
+  const undeletable = undeletableReason({ kind: pageKindOf(row.seedKey), seedKey: row.seedKey });
   if (undeletable !== null) return { ok: false, rejection: { code: "page-undeletable", message: undeletable } };
   return {
     ok: true,
@@ -350,7 +366,7 @@ async function readPage(
   pageId: string,
 ): Promise<Page | null> {
   const [row] = await tx.select().from(pages).where(eq(pages.id, pageId));
-  return row === undefined ? null : toPage(row);
+  return row === undefined ? null : withShownTitle(toPage(row), tx);
 }
 
 /**
@@ -464,6 +480,15 @@ function genesisOf(history: readonly EventEnvelope[]): SeedCandidate[] {
     if (!seen.has(event.payload.pageId)) seen.set(event.payload.pageId, { id: event.payload.pageId, seedKey: seedKeyOf(event.payload).key });
   }
   return [...seen.values()];
+}
+
+/** Every name the trip has been given, its current one last. */
+function tripNamesOf(history: readonly EventEnvelope[]): string[] {
+  return history.flatMap((envelope) => {
+    if (envelope.type !== "TripCreated" && envelope.type !== "TripNameSet") return [];
+    const name = (envelope.payload as { name?: unknown } | null)?.name;
+    return typeof name === "string" ? [name] : [];
+  });
 }
 
 // Postgres's unique_violation, and the constraint it names. Walks the `cause` chain, as `eventStore.ts` does: drizzle wraps the driver's
