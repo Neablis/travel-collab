@@ -5,6 +5,17 @@
 //   EVAL_CONFIRM=1 EVAL_ONLY=q-most-free,q-busiest pnpm --filter web eval
 //   EVAL_CONFIRM=1 EVAL_REPEAT=3 EVAL_MAX_USD=0.25 pnpm --filter web eval
 //
+// How to compare main and part 4 (M57): the same prompts on both builds.
+//   1. git worktree add ../tc-main main, then copy this directory over it:
+//      cp -r apps/web/src/server/ai/eval/. ../tc-main/apps/web/src/server/ai/eval/
+//      (main has no personas in its ledger, so the persona checks say nothing there).
+//   2. In each worktree: EVAL_CONFIRM=1 EVAL_REPEAT=3 EVAL_MAX_USD=0.50 \
+//      EVAL_ONLY=<the same ids> pnpm --filter web eval
+//   3. jq ".summary" on each run's apps/web/eval-results/*.json, and per prompt:
+//      jq '[.rows[] | {id, run, in: .inputTokens, out: .outputTokens, usd: .microUsd, steps}]'
+//   Tokens and cost both include the classifier call, and `summary.counts` is
+//   the n behind each mean; compare only means over similar n.
+//
 // What is real: admission, the intent classifier, tier selection on
 // production's models (`models.json`, see `vitest.eval.config.ts`), every tool,
 // the proposal builder and a migrated Postgres holding the seeded Japan trip.
@@ -51,7 +62,7 @@ import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { postMessage } from "@/server/chat/messages";
 import type { TurnOrigin } from "@/server/assistant/defineTool";
 import { endedIn, grade, type EvalPersonaStep, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
-import { capMicroUsdFrom, dollars, summariseRows, turnSpend, unpricedModels, type TurnSpend } from "./spend";
+import { capMicroUsdFrom, dollars, summariseRows, turnSpend, turnTokens, unpricedModels, type TurnSpend } from "./spend";
 import { ACCOUNT_TRIPS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands, phaseFor, planningStart, type EvalTripName } from "./trips";
 import { pinClock, type EvalClock } from "./evalClock";
 
@@ -209,7 +220,10 @@ async function seedPlaybook(): Promise<{ userId: string; savedDayId: string; sto
  */
 function personaPathOf(ledger: TurnLedger | undefined): EvalPersonaStep[] | undefined {
   const steps = ledger?.stepSpend as readonly { persona?: EvalPersonaStep["persona"]; fromPersona?: EvalPersonaStep["fromPersona"]; edgeKind?: string | null }[] | undefined;
-  if (steps === undefined || steps.length === 0 || steps.some((step) => step.persona === undefined)) return undefined;
+  if (steps === undefined) return undefined;
+  // `entryPersona` is on every personas-build ledger and absent on main: with it, no steps is a turn that never reached the agent.
+  if (steps.length === 0) return (ledger?.cost as { entryPersona?: unknown } | undefined)?.entryPersona === undefined ? undefined : [];
+  if (steps.some((step) => step.persona === undefined)) return undefined;
   return steps.map((step) => ({ persona: step.persona!, fromPersona: step.fromPersona ?? null, edgeKind: step.edgeKind ?? null }));
 }
 
@@ -234,7 +248,7 @@ async function runTurn(
   beyondTrip: { kind: "account" } | { kind: "playbook"; page: { kind: "day"; savedDayId: string } } = { kind: "account" },
   /** On a trip, where the turn was asked: the Ask tab, or the trip chat. */
   origin: TurnOrigin = "ask",
-): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; spend: TurnSpend }> {
+): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; spend: TurnSpend; tokens: ReturnType<typeof turnTokens> }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
   const records: AskAnalyticsRecord[] = [];
@@ -276,6 +290,7 @@ async function runTurn(
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
     providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
     generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],
+    tokens: turnTokens(record.usage, ledgers[0]),
     spend: ledgers[0] ? turnSpend(ledgers[0], new Date()) : { microUsd: null, estimated: ["no ledger was written for the turn"] },
   };
 }
@@ -357,7 +372,7 @@ afterAll(() => {
       `models: ${JSON.stringify(models)}`,
       `clock: every turn started at ${clockReport.pinnedAt} (12:30 JST); the run really ran ${clockReport.startedAt} to ${clockReport.finishedAt}`,
       `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-2026-10-12-h; not a failure)`,
-      `per turn: ${summary.meanInputTokens ?? "?"} in, ${summary.meanOutputTokens ?? "?"} out, ${summary.meanSteps ?? "?"} steps, ${summary.meanMicroUsd === null ? "?" : dollars(summary.meanMicroUsd)}; persona path ${personas ? `read, ${rows.reduce((n, row) => n + (row.switches ?? 0), 0)} switch(es)` : "not read (no personas in this build), persona checks skipped"}`,
+      `per turn (tokens and cost both include the classifier call; n = turns behind each mean): ${summary.meanInputTokens ?? "?"} in (n=${summary.counts.inputTokens}), ${summary.meanOutputTokens ?? "?"} out (n=${summary.counts.outputTokens}), ${summary.meanSteps ?? "?"} steps (n=${summary.counts.steps}), ${summary.meanMicroUsd === null ? "?" : dollars(summary.meanMicroUsd)} (n=${summary.counts.microUsd}); persona path ${personas ? `read, ${rows.reduce((n, row) => n + (row.switches ?? 0), 0)} switch(es)` : "not read (no personas in this build), persona checks skipped"}`,
       `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${estimatedTurns > 0 ? `, ${estimatedTurns} turn(s) of it estimated` : ""}${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
         (row) =>
@@ -431,8 +446,7 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
           stepDurationsMs: turn.stepDurationsMs,
           providers: turn.providers,
           generationIds: turn.generationIds,
-          inputTokens: turn.record.usage.inputTokens,
-          outputTokens: turn.record.usage.outputTokens,
+          ...turn.tokens,
           answer: turn.text,
           microUsd,
           costEstimated: estimated,
