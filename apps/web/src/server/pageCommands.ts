@@ -38,7 +38,7 @@ import { appendToStream, readStream } from "./eventStore";
 import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { checkPageDocForWrite, toPage } from "./pages";
+import { checkPageDocForWrite, toPage, withShownTitle } from "./pages";
 import { applyPageEvents } from "./projections";
 
 export type PageCommandResult =
@@ -343,7 +343,7 @@ async function readPage(
   pageId: string,
 ): Promise<Page | null> {
   const [row] = await tx.select().from(pages).where(eq(pages.id, pageId));
-  return row === undefined ? null : toPage(row);
+  return row === undefined ? null : withShownTitle(toPage(row), tx);
 }
 
 /**
