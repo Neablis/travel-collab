@@ -120,17 +120,23 @@
         }
       },
       "indexes": {
-        "ai_turn_outcomes_turn": {
-          "name": "ai_turn_outcomes_turn",
+        "ai_turn_outcomes_turn_kind": {
+          "name": "ai_turn_outcomes_turn_kind",
           "columns": [
             {
               "expression": "turn_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
