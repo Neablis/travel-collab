@@ -240,6 +240,35 @@ export type DatesRef = z.infer<typeof DatesRef>;
 export const AttributeFieldRef = z.enum(ATTRIBUTE_FIELD_PATHS);
 export type AttributeFieldRef = z.infer<typeof AttributeFieldRef>;
 
+/**
+ * The three kinds of row *What needs you* (`open`) draws: a conflict, an empty
+ * day, the parked ideas (M43 decision 5).
+ *
+ * **The row classes, not `Conflict.kind`.** That is an open string the domain
+ * can add to, so a control listing its values would leave any kind added later
+ * unreachable; every conflict is one class however it is labelled.
+ */
+export const OpenClass = z.enum(["conflict", "empty-day", "parked"]);
+export type OpenClass = z.infer<typeof OpenClass>;
+
+/**
+ * `open`'s `class` param: the row classes it shows. Absent is all three — a
+ * filter left alone means everything (ADR-039 decision 2) — so the key is
+ * stored only when something is hidden.
+ *
+ * Stored in a widget's params, so here for the reason `TagRef` is (ADR-037
+ * decision 9). One spelling per set, as `DateListRef`: each class once, in
+ * `OpenClass` order, and never empty — showing nothing is not a filter anybody
+ * means.
+ */
+export const OpenClassRef = z
+  .array(OpenClass)
+  .min(1, "show at least one class, or leave class out for all three")
+  .refine((list) => list.every((value, i) => i === 0 || OpenClass.options.indexOf(list[i - 1]!) < OpenClass.options.indexOf(value)), {
+    message: "list each class once, in conflict, empty-day, parked order",
+  });
+export type OpenClassRef = z.infer<typeof OpenClassRef>;
+
 export const FILTER_VALUE_SCHEMAS = {
   day: DayRef,
   city: CityRef,

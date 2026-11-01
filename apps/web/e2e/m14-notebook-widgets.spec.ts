@@ -1590,6 +1590,44 @@ test("What needs you lists a conflict, an empty day and the parked ideas, and ea
   await expect(page.getByRole("tab", { name: "Plan" })).toHaveAttribute("aria-selected", "true");
 });
 
+test("What needs you hides a class and narrows to a day from its settings, and keeps both after a reload", async ({ page }) => {
+  // M43 decision 5. The same trip as above: an overlap on Day 1, Day 2 empty,
+  // one idea parked. Each filter alone leaves two rows; both together leave
+  // Day 2's alone, so the one row is the proof that each did its part.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  const detail = await page.request.get(`/api/trips/${tripId}`);
+  const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
+  const dayId = trip.days[0]!.dayId;
+  await addStopViaApi(page, tripId, "Breakfast at the covered market", { dayId, timeWindow: { start: "09:00", end: "11:00" } });
+  await addStopViaApi(page, tripId, "The walk up to the shrine", { dayId, timeWindow: { start: "10:00", end: "12:00" } });
+  await addStopViaApi(page, tripId, "Port cellar tour");
+
+  await openSeededPage(page);
+  await insertFromList(page, /What needs you/, "needs");
+  const panel = settingsPanel(page);
+  const parked = panel.getByRole("checkbox", { name: "Parked ideas" });
+  await expect(parked).toBeChecked();
+  await parked.click();
+  await expect(parked).not.toBeChecked();
+  const days = panel.getByRole("button", { name: "What needs you: dates" });
+  await days.click();
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
+  await page.keyboard.press("Escape");
+  await expect(days).not.toHaveText("All days");
+  // The class survived the second filter: a merge, not a replace.
+  await expect(parked).not.toBeChecked();
+  await finishEditing(page);
+
+  const rows = page.getByRole("list", { name: "What needs you" }).getByRole("listitem");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("Day 2 has nothing on it");
+  await page.reload();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("Day 2 has nothing on it");
+});
+
 test("the trip strip fits its column on a 20-day trip, with no sideways scroll", async ({ page }) => {
   // Mitchell, on the PR #221 preview, on this widget: *"I would love if this
   // could fit without having to scroll, and be more space efficient, but might

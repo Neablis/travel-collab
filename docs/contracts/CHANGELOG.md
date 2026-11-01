@@ -13,6 +13,22 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-31 — `OpenClass` and `OpenClassRef`: *What needs you*'s class filter (M43 part 4)
+- **New** (`packages/contracts/src/pages.ts`): `OpenClass`, the three row classes `open` draws
+  (`conflict`, `empty-day`, `parked`), and `OpenClassRef`, the stored value of its `class` param:
+  the classes shown, each once in `OpenClass` order, never empty. Absent is all three.
+- Why: M43 decision 5. The filter offers the row classes, not `Conflict.kind`, which is an open
+  string; a closed list of its values would make any kind added later unreachable. A widget param
+  is persisted in every document carrying it, so its shape is the contract's (ADR-037 decision 9).
+- Consumers updated: `packages/pages` — `open` takes `class` and the `dates` filter, declares a
+  day `selection` (so it is now a primitive and follows a page's date scope), and a new
+  `WidgetInput` type `choices`; `apps/web` — `ChoicesFilter.tsx` and `widgetBind.tsx` (the control
+  in the settings column, the phone sheets and the insert step, and the "Showing" line) and
+  `server/assistant/tools/widgets.ts` (`get_widget`'s output schema lists a `choices` input), in
+  this same PR.
+- Public API: no change. Page content is not in `openapi.json`.
+- Breaking? no. Additive: a stored `open` has `{}` params, which reads as every class and day.
+
 ## 2026-10-30 — `AssistantAsk.options` at most `MAX_OPTION_CARDS` (4) (M56 part 15)
 - **Changed** (`packages/contracts/src/assistant.ts`): `AssistantAsk.options` is 2 to
   `MAX_OPTION_CARDS`, down from 2 to 6, the same constant `AssistantOptions.cards` uses (PR 652).

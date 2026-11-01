@@ -1,30 +1,22 @@
-import { z } from "zod";
-import type { TripDetail } from "@tc/contracts";
+import type { z } from "zod";
+import { OpenClass, OpenClassRef, type FilterDimension, type TripDetail } from "@tc/contracts";
 import type { Item, ItemsPayload, MacroDef, WidgetContext } from "../../registry-types";
 import { itemsOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { dayLabel, formatShortDate } from "../../format";
 import { dayCity } from "../../dayCity";
 import type { ResolvedLinkTarget } from "../../linkTarget";
+import { filterInputs, filterParams } from "../../filters";
+import { narrow } from "../../select";
 
 // `open` — "What needs you". SPEC §25's second half of the Overview page.
 //
-// **ADR-039's twelve primitives are still twelve.** This is a registered widget
-// that is not a primitive, and the difference is the decision's own definition:
-// a primitive is `entity + filters + shape`, and this has no entity to narrow.
-// It is the trip's whole open list, always.
-//
-// That distinction was not obvious until the registry's own tests made it.
-// Registering this as a thirteenth primitive failed three of them at once —
-// `PRIMITIVE_NAMES` derives from `selection` being present, so a widget without
-// one drops out of every primitive sweep, which is precisely what
-// `PRIMITIVE_NAMES`' doc comment says should happen. The tests were right and
-// the first draft of this file was wrong; ADR-039 needs no amendment.
-//
-// What the decision IS protecting still applies and is honoured here: a NAMED
-// widget that is really an existing primitive plus params must be a preset,
-// because seventeen names once hid four duplicate pairs. Nothing among the
-// twelve resolves a conflict, an empty day or the backlog, so there is no
+// **A day primitive since M43 decision 5.** It shipped with no `selection`,
+// the trip's whole open list; filtering by days gave it the entity and filter
+// ADR-039 decision 1 defines a primitive by, so it now sits in every primitive
+// sweep. A NAMED widget that is an existing primitive plus params must still
+// be a preset, because seventeen names once hid four duplicate pairs; nothing
+// else resolves a conflict, an empty day or the backlog, so there is no
 // primitive for this to be a preset of.
 //
 // **It reads only what the trip already says.** §25: *"Everything on it is
@@ -35,12 +27,13 @@ import type { ResolvedLinkTarget } from "../../linkTarget";
 // `backlog` entry — the three things the unscheduled rack, the conflict banner
 // and the day columns are each already showing somewhere else.
 //
-// **It declares no filters.** Every other repeat primitive narrows by day, city
-// or tag; this one is the trip's whole open list by definition, and a
-// "what needs you, on day 3 only" is a question nobody asked. `params` is
-// therefore an empty object rather than `filterParams([])`, which keeps it out
-// of the bind controls entirely: a widget with nothing to bind shows no bind
-// row, and §26 wants the settings panel to say only true things.
+// **It filters by class and by days** (M43 decision 5). The class is one of
+// its three kinds of row, never a `Conflict.kind`; the days are the `dates`
+// dimension every day-selecting widget offers, so a page's date scope fills it
+// when the author left it open, as it does theirs (`followsDateScope`). A
+// parked idea is on no day and the budget is the whole trip's, so a Days
+// filter places neither: only the class filter hides them.
+
 /**
  * What each conflict kind is CALLED at the start of its row.
  *
@@ -73,8 +66,13 @@ const CONFLICT_LABEL: Record<string, string> = {
  */
 const FALLBACK_CONFLICT_LABEL = "Conflict";
 
-const OpenParams = z.object({});
+const OPEN_FILTERS = ["dates"] as const satisfies readonly FilterDimension[];
+
+const OpenParams = filterParams(OPEN_FILTERS, { class: OpenClassRef.optional() });
 type OpenParams = z.infer<typeof OpenParams>;
+
+/** What each class is called in the settings, in `OpenClass` order, which is the order the rows come in. */
+const CLASS_LABEL: Record<OpenClass, string> = { conflict: "Conflicts", "empty-day": "Empty days", parked: "Parked ideas" };
 
 const toDay = (day: TripDetail["days"][number]): ResolvedLinkTarget => ({ kind: "day", day: { kind: "dayId", dayId: day.dayId } });
 // The rack is on the Plan, so that is where a parked idea is placed — and
@@ -94,8 +92,13 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
   // decision 4), and `WidgetShape` is a contract this change does not touch.
   shape: "repeat",
   params: OpenParams,
-  inputs: [],
-  selection: undefined,
+  inputs: [
+    { name: "class", type: "choices", label: "Show", options: OpenClass.options.map((value) => ({ value, label: CLASS_LABEL[value] })) },
+    ...filterInputs(OPEN_FILTERS),
+  ],
+  // `day` is the entity because the Days filter selects days: a conflict is on
+  // the day holding its stops and an empty day is one.
+  selection: { entity: "day", filters: OPEN_FILTERS },
   description: "Everything waiting on a decision: overlaps, empty days and parked ideas.",
   // The empty state is the good one here, and it should read like it. Every
   // other primitive's `emptyText` reports an absence the reader might not have
@@ -103,8 +106,13 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
   // the design's words (`openBlock`'s `emptyLine`).
   emptyText: "Nothing is waiting on you — every day has something on it and no two stops collide.",
   preview: "one row per thing waiting on a decision",
-  resolve: ({ trip }: WidgetContext, _params): MacroResult<ItemsPayload> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<ItemsPayload> => {
     if (!trip) return needsTrip();
+    const shows = new Set<OpenClass>(params.class ?? OpenClass.options);
+    // The days the Days filter, or the page's scope, leaves (`narrow`).
+    const selection = narrow(trip, globals, { dates: params.dates }, item);
+    if (selection.status !== "ok") return selection;
+    const onDays = new Set(selection.value.days);
 
     const items: Item[] = [];
 
@@ -117,11 +125,12 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
     //    subject is the trip itself, so it is on no day, and its own sentence
     //    takes the line a date and city would.
     const dismissed = new Set(trip.dismissedConflictIds);
-    for (const conflict of trip.conflicts) {
+    for (const conflict of shows.has("conflict") ? trip.conflicts : []) {
       if (dismissed.has(conflict.id)) continue;
       const label = CONFLICT_LABEL[conflict.kind] ?? FALLBACK_CONFLICT_LABEL;
       const index = trip.days.findIndex((day) => conflict.subjects.some((id) => day.activityIds.includes(id)));
       const day = trip.days[index];
+      if (day !== undefined && !onDays.has(index)) continue;
       items.push(
         day === undefined
           ? { label, sub: conflict.description, right: "Fix in Plan", tone: "warning", act: PLAN }
@@ -131,8 +140,8 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
 
     // 2. Empty days. A day with no stops is a decision not yet made, and it is
     //    the one item here that is about a day rather than a thing on one.
-    for (const [index, day] of trip.days.entries()) {
-      if (day.activityIds.length > 0) continue;
+    for (const [index, day] of shows.has("empty-day") ? trip.days.entries() : []) {
+      if (day.activityIds.length > 0 || !onDays.has(index)) continue;
       items.push({ label: `${dayLabel(index)} has nothing on it`, sub: whereAndWhen(day, trip.activities), right: "Plan it", tone: "info", act: toDay(day) });
     }
 
@@ -141,7 +150,7 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
     //    An id with no activity behind it is not counted: `activities` and
     //    `backlog` are two fields of one projection and can only disagree
     //    mid-write, which is a reason to say one fewer, not to name a blank.
-    const parked = trip.backlog.flatMap((id) => trip.activities[id]?.title ?? []);
+    const parked = shows.has("parked") ? trip.backlog.flatMap((id) => trip.activities[id]?.title ?? []) : [];
     if (parked.length > 0) {
       items.push({
         label: parked.length === 1 ? "1 idea is parked" : `${parked.length} ideas are parked`,
