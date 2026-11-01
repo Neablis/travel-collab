@@ -25,9 +25,16 @@ const widths = vi.hoisted(() => {
   const listeners = new Set<() => void>();
   return {
     isPhone: false,
+    // `undefined` is the real hook's answer before it is known (its server
+    // snapshot); a test resolves it where the browser would.
+    docks: false as boolean | undefined,
     listeners,
     set(isPhone: boolean) {
       this.isPhone = isPhone;
+      listeners.forEach((listener) => listener());
+    },
+    setDocks(docks: boolean | undefined) {
+      this.docks = docks;
       listeners.forEach((listener) => listener());
     },
   };
@@ -38,7 +45,15 @@ vi.mock("@/lib/useIsPhone", async (orig) => {
     ...actual,
     // A phone, known from the first client render, as `matchMedia` answers it.
     useIsPhoneKnown: () => true,
-    useDocksAssistant: () => false,
+    useDocksAssistant: () =>
+      useSyncExternalStore(
+        (onChange) => {
+          widths.listeners.add(onChange);
+          return () => widths.listeners.delete(onChange);
+        },
+        () => widths.docks,
+        () => undefined,
+      ),
     // `useIsPhone`'s state, which a test moves where its effect would.
     useIsPhone: () =>
       useSyncExternalStore(
@@ -100,6 +115,7 @@ beforeEach(() => {
   // The focused day is remembered for the session; each test arrives fresh.
   sessionStorage.clear();
   widths.isPhone = false;
+  widths.docks = false;
   focus.held = false;
   focus.queued = [];
 });
@@ -200,7 +216,16 @@ describe("TripBoardScreen — a phone's Plan is first drawn in its right form", 
         </FocusProvider>
       </TripProvider>,
     );
+    // The width is not known yet: the rail waits rather than mount docked.
+    act(() => widths.setDocks(undefined));
     act(() => ask?.onOpen());
+    // Let the lazy rail resolve, so an absent header means gated, not pending.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.queryByTestId("assistant-scrim")).toBeNull();
+    expect(screen.queryByTestId("assistant-header")).toBeNull();
+    act(() => widths.setDocks(false));
     expect(await screen.findByTestId("assistant-scrim")).toBeTruthy();
   });
 });

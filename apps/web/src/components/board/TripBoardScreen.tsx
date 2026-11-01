@@ -584,14 +584,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // Which of SPEC §9/§23's presentations the assistant opens as. `AssistantRail`
   // is emphatic that the caller must not reach for `useIsPhone()` — it returns
   // `false` on the server and on the first client paint, so a JS-gated swap
-  // paints the docked rail for a frame before correcting. That flash is real
-  // wherever the panel can be on screen at first paint. It is not reachable
-  // here, and the reason is `useAssistantVisibility`:
-  // `useState(false)`, with no restore from storage, no URL parameter and no
-  // server prop, so `assistant.open` is false on EVERY first paint. The rail is
-  // unmounted then. The only thing that opens it is a click, which cannot be
-  // handled before hydration — and `useIsPhone`'s effect has run by then. So
-  // the swap is decided strictly after the correction, never across it.
+  // would paint the docked rail for a frame before correcting. The rail below
+  // therefore reads `useDocksAssistant` (the media query, `undefined` until
+  // known) and is not mounted until it is: `assistant.open` is false on every
+  // first paint, but the phone bar's Ask can be replayed in the hydration
+  // commit, before `useIsPhone`'s effect has run.
   //
   // A CSS breakpoint is what the rail's own docstring asks for and it is not
   // available at this seam anyway: `presentation` picks a geometry CLASS, so
@@ -1921,10 +1918,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               rememberDraftAs={`trip:${tripId}`}
               incoming={handOff}
               onIncomingTaken={() => setHandOff(null)}
-              contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
+              contextLine={docksAssistant === false ? phoneAsk.contextLine : assistantContextLine}
               scope={askScope}
               turns={thread}
-              suggestions={isPhone ? phoneAsk.quickAsks : assistantSuggestions}
+              suggestions={docksAssistant === false ? phoneAsk.quickAsks : assistantSuggestions}
               carriedAsks={carriedAsks}
               carriedTurnId={carriedTurnId}
               onCarriedAskTaken={(taken) => {
