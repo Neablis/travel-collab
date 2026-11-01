@@ -1,11 +1,13 @@
 import {
   CURRENT_PAGE_DOC_VERSION,
+  OVERVIEW_KIND,
   PAGE_CHANGED_CODE,
   PageCommand,
   PageDoc as PageDocSchema,
   PageEvent as PageEventSchema,
   SYSTEM_ACTOR_ID,
   migratePageDoc,
+  pageKindOf,
   seedKeyOf,
   serializePageDoc,
   type EventEnvelope,
@@ -27,6 +29,7 @@ import {
   defaultDocumentFor,
   instantiateMissingDefaults,
   missingDefaultTemplates,
+  overviewDisplayTitle,
   TODAY_SEED_KEY,
   type SeedCandidate,
 } from "@tc/pages";
@@ -97,12 +100,25 @@ export async function executePageCommand(
   }
   const unchecked = command;
 
-  return commitPageStep(unchecked.tripId, actorId, "editor", async ({ tx, pages: pagesState }) => {
+  return commitPageStep(unchecked.tripId, actorId, "editor", async ({ tx, pages: pagesState, tripName }) => {
     let command = unchecked;
     if (command.type === "EditPage" && command.content !== undefined) {
       const checked = checkPageDocForWrite(command.content, pagesState[command.pageId]?.content);
       if (!checked.ok) return { ok: false, error: { code: "invalid-page", message: checked.message } };
       command = { ...command, content: checked.doc };
+    }
+    // **The Overview's shown title, sent back, is not a rename** (M43 part 2).
+    // Every read hands out `Overview — <trip>`, and a v1 or MCP client edits by
+    // returning the page it read; stored, that text would stop the Overview
+    // following the trip's name for good.
+    const current = command.type === "EditPage" ? pagesState[command.pageId] : undefined;
+    if (
+      command.type === "EditPage" &&
+      current !== undefined &&
+      pageKindOf(current.seedKey) === OVERVIEW_KIND &&
+      command.title === overviewDisplayTitle(current.title, tripName)
+    ) {
+      command = { ...command, title: undefined };
     }
     let decision = decidePageCommand(pagesState, command, actorId);
 
@@ -142,11 +158,12 @@ export async function executePageCommand(
   });
 }
 
-/** What a step inside `commitPageStep` sees: the stream as read, and the page aggregate with its genesis folded in. */
+/** What a step inside `commitPageStep` sees: the stream as read, the page aggregate with its genesis folded in, and the trip's name. */
 type PageStep = {
   tx: Parameters<typeof appendToStream>[0];
   history: EventEnvelope[];
   pages: PagesState;
+  tripName: string;
 };
 
 /** A step's answer: the events to append (none is a no-op), and which page to read back. */
@@ -215,7 +232,7 @@ async function commitPageStep(
       const genesis = await missingGenesis(tx, tripId, foldPages(history));
       const pagesState = genesis.reduce((acc, event) => evolvePages(acc, event), foldPages(history));
 
-      const outcome = await step({ tx, history, pages: pagesState });
+      const outcome = await step({ tx, history, pages: pagesState, tripName: tripState.name });
       if (!outcome.ok) return outcome;
 
       // A no-op: an edit session that ended where it began (typed, then undone),

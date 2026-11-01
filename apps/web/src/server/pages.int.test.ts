@@ -9,11 +9,16 @@ import { listPageEntries, listPages, getPage } from "./pages";
 import { executePageCommand } from "./pageCommands";
 import { grantMembership } from "./access/members";
 import { entitleAccounts } from "./test-support/entitledAccount";
+import { mintToken } from "./api-tokens";
+import { issueGrant } from "./entitlements/grants";
+import { livePlanVersion } from "./entitlements/planVersions";
+import { upsertUser } from "./users";
 
 let currentUserId = "user-1";
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => ({ user: { id: currentUserId } })) }));
 // After the mock, so the route picks up the mocked `auth`.
 const { POST } = await import("@/app/api/trips/[tripId]/pages/route");
+const { PATCH: PATCH_V1 } = await import("@/app/api/v1/trips/[tripId]/pages/[pageId]/route");
 
 // The seeded titles, read from the templates rather than typed here.
 //
@@ -170,6 +175,32 @@ describe("pages repository", () => {
     await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, again" }, "user-1");
     expect((await listPages(tripId))[0]!.title).toBe("Our plan");
     expect((await getPage(overview!.id))!.title).toBe("Our plan");
+  });
+
+  // The plan's "saving the derived text unchanged must not freeze it". A v1 or
+  // MCP client edits by sending back the page it read, title and all, and that
+  // title is the derived one; stored, the Overview would stop following the trip.
+  it("an Overview edited through v1 with the title it was shown keeps following the trip's name", async () => {
+    const owner = `pages-v1-${randomUUID().slice(0, 8)}`;
+    await upsertUser({ id: owner, email: null, name: null, image: null });
+    const premium = livePlanVersion("premium");
+    await issueGrant({ userId: owner, planId: premium.planId, planVersion: premium.version, source: "admin", grantedBy: "test-fixture", expiresAt: null });
+    const minted = await mintToken(owner, { name: "pages", scopes: ["notebook:read", "notebook:write"], tripIds: null, expiresInDays: 30 });
+    if (!minted.ok) throw new Error(minted.reason);
+    const tripId = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: TRIP_NAME }, owner);
+    const [overview] = await listPages(tripId);
+    const res = await PATCH_V1(
+      new Request("http://localhost/x", {
+        method: "PATCH",
+        headers: { authorization: `Bearer ${minted.created.secret}`, "content-type": "application/json" },
+        body: JSON.stringify({ title: overview!.title, content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "Ours" }] }]) }),
+      }),
+      { params: Promise.resolve({ tripId, pageId: overview!.id }) },
+    );
+    expect(res.status, await res.clone().text()).toBe(200);
+    await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, at last" }, owner);
+    expect((await getPage(overview!.id))!.title).toBe("Overview — Rome, at last");
   });
 
   // KI-6 regression. Two concurrent first visits (two tabs, or a double-fetch)

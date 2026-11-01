@@ -38,11 +38,13 @@ describe("templates", () => {
     expect(undeletable).toEqual(["overview", "today"]);
   });
 
-  // M43 decision 3: a stored seed title, today's or the pre-§25 one, reads as
-  // the trip's; anything else is a person's name for the page and stays.
+  // M43 decision 3: the stored seed title reads as the trip's; anything else is
+  // a person's name for the page and stays. "Trip Overview" was never an
+  // Overview's seed (it was the unmarked `trip-overview` notebook's), so an
+  // Overview holding it was named so by somebody.
   it("shows an unnamed Overview as the trip's, and a named one as named", () => {
     expect(overviewDisplayTitle("Overview", "Lisbon 2028")).toBe("Overview — Lisbon 2028");
-    expect(overviewDisplayTitle("Trip Overview", "Lisbon 2028")).toBe("Overview — Lisbon 2028");
+    expect(overviewDisplayTitle("Trip Overview", "Lisbon 2028")).toBe("Trip Overview");
     expect(overviewDisplayTitle("Our plan", "Lisbon 2028")).toBe("Our plan");
   });
 
