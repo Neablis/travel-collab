@@ -556,6 +556,41 @@ nothing smuggles mutable state into a resolver, which decision 3c already forbid
    `trip.cities` cannot be addressed until cities exist as a collection rather than as
    `Location.city` derived per activity by `cityFor()`.
 
+## Amendment 2026-10-31 (M43, decision 4): `open` gets its own row shape, and an action is a declared link
+
+*What needs you* (`open`) was a `repeat` widget drawn as a two-column table, and the design is
+not a table (`.design-sync/handoff/design/Trip Planner Redesign.dc.html`, `openBlock`). It
+becomes a list of items, each `{ label, sub, right, tone, act }`:
+
+- `label` and `sub` are text; `right` is the action's text (*Fix in Plan*, *Plan it*,
+  *Place them*); `tone` is a closed set (`warning`, `info`, `plain`) the renderer maps to tokens.
+- **`act` is an `ActTarget`**: a resolved `LinkTarget` (`packages/pages/src/linkTarget.ts`), or the
+  widget-only `rack` kind (Plan with the backlog rack open, for *Place them*; part 3's review).
+  The renderer turns it into an href with the same `linkHref` blocks already use. `rack` is never
+  stored, so the link-card schema is unchanged. It is never a control the widget emits and never
+  a URL string the widget builds.
+
+So `Rendered` gains one kind for it. Decision 3 stands unchanged: the output is still a closed
+union of data, rendered as text nodes and links the renderer owns, and no markup crosses the
+seam. A later widget that wants rows with an action reuses this kind rather than adding another.
+`open` also takes filters now (M43 decision 5), so its "declares no filters" comment goes.
+
+Conflicts are **one row per day and kind** (Mitchell, 2026-11-01, on part 3's review): three
+overlapping stops on Day 1 read `3 overlaps on Day 1`, not three identical rows, and a single
+conflict keeps its own wording. Conflicts with no day (budget, backlog anchor) fold by kind alone.
+
+**An empty that is good news can be narrower than `emptyText`** (Mitchell, 2026-11-01, from the
+M43 production walk; part 5, PR 665). A widget whose empty is good news (`emptyIsGood`) has two
+empties: the unfiltered one, drawn as its green `emptyText`, and a filtered one, drawn as a muted
+chip, because a filter may have hidden what the good news vouches for. A scope the author did not
+set is not a filter. When `open` finds nothing on the one day a notebook's scope leaves (its
+today, a day line) and no class or Days filter is set, it returns `empty` with `good: true`
+(`goodEmpty`, `packages/pages/src/result.ts`), and the renderer draws the green line worded for
+that day: *Nothing needs you today* or *Nothing needs you on Day N*. Before day 1 (`planning`,
+`soon`), a Today notebook's no-day scope is dropped so the whole trip is checked; and
+`renderMacro` leaves a good-news widget's off-dates empty to the widget instead of replacing it
+with *Nothing planned today*. A later good-news widget reuses `good`, not a new status.
+
 ## Alternatives rejected
 
 - **Keep the switch and add cases.** It is the status quo, it costs one component edit per

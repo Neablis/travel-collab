@@ -202,7 +202,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M43 — A trip's notebooks keep up with their templates
+Current milestone: M44 — A stop knows what was booked, and what it sits inside
 
 ### Archived decision notes
 

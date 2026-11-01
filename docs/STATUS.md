@@ -21,8 +21,19 @@ general setup.
 
 ## Where the work is right now
 
+**M43 closed 2026-11-01, gate 6 of 6**, by `pnpm milestone close M43 --confirm` on part 0
+(PR 659, `ccr-96adddf8-iksgbh`, prose only), which **waits on Mitchell's merge**. All five code
+parts are on `main` in `c3452b7`: PR 661 (the Overview's identity is the `pages.kind` column,
+migration `0070`, applied by `migrate-production` run 41272194596), PR 662 (the derived Overview
+title), PRs 660 and 663 (*What needs you* as the design's rows, with class and Days filters), all
+in `e3629e2`, and part 5 (PR 665, `c3452b7`), from Mitchell's production walk of 2026-11-01:
+a day-scoped empty is the green line worded for the day, and before day 1 a Today notebook's
+*What needs you* checks the whole trip (ADR-037's M43 amendment). Evidence, retro and spend (the
+first session carried in from its hand-off) are in `docs/milestones/M43-notebooks-keep-up.md`;
+the plan is deleted.
+
 **M56 closed 2026-10-30, gate 17 of 17**, by `pnpm milestone close M56 --confirm` on part 0
-(PR 637, `claude/elegant-maxwell-h4ldi1`, prose only), which **waits on Mitchell's merge**. All
+(PR 637, `claude/elegant-maxwell-h4ldi1`, prose only), merged to `main` as `7a0b0c8`. All
 sixteen code parts are on `main` in `3ac8c02`, none with a migration: parts 1 to 6 (PRs 638 to
 643), parts 7 to 11 from the first preview walk (PRs 648 to 653), and parts 12 to 16 from the
 second (PRs 654 to 658), each with `ci-ok` green on its final head. Mitchell walked round 2 on
@@ -66,10 +77,12 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** Mitchell merges M56's part 0 (PR 637). Then scope M43 with him
-(`plan-a-milestone`; `docs/milestones/M43-notebooks-keep-up.md`, not scoped): the Overview's
-identity in the database, its derived title, and the `open` widget's design and filters. Hand
-tasks for Mitchell from M56: delete the stray remote branch `claude/m56-part5-ask-show-hand-off`
+**Next action:** Mitchell merges M43's part 0 (PR 659), then removes the orchestrator's
+`tc-orchestrator` guard file from that session's git dir. Then scope M44 with him
+(`plan-a-milestone`; `docs/milestones/M44-a-stop-knows-what-was-booked.md`, not scoped; since
+2026-10-22 it keeps containment only, `booking` having moved to M52). Open follow-ups from M43:
+KI-2026-11-01-s, -t, -u and -v; PR 660's hand-listed plural test (kept, his decision); part 5's
+untested undated trip (his call). Hand tasks for Mitchell from M56: delete the stray remote branch `claude/m56-part5-ask-show-hand-off`
 (`1449913`), and, in the old container only, the empty `/tc-orchestrator` at the filesystem root.
 Open follow-ups from M56: KI-2026-10-30-a, -b, -c, -m and -p, KI-2026-10-28-e, whether
 LocationIQ's `/v1/search` returns `name`, PR 655's unresolved CodeQL thread, and the live eval
@@ -79,7 +92,7 @@ KI-20261026-x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M
 KI-20261025-w, and the candidate *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M43 (current) → M44 → M53 (minted 2026-10-25 from an SEO audit, not scoped),
+3 moderate). The order is M44 (current) → M53 (minted 2026-10-25 from an SEO audit, not scoped),
 with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
@@ -130,7 +143,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 → M44 → M53`; the M51 reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 ✓ → M44 → M53`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
