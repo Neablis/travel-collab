@@ -564,9 +564,11 @@ becomes a list of items, each `{ label, sub, right, tone, act }`:
 
 - `label` and `sub` are text; `right` is the action's text (*Fix in Plan*, *Plan it*,
   *Place them*); `tone` is a closed set (`warning`, `info`, `plain`) the renderer maps to tokens.
-- **`act` is a `LinkTarget`** (`packages/pages/src/linkTarget.ts`), data the renderer turns into
-  an href with the same `linkHref` blocks already use. It is never a control the widget emits
-  and never a URL string the widget builds.
+- **`act` is an `ActTarget`**: a resolved `LinkTarget` (`packages/pages/src/linkTarget.ts`), or the
+  widget-only `rack` kind (Plan with the backlog rack open, for *Place them*; part 3's review).
+  The renderer turns it into an href with the same `linkHref` blocks already use. `rack` is never
+  stored, so the link-card schema is unchanged. It is never a control the widget emits and never
+  a URL string the widget builds.
 
 So `Rendered` gains one kind for it. Decision 3 stands unchanged: the output is still a closed
 union of data, rendered as text nodes and links the renderer owns, and no markup crosses the

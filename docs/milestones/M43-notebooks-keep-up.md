@@ -76,7 +76,7 @@ Candidates absorbed (each deleted by this gate):
   title is the user's rename and is shown as stored. Reset writes `Overview` back, so it derives
   again. No migration and no flag: the event log cannot tell a reset from a rename.
 - **4: follow the design.** `open` renders its own row shape `{ label, sub, right, tone, act }`
-  where `act` is a declared `LinkTarget` the renderer turns into a link (ADR-037 amendment,
+  where `act` is a declared target (a `LinkTarget`, or the widget-only `rack`) the renderer turns into a link (ADR-037 amendment,
   2026-10-31). Parked ideas are **one** grouped row (`N ideas are parked`, the first two titles,
   *Place them*), as the design draws it, not a row per idea.
 - **5: three classes, and `open` follows the notebook's date scope.** The class filter offers

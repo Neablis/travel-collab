@@ -81,7 +81,7 @@ Theme: `open` emits `{ label, sub, right, tone, act }` items rendered as linked 
 
 Files and entry points:
 - `packages/pages/src/registry-types.ts:299-355`: a new `Rendered` kind (e.g. `items`) with
-  `tone: "warning" | "info" | "plain"` and `act: LinkTarget` (ADR-037 amendment 2026-10-31).
+  `tone: "warning" | "info" | "plain"` and `act: ActTarget` (a resolved `LinkTarget` or the widget-only `rack`; ADR-037 amendment 2026-10-31).
 - `packages/pages/src/macros/primitives/open.ts`: rows per conflict (`<label> on <day>`, sub
   `<date> · <city>`, *Fix in Plan*, warning, act = that day in Plan), per empty day
   (`<day> has nothing on it`, *Plan it*, info), and **one** parked row (`N ideas are parked`,
