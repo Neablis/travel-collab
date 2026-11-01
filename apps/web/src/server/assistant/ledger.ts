@@ -139,10 +139,10 @@ export interface TurnCost {
   planExamples: number | null;
   /**
    * The persona the turn entered at (M57, ADR-085): the page's, before any
-   * switch. Absent (read as null) on a ledger built by a producer that
-   * predates M57; the recorder always sets it.
+   * switch. Required: a producer that forgets it must fail to type-check
+   * rather than write a NULL the M57 gate exists to catch.
    */
-  entryPersona?: PersonaId | null;
+  entryPersona: PersonaId;
 }
 
 /**
@@ -254,8 +254,8 @@ export interface StepSpend {
    * cost is looked up from the Gateway by this id, never stored here (rule 2).
    */
   gatewayGenerationId: string | null;
-  /** The persona this step ran as (M57); optional like the two below, for fixtures that predate it. Equal to the entry persona until a step switches. */
-  persona?: PersonaId | null;
+  /** The persona this step ran as (M57); required, like `entryPersona`. Equal to the entry persona until a step switches. */
+  persona: PersonaId;
   /** The persona the step before it ran as, on the step that crossed an edge; null on every other. */
   fromPersona?: PersonaId | null;
   /** Which kind of edge the step crossed to get to `persona`; null with `fromPersona`. */

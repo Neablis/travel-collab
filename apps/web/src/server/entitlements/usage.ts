@@ -99,7 +99,7 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
         planVersionRef: cost.planVersionRef,
         latencyMs: cost.latencyMs,
         planExamples: cost.planExamples,
-        entryPersona: cost.entryPersona ?? null,
+        entryPersona: cost.entryPersona,
         createdAt: now,
       })
       .onConflictDoNothing({ target: aiUsage.id });
@@ -150,7 +150,7 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
               durationMs: step.durationMs,
               provider: step.provider,
               gatewayGenerationId: step.gatewayGenerationId,
-              persona: step.persona ?? null,
+              persona: step.persona,
               fromPersona: step.fromPersona ?? null,
               edgeKind: step.edgeKind ?? null,
               createdAt: now,

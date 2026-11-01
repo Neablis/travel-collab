@@ -23,7 +23,14 @@ Format:
 - Consumers updated: `apps/web` — `handleAskRequest.ts` puts it on the final chunk of both doors
   (and keeps it through `suggestOnFinish`), `lib/apiClient.ts` reads it as a `turn` event, and
   `useAskThread.ts` keeps it on the assistant turn.
-- Breaking? no — optional; a client that ignores it is unchanged, and a pre-M57 server sends none.
+- Breaking? no for a current client; **one narrow loss for a stale one.** The field is optional, a client
+  that ignores it is unchanged, and a pre-M57 server sends none. But a PWA bundle cached from before this
+  deploy still parses with the old strict `silent` branch, which rejects the unknown `turnId`. A turn
+  whose final chunk carried only `paletteCommands` (the navigate tools) now also carries `turnId`, so that
+  stale client drops the chunk and the palette command (for example "take me to the map") until it
+  reloads. Non-silent branches strip the key and are unaffected; a turn with an outcome is unaffected. No
+  schema change: the loss ends at the next reload, and a separate metadata path was not worth a second
+  way to carry the id.
 
 ## 2026-10-31 — `OpenClass`, `ChoicesRef` and `OpenClassRef`: *What needs you*'s class filter (M43 part 4)
 - **New** (`packages/contracts/src/pages.ts`): `OpenClass`, the three row classes `open` draws

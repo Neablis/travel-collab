@@ -15,14 +15,14 @@ function ledger(
     cost: {
       turnId: "t1", userId: "u", endpoint: "ask", outcome: "completed", taskClass: "question", classifierCertainty: null,
       turn: { model: steps[0]?.model ?? "x", tokensIn: turnTokensIn, tokensOut: null },
-      classifier, steps: steps.length, planVersionRef: null, latencyMs: 1, planExamples: null,
+      classifier, steps: steps.length, planVersionRef: null, latencyMs: 1, planExamples: null, entryPersona: "trip-planner",
     },
     capacity: [],
     toolCalls: [],
     stepSpend: steps.map((step, index) => ({
       index, model: step.model, tier: null, tokensIn: step.tokensIn, cacheReadTokens: step.cacheRead ?? 0,
       cacheWriteTokens: 0, tokensOut: step.tokensOut, finishReason: "stop", escalated: false, pivoted: false, durationMs: 1,
-      provider: null, gatewayGenerationId: null,
+      provider: null, gatewayGenerationId: null, persona: "trip-planner" as const,
     })),
   };
 }
