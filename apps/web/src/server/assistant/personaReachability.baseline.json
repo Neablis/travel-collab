@@ -1,0 +1,708 @@
+{
+  "trip | role=read plan=read classifier=read": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "trip | role=read plan=read classifier=propose": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "trip | role=read plan=propose classifier=read": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "trip | role=read plan=propose classifier=propose": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "trip | role=propose plan=read classifier=read": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "trip | role=propose plan=read classifier=propose": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "trip | role=propose plan=propose classifier=read": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule",
+      "discover"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer"
+    ]
+  },
+  "trip | role=propose plan=propose classifier=propose": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule",
+      "discover"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer"
+    ]
+  },
+  "day | role=read plan=read classifier=read": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "day | role=read plan=read classifier=propose": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "day | role=read plan=propose classifier=read": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "day | role=read plan=propose classifier=propose": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "day | role=propose plan=read classifier=read": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "day | role=propose plan=read classifier=propose": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule"
+    ],
+    "withHandOffs": [
+      "schedule"
+    ]
+  },
+  "day | role=propose plan=propose classifier=read": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule",
+      "discover"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer"
+    ]
+  },
+  "day | role=propose plan=propose classifier=propose": {
+    "entry": "schedule",
+    "inTurn": [
+      "schedule",
+      "discover"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer"
+    ]
+  },
+  "page | role=read plan=read classifier=read": {
+    "entry": "page-writer",
+    "inTurn": [
+      "page-writer"
+    ],
+    "withHandOffs": [
+      "page-writer"
+    ]
+  },
+  "page | role=read plan=read classifier=propose": {
+    "entry": "page-writer",
+    "inTurn": [
+      "page-writer"
+    ],
+    "withHandOffs": [
+      "page-writer"
+    ]
+  },
+  "page | role=read plan=propose classifier=read": {
+    "entry": "page-writer",
+    "inTurn": [
+      "page-writer"
+    ],
+    "withHandOffs": [
+      "page-writer"
+    ]
+  },
+  "page | role=read plan=propose classifier=propose": {
+    "entry": "page-writer",
+    "inTurn": [
+      "page-writer"
+    ],
+    "withHandOffs": [
+      "page-writer"
+    ]
+  },
+  "page | role=propose plan=read classifier=read": {
+    "entry": "page-writer",
+    "inTurn": [
+      "page-writer"
+    ],
+    "withHandOffs": [
+      "page-writer"
+    ]
+  },
+  "page | role=propose plan=read classifier=propose": {
+    "entry": "page-writer",
+    "inTurn": [
+      "page-writer"
+    ],
+    "withHandOffs": [
+      "page-writer"
+    ]
+  },
+  "page | role=propose plan=propose classifier=read": {
+    "entry": "page-writer",
+    "inTurn": [
+      "page-writer"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer"
+    ]
+  },
+  "page | role=propose plan=propose classifier=propose": {
+    "entry": "page-writer",
+    "inTurn": [
+      "page-writer"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer"
+    ]
+  },
+  "account | role=read plan=read classifier=read": {
+    "entry": "account",
+    "inTurn": [
+      "account"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "account"
+    ]
+  },
+  "account | role=read plan=read classifier=propose": {
+    "entry": "account",
+    "inTurn": [
+      "account"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "account"
+    ]
+  },
+  "account | role=read plan=propose classifier=read": {
+    "entry": "account",
+    "inTurn": [
+      "account"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "account"
+    ]
+  },
+  "account | role=read plan=propose classifier=propose": {
+    "entry": "account",
+    "inTurn": [
+      "account"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "account"
+    ]
+  },
+  "account | role=propose plan=read classifier=read": {
+    "entry": "account",
+    "inTurn": [
+      "account"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "account"
+    ]
+  },
+  "account | role=propose plan=read classifier=propose": {
+    "entry": "account",
+    "inTurn": [
+      "account"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "account"
+    ]
+  },
+  "account | role=propose plan=propose classifier=read": {
+    "entry": "account",
+    "inTurn": [
+      "account"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "account"
+    ]
+  },
+  "account | role=propose plan=propose classifier=propose": {
+    "entry": "account",
+    "inTurn": [
+      "account"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "account"
+    ]
+  },
+  "playbook-day | role=read plan=read classifier=read": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook-day | role=read plan=read classifier=propose": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook-day | role=read plan=propose classifier=read": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook-day | role=read plan=propose classifier=propose": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook-day | role=propose plan=read classifier=read": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook-day | role=propose plan=read classifier=propose": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook-day | role=propose plan=propose classifier=read": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "playbook-editor"
+    ]
+  },
+  "playbook-day | role=propose plan=propose classifier=propose": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "playbook-editor"
+    ]
+  },
+  "playbook | role=read plan=read classifier=read": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook | role=read plan=read classifier=propose": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook | role=read plan=propose classifier=read": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook | role=read plan=propose classifier=propose": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook | role=propose plan=read classifier=read": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook | role=propose plan=read classifier=propose": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "playbook-editor"
+    ]
+  },
+  "playbook | role=propose plan=propose classifier=read": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "playbook-editor"
+    ]
+  },
+  "playbook | role=propose plan=propose classifier=propose": {
+    "entry": "playbook-editor",
+    "inTurn": [
+      "playbook-editor"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "playbook-editor"
+    ]
+  },
+  "discover | role=read plan=read classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "discover | role=read plan=read classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "discover | role=read plan=propose classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "discover | role=read plan=propose classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "discover | role=propose plan=read classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "discover | role=propose plan=read classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "discover | role=propose plan=propose classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "explorer"
+    ]
+  },
+  "discover | role=propose plan=propose classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "explorer"
+    ]
+  },
+  "city | role=read plan=read classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "city | role=read plan=read classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "city | role=read plan=propose classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "city | role=read plan=propose classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "city | role=propose plan=read classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "city | role=propose plan=read classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "city | role=propose plan=propose classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "explorer"
+    ]
+  },
+  "city | role=propose plan=propose classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "explorer"
+    ]
+  },
+  "tag | role=read plan=read classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "tag | role=read plan=read classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "tag | role=read plan=propose classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "tag | role=read plan=propose classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "tag | role=propose plan=read classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "tag | role=propose plan=read classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "explorer"
+    ]
+  },
+  "tag | role=propose plan=propose classifier=read": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "explorer"
+    ]
+  },
+  "tag | role=propose plan=propose classifier=propose": {
+    "entry": "explorer",
+    "inTurn": [
+      "explorer"
+    ],
+    "withHandOffs": [
+      "schedule",
+      "discover",
+      "page-writer",
+      "explorer"
+    ]
+  }
+}

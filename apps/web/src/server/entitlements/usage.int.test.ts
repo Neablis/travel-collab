@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { eq, getTableColumns } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
+import { aiCapabilityGaps, aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { microUsdFor, rateAt, type ModelRate } from "./modelRates";
 import { costPerAccount, microUsdForRow, recordTurnLedger, topSpenders, usageFor } from "./usage";
@@ -30,6 +30,7 @@ function ledger(overrides: Partial<TurnLedger["cost"]> = {}): TurnLedger {
       turnId: null,
       latencyMs: null,
       planExamples: null,
+      entryPersona: "schedule",
       ...overrides,
     },
     capacity: [],
@@ -61,6 +62,7 @@ describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
         durationMs: index === 0 ? 161_000 : 1_200,
         provider: index === 0 ? "zai" : "deepinfra",
         gatewayGenerationId: `gen_step_${index}`,
+        persona: "schedule" as const,
       })),
       toolCalls: [
         {
@@ -118,6 +120,38 @@ describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
     expect(calls.map((call) => [call.callId, call.outcome, call.durationMs, call.reachedProposal]).sort()).toEqual([
       ["c1", "repaired", 12, true],
       ["c2", "refused-by-grant", null, null],
+    ]);
+  });
+
+  // M57: the persona columns are measured like the rest, so a replay that
+  // learns a step crossed an edge must overwrite the first write's guess.
+  it("writes the entry persona and each step's persona, and a replay overwrites them", async () => {
+    const turnId = randomUUID();
+    const first = withRows(turnId);
+    await recordTurnLedger({
+      cost: { ...first.cost, entryPersona: "schedule" },
+      capacity: [],
+      toolCalls: [],
+      stepSpend: first.stepSpend.map((step) => ({ ...step, persona: "schedule" })),
+    });
+    const replay = withRows(turnId);
+    await recordTurnLedger({
+      cost: { ...replay.cost, entryPersona: "schedule" },
+      capacity: [],
+      toolCalls: [],
+      stepSpend: replay.stepSpend.map((step) =>
+        step.index === 0
+          ? { ...step, persona: "schedule" as const }
+          : { ...step, persona: "page-writer" as const, fromPersona: "schedule" as const, edgeKind: "switch" as const },
+      ),
+    });
+
+    const [row] = await db.select().from(aiUsage).where(eq(aiUsage.id, turnId));
+    expect(row!.entryPersona).toBe("schedule");
+    const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, turnId));
+    expect(steps.map((step) => [step.stepIndex, step.persona, step.fromPersona, step.edgeKind]).sort()).toEqual([
+      [0, "schedule", null, null],
+      [1, "page-writer", "schedule", "switch"],
     ]);
   });
 
@@ -189,7 +223,7 @@ describe("the billing row is independent of the step and tool-call rows", () => 
       // the child write is made to fail on a step index no integer column
       // can hold.
       stepSpend: [
-        { index: 2 ** 40, model: TURN_MODEL, tier: null, tokensIn: 1, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 1, finishReason: "stop", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null },
+        { index: 2 ** 40, model: TURN_MODEL, tier: null, tokensIn: 1, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 1, finishReason: "stop", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
       ],
     };
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -214,8 +248,8 @@ describe("an escalated turn is priced at the models that ran it", () => {
     const entry: TurnLedger = {
       ...ledger({ userId, turnId, classifier: null, steps: 2, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
       stepSpend: [
-        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null },
-        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null },
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
+        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
       ],
     };
     await recordTurnLedger(entry, at);
@@ -236,8 +270,8 @@ describe("an escalated turn is priced at the models that ran it", () => {
     const entry: TurnLedger = {
       ...ledger({ userId, turnId: randomUUID(), classifier: null, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
       stepSpend: [
-        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 2000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 200, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null },
-        { index: 1, model: TURN_MODEL, tier: "low", tokensIn: null, cacheReadTokens: null, cacheWriteTokens: null, tokensOut: null, finishReason: "stop", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null },
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 2000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 200, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
+        { index: 1, model: TURN_MODEL, tier: "low", tokensIn: null, cacheReadTokens: null, cacheWriteTokens: null, tokensOut: null, finishReason: "stop", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
       ],
     };
     await recordTurnLedger(entry, at);
@@ -333,6 +367,7 @@ describe("the row carries no content", () => {
         "classifierTokensOut",
         "createdAt",
         "endpoint",
+        "entryPersona",
         "id",
         "latencyMs",
         "outcome",
@@ -361,10 +396,13 @@ describe("the row carries no content", () => {
         "cacheWriteTokens",
         "createdAt",
         "durationMs",
+        "edgeKind",
         "escalated",
         "finishReason",
+        "fromPersona",
         "gatewayGenerationId",
         "model",
+        "persona",
         "pivoted",
         "provider",
         "stepIndex",
@@ -391,6 +429,20 @@ describe("the row carries no content", () => {
     for (const key of [...Object.keys(getTableColumns(aiUsageSteps)), ...Object.keys(getTableColumns(aiUsageToolCalls))]) {
       expect(key).not.toMatch(/question|prompt|message|text|content|trip|answer|activity|args|result/i);
     }
+  });
+
+  // The one exception, and it is exactly one column. `ai_capability_gaps.task`
+  // is the model's paraphrase of what was asked (operators only; retention is
+  // undecided, see the schema comment). Listing every column means a second
+  // free-text column fails here instead of passing the regex above unnoticed.
+  it("lets only the capability gap's `task` hold free text", () => {
+    expect(Object.keys(getTableColumns(aiCapabilityGaps)).sort()).toEqual(
+      ["createdAt", "id", "persona", "target", "task", "turnId"].sort(),
+    );
+    const suspect = Object.keys(getTableColumns(aiCapabilityGaps)).filter((key) =>
+      /question|prompt|message|text|content|trip|answer|activity|args|result|task/i.test(key),
+    );
+    expect(suspect).toEqual(["task"]);
   });
 });
 
@@ -549,8 +601,8 @@ describe("what the console reads", () => {
     const escalated = (userId: string): TurnLedger => ({
       ...ledger({ userId, turnId: randomUUID(), classifier: null, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
       stepSpend: [
-        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null },
-        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null },
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
+        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
       ],
     });
     const [mine, theirs] = [`dev-${randomUUID()}`, `dev-${randomUUID()}`];

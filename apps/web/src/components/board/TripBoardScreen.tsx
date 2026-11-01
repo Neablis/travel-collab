@@ -37,7 +37,7 @@ import {
 } from "@/components/lenses/LensSkeletons";
 import { useIsAbovePhone, useIsPhone, useIsPhoneKnown, useIsTabletWidth } from "@/lib/useIsPhone";
 import { useHydrated } from "@/lib/useHydrated";
-import { loadCarriedAsks, saveCarriedAsks, takeIntoTrip } from "@/lib/pendingCarriedAsks";
+import { loadCarriedAsks, loadCarriedTurn, saveCarriedAsks, saveCarriedTurn, takeIntoTrip } from "@/lib/pendingCarriedAsks";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { buttonVariants } from "@/components/ui/button";
@@ -340,6 +340,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // beside the thread (`saveCarriedAsks`), which keeps the kickoff, so a
   // reload offers them again; that needs the thread's owned name first.
   const [carriedAsks, setCarriedAsks] = useState<readonly CarriedAsk[]>([]);
+  // The hand-off turn the chips came from (M57), for the outcome of pressing one.
+  const [carriedTurnId, setCarriedTurnId] = useState<string | undefined>(undefined);
   const carriedThread = useOwnedAskName(isDemoTripId(tripId) ? undefined : `trip:${tripId}`);
   // `openAsk` is new each render, and the take is once per trip.
   const openAskLatest = useRef(openAsk);
@@ -349,10 +351,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const into = takeIntoTrip(tripId);
     if (into === null) {
       setCarriedAsks(loadCarriedAsks(carriedThread));
+      setCarriedTurnId(loadCarriedTurn(carriedThread));
       return;
     }
     saveCarriedAsks(carriedThread, into.asks);
+    saveCarriedTurn(carriedThread, into.turnId);
     setCarriedAsks(into.asks);
+    setCarriedTurnId(into.turnId);
     openAskLatest.current();
     if (into.kickoff !== null) setHandOff({ text: into.kickoff });
   }, [boardRenders, carriedThread, tripId]);
@@ -1296,7 +1301,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const { proposal } = turn.proposal;
     patchProposal(turnId, (state) => ({ ...state, status: "applying", note: null }));
 
-    const result = await applyAssistantProposal(tripId, proposal);
+    const result = await applyAssistantProposal(tripId, proposal, turn.serverTurnId);
     if (!result.ok) {
       // The batch is atomic (ADR-013), so a refusal means NOTHING applied —
       // the card goes back to pending and the user can try again or reject.
@@ -1915,6 +1920,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               turns={thread}
               suggestions={isPhone ? phoneAsk.quickAsks : assistantSuggestions}
               carriedAsks={carriedAsks}
+              carriedTurnId={carriedTurnId}
               onCarriedAskTaken={(taken) => {
                 const left = carriedAsks.filter((each) => each !== taken);
                 setCarriedAsks(left);

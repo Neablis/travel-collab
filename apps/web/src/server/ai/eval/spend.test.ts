@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { microUsdFor } from "@/server/entitlements/modelRates";
 import { MAX_STEP_OUTPUT_TOKENS } from "@/server/ai/handleAskRequest";
-import { capMicroUsdFrom, DEFAULT_CAP_MICRO_USD, dollars, turnSpend, UNREPORTED_INPUT_TOKENS, unpricedModels } from "./spend";
+import { capMicroUsdFrom, DEFAULT_CAP_MICRO_USD, dollars, summariseRows, turnSpend, turnTokens, UNREPORTED_INPUT_TOKENS, unpricedModels } from "./spend";
 
 const AT = new Date("2026-10-05T12:00:00Z");
 
@@ -15,14 +15,14 @@ function ledger(
     cost: {
       turnId: "t1", userId: "u", endpoint: "ask", outcome: "completed", taskClass: "question", classifierCertainty: null,
       turn: { model: steps[0]?.model ?? "x", tokensIn: turnTokensIn, tokensOut: null },
-      classifier, steps: steps.length, planVersionRef: null, latencyMs: 1, planExamples: null,
+      classifier, steps: steps.length, planVersionRef: null, latencyMs: 1, planExamples: null, entryPersona: "schedule",
     },
     capacity: [],
     toolCalls: [],
     stepSpend: steps.map((step, index) => ({
       index, model: step.model, tier: null, tokensIn: step.tokensIn, cacheReadTokens: step.cacheRead ?? 0,
       cacheWriteTokens: 0, tokensOut: step.tokensOut, finishReason: "stop", escalated: false, pivoted: false, durationMs: 1,
-      provider: null, gatewayGenerationId: null,
+      provider: null, gatewayGenerationId: null, persona: "schedule" as const,
     })),
   };
 }
@@ -134,5 +134,40 @@ describe("capMicroUsdFrom", () => {
 
   it("refuses a value that is not a finite, non-negative number", () => {
     for (const raw of ["abc", "$0.10", "-1", "Infinity", "NaN"]) expect(capMicroUsdFrom(raw), raw).toBeNull();
+  });
+});
+
+describe("summariseRows", () => {
+  it("means each figure over the turns that reported it, so an unpriced turn is not free", () => {
+    expect(
+      summariseRows([
+        { inputTokens: 10_000, outputTokens: 200, steps: 3, microUsd: 4_000 },
+        { inputTokens: 20_000, outputTokens: null, steps: 5, microUsd: null },
+      ]),
+    ).toEqual({
+      turns: 2, meanInputTokens: 15_000, meanOutputTokens: 200, meanSteps: 4, meanMicroUsd: 4_000,
+      counts: { inputTokens: 2, outputTokens: 1, steps: 2, microUsd: 1 },
+    });
+  });
+
+  it("is null, not zero, where nothing was reported", () => {
+    expect(summariseRows([])).toEqual({ turns: 0, meanInputTokens: null, meanOutputTokens: null, meanSteps: null, meanMicroUsd: null, counts: { inputTokens: 0, outputTokens: 0, steps: 0, microUsd: 0 } });
+  });
+});
+
+describe("turnTokens", () => {
+  // Cost counts the classifier call, so tokens must too or a comparison's
+  // token and dollar deltas sit on different bases.
+  it("adds the classifier's tokens to the agent's, the basis turnSpend prices", () => {
+    const withClassifier = ledger([{ model: "m", tokensIn: 1, tokensOut: 1 }], { model: "c", tokensIn: 300, tokensOut: 20 });
+    expect(turnTokens({ inputTokens: 1_000, outputTokens: 200 }, withClassifier)).toEqual({ inputTokens: 1_300, outputTokens: 220 });
+  });
+
+  it("is the agent's alone where no classifier ran, and null where the agent reported nothing", () => {
+    const bare = ledger([{ model: "m", tokensIn: 1, tokensOut: 1 }], null);
+    expect(turnTokens({ inputTokens: 1_000, outputTokens: 200 }, bare)).toEqual({ inputTokens: 1_000, outputTokens: 200 });
+    const withClassifier = ledger([{ model: "m", tokensIn: 1, tokensOut: 1 }], { model: "c", tokensIn: 300, tokensOut: null });
+    expect(turnTokens({ inputTokens: null, outputTokens: 200 }, withClassifier)).toEqual({ inputTokens: null, outputTokens: 200 });
+    expect(turnTokens({ inputTokens: 5, outputTokens: 5 }, undefined)).toEqual({ inputTokens: 5, outputTokens: 5 });
   });
 });

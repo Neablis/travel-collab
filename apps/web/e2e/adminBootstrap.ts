@@ -71,8 +71,8 @@ export async function revokeSignupTrial(browser: Browser, userId: string): Promi
   }
 }
 
-/** The configured operator, signed in on `context`. */
-async function signInAsOperator(context: BrowserContext): Promise<Page> {
+/** The configured operator, signed in on `context`. Exported for specs that drive a page as one (M57 part 5). */
+export async function signInAsOperator(context: BrowserContext): Promise<Page> {
   const page = await context.newPage();
   await page.goto("/signup");
   await fillInviteCode(page, E2E_SUPER_CODE);

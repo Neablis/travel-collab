@@ -16,7 +16,7 @@
 import { and, desc, getTableColumns, gte, inArray, sql, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/server/db/client";
-import { aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
+import { aiCapabilityGaps, aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { microUsdFor, type ModelRate } from "./modelRates";
 
@@ -99,6 +99,7 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
         planVersionRef: cost.planVersionRef,
         latencyMs: cost.latencyMs,
         planExamples: cost.planExamples,
+        entryPersona: cost.entryPersona,
         createdAt: now,
       })
       .onConflictDoNothing({ target: aiUsage.id });
@@ -149,6 +150,9 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
               durationMs: step.durationMs,
               provider: step.provider,
               gatewayGenerationId: step.gatewayGenerationId,
+              persona: step.persona,
+              fromPersona: step.fromPersona ?? null,
+              edgeKind: step.edgeKind ?? null,
               createdAt: now,
             })),
           )
@@ -167,6 +171,9 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
               "durationMs",
               "provider",
               "gatewayGenerationId",
+              "persona",
+              "fromPersona",
+              "edgeKind",
             ]),
           });
       }
@@ -208,6 +215,30 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
       turnId,
       error,
     });
+    return false;
+  }
+}
+
+/** One task an assistant understood and handed off (M57; ADR-084 §2), as the table keeps it. */
+export interface CapabilityGapRow {
+  turnId: string;
+  persona: string;
+  target: string;
+  /** Already through `sanitizeForLog` and capped by the caller: the model's words, never the person's. */
+  task: string;
+}
+
+/**
+ * Write one capability gap. **Never throws**, for `recordTurnLedger`'s reason:
+ * it is written from a streaming response that has already reached the person.
+ * One row per hand-off, so unlike the turn's rows it is a plain insert.
+ */
+export async function recordCapabilityGap(gap: CapabilityGapRow, now: Date = new Date()): Promise<boolean> {
+  try {
+    await db.insert(aiCapabilityGaps).values({ id: crypto.randomUUID(), ...gap, createdAt: now });
+    return true;
+  } catch (error) {
+    console.error("ai_capability_gaps row was not written", { turnId: gap.turnId, error });
     return false;
   }
 }

@@ -5,6 +5,7 @@ import * as apiClientModule from "@/lib/apiClient";
 import {
   acceptInvite,
   applyAssistantProposal,
+  postTurnOutcome,
   askAssistant,
   cloneSharedTrip,
   createSavedDay,
@@ -49,6 +50,8 @@ import {
   fetchTripDetail,
   fetchTripGlobals,
   fetchTripWeather,
+  fetchPersonaGraph,
+  fetchTurnTrace,
   fetchNearbyStops,
   fetchTrips,
   fetchTripDetailAt,
@@ -259,6 +262,8 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchTripDetail: () => fetchTripDetail(TRIP_ID),
   fetchTripGlobals: () => fetchTripGlobals(TRIP_ID),
   fetchTripWeather: () => fetchTripWeather(TRIP_ID),
+  fetchPersonaGraph: () => fetchPersonaGraph("trip", TRIP_ID),
+  fetchTurnTrace: () => fetchTurnTrace(UUID),
   fetchTrips: () => fetchTrips(),
   fetchTripHistory: () => fetchTripHistory(TRIP_ID),
   fetchTripEvents: () => fetchTripEvents(TRIP_ID, 0),
@@ -366,6 +371,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
       inserts: [],
       skipped: [],
     }),
+  postTurnOutcome: () => postTurnOutcome(UUID, "hand_off_pressed"),
 };
 
 // Pure URL builders, and the two failure-shape builders every client module

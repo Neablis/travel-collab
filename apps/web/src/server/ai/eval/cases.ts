@@ -137,8 +137,19 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
     // M52 decisions 13 and 14, on the Japan trip dated today (`today`): "near
     // here" is the plan's here, which only the near-now search knows. One call
     // of it, since every place goes in one call's queries.
+    // Since M57 part 4 a trip turn enters Schedule, which holds no place search
+    // of any kind, so the same call is made from Discover: one switch first.
+    // `switchesTo` reads nothing on a build with no personas, so main grades
+    // the call alone.
     case "d-coffee-near-now":
-      return { ...QUESTION, mustCall: ["find_places_near_now"], maxCallsOf: { find_places_near_now: 1 } };
+      return {
+        ...QUESTION,
+        mustCall: ["find_places_near_now"],
+        maxCallsOf: { find_places_near_now: 1 },
+        switchesTo: "discover",
+        switchesBefore: ["find_places_near_now"],
+        neverAsksToSwitch: true,
+      };
     // The same question on the trip as seeded, months out: the tool is not
     // offered, so a turn that reaches for it is calling a tool it never saw.
     case "d-near-before-the-trip":
@@ -160,6 +171,23 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
         mustCallOneOf: [["find_places_near_now", "search_places"]],
         mustNotCall: ["AddActivity", "RemoveActivity"],
       };
+    // M57 part 4, the persona switch (the three `s-` prompts). Schedule enters,
+    // and holds no place search, so a message that needs a real place crosses
+    // to Discover once, before the search, and never by asking the person.
+    // The seeded trip has no hotel on day 2; Trunk Hotel (day 1) is where the
+    // trip sleeps that night, which is the one the prompt means.
+    case "s-ramen-near-hotel":
+      return { ...CHANGE, mustCallOneOf: [["search_places", "find_places_near_now"]], switchesTo: "discover", switchesBefore: ["search_places", "AddActivity"], neverAsksToSwitch: true };
+    // A named place is a real one to look up. Not graded on `proposes`: the
+    // stub answers an unknown name with invented neighbours (`placeStub.ts`),
+    // and the model may fairly decline to cite one; the guarantee under test is
+    // the order, not the write.
+    case "s-named-place":
+      return { ...CHANGE, proposes: undefined, mustCall: ["search_places"], switchesTo: "discover", switchesBefore: ["search_places", "AddActivity"], neverAsksToSwitch: true };
+    // Nothing here needs the world outside the plan: the switch's step is a
+    // cost with nothing bought.
+    case "s-move-museum":
+      return { ...CHANGE, mustNotCall: ["search_places", "find_places_near_now"], switchesTo: null };
     // ADR-084's third boundary: nobody in the app can book, so the turn says
     // so with a hand-off to nowhere and drafts nothing, rather than ending in
     // prose alone.

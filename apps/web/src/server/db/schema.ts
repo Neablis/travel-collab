@@ -944,6 +944,10 @@ export const tripSuggestions = pgTable(
     // asker of the chat's `@assistant` turn that stored it (ADR-067's
     // 2026-10-23 amendment). Null keeps the old rule, any editor.
     requestedBy: text("requested_by"),
+    // The assistant turn that stored it (M57, ADR-085): an `ai_usage.id`, so a
+    // later accept joins to the turn. Null for one a person sent, and for rows
+    // written before 0072. No foreign key (ADR-025).
+    turnId: uuid("turn_id"),
   },
   // No index on `trip_id`: every read goes through the changes table below.
 );
@@ -1556,6 +1560,10 @@ export const aiUsage = pgTable(
     // lookup failed` log tells those apart); null means it never ran — not a
     // plan turn, or `RAG_PLAN_RETRIEVAL` off. A count, never the ids.
     planExamples: integer("plan_examples"),
+    // The persona the turn entered at (M57, ADR-085): where the page put it,
+    // before any switch. A `PersonaId`; text with no CHECK, like every enum
+    // column here. Null on rows written before 0071.
+    entryPersona: text("entry_persona"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [
@@ -1606,9 +1614,65 @@ export const aiUsageSteps = pgTable(
     // (no dollars, above). Null off the Gateway and for rows before 0038.
     provider: text("provider"),
     gatewayGenerationId: text("gateway_generation_id"),
+    // The persona this step ran as (M57, ADR-085), and, when the step is the
+    // first after a switch, where it came from and by what kind of edge
+    // (`switch` | `hand-off`). Null on rows before 0071; `from_persona` and
+    // `edge_kind` are null on every step that did not cross an edge.
+    persona: text("persona"),
+    fromPersona: text("from_persona"),
+    edgeKind: text("edge_kind"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.turnId, t.stepIndex] }), index("ai_usage_steps_created").on(t.createdAt)],
+);
+
+// **One row per capability gap** (M57, ADR-085; ADR-084 §2): a task the
+// assistant understood and handed off because no tool does it. It was the
+// `ai.capability_gap` log line alone, which Vercel keeps briefly; a row is
+// what lets "which persona declines what" be a query.
+//
+// `task` is the model's own words for it, through `sanitizeForLog` and capped
+// at write time — never the person's message. Not keyed by turn: a turn ends
+// on one outcome, but the id is only a join, and no foreign key (ADR-025).
+//
+// **The first content-bearing ledger table.** `ai_usage` and its step and
+// tool-call rows hold counts and sizes only (M36 D7); `task` holds
+// model-paraphrased text, which can still carry a place, a date or a
+// companion's name, and it joins to a person through `turn_id` ->
+// `ai_usage.user_id`. Readable by operators only. Retention is UNDECIDED
+// (nothing prunes it, and `ai_usage` is not pruned either) and is flagged for
+// Mitchell on PR 670. The exception is limited to this one column: the "carries
+// no content" test in usage.int.test.ts lists the table's columns exactly.
+export const aiCapabilityGaps = pgTable(
+  "ai_capability_gaps",
+  {
+    id: uuid("id").primaryKey(),
+    // An `ai_usage.id`.
+    turnId: uuid("turn_id").notNull(),
+    persona: text("persona").notNull(),
+    /** The hand-off's `to` (`HandOffTo`). */
+    target: text("target").notNull(),
+    task: text("task").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [index("ai_capability_gaps_turn").on(t.turnId), index("ai_capability_gaps_created").on(t.createdAt)],
+);
+
+// **What a person did with a turn's answer** (M57, ADR-085): one row per turn and
+// kind of press or approval, joined to the turn by `turn_id` (an `ai_usage.id`, no foreign
+// key — ADR-025). `kind` is a `TurnOutcomeKind` (turnOutcomes.ts); `actor` the
+// person who acted, who is the turn's asker for every kind but a suggestion
+// accepted by someone else. Never the text of anything.
+export const aiTurnOutcomes = pgTable(
+  "ai_turn_outcomes",
+  {
+    id: uuid("id").primaryKey(),
+    turnId: uuid("turn_id").notNull(),
+    kind: text("kind").notNull(),
+    at: timestamp("at", { withTimezone: true, mode: "date" }).notNull(),
+    actor: text("actor").notNull(),
+  },
+  (t) => [uniqueIndex("ai_turn_outcomes_turn_kind").on(t.turnId, t.kind), index("ai_turn_outcomes_at").on(t.at)],
 );
 
 // **One row per tool call** (M31 Phase 1, ADR-062 §5) — which tools work, and

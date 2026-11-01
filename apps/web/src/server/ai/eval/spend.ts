@@ -103,3 +103,66 @@ export function capMicroUsdFrom(raw: string | undefined): number | null {
 export function dollars(microUsd: number): string {
   return `$${(microUsd / 1_000_000).toFixed(4)}`;
 }
+
+/** The fields of a run's row that a cost comparison reads. */
+export interface SpendRow {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  steps: number;
+  microUsd: number | null;
+}
+
+/**
+ * A turn's tokens on the basis `turnSpend` prices: the agent's steps plus the
+ * classifier call. The two sit in different ledger fields, so a token mean
+ * taken from the agent alone moves apart from the cost mean. Null stays null
+ * (unmeasured is not zero); a classifier that reported nothing adds nothing.
+ */
+export function turnTokens(
+  agent: { inputTokens: number | null; outputTokens: number | null },
+  ledger: TurnLedger | undefined,
+): { inputTokens: number | null; outputTokens: number | null } {
+  const classifier = ledger?.cost.classifier ?? null;
+  const add = (base: number | null, extra: number | null | undefined) => (base === null ? null : base + (extra ?? 0));
+  return { inputTokens: add(agent.inputTokens, classifier?.tokensIn), outputTokens: add(agent.outputTokens, classifier?.tokensOut) };
+}
+
+/** A run's per-turn means: the numbers two runs (main, then a branch) are laid side by side on. */
+export interface RunSummary {
+  turns: number;
+  /** Means over the turns that reported the figure; null where none did. */
+  meanInputTokens: number | null;
+  meanOutputTokens: number | null;
+  meanSteps: number | null;
+  meanMicroUsd: number | null;
+  /** How many turns each mean is over; they differ where a turn did not report a figure. */
+  counts: { inputTokens: number; outputTokens: number; steps: number; microUsd: number };
+}
+
+/**
+ * The mean tokens, steps and spend per turn, tokens and spend on one basis
+ * (the row's tokens include the classifier, see `turnTokens`). A turn with no reported figure
+ * is left out of that figure's mean rather than counted as zero, so an
+ * unpriced turn cannot make a run look cheaper (the ledger's own rule:
+ * unmeasured is not free).
+ */
+export function summariseRows(rows: readonly SpendRow[]): RunSummary {
+  const known = (values: readonly (number | null)[]) => values.filter((value): value is number => value !== null);
+  const mean = (values: readonly (number | null)[]): number | null => {
+    const present = known(values);
+    return present.length === 0 ? null : Math.round(present.reduce((sum, value) => sum + value, 0) / present.length);
+  };
+  return {
+    turns: rows.length,
+    meanInputTokens: mean(rows.map((row) => row.inputTokens)),
+    meanOutputTokens: mean(rows.map((row) => row.outputTokens)),
+    meanSteps: mean(rows.map((row) => row.steps)),
+    meanMicroUsd: mean(rows.map((row) => row.microUsd)),
+    counts: {
+      inputTokens: known(rows.map((row) => row.inputTokens)).length,
+      outputTokens: known(rows.map((row) => row.outputTokens)).length,
+      steps: rows.length,
+      microUsd: known(rows.map((row) => row.microUsd)).length,
+    },
+  };
+}

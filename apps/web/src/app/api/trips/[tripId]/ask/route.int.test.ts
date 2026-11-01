@@ -104,6 +104,22 @@ vi.mock("@/server/assistant/deps", async (importOriginal) => {
   };
 });
 
+// The persona the turn's latch starts in, and the caps every edge's guard is read
+// against (M57). A viewer's turn is never offered `switch_persona`, so no model
+// script can reach the server's re-check with caps that fail it; the wiring of
+// the admitted caps into the latch is read here instead.
+const latchStarts: { entry: string; caps: { role: string; plan: string; classifier: string } }[] = [];
+vi.mock("@/server/assistant/intents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/assistant/intents")>();
+  return {
+    ...actual,
+    newIntentLatch: (...args: Parameters<typeof actual.newIntentLatch>) => {
+      latchStarts.push(args[3]);
+      return actual.newIntentLatch(...args);
+    },
+  };
+});
+
 // M48's ledger count: retrieval needs an embedding provider and a corpus, so
 // the two seams are stubbed per test. Off by default, every other test sees
 // the real module with the flag as configured (off in this lane).
@@ -186,8 +202,12 @@ const { validateComposedPage } = await import("@/server/ai/pageTools");
 // pinned once in `assistant/grants.test.ts`; what this file asserts is that the
 // handler reached the same caps from a real request.
 const readOnlyTools = toolsFor(grantFor({ surface: "trip", role: "read", plan: "read", classifier: "read" }));
+// With the posture the handler passes: `switch_persona` (M57) is tagged to the two
+// postures that can change the trip, and an absent one offers it nowhere.
 const planningTools = toolsFor(
   grantFor({ surface: "trip", role: "propose", plan: "propose", classifier: "propose" }),
+  undefined,
+  "propose",
 );
 const pageTurnTools = toolsFor(grantFor({ surface: "page", role: "propose", plan: "propose", classifier: "propose" }));
 const READ_TOOL_NAMES = readOnlyTools.map((t) => t.name);
@@ -555,6 +575,94 @@ function escalatingModel() {
 }
 
 /**
+ * A model that starts on Schedule, switches to Discover, and reads the trip
+ * from there (M57 part 4). It records the tool names each call was offered, so
+ * the swap of tool sets is read off the wire, and the classifier's verdict is
+ * the caller's so one script serves an edit turn and a question turn.
+ */
+function switchingModel(
+  verdict: "edit" | "question",
+  // What the step that calls `switch_persona` reports spending, for a turn that
+  // is wrapped up right after its switch.
+  switchStepInputTokens = 0,
+  // What the model does once it holds Discover: read the trip, or escalate (a
+  // question turn that looked something up and now has to change the trip).
+  thenCall: "read_trip" | "request_change_tools" = "read_trip",
+) {
+  const offeredPerCall: string[][] = [];
+  const systemPerCall: string[] = [];
+  const usage = {
+    inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: 0, text: undefined, reasoning: undefined },
+  };
+  const usageFor = (content: Record<string, unknown>[]) =>
+    content.some((part) => part.toolName === "switch_persona")
+      ? { ...usage, inputTokens: { ...usage.inputTokens, total: switchStepInputTokens, noCache: switchStepInputTokens } }
+      : usage;
+  function stepFor(options: { prompt?: { role?: string; content?: unknown }[]; tools?: { name?: string }[] }): { content: Record<string, unknown>[]; finishReason: { unified: string; raw: undefined } } {
+    const system = (options.prompt ?? [])
+      .filter((m) => m.role === "system" && typeof m.content === "string")
+      .map((m) => m.content as string)
+      .join("\n");
+    systemPerCall.push(system);
+    if (isAskIntentCall(system)) {
+      return { content: [{ type: "text", text: askIntentVerdictText(verdict, "sure") }], finishReason: { unified: "stop", raw: undefined } };
+    }
+    // A wrap-up step is offered nothing and must answer in prose.
+    if ((options.tools ?? []).length === 0) return { content: [{ type: "text", text: "Here is what I have." }], finishReason: { unified: "stop", raw: undefined } };
+    const called = (options.prompt ?? []).flatMap((message) =>
+      Array.isArray(message.content)
+        ? (message.content as { type?: string; toolName?: string }[]).filter((part) => part.type === "tool-result").map((part) => part.toolName!)
+        : [],
+    );
+    const call = (toolName: string, input: unknown) => ({
+      content: [{ type: "tool-call", toolCallId: randomUUID(), toolName, input: JSON.stringify(input) }],
+      finishReason: { unified: "tool-calls", raw: undefined },
+    });
+    if (!called.includes("switch_persona")) return call("switch_persona", { to: "discover", why: "they asked for a real place" });
+    if (!called.includes(thenCall)) return call(thenCall, thenCall === "read_trip" ? {} : { reason: "they also want it added", intendedChange: "add the place to day 1" });
+    return { content: [{ type: "text", text: "Here is what I found." }], finishReason: { unified: "stop", raw: undefined } };
+  }
+  const model = {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test/switching",
+    supportedUrls: {},
+    doGenerate: async (options: Parameters<typeof stepFor>[0] & { tools?: { name?: string }[] }) => {
+      offeredPerCall.push((options.tools ?? []).map((tool) => tool.name ?? "?"));
+      const { content, finishReason } = stepFor(options);
+      return { content, finishReason, usage: usageFor(content), warnings: [] };
+    },
+    doStream: async (options: Parameters<typeof stepFor>[0] & { tools?: { name?: string }[] }) => {
+      offeredPerCall.push((options.tools ?? []).map((tool) => tool.name ?? "?"));
+      const { content, finishReason } = stepFor(options);
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            let id = 0;
+            for (const part of content) {
+              if (part.type !== "text") {
+                controller.enqueue(part);
+                continue;
+              }
+              const textId = String(id++);
+              controller.enqueue({ type: "text-start", id: textId });
+              controller.enqueue({ type: "text-delta", id: textId, delta: part.text as string });
+              controller.enqueue({ type: "text-end", id: textId });
+            }
+            controller.enqueue({ type: "finish", finishReason, usage: usageFor(content) });
+            controller.close();
+          },
+        }),
+      };
+    },
+  } as unknown as Parameters<typeof handleAskRequest>[2];
+  // The classifier call is the first, and the turn's own offers every call after it.
+  return { model, turnOffers: () => offeredPerCall.slice(1), turnSystems: () => systemPerCall.slice(1) };
+}
+
+/**
  * A model whose first turn step calls a tool the turn was NOT handed
  * (`AddActivity`, built but inactive on a withheld turn) and a tool that does
  * not exist at all, then answers in prose. The SDK refuses both before any
@@ -831,6 +939,13 @@ async function chunksOf(res: Response): Promise<Record<string, unknown>[]> {
     .map((line) => JSON.parse(line.slice("data: ".length)) as Record<string, unknown>);
 }
 
+/** What the stream's metadata named beyond the turn's own id (M57) and where it goes: the outcomes, none for a plain answer. */
+function outcomeKeysOf(chunks: Record<string, unknown>[]): string[] {
+  return chunks.flatMap((chunk) =>
+    Object.keys((chunk.messageMetadata as object | undefined) ?? {}).filter((key) => key !== "turnId" && key !== "paletteCommands"),
+  );
+}
+
 function textOf(chunks: Record<string, unknown>[]): string {
   return chunks
     .filter((chunk) => chunk.type === "text-delta")
@@ -981,14 +1096,15 @@ describe("POST /api/trips/:id/ask", () => {
     // branch inside the handler.
     it("keeps the page and planning tool sets disjoint", () => {
       expect(PAGE_TURN_TOOL_NAMES).not.toContain("AddActivity");
-      // `READ_TOOL_NAMES` is a read-capped TRIP turn, which since M9's
-      // grounding includes `search_places`; a page turn has no `places` row at
-      // all, deliberately — it holds nothing that could cite a candidate, so a
-      // place search there would be the operator's money spent on a number
-      // nothing can use.
+      // A page turn has no `places` row at all, deliberately — it holds nothing
+      // that could cite a candidate, so a place search there would be the
+      // operator's money spent on a number nothing can use. It keeps the
+      // library's read (`library` at `read`), which Schedule (M57 part 4) no
+      // longer holds: the trip's own library tools are Discover's.
       expect(PAGE_TURN_TOOL_NAMES).not.toContain("search_places");
       expect(PAGE_TURN_TOOL_NAMES).toEqual([
-        ...READ_TOOL_NAMES.filter((name) => name !== "search_places" && name !== "go_to" && !UI_TOOL_NAMES.includes(name)),
+        ...READ_TOOL_NAMES.filter((name) => name !== "go_to" && !UI_TOOL_NAMES.includes(name)),
+        "search_playbooks",
         // The widget lookup (ADR-057) — `pages` at `read`, so here and only here.
         "search_widgets",
         "get_widget",
@@ -1233,7 +1349,7 @@ describe("POST /api/trips/:id/ask", () => {
     // zone the client sent, and reaches both the tool set and the instruction.
     // Admission and `nowBlocks` are tested with their own `now`; this is the
     // one test that fails if `handleAskRequest` stops handing either one over.
-    it("tells an under-way turn its now, on the asker's zone, and offers it the near-now search", async () => {
+    it("tells an under-way turn its now, on the asker's zone, and leaves the near-now search to Discover", async () => {
       await upsertUser({ id: NOW_ASKER_ID, email: null, name: null, image: null });
       await issueGrant({ userId: NOW_ASKER_ID, planId: "premium", planVersion: 1, source: "admin", grantedBy: "ask-route-int-test", expiresAt: null });
       currentUserId = NOW_ASKER_ID;
@@ -1269,7 +1385,11 @@ describe("POST /api/trips/:id/ask", () => {
         );
         await res.text();
 
-        expect(records[0]!.offeredTools).toContain("find_places_near_now");
+        // Schedule holds no place search, under way or not (M57 part 4): the
+        // near-now one is Discover's, and `switch_persona` is how this turn
+        // reaches it.
+        expect(records[0]!.offeredTools).toContain("switch_persona");
+        expect(records[0]!.offeredTools).not.toContain("find_places_near_now");
         const line = turnInstruction()
           .split("\n")
           .find((text) => text.startsWith("Now: "));
@@ -1427,6 +1547,101 @@ describe("POST /api/trips/:id/ask", () => {
         );
         await res.text();
         expect(records[0]!.escalated).toBeNull();
+      });
+    });
+
+    // **The persona switch, end to end** (M57 part 4, ADR-085 decision 4). A
+    // trip page enters Schedule, which holds no lookup tools; the model switches
+    // to Discover and the NEXT step holds them, in the same conversation.
+    describe("switch_persona", () => {
+      const runSwitching = async (verdict: "edit" | "question", ...rest: [number?, ("read_trip" | "request_change_tools")?]) => {
+        const tripId = await seedTrip();
+        const { model, turnOffers, turnSystems } = switchingModel(verdict, ...rest);
+        const ledgers: TurnLedger[] = [];
+        const res = await handleAskRequest(
+          req(tripId, { messages: [userMessage("find me a ramen place near day 1")], scope: { kind: "trip" } }),
+          tripId,
+          model,
+          (_record, ledger) => {
+            if (ledger) ledgers.push(ledger);
+          },
+        );
+        await res.text();
+        return { offers: turnOffers(), systems: turnSystems(), steps: ledgers[0]!.stepSpend };
+      };
+
+      it("swaps the tools the next step holds, and records the edge on the step that crossed it", async () => {
+        const { offers, steps } = await runSwitching("edit");
+
+        expect(offers[0]).toContain("switch_persona");
+        expect(offers[0]).not.toContain("search_places");
+        expect(offers[1]).toContain("search_places");
+        // The turn's one switch is spent, so the tool is no longer on the wire.
+        expect(offers[1]).not.toContain("switch_persona");
+
+        expect(steps.map((step) => [step.persona, step.fromPersona, step.edgeKind])).toEqual([
+          ["schedule", null, null],
+          ["discover", "schedule", "switch"],
+          ["discover", null, null],
+        ]);
+      });
+
+      // The instruction follows the persona served: Schedule is told of the one
+      // switch, and the step after it is not, as it holds no tool to make it.
+      it("tells only the step that can switch to call switch_persona", async () => {
+        const { systems } = await runSwitching("edit");
+
+        expect(systems[0]).toContain("call switch_persona");
+        expect(systems[1]).not.toContain("switch_persona");
+        expect(systems[1]).toContain("You have switched to Discover");
+      });
+
+      // A switch made on the step that trips the input-token ceiling is still
+      // the turn's edge: the wrap-up step runs as the persona the latch holds
+      // and records where it came from, rather than reading as Schedule.
+      it("records the edge and the persona on a wrap-up step that follows the switch", async () => {
+        const { steps } = await runSwitching("edit", ASK_INPUT_TOKEN_CEILING + 1);
+
+        expect(steps.map((step) => [step.persona, step.fromPersona, step.edgeKind])).toEqual([
+          ["schedule", null, null],
+          ["discover", "schedule", "switch"],
+        ]);
+      });
+
+      // The server re-checks the edge's guard against the turn's own caps, so the
+      // latch must be built with the ones the turn was admitted under: a viewer's
+      // role, and a question's classifier.
+      it("reads an edge's guard against the caps the turn was admitted under", async () => {
+        latchStarts.length = 0;
+        await runSwitching("question");
+        expect(latchStarts.at(-1)).toEqual({ entry: "schedule", caps: { role: "propose", plan: "propose", classifier: "read" } });
+
+        const tripId = await seedTrip();
+        await grantViewer(tripId, VIEWER_ID);
+        currentUserId = VIEWER_ID;
+        await (await ask(tripId, { messages: [userMessage("what's on day 1?")], scope: { kind: "trip" } })).text();
+        expect(latchStarts.at(-1)).toMatchObject({ entry: "schedule", caps: { role: "read" } });
+      });
+
+      // A question turn that looked something up and now has to change the trip:
+      // Schedule, Discover, then Discover's own escalation. The change tools
+      // arrive in the persona the turn is in, and the switch stays spent.
+      it("lets a question turn escalate inside the persona it switched to", async () => {
+        const { offers } = await runSwitching("question", 0, "request_change_tools");
+
+        expect(offers[1]).toContain("request_change_tools");
+        expect(offers[1]).not.toContain("AddActivity");
+        expect(offers[2]).toContain("AddActivity");
+        expect(offers[2]).toContain("search_places");
+        expect(offers[2]).not.toContain("switch_persona");
+      });
+
+      // The same switch on a turn the classifier read as a question: Discover's
+      // set is narrowed by that class, so nothing it holds is a change.
+      it("holds no change tool after a switch on a question turn", async () => {
+        const { offers } = await runSwitching("question");
+        expect(offers[1]).toContain("search_places");
+        expect(offers[1]).not.toContain("AddActivity");
       });
     });
 
@@ -1847,7 +2062,7 @@ describe("POST /api/trips/:id/ask", () => {
       const chunks = await chunksOf(res);
       expect(records[0]!.offeredTools.sort()).toEqual([...VIEWER_TOOL_NAMES].sort());
       // No proposal on the wire, and no write tool call in it either.
-      expect(chunks.some((c) => c.type === "finish" && c.messageMetadata !== undefined)).toBe(false);
+      expect(outcomeKeysOf(chunks)).toEqual([]);
       expect(records[0]!.toolCalls.every((c) => (VIEWER_TOOL_NAMES as readonly string[]).includes(c.name))).toBe(true);
     });
 
@@ -1916,13 +2131,16 @@ describe("POST /api/trips/:id/ask", () => {
 
       expect(await finishOf({ messages: [userMessage("show this on the map")], scope: { kind: "trip" } })).toEqual({
         paletteCommands: [{ id: "view:Map", needsApproval: false }],
+        turnId: expect.any(String),
       });
       const pageId = await seedPage(tripId);
       expect(await finishOf({ messages: [userMessage("show this on the map")], scope: { kind: "page", pageId } })).toEqual({
         paletteCommands: [{ id: `go:trip:${tripId}:view:Map`, needsApproval: false }],
+        turnId: expect.any(String),
       });
       expect(await finishOf({ messages: [userMessage("turn on editing")], scope: { kind: "page", pageId } })).toEqual({
         paletteCommands: [{ id: "notebook-editing", needsApproval: true, on: true }],
+        turnId: expect.any(String),
       });
     });
 
@@ -2026,6 +2244,8 @@ describe("POST /api/trips/:id/ask", () => {
     it("shows a day card for a day the search returned, and drops one it did not", async () => {
       const { tripId, savedDayId, city } = await tripAndPublishedDay();
       const model = scriptedStepsModel([
+        // Schedule holds no search (M57 part 4), so the turn crosses to Discover first.
+        [toolCall("switch_persona", { to: "discover", why: "they want a day to add" })],
         [toolCall("search_playbooks", { cities: [city] })],
         [toolCall("show_options", { prompt: "Pick a day", days: [savedDayId, "invented-day"] })],
         ["Either suits a slow morning."],
@@ -2057,7 +2277,7 @@ describe("POST /api/trips/:id/ask", () => {
       const tripId = await seedTrip();
       const res = await ask(tripId, { messages: [userMessage("what's planned?")], scope: { kind: "trip" } });
       const chunks = await chunksOf(res);
-      expect(chunks.every((c) => c.messageMetadata === undefined)).toBe(true);
+      expect(outcomeKeysOf(chunks)).toEqual([]);
     });
 
     // Ruling B: the client stops sniffing the model's prose for this.
@@ -3399,19 +3619,23 @@ describe("POST /api/trips/:id/ask", () => {
       // `find_days` sits beside `read_day` for the same reason: it is the
       // locator for a trip too long for read_trip's per-day rows, and this
       // one is not. `go_to` (ADR-072) because the question asked to go nowhere.
+      //
+      // **Neither search is on this list any more (M57 part 4):** a trip turn
+      // enters Schedule, which holds no `search_playbooks` or `search_places`,
+      // nor the `show_options` cards they feed. `switch_persona` is what it holds
+      // instead, to reach them, and this turn did not need it either.
       expect(record.uncalledTools).toEqual([
         "read_day",
         "find_days",
-        "search_playbooks",
-        "search_places",
         "go_to",
-        ...UI_TOOL_NAMES,
+        ...UI_NO_CARDS,
         "request_change_tools",
+        "switch_persona",
       ]);
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
     });
 
-    it("leaves only the library and the long-trip locator uncalled on a day-scoped turn", async () => {
+    it("leaves only the long-trip locator and the escalation uncalled on a day-scoped turn", async () => {
       const tripId = await seedTrip();
       const records: AskAnalyticsRecord[] = [];
       const res = await ask(
@@ -3431,11 +3655,10 @@ describe("POST /api/trips/:id/ask", () => {
       // the last is the escalation this turn did not have to take.
       expect(records[0]!.uncalledTools).toEqual([
         "find_days",
-        "search_playbooks",
-        "search_places",
         "go_to",
-        ...UI_TOOL_NAMES,
+        ...UI_NO_CARDS,
         "request_change_tools",
+        "switch_persona",
       ]);
     });
   });

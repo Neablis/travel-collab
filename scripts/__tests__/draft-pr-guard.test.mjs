@@ -21,7 +21,7 @@ import { verifyStamp } from "../tier3-stamp.mjs";
 const HOOK = new URL("../hooks/draft-pr-guard.mjs", import.meta.url).pathname;
 
 // Not a git repo, so no branch: the hook's answer must not depend on which
-// branch the test runner happens to be on (a part branch steps the ask aside).
+// branch the test runner happens to be on (a part branch denies a ready open).
 const NO_BRANCH = realpathSync(mkdtempSync(join(tmpdir(), "tc-draft-guard-")));
 
 function repoOn(branch) {
@@ -59,15 +59,15 @@ test("it fires through a compound command and past gh's global flags", () => {
   assert.equal(hook("gh --repo o/r pr create --title x")?.permissionDecision, "ask");
 });
 
-test("a milestone part branch may not open a draft, whether named by --head or checked out", () => {
+test("a milestone part branch may not open ready, whether named by --head or checked out", () => {
   for (const [command, cwd] of [
-    ["gh pr create --draft --head claude/m42-part1-trip-cards --title x", NO_BRANCH],
-    ["gh pr create --head=claude/m42-part1-trip-cards -d --title x", NO_BRANCH],
-    ["gh pr create --draft --title x", repoOn("claude/m42-part2-drawer")],
+    ["gh pr create --head claude/m42-part1-trip-cards --title x", NO_BRANCH],
+    ["gh pr create --head=claude/m42-part1-trip-cards --draft=false --title x", NO_BRANCH],
+    ["gh pr create --title x --base claude/m42-part1-cards", repoOn("claude/m42-part2-drawer")],
   ]) {
     const r = hook(command, cwd);
     assert.equal(r?.permissionDecision, "deny", command);
-    assert.match(r.permissionDecisionReason, /open it ready \(build-a-part\)/, command);
+    assert.match(r.permissionDecisionReason, /open it as a draft \(build-a-part\)/, command);
   }
 });
 
@@ -88,9 +88,9 @@ test("a model id in a gh PR title, body or body file is denied", () => {
 
 // --- it must NOT fire --------------------------------------------------------
 
-test("a milestone part branch opens ready with no ask; part 0's branch keeps the old rules", () => {
-  assert.equal(hook("gh pr create --head claude/m42-part1-trip-cards --title x --body y"), null);
-  assert.equal(hook("gh pr create --title x --body y", repoOn("claude/m42-part3-palette")), null);
+test("a milestone part branch opens draft with no ask; part 0's branch keeps the old rules", () => {
+  assert.equal(hook("gh pr create --draft --head claude/m42-part1-trip-cards --title x --body y"), null);
+  assert.equal(hook("gh pr create -d --title x --body y", repoOn("claude/m42-part3-palette")), null);
   // Part 0 lives on the session's branch, and `part0` is not a part branch.
   for (const branch of ["claude/build-a-milestone-abc", "claude/m42-part0-gate"]) {
     assert.equal(hook("gh pr create --draft --title x", repoOn(branch)), null, branch);
@@ -174,8 +174,8 @@ test("--draft=false opens ready, so it asks; --draft=true and --draft=1 are draf
   assert.equal(hook("gh pr create --draft=true --title x"), null);
   assert.equal(hook("gh pr create --draft=1 --title x"), null);
   const part = repoOn("claude/m42-part1-flags");
-  assert.equal(hook("gh pr create --draft=true --title x", part)?.permissionDecision, "deny");
-  assert.equal(hook("gh pr create --draft=false --title x", part), null);
+  assert.equal(hook("gh pr create --draft=true --title x", part), null);
+  assert.equal(hook("gh pr create --draft=false --title x", part)?.permissionDecision, "deny");
 });
 
 test("gh pr ready passes: CI on the PR is the full-suite verdict, not a local stamp", () => {
@@ -184,15 +184,15 @@ test("gh pr ready passes: CI on the PR is the full-suite verdict, not a local st
 });
 
 test("a lettered milestone's part branch is a part branch", () => {
-  assert.equal(hook("gh pr create --head claude/m48a-part1-x --title x"), null);
+  assert.equal(hook("gh pr create --draft --head claude/m48a-part1-x --title x"), null);
   assert.equal(
-    hook("gh pr create --draft --head claude/m48a-part1-x --title x")?.permissionDecision,
+    hook("gh pr create --head claude/m48a-part1-x --title x")?.permissionDecision,
     "deny",
   );
 });
 
 test("a parenthesis inside a quoted string in $(...) does not hide the gh call after it", () => {
-  const r = hook('echo $(echo "(" ); gh pr create --draft', repoOn("claude/m42-part1-quotes"));
+  const r = hook('echo $(echo "(" ); gh pr create', repoOn("claude/m42-part1-quotes"));
   assert.equal(r?.permissionDecision, "deny");
-  assert.match(r.permissionDecisionReason, /open it ready/);
+  assert.match(r.permissionDecisionReason, /open it as a draft/);
 });

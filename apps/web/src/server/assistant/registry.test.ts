@@ -41,6 +41,7 @@ import { PAGE_TOOLS } from "./tools/page";
 import { WIDGET_TOOLS } from "./tools/widgets";
 import { typedAddressesIn } from "./typedAddresses";
 import { PLACE_TOOLS } from "./tools/places";
+import { PERSONA_TOOLS } from "./tools/switchPersona";
 import { ESCALATION_TOOLS } from "./tools/escalate";
 import { INTENT_TOOLS } from "./tools/intent";
 import { newIntentLatch } from "./intents";
@@ -73,7 +74,7 @@ const TURN_DEPS = {
   escalation: newEscalationBuffer(),
   notebooks: newNotebookRefs(async () => [], null),
   typedAddresses: typedAddressesIn(""),
-  intent: newIntentLatch("compose", ["compose"], () => 0),
+  intent: newIntentLatch("compose", ["compose"], () => 0, { entry: "page-writer", caps: { role: "propose", plan: "propose", classifier: "propose" } }),
   readBudget: newDayReadBudget(15),
   trips: newAccountTrips("registry-reader", async () => []),
   paletteCommands: newPaletteCommandBuffer(),
@@ -111,6 +112,7 @@ describe("the registry", () => {
         ...NAVIGATION_TOOLS.map((t) => t.name),
         ...UI_TOOLS.map((t) => t.name),
         ...ESCALATION_TOOLS.map((t) => t.name),
+        ...PERSONA_TOOLS.map((t) => t.name),
       ].sort(),
     );
   });

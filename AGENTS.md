@@ -222,8 +222,10 @@ finished-but-unmerged one gets a PR, or a recorded reason it is left.
 Rule: **open that PR as a draft, and mark it ready only when you believe it is
 green.** `ci.yml` skips its jobs on a draft. The budget is 2,000 minutes a month
 and PR #55 alone spent **315** on work-in-progress.
-`docs/guidelines/ci-cost-and-capacity.md`. **Except a milestone part**
-(`claude/m<N>-part<K>-…`), which opens ready (`build-a-part`).
+`docs/guidelines/ci-cost-and-capacity.md`. A milestone part
+(`claude/m<N>-part<K>-…`) always opens draft, on the part below it; only the
+top part of the stack is ever marked ready (`build-a-part`,
+`close-a-milestone`).
 
 ## Definition of Done (every change)
 
@@ -253,12 +255,12 @@ covering what you touched. For `packages/contracts/src` the consumers span
 packages, so the subset is `pnpm typecheck` across every package. Record the
 subset in the PR body.
 
-**Tier 3 — final review**, the PR ready (a milestone part opens ready;
-`build-a-part`): `pnpm check`, plus `pnpm --filter web test:e2e:ci-like` if a
+**Tier 3 — final review**, the PR ready (for a milestone, only the top part of
+its stack; `close-a-milestone`): `pnpm check`, plus `pnpm --filter web test:e2e:ci-like` if a
 user flow changed and `pnpm seed:verify` if a contract field or fixture did.
-**CI pays it on the PR**; read its run on the real head. A milestone part pays
-it on its own PR; any other stack once, on the top part
-(`docs/guidelines/stacked-prs.md` §5).
+**CI pays it on the PR**; read its run on the real head. A milestone, like any
+other stack, pays it once, on the top part (`docs/guidelines/stacked-prs.md`
+§5, `docs/guidelines/building-a-milestone.md` §4).
 
 A mid-branch full-suite run is a judgment call to justify, not a reflex. If you
 genuinely need one — you are chasing a failure whose blast radius you cannot

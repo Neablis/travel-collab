@@ -1,6 +1,6 @@
 {
   "name": "grounded-plan",
-  "about": "The happy path M9 is for: search, then cite. The model looks two places up in ONE call, cites the candidates it chose by number, and the server resolves both into the places that commit. This is the transcript that would go red if grounding stopped resolving \u2014 the proposal would still have two changes, and `search-then-act` would still be two steps, but the committed location would be whatever the model typed.",
+  "about": "The happy path M9 is for: search, then cite. The model looks two places up in ONE call, cites the candidates it chose by number, and the server resolves both into the places that commit. This is the transcript that would go red if grounding stopped resolving \u2014 the proposal would still have two changes, and `search-then-act` would still be two steps, but the committed location would be whatever the model typed. Since M57 part 4 a trip page enters Schedule, which holds no place search, so the model crosses to Discover in its first step (beside its first read) and searches from there.",
   "source": {
     "kind": "synthetic",
     "from": "M9's own scope: 'costs one extra step per turn (search, then act), not one per place'"
@@ -21,6 +21,12 @@
           "toolCallId": "c1",
           "toolName": "read_trip",
           "input": "{}"
+        },
+        {
+          "type": "tool-call",
+          "toolCallId": "c0",
+          "toolName": "switch_persona",
+          "input": "{\"to\": \"discover\", \"why\": \"the stops need real places looked up\"}"
         }
       ],
       "finishReason": "tool-calls"
@@ -67,6 +73,7 @@
     "steps": 4,
     "toolCalls": [
       "read_trip",
+      "switch_persona",
       "search_places",
       "AddActivity",
       "AddActivity"

@@ -137,6 +137,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "The assistant — a token cannot spend model budget",
     reaches: [{ module: "@/server/ai/handleAskRequest" }],
   },
+  "ask/outcome": {
+    status: "never",
+    why: "The assistant — a token cannot spend model budget",
+    reaches: [{ module: "@/server/ai/handleAskRequest" }],
+  },
   "trips/[tripId]/ask": {
     status: "never",
     why: "The assistant — a token cannot spend model budget",
@@ -146,6 +151,16 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     status: "never",
     why: "The assistant — a token cannot spend model budget",
     reaches: [{ module: "@/server/ai/handleAskRequest" }],
+  },
+  "admin/assistant/personas": {
+    status: "never",
+    why: "AI and assistant endpoints never get a public API: abuse risk (Mitchell, 2026-11-01)",
+    reaches: [{ module: "@/server/assistant/personas" }],
+  },
+  "admin/assistant/turns/[turnId]": {
+    status: "never",
+    why: "AI and assistant endpoints never get a public API: abuse risk (Mitchell, 2026-11-01)",
+    reaches: [{ module: "@/server/assistant/turnTrace" }],
   },
   "health/ai-mode": {
     status: "never",

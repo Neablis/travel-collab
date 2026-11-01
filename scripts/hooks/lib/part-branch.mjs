@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 // a milestone number with an optional letter (`m48a`), as plan-a-milestone
 // names them; M41's were `claude/m41-part3-parked-origin`.
 // Part 0 is prose-only and lives on the session's own branch, which never
-// matches. The milestone-only rules (a part opens ready, never draft; the
+// matches. The milestone-only rules (a part opens draft, never ready; the
 // review nudge after a push) apply on these branches and nowhere else.
 export const PART_BRANCH = /^claude\/m\d+[a-z]?-part[1-9]\d*/;
 

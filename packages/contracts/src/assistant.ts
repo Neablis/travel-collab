@@ -545,12 +545,16 @@ export const AssistantHandOff = z
 export type AssistantHandOff = z.infer<typeof AssistantHandOff>;
 
 /**
- * Not an outcome: a sibling any outcome may carry, and the silent one too, so
- * a turn can answer, propose or write AND take you somewhere. It sits in every
- * branch below rather than beside the union, and `OUTCOME_KEYS` leaves it out,
- * so the one-outcome rule is untouched.
+ * Not outcomes: siblings any outcome may carry, and the silent one too, so a
+ * turn can answer, propose or write AND take you somewhere. They sit in every
+ * branch below rather than beside the union, and `OUTCOME_KEYS` leaves them
+ * out, so the one-outcome rule is untouched.
+ *
+ * `turnId` is the server's id for the turn (M57): the key of its ledger rows,
+ * on the final chunk, so the client can name the turn a later outcome belongs
+ * to. Optional, because a server before M57 sends none.
  */
-const WITH_COMMANDS = { paletteCommands: PaletteCommands.optional() };
+const WITH_SIBLINGS = { paletteCommands: PaletteCommands.optional(), turnId: z.string().guid().optional() };
 
 /**
  * What the stream's final chunk carries, and the only ten shapes it may take.
@@ -586,13 +590,13 @@ const WITH_COMMANDS = { paletteCommands: PaletteCommands.optional() };
  * stream part; an unreadable envelope must never break a conversation.
  */
 const AskStreamShape = z.union([
-  z.object({ proposal: AssistantProposal, ...WITH_COMMANDS }),
+  z.object({ proposal: AssistantProposal, ...WITH_SIBLINGS }),
   /**
    * A planning turn of more than one change, already stored as a suggestion
    * (ADR-067). The same turn never also carries `proposal`: storing it is what
    * replaced the card.
    */
-  z.object({ suggested: AssistantSuggested, ...WITH_COMMANDS }),
+  z.object({ suggested: AssistantSuggested, ...WITH_SIBLINGS }),
   /**
    * A planning turn that called write tools and had EVERY one refused when
    * resolved against the trip, so there is no proposal to show — with the
@@ -600,7 +604,7 @@ const AskStreamShape = z.union([
    * turn ended on the model's own prose, which reads as if the changes were
    * made (2026-10-10: a deleted trip, three turns, nothing changed, no word why).
    */
-  z.object({ notApplied: z.object({ skipped: z.array(z.string().min(1)).min(1) }), ...WITH_COMMANDS }),
+  z.object({ notApplied: z.object({ skipped: z.array(z.string().min(1)).min(1) }), ...WITH_SIBLINGS }),
   /**
    * What a `page`-scoped turn wants INSERTED. Validated server-side against the
    * macro registry before a byte leaves — which this side cannot see — so this
@@ -630,7 +634,7 @@ const AskStreamShape = z.union([
        */
       dropped: z.array(DroppedInsert).optional(),
     }),
-    ...WITH_COMMANDS,
+    ...WITH_SIBLINGS,
   }),
   /**
    * A page turn whose assembled nodes failed validation, with the server's own
@@ -638,7 +642,7 @@ const AskStreamShape = z.union([
    * has already sent its 200, so the refusal rides out as data the client
    * renders — the nodes themselves still never reach it.
    */
-  z.object({ composeError: z.string().min(1), ...WITH_COMMANDS }),
+  z.object({ composeError: z.string().min(1), ...WITH_SIBLINGS }),
   /**
    * A planning turn whose answer streamed but whose proposal could not be
    * built (KI-2026-09-24-w): the answer stands, and the final chunk carries
@@ -646,13 +650,13 @@ const AskStreamShape = z.union([
    * text never reaches the client. The one-outcome rule covers it like the
    * others, so it never rides beside a `proposal`.
    */
-  z.object({ proposalFailed: z.object({ message: z.string().min(1) }), ...WITH_COMMANDS }),
+  z.object({ proposalFailed: z.object({ message: z.string().min(1) }), ...WITH_SIBLINGS }),
   /** A closed question (ADR-084 §2), drawn as a picker. Its answer is the person's next message. */
-  z.object({ ask: AssistantAsk, ...WITH_COMMANDS }),
+  z.object({ ask: AssistantAsk, ...WITH_SIBLINGS }),
   /** Cards for places or published days, filled by the server from this turn's tool results. */
-  z.object({ options: AssistantOptions, ...WITH_COMMANDS }),
+  z.object({ options: AssistantOptions, ...WITH_SIBLINGS }),
   /** The one decline: a sentence and a button to where the task is done. */
-  z.object({ handOff: AssistantHandOff, ...WITH_COMMANDS }),
+  z.object({ handOff: AssistantHandOff, ...WITH_SIBLINGS }),
   /**
    * Silence, or only somewhere to go (ADR-072). Strict at runtime for the
    * reason above: it still parses `{}` and still rejects `{ anything: 1 }`.
@@ -664,13 +668,13 @@ const AskStreamShape = z.union([
    * literal with any other key is an excess property, and one that shares no
    * key with it fails as a weak type, so the type pins the producer as before.
    */
-  z.strictObject(WITH_COMMANDS),
+  z.strictObject(WITH_SIBLINGS),
 ]);
 
 // Derived from the branches rather than spelled again. `paletteCommands` is in
 // every branch and is not an outcome, so the empty branch contributes none.
 const OUTCOME_KEYS = AskStreamShape.options.flatMap((branch) =>
-  Object.keys(branch.shape).filter((key) => !(key in WITH_COMMANDS)),
+  Object.keys(branch.shape).filter((key) => !(key in WITH_SIBLINGS)),
 );
 
 /**
