@@ -126,7 +126,7 @@ export type RenderOutcome =
   // `because` rides through: a resolver that said WHY it is empty has said the
   // only useful thing it had, and dropping it here would have made
   // `MacroResult.because` unreachable from the one call site that renders.
-  | { status: "empty"; because?: string }
+  | { status: "empty"; because?: string; good?: true }
   // `shape` is always present here: the resolver's own, or `fallbackShape`.
   | { status: "unbound"; needs: UnboundNeeds; shape: readonly Seg[] }
   // No shape, and never one: ADR-052's `unavailable` is not a ghost.
@@ -158,8 +158,10 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
   if (outcome.status === "ok") return { status: "ok", rendered: def.render(outcome.value) };
   // Off the trip's dates a widget following a Today page has nothing because
   // today is no trip day, not because the trip lacks days or places, so it
-  // says that rather than its empty-trip line (M52 decision 10).
-  if (outcome.status === "empty" && isNoDay(scope)) return { status: "empty", because: NOTHING_TODAY };
+  // says that rather than its empty-trip line (M52 decision 10). Not over a
+  // widget whose empty is good news: that is a verdict only it can word, and
+  // `open` gives the whole trip's before day 1 (Mitchell, 2026-11-01).
+  if (outcome.status === "empty" && isNoDay(scope) && !def.emptyIsGood) return { status: "empty", because: NOTHING_TODAY };
   if (outcome.status === "unbound") return { ...outcome, shape: outcome.shape ?? fallbackShape(def) };
   return outcome;
 }

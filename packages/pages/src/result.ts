@@ -62,6 +62,13 @@ export type MacroResult<T> =
        * resolver keeps the state it had.
        */
       because?: string;
+      /**
+       * `because` is still the good news (`MacroDef.emptyIsGood`), only
+       * narrower than `emptyText` can say: `open` on a day a notebook's scope
+       * chose, which vouches for that day and not the trip. Absent, a
+       * `because` is a filtered empty and draws the muted chip.
+       */
+      good?: true;
     }
   | {
       status: "unbound";
@@ -82,6 +89,8 @@ export type MacroResult<T> =
 export const ok = <T>(value: T): MacroResult<T> => ({ status: "ok", value });
 export const empty = (because?: string): MacroResult<never> =>
   because === undefined ? { status: "empty" } : { status: "empty", because };
+/** An empty that is still the good news, in words for less than the whole widget (`good`). */
+export const goodEmpty = (because: string): MacroResult<never> => ({ status: "empty", because, good: true });
 /** A widget whose outside source has not answered (yet) — see `UnavailableReason`. Never a ghost. */
 export const unavailable = (reason: UnavailableReason): MacroResult<never> => ({ status: "unavailable", reason });
 export const unbound = (needs: UnboundNeeds, shape?: readonly Seg[]): MacroResult<never> =>

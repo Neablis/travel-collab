@@ -438,12 +438,12 @@ describe("on a page scoped to today", () => {
     activities: { ...costedDetail.activities, a2: { ...costedDetail.activities.a1!, activityId: "a2", title: "Shrine" } },
   });
   const scoped: PageContext = { ...ctx, dateScope: "today" };
-  const onDay2 = (params: Record<string, unknown>) =>
+  const onDay2 = (params: Record<string, unknown>, name = "day.detail") =>
     render(
       <MacroEditorContext.Provider
         value={{ detail: twoDated, context: scoped, user: null, globals: null, editing: false, now: { at: Date.parse("2026-08-02T12:00:00Z"), deviceZone: "UTC" } }}
       >
-        <MacroView detail={twoDated} context={scoped} name="day.detail" params={params} />
+        <MacroView detail={twoDated} context={scoped} name={name} params={params} />
       </MacroEditorContext.Provider>,
     );
 
@@ -457,6 +457,13 @@ describe("on a page scoped to today", () => {
     onDay2({ day: { kind: "index", index: 0 } });
     expect(screen.getByText("Shrine")).toBeTruthy();
     expect(screen.queryByText("Museum")).toBeNull();
+  });
+
+  // M43 part 5: the scope, not a filter, hid day 1, so a quiet today is the
+  // good news on the success line, worded for the day.
+  it("says nothing needs you today on the success line", () => {
+    onDay2({}, "open");
+    expect(screen.getByTestId("macro-empty-good").textContent).toBe("Nothing needs you today");
   });
 });
 
