@@ -16,6 +16,9 @@ import { clearAskDraft, loadAskDraft, saveAskDraft } from "./askThreadStore";
 import { useOwnedAskName } from "./useAskThread";
 import { cn } from "@/lib/cn";
 import { Transcript, type AssistantTurn } from "./Transcript";
+import { AskDebugPanel } from "./AskDebugPanel";
+import { TurnBreakdown } from "./TurnBreakdown";
+import { useIsAdmin } from "@/components/account/PreferencesProvider";
 import type { ProposalState, ProposalUndo } from "./ProposalCard";
 import {
   ASSISTANT_FLOAT_SIZE,
@@ -125,6 +128,19 @@ const DRAFT_SAVE_MS = 300;
 /** The panel's two tabs on a trip (M46): the people's conversation, and the assistant's. */
 export type RailTab = "chat" | "ask";
 const RAIL_TABS_ID = "assistant-rail";
+
+/** Where an operator's Debug choice is kept, per browser (M57 part 5). */
+const DEBUG_KEY = "tc:ask-debug";
+
+/**
+ * The page kind a scope is, as the persona endpoint names it. A shared day
+ * says `playbook-day` here whether it holds one day or several: both enter the
+ * same persona, and the rail does not know the day count.
+ */
+function debugSurfaceOf(scope: AskScope): string {
+  if (scope.kind !== "playbook") return scope.kind;
+  return scope.page.kind === "day" ? "playbook-day" : scope.page.kind;
+}
 // Chat first: it is the conversation a trip has, and Ask is one person's. The
 // unread dot rides on Chat as it does on the button that opened the panel, past
 // the label in the 22px between tabs, so the strip does not move when it lands.
@@ -519,6 +535,32 @@ export function AssistantRail({
   const isSheet = presentation === "sheet";
   const isFloating = presentation === "floating";
   const onChat = chat?.tab === "chat";
+  // **Debug is an operator's view of the turn** (M57 part 5): the persona graph
+  // above the transcript and a breakdown under each answer. Advisory like
+  // `useIsAdmin`: the endpoints behind it 404 to anyone else. Remembered per
+  // browser, read after mount so the server render and the first client one
+  // agree. Only an operator reads it, and storage can throw (Safari's private
+  // mode, a blocked-storage setting): a failed read is "off" and a failed write
+  // costs only the memory, never the panel.
+  const isAdmin = useIsAdmin();
+  const [debug, setDebug] = useState(false);
+  useEffect(() => {
+    if (!isAdmin) return;
+    try {
+      setDebug(window.localStorage.getItem(DEBUG_KEY) === "on");
+    } catch {
+      // Reads as off.
+    }
+  }, [isAdmin]);
+  const debugOn = isAdmin && debug && !onChat;
+  const toggleDebug = () => {
+    try {
+      window.localStorage.setItem(DEBUG_KEY, debug ? "off" : "on");
+    } catch {
+      // The choice holds for this visit; it is not remembered.
+    }
+    setDebug(!debug);
+  };
 
   /**
    * **Where a dragged floating panel sits** — SPEC §9, M26 link 10b.
@@ -1020,6 +1062,17 @@ export function AssistantRail({
                 {isFloating ? "Dock" : "Float"}
               </Button>
             )}
+            {isAdmin && !onChat && (
+              <Button
+                variant={debug ? "secondary" : "ghost"}
+                size={isSheet ? "touch" : "sm"}
+                aria-pressed={debug}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={toggleDebug}
+              >
+                Debug
+              </Button>
+            )}
             {turns.length > 0 && !onChat && (
               <Button
                 variant="ghost"
@@ -1108,6 +1161,7 @@ export function AssistantRail({
           {...(chat === undefined ? {} : { role: "tabpanel", id: tabPanelId(RAIL_TABS_ID, "ask"), "aria-labelledby": tabId(RAIL_TABS_ID, "ask") })}
           className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-3.5"
         >
+          {debugOn && <AskDebugPanel surface={debugSurfaceOf(scope)} />}
           {turns.length === 0 ? (
             <>
               <p className="text-sm leading-relaxed text-slate">{emptyHint}</p>
@@ -1149,6 +1203,14 @@ export function AssistantRail({
               answering={answerShut}
               approvalBlockedReason={approvalBlockedReason}
               touch={isSheet}
+              {...(debugOn
+                ? {
+                    renderTurnFooter: (turn: AssistantTurn) =>
+                      turn.role === "assistant" && !turn.pending && turn.serverTurnId !== undefined ? (
+                        <TurnBreakdown turnId={turn.serverTurnId} ordinal={turns.filter((t) => t.role === "assistant").indexOf(turn) + 1} touch={isSheet} />
+                      ) : null,
+                  }
+                : {})}
               {...(onUndoProposal === undefined ? {} : { onUndoProposal })}
               {...(undoFor === undefined ? {} : { undoFor })}
             />

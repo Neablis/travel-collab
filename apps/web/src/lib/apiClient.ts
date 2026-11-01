@@ -1,4 +1,5 @@
 import type { ClientOutcomeKind } from "@/lib/turnOutcomeKinds";
+import type { PersonaGraphResponse, TurnTrace } from "@/lib/askDebug";
 import {
   ActivityTag,
   ActivityTagDescribed,
@@ -2151,6 +2152,32 @@ export async function askAssistant(
 // ADR-033 Decision 4 — `/ask/apply` is its only caller now, and `simulated` is
 // always false there (see below).
 export type PlanOutcome = CommandOutcome & { message: string; simulated: boolean };
+
+/**
+ * The operator-only persona graph for a page kind (M57 part 5), under the
+ * caller's caps on `tripId` when one is named. A non-operator gets a 404, which
+ * is a refusal here like any other.
+ */
+export async function fetchPersonaGraph(surface: string, tripId?: string): Promise<ApiResult<PersonaGraphResponse>> {
+  const query = new URLSearchParams({ surface });
+  if (tripId !== undefined) query.set("tripId", tripId);
+  try {
+    const res = await fetch(apiUrl(`/api/admin/assistant/personas?${query.toString()}`));
+    return await readJson(res, (data) => data as PersonaGraphResponse);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** One turn's ledger trace, for the Debug breakdown (M57 part 5); operators only. */
+export async function fetchTurnTrace(turnId: string): Promise<ApiResult<TurnTrace>> {
+  try {
+    const res = await fetch(apiUrl(`/api/admin/assistant/turns/${encodeURIComponent(turnId)}`));
+    return await readJson(res, (data) => (data as { trace: TurnTrace }).trace);
+  } catch (err) {
+    return networkError(err);
+  }
+}
 
 /**
  * Tell the server what was done with a turn's answer (M57): a hand-off or a
