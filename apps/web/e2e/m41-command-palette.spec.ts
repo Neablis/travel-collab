@@ -104,8 +104,15 @@ test("a trip walked from the keyboard alone: drilling, typing across levels, a n
 });
 
 test("Add › Trip from Home is Home's own button", async ({ page }) => {
+  // This run's own trip, so Home has a list: on a Home with no trips *New trip*
+  // moves the cursor into the inline first-run conversation and opens no
+  // dialog (`HomeScreen.startNewTrip`). alice is shared, so whether she had
+  // one depended on which other workers' trips existed at that moment.
+  const name = e2eTripName("PaletteHome");
+  await createMappedTrip(page, name, 1);
   await page.goto("/home");
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+  await expect(page.getByRole("link", { name })).toBeVisible();
   await command(page, "add trip");
   await expect(page.getByRole("dialog", { name: "New trip" })).toBeVisible();
 });

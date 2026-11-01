@@ -35,7 +35,7 @@ import {
   OverviewLensFallback,
   PlanLensSkeleton,
 } from "@/components/lenses/LensSkeletons";
-import { useIsAbovePhone, useIsPhone, useIsPhoneKnown, useIsTabletWidth } from "@/lib/useIsPhone";
+import { useDocksAssistant, useIsAbovePhone, useIsPhone, useIsPhoneKnown } from "@/lib/useIsPhone";
 import { useHydrated } from "@/lib/useHydrated";
 import { loadCarriedAsks, loadCarriedTurn, saveCarriedAsks, saveCarriedTurn, takeIntoTrip } from "@/lib/pendingCarriedAsks";
 import { Heading } from "@/components/ui/heading";
@@ -620,9 +620,15 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // wins"). Docked at 820px left the board about 440px, one and a half day
   // columns (KI-2026-09-24-j); the sheet costs it nothing. The reader's choice
   // is honoured from 1100px up, and is not offered where it cannot be.
-  // Decided after the first paint by the same argument as `isPhone` above.
-  const isTabletWidth = useIsTabletWidth();
-  const assistantPresentation = isPhone || isTabletWidth ? "sheet" : assistantShape;
+  //
+  // **Read from the media query, not from `useIsPhone`'s effect** (PR 674 e2e,
+  // m16-mobile-assistant). The phone bar draws Ask from the route, so a tap can
+  // be replayed in the commit hydration ends on, before that effect has run:
+  // the rail opened docked and was swapped for the sheet a frame later, and the
+  // Hide button a test (or a thumb) had found was detached. `undefined` is
+  // "not known yet", and the rail waits for it rather than guess.
+  const docksAssistant = useDocksAssistant();
+  const assistantPresentation = docksAssistant === false ? "sheet" : assistantShape;
   // Chat's day and stop chips and its *@day* / *@stop* picker (M46 D3) go
   // where ⌘K's *Go to* goes, over this trip's days and stops and no other
   // (`boardFocus.ts`). Where Chat is a sheet over the board, a chip puts it
@@ -1884,7 +1890,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             descendant in a stacking or containing block of its own. Checked
             deliberately rather than assumed, and pinned by the
             "tabs are not tappable behind an open sheet" e2e test. */}
-        {!isDemo && assistant.open && (
+        {!isDemo && assistant.open && docksAssistant !== undefined && (
           <Suspense fallback={assistantPresentation === "docked" ? <AssistantRailSkeleton /> : null}>
             <AssistantRail
               // **The reader's own choice from 1100px up** (SPEC §9, M26 link

@@ -38,6 +38,7 @@ vi.mock("@/lib/useIsPhone", async (orig) => {
     ...actual,
     // A phone, known from the first client render, as `matchMedia` answers it.
     useIsPhoneKnown: () => true,
+    useDocksAssistant: () => false,
     // `useIsPhone`'s state, which a test moves where its effect would.
     useIsPhone: () =>
       useSyncExternalStore(
@@ -81,6 +82,7 @@ import { TripProvider } from "@/components/trip/context/TripProvider";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { LensRouter } from "@/components/trip/context/LensRouter";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
 
 const first = tripFirstDataFixture({ trip: costedTripDetailFixture() });
 const tripId = first.trip.trip.tripId;
@@ -173,5 +175,32 @@ describe("TripBoardScreen — a phone's Plan is first drawn in its right form", 
     expect(screen.getByTestId("trip-board-content").hasAttribute("inert")).toBe(false);
     act(() => focus.queued.forEach((apply) => apply()));
     expect(await screen.findByRole("group", { name: "Day columns" })).toBeTruthy();
+  });
+
+  // M57 part 6 CI (m16-mobile-assistant): the phone bar's Ask is drawn from the
+  // route, so a tap can land in the commit where hydration has run but
+  // `useIsPhone`'s effect has not. The rail opened docked and was replaced by
+  // the sheet a frame later, which detached the Hide button under the test's
+  // hand. The presentation must follow the width the media query already knows.
+  it("opens the assistant as a sheet at once, before the width hook has corrected", async () => {
+    let ask: ReturnType<typeof usePhoneAsk> = null;
+    function Opener() {
+      ask = usePhoneAsk();
+      return null;
+    }
+    render(
+      <TripProvider tripId={tripId} initial={tripFirstDataFixture({ trip: first.trip.trip })}>
+        <FocusProvider>
+          <EditorHost>
+            <LensRouter>
+              <TripBoardScreen tripId={tripId} />
+              <Opener />
+            </LensRouter>
+          </EditorHost>
+        </FocusProvider>
+      </TripProvider>,
+    );
+    act(() => ask?.onOpen());
+    expect(await screen.findByTestId("assistant-scrim")).toBeTruthy();
   });
 });
