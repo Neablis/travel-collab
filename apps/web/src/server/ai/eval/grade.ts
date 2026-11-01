@@ -45,7 +45,8 @@ export interface EvalTurn {
   /**
    * The persona each agent step ran as, from the turn's ledger (M57). Absent
    * on a build with no personas, which is how the persona checks know to say
-   * nothing there: main and part 4 grade the same prompts.
+   * nothing there: main and part 4 grade the same prompts. Empty on a build
+   * with personas where no step ran, which fails a persona expectation.
    */
   personaPath?: readonly EvalPersonaStep[];
 }
@@ -241,15 +242,18 @@ const SWITCH_TOOL = "switch_persona";
 // What the voice rule forbids is the question and the instruction, never the
 // plain word: "I scheduled it for 1 pm" and "Switched to Discover" (a note, not
 // an ask) both stand.
-const SWITCH_WORDS = /\b(?:switch(?:ing)?|persona|modes?)\b/i;
-const ASKS = /\b(?:would you like|do you want|want me to|shall i|should i|let me know if you'd like|please (?:switch|choose|pick|select)|you (?:can|could|may) (?:switch|choose|pick))\b/i;
+// A switch word alone is not an ask: "Should I switch lunch and the museum?"
+// swaps two activities. It counts only with a persona or mode named: "switch
+// to Discover", "the Schedule persona", or the word persona itself.
+const SWITCH_NAMED = /\bswitch(?:ing)?\s+(?:\w+\s+){0,3}?(?:to|into)\s+(?:the\s+|a\s+)?(?:Discover|Schedule|persona|mode)\b|\b(?:Discover|Schedule)\s+(?:mode|persona)\b|\bpersona\b/i;
+const ASKS = /\b(?:would you like|do you want|want me to|shall i|should i|if you'd like|let me know if you'd like|you(?:'ll| will) need to|you (?:need|have) to|please (?:switch|choose|pick|select)|you (?:can|could|may) (?:switch|choose|pick))\b/i;
 const PERSONA_CHOICE = /\b(?:Discover|Schedule)\s+(?:or|\/)\s+(?:Discover|Schedule)\b/;
 
 /** The first sentence of `text` that asks the person to switch or pick a persona or mode, or null. */
 export function asksToSwitch(text: string): string | null {
   for (const sentence of text.split(/(?<=[.!?])\s+/)) {
     if (PERSONA_CHOICE.test(sentence)) return sentence;
-    if (SWITCH_WORDS.test(sentence) && (sentence.trimEnd().endsWith("?") || ASKS.test(sentence))) return sentence;
+    if (SWITCH_NAMED.test(sentence) && (sentence.trimEnd().endsWith("?") || ASKS.test(sentence))) return sentence;
   }
   return null;
 }
@@ -440,7 +444,12 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
   // Only where the build has personas: on main nothing here is checked, rather
   // than failed for a field the ledger does not have.
   const path = turn.personaPath;
-  if (path !== undefined) {
+  const hasPersonaExpectation = expect.switchesTo !== undefined || (expect.switchesBefore?.length ?? 0) > 0;
+  if (path?.length === 0 && hasPersonaExpectation) {
+    // A build with personas, but no agent step ran (admission, off-topic, error):
+    // there is no path to grade, which is a failure here, not a pass.
+    checks.push({ name: "ran an agent step", pass: false, detail: `no step in the ledger; calls: ${trace}` });
+  } else if (path !== undefined) {
     const calls = record.toolCalls.map((call) => call.name);
     const switchCalls = calls.filter((name) => name === SWITCH_TOOL).length;
     const crossings = path.filter((step) => step.fromPersona != null && step.fromPersona !== step.persona);
