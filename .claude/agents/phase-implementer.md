@@ -1,6 +1,6 @@
 ---
 name: phase-implementer
-description: Builds or fixes one milestone part in travel-collab by the build-a-part skill — red-first test, code inside the part's file scope, the fixed scoped local-check recipe (never a full suite), push, and the PR opened ready against main. Use for one part from a plan in docs/plans/, or a fix to one. Not for exploratory or cross-cutting work.
+description: Builds or fixes one milestone part in travel-collab by the build-a-part skill — red-first test, code inside the part's file scope, the fixed scoped local-check recipe (never a full suite), push, and the PR opened as a draft on the part below it in the stack (main for part 1). Use for one part from a plan in docs/plans/, or a fix to one. Not for exploratory or cross-cutting work.
 tools: Bash, Read, Edit, Write, Grep, Glob, LSP, Skill
 skills:
   - build-a-part
@@ -24,7 +24,8 @@ brief, never in a PR title, body or commit message.
    the ones around it.
 2. Read `AGENTS.md`'s Invariants and the files you are about to change, with
    their tests.
-3. Branch from `main`. For a fix, check out the part's existing branch at the head sha the brief
+3. Branch from the base the brief names: `main` for part 1, otherwise the head of the part
+   below (`origin/claude/m<N>-part<K-1>-…`); the milestone is one stack. For a fix, check out the part's existing branch at the head sha the brief
    names, and read the findings it points to before anything else. Open the files the brief
    lists; do not survey the repo to find them.
 
@@ -57,8 +58,11 @@ it, report that rather than expanding silently.
   `pnpm lint`, a whole vitest suite or a whole e2e run: CI on the PR runs those.
   A change under `packages/contracts/src` adds `pnpm typecheck` across every
   package, and still leaves the full suites to CI.
-- Open the PR **ready for review, never draft**, and push nothing more until CI
-  has started on the head.
+- Open the PR **as a draft, on the base the brief names**, never ready. Drafts
+  run no CI; the stack's one full run is on the top part, marked ready by the
+  orchestrator's CI step, not by you.
+- A fix goes on the lowest part it touches, then merges upward: merge each part
+  into the one above it and push, to the top, and report every part's new sha.
 - Anything you post on GitHub after the PR body is short: a thread reply is one
   line naming the commit, a CI fix one line
   (`docs/guidelines/working-a-review.md`, *What we post to GitHub is short*).
