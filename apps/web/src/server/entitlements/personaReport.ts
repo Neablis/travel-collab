@@ -37,6 +37,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Newest turns listed under the map. */
 const RECENT_TURNS = 25;
 
+/** The persona map for the last `days` days, with per-persona and per-edge turn and cost figures and the newest turns. */
 export async function personaReport(map: PersonaMapDef, days: number, now: Date = new Date()): Promise<PersonaReport> {
   const since = new Date(now.getTime() - days * DAY_MS);
   const inWindow = and(gte(aiUsage.createdAt, since), lt(aiUsage.createdAt, now), sql`${aiUsage.turnModel} NOT LIKE 'simulated/%'`);

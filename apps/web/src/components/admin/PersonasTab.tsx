@@ -37,7 +37,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 function Graph({ nodes, edges }: { nodes: PersonaNode[]; edges: PersonaEdge[] }) {
   const at = new Map(nodes.map((node, index) => [node.id, place(index, nodes.length)]));
   // The one place a hand-off to nowhere lands: off to the side, so it is not mistaken for a persona.
-  const nowhere = { x: W - 34, y: H - 18 };
+  const nowhere = { x: W - 30, y: H - 28 };
   const drawn = edges.filter((edge) => edge.from !== edge.to);
   const dangling = new Set(drawn.filter((edge) => edge.to === null).map((edge) => edge.from));
   return (
@@ -55,7 +55,7 @@ function Graph({ nodes, edges }: { nodes: PersonaNode[]; edges: PersonaEdge[] })
           return (
             <g key={`${edge.from}-${edge.via}-${edge.to}`} className="text-brand">
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd="url(#personas-arrow)" strokeDasharray={edge.kind === "hand-off" ? "4 3" : undefined} className="stroke-current" />
-              <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 3} textAnchor="middle" fontSize={8} className="fill-current">
+              <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 3} textAnchor="middle" fontSize={12} className="fill-current">
                 {edge.count}
               </text>
             </g>
@@ -67,8 +67,8 @@ function Graph({ nodes, edges }: { nodes: PersonaNode[]; edges: PersonaEdge[] })
       })}
       {dangling.size > 0 && (
         <g>
-          <circle cx={nowhere.x} cy={nowhere.y} r={14} className="fill-surface stroke-current text-hairline" />
-          <text x={nowhere.x} y={nowhere.y + 3} textAnchor="middle" fontSize={8} className="fill-current text-slate">
+          <circle cx={nowhere.x} cy={nowhere.y} r={26} className="fill-surface stroke-current text-hairline" />
+          <text x={nowhere.x} y={nowhere.y + 4} textAnchor="middle" fontSize={12} className="fill-current text-slate">
             nowhere
           </text>
         </g>
@@ -77,11 +77,11 @@ function Graph({ nodes, edges }: { nodes: PersonaNode[]; edges: PersonaEdge[] })
         const { x, y } = at.get(node.id)!;
         return (
           <g key={node.id} className={cn(node.turns === 0 && "opacity-50")}>
-            <rect x={x - 42} y={y - 15} width={84} height={30} rx={6} className={cn("stroke-current", node.entryPages.length > 0 ? "fill-brand-tint text-brand" : "fill-surface text-hairline")} />
-            <text x={x} y={y - 3} textAnchor="middle" fontSize={10} className="fill-current">
+            <rect x={x - 52} y={y - 19} width={104} height={38} rx={6} className={cn("stroke-current", node.entryPages.length > 0 ? "fill-brand-tint text-brand" : "fill-surface text-hairline")} />
+            <text x={x} y={y - 3} textAnchor="middle" fontSize={12} className="fill-current">
               {node.label}
             </text>
-            <text x={x} y={y + 9} textAnchor="middle" fontSize={8} className="fill-current text-slate">
+            <text x={x} y={y + 12} textAnchor="middle" fontSize={12} className="fill-current text-slate">
               {plural(node.turns, "turn")}
             </text>
           </g>
@@ -167,6 +167,7 @@ function EdgeTable({ edges, label }: { edges: PersonaEdge[]; label: (id: string)
   );
 }
 
+/** The admin console's Personas tab: the persona map, its per-persona and per-edge cost tables, and recent turns for the chosen window. */
 export function PersonasTab({ report }: { report: PersonaReport }) {
   const router = useRouter();
   const names = new Map(report.nodes.map((node) => [node.id, node.label]));
