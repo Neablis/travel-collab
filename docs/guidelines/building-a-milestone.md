@@ -37,7 +37,7 @@ detail is read only when it is needed. This file says what each stage is for; th
 
 Find the milestone (`pnpm state`, `docs/STATUS.md`, the milestone file) and say so if the files
 that record it disagree. Put each open decision to Mitchell in plain language, with a
-recommendation and the code it touches. **For a UI-heavy part, show him the interaction model**
+recommendation and the code it touches. **For every part with user-visible behavior, show him the interaction model**
 before it is built: a few lines on how it is driven, such as the palette's *Action › Type ›
 Target*. Then name the session, open part 0, and split the work into parts.
 
@@ -58,7 +58,7 @@ code, a fixed scoped local-check recipe, a check of its own diff, a push, and th
 for review, never draft**. A draft runs no CI, and a push while a PR is draft cancels its
 ready-for-review run.
 
-Parts with no dependency between them are built in parallel, each in its own worktree. The full
+Parts with no dependency between them are built in parallel, at most two at once, each in its own worktree. A third waits for one to merge or to go green and reviewed. The full
 lint, test and e2e suites are never run locally: CI runs them on every push to a ready PR (CLAUDE.md
 rule 1). When CI goes red, `ci-triage` finds the cause and the part gets a fix, not a re-run.
 
@@ -86,16 +86,29 @@ are merged (*Hand-off*, below). Part 0 gets the retro (`writing-a-retro.md`, wit
 (`docs/plans/README.md`). Part 0 is marked ready before its
 CI is relied on, and Mitchell merges it.
 
+## Models
+
+Model routing is the tier control: the expensive model is spent only where judgment is the work, and the bulk of the tokens run on the cheaper one. Routing is named in briefs and in this file, never in a PR title, body or commit message (a model id there is refused).
+
+- **Opus:** `plan-a-milestone` (the decisions, the plan, the interaction sketches), the riskiest part's extra fresh review, and any decision the plan did not settle.
+- **Sonnet:** the default. The orchestrator session, every `phase-implementer` build and fix, the regular `part-reviewer` pass, and the gate close.
+- **Cheapest model:** `ci-triage` cause summaries and any "summarize this log or file in under 200 words" subtask. A cheap-model cause is a lead, not a verdict: the fixer verifies it against the code before fixing.
+
+**Session shape.** The plan session runs on Opus; once the plan exists, a planned hand-off starts a Sonnet session for the build and the close, on the hand-off machinery below. One re-orientation (about 94k) buys Sonnet pricing across the whole build instead of Opus.
+
+**On a rate limit,** the step falls back one tier and notes it in its report; it never retries in a loop.
+
 ## Hand-off
 
 A session that has grown large hands the rest to a fresh one, and the orchestrator starts that
 session itself (Mitchell, 2026-10-13: M45's four hand-offs each waited on him to start them).
 
 **When.** Plan one hand-off, for the close. Make at most one more mid-build, and only when the
-orchestrator's context is past about 250k *and* roughly 100 or more of its calls are still to come.
+orchestrator's context is past about 200k *and* roughly 100 or more of its calls are still to come.
 Below that, a new session's re-orientation costs more than the context it saves (M45's retro, *The
-whole milestone's cost*). Past 250k, `orchestrator-context-limit.mjs` says so on every prompt that
-wakes the orchestrator (a check-in, a subagent's report) and after each `pr-digest` run.
+whole milestone's cost*). `orchestrator-context-limit.mjs` is the backstop: it says so on every
+prompt that wakes the orchestrator (a check-in, a subagent's report) and after each `pr-digest` run,
+once context is past 250k.
 
 **Only with no subagent running.** A `phase-implementer` or `part-reviewer` reports to the session
 that dispatched it; one still running at the hand-off would report to a session that has stopped
@@ -137,7 +150,7 @@ followed and still cost $34:
 | Logs and full reviews read into the orchestrator | `orchestrator-lean-reads.mjs` denies job logs; `reviewer-report-check.mjs` keeps the review in a file. |
 
 Every milestone's retro carries a `## Spend` block from `pnpm session-metrics --milestone`, and
-the gate close refuses without it. The targets are in `writing-a-retro.md`.
+the gate close refuses without it. The block carries the cost broken down by model (see *Models*). The targets are in `writing-a-retro.md`.
 
 ## Standing rules
 

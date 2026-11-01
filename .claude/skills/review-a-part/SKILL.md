@@ -5,14 +5,14 @@ description: Review policy for one milestone part in travel-collab — a part-re
 
 # Review a part
 
-1. **After every push, run a new `part-reviewer` agent** on the PR and its base (`main`). On a
-   re-run, give it the path of the last review's file so it checks those fixes hold; never message
-   the earlier reviewer (`closed-agent-guard.mjs`). A push of a part branch tells
+1. **After every push, run a new `part-reviewer` agent** (Sonnet) on the PR and its base (`main`). On a
+   re-run, give it the path of the last review's file so it checks those fixes hold, and nothing
+   else about the earlier review; never message the earlier reviewer (`closed-agent-guard.mjs`). A push of a part branch tells
    whoever pushed, usually the implementer, to report it (`push-review-nudge.mjs`); the hook does
    not reach you, so dispatch the reviewer when the implementer's report names the push.
 2. **The riskiest part gets one extra pass.** Before the riskiest or largest part is called ready,
-   run one more new `part-reviewer` on its whole diff against `main`, with no earlier review's
-   file, so it reads the part fresh instead of checking fixes. CodeRabbit was this step until
+   run one more new `part-reviewer`, on Opus, on its whole diff against `main`, with no earlier
+   review's file, so it reads the part fresh instead of checking fixes. CodeRabbit was this step until
    Mitchell removed it on 2026-10-13; nothing outside the repo reviews a part now.
 3. **Work every finding.** Fix it, or answer on its thread why not and resolve the thread
    (`working-a-review.md`). A finding is a claim to check against the code, not an order.

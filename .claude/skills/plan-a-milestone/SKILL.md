@@ -1,6 +1,6 @@
 ---
 name: plan-a-milestone
-description: Plan a travel-collab milestone before any code — find it, settle its open decisions with Mitchell (with an interaction sketch for UI-heavy parts), name the session, open the prose-only part 0, split the work into parts that each target main, and create one sidebar task per part. Loaded by build-a-milestone; ends when the plan and the tasks exist.
+description: Plan a travel-collab milestone before any code — find it, settle its open decisions with Mitchell (with an interaction sketch for every part with user-visible behavior), name the session, open the prose-only part 0, split the work into parts that each target main, and create one sidebar task per part. Loaded by build-a-milestone; ends when the plan and the tasks exist.
 ---
 
 # Plan a milestone
@@ -14,15 +14,16 @@ do the code survey.
 2. **Review the decisions with Mitchell.** Have a subagent survey the code each decision touches,
    with file and line references. Ask each open decision in plain language, with a recommendation
    (`AskUserQuestion`, recommended option marked). Nothing is built on an unanswered decision.
-   - **For a UI-heavy part, show the interaction model** in the same review: a few lines on how it
+   - **For every part with user-visible behavior, show the interaction model** in the same review: a few lines on how it
      is driven, such as the palette's *Action › Type › Target*, with what each key and click does.
      M41's palette was redesigned twice after Mitchell played with its preview.
 3. **Name the session** after the milestone: `set_session_title` with its own session id.
 4. **Open part 0** on the session's designated branch, after merging `main` into it. It is prose
    only: the answered decisions in the milestone file, any ADR, the plan in `docs/plans/` (per
    part: its theme, **the files it touches with each entry point and its test file**, and what to
-   click on its preview; one `Explore` survey produces the lists, and a builder's brief is refused
-   without them), and a PR body that tracks the gate.
+   click on its preview; one `Explore` survey produces the lists, and it returns lists only:
+   files, entry points, test files, no code excerpts and no architecture prose; a builder's brief
+   is refused without them), and a PR body that tracks the gate.
    Pick migration, ADR and KI numbers only after that merge. **Open it as a draft**; it is marked
    ready only at the gate (`close-a-milestone`). Its branch must not look like a part's
    (`claude/m<N>-part<K>-…`), so the part-only hooks leave it alone. Do not subscribe to it:
@@ -32,6 +33,9 @@ do the code survey.
    `claude/m<N>-part<K>-<slug>`, K from 1 and N with an optional letter (`m48a`), e.g.
    `claude/m42-part2-drawer-is-cards`; the hooks
    recognise a part by that name (`scripts/hooks/lib/part-branch.mjs`).
+   - A part's brief names at most about 15 files, its entry points and test files; the full
+     scope list stays in the plan by section reference. If the entry points and test files alone
+     exceed that, split the part.
    - **Every part targets `main` and merges on its own when ready.** No part is based on part 0
      or on another part. A part that needs an earlier one waits for it to merge to `main`, then
      branches from `main`.
