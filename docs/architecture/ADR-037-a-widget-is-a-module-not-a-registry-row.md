@@ -575,6 +575,10 @@ union of data, rendered as text nodes and links the renderer owns, and no markup
 seam. A later widget that wants rows with an action reuses this kind rather than adding another.
 `open` also takes filters now (M43 decision 5), so its "declares no filters" comment goes.
 
+Conflicts are **one row per day and kind** (Mitchell, 2026-11-01, on part 3's review): three
+overlapping stops on Day 1 read `3 overlaps on Day 1`, not three identical rows, and a single
+conflict keeps its own wording. Conflicts with no day (budget, backlog anchor) fold by kind alone.
+
 ## Alternatives rejected
 
 - **Keep the switch and add cases.** It is the status quo, it costs one component edit per

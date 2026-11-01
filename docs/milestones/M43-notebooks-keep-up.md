@@ -79,6 +79,8 @@ Candidates absorbed (each deleted by this gate):
   where `act` is a declared target (a `LinkTarget`, or the widget-only `rack`) the renderer turns into a link (ADR-037 amendment,
   2026-10-31). Parked ideas are **one** grouped row (`N ideas are parked`, the first two titles,
   *Place them*), as the design draws it, not a row per idea.
+  Conflicts fold the same way: one row per day and kind, counted (`3 overlaps on Day 1`;
+  Mitchell, 2026-11-01).
 - **5: three classes, and `open` follows the notebook's date scope.** The class filter offers
   conflict, empty day and parked. The Days filter is the existing `dates` dimension; an explicit
   Days filter wins, otherwise the notebook's date scope applies (`followsDateScope`). Parked
