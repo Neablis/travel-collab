@@ -199,6 +199,7 @@ import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetr
 import { repairToolInput } from "@/server/assistant/repairToolInput";
 import { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
 import { ESCALATE_TOOL_NAME } from "@/server/assistant/tools/escalate";
+import { SWITCH_PERSONA_TOOL_NAME } from "@/server/assistant/tools/switchPersona";
 import { ASK_HARD_DEADLINE_MS, ASK_STEP_DEADLINE_MS, AskDeadlineError, type AskDeadlines } from "@/server/ai/askDeadline";
 import { citiesOfDay } from "@tc/domain";
 import { newIntentLatch, type AskPivot } from "@/server/assistant/intents";
@@ -904,10 +905,19 @@ export async function handleAskRequest(
      * call would reimplement it, one frame later and with a second answer.
      */
     prepareStep: ({ stepNumber, steps }) => {
+      // **The persona the latch holds now, and the edge into it if this step is
+      // the first to run as it** (M57). Read before the wrap-up below, so a switch
+      // made on the step that tripped a limit still reaches the ledger and the
+      // wrap-up row names the persona the thread is in, not the one it entered.
+      const persona = intent.persona();
+      const from = servedPersona;
+      const asPersona = (plan: AskStepPlan): AskStepPlan =>
+        persona === grant.persona ? plan : { ...plan, persona, ...(persona !== from ? { fromPersona: from, edgeKind: "switch" as const } : {}) };
+      servedPersona = persona;
       // Recorded as the admitted plan first, and overwritten below by a pivot
       // or an escalation — so every step has an entry and the wrap-up step,
       // which sets no model and so runs on the admitted one, says so truly.
-      stepPlans.set(stepNumber, admittedPlan);
+      stepPlans.set(stepNumber, asPersona(admittedPlan));
       // **Past the step deadline, or past the input-token ceiling, one last
       // step with no tools** — so the model says what it has rather than the
       // turn ending mid-thought, and `stopWhen` below ends the run after it.
@@ -920,22 +930,14 @@ export async function handleAskRequest(
       }
       if (wrapUpStep !== null) return { activeTools: [], toolChoice: "none" as const };
       // **A persona switch** (M57): the persona the latch holds now serves the
-      // step, with its own tools and instruction, and the step that first runs
-      // as it records the edge it crossed. Escalating inside it is the same
-      // lookup, so a switched persona is not a third special case.
-      const persona = intent.persona();
+      // step, with its own tools and instruction. Escalating inside it is the
+      // same lookup, so a switched persona is not a third special case.
       if (persona !== grant.persona) {
         const serving = servingNow();
-        const crossed = persona !== servedPersona;
-        stepPlans.set(stepNumber, {
-          model: modelIdOf(serving.model),
-          tier: serving.tier,
-          escalated: serving.escalated,
-          pivoted: false,
-          persona,
-          ...(crossed ? { fromPersona: servedPersona, edgeKind: "switch" as const } : {}),
-        });
-        servedPersona = persona;
+        stepPlans.set(
+          stepNumber,
+          asPersona({ model: modelIdOf(serving.model), tier: serving.tier, escalated: serving.escalated, pivoted: false }),
+        );
         return {
           activeTools: serving.tools.map((tool) => tool.name),
           model: serving.model,
@@ -943,9 +945,11 @@ export async function handleAskRequest(
             ...instructionBlocks(
               scope,
               detail.days.length,
-              grant.posture,
+              // Re-rendered on every step, so an escalation inside the persona is
+              // told the truth too: it holds the change tools, and nothing is withheld.
+              serving.escalated ? "propose" : grant.posture,
               briefFor(page, grant.taskClass, detail),
-              serving.classWithheld,
+              serving.classWithheld && !serving.escalated,
               standingOf(detail),
               clock,
               promptExamples,
@@ -2220,10 +2224,10 @@ export function instructionsFor(
   // M52: the under-way trip's *now* (`nowBlocks`), and nothing on any other.
   now: PromptBlock[] = [],
   limit: ChangeLimit = posture === "read-only" ? "role" : null,
-  // The persona the step runs as (M57). Defaulted to the one that holds every
-  // tool a trip turn ever had, so a caller that names none is told what it was
-  // told before Schedule split off.
-  persona: PersonaId = "discover",
+  // The persona the step runs as (M57). Defaulted to the one a trip turn enters
+  // as, so a caller that names none renders the first step's instruction, the
+  // one sent most often.
+  persona: PersonaId = "schedule",
 ): string {
   return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock, examples, now, limit, persona));
 }
@@ -2346,7 +2350,7 @@ export function instructionBlocks(
   // capability block. A read-only turn that names no cause gets the role's,
   // the narrower: it offers no `upgrade` that might not help.
   limit: ChangeLimit = posture === "read-only" ? "role" : null,
-  persona: PersonaId = "discover",
+  persona: PersonaId = "schedule",
 ): PromptBlock[] {
   // Whether this persona holds the lookup tools the next rules name. An
   // instruction naming a tool the step was not handed is the defect the page
@@ -2444,6 +2448,17 @@ export function instructionBlocks(
           // ADR-060: the trip multiplies a stop's price by who is going, so a
           // whole-group figure typed as `cost` would be counted once per person.
           "`cost` is the price for ONE person. The trip multiplies it by the people picked for the stop, or by every traveller when nobody is picked, so never enter a whole group's bill as a stop's cost.",
+          // Schedule has no search, so the rule it lost is replaced by the route to
+          // one. Worded as the citation rule is: craft, since `groundCitedPlaces`
+          // refuses an uncited coordinate whatever the prompt says, so ignoring
+          // it costs a pinned stop and never a wrong one. It names the switch
+          // and not the tools behind it, which the step does not hold. Only a
+          // turn offered `switch_persona` (`limit` null) is told to call it.
+          ...(!discovers && limit === null
+            ? [
+                `When a stop names a real place, call ${SWITCH_PERSONA_TOOL_NAME} with to: "discover" BEFORE you write it: only there can the place be looked up and pinned to the stop, and you cannot do that from here. A stop with no pin is one nobody has checked exists, which is fine for something vague ("lunch somewhere near the station") and wrong for something named.`,
+              ]
+            : []),
           // Only a persona that searches: the rules below name `search_places` and
           // `search_playbooks`, which Schedule does not hold.
           ...(discovers
@@ -2521,7 +2536,7 @@ export function instructionBlocks(
   const style = standing.style === undefined ? [] : [data("Trip pace and tags", standing.style)];
   return [
     ...rules.map(rule),
-    ...capabilityBlock(scope.kind === "day" ? "day" : "trip", limit),
+    ...capabilityBlock(scope.kind === "day" ? "day" : "trip", limit, undefined, persona),
     rule(VOICE_RULE),
     ...now,
     ...style,

@@ -64,8 +64,12 @@ describe("the switch_persona tool", () => {
     expect(intent.switches()).toHaveLength(1);
   });
 
-  it("names only personas a switch_persona edge leads to", () => {
+  // ADR-085 decision 4: the enum is the outgoing edges of the persona holding the
+  // tool. Schedule is the one that does, so it is never offered itself, and a
+  // refusal of it would cost a charged step.
+  it("names only personas a switch_persona edge leads to from the persona that holds it", () => {
     expect(switchPersonaTool.input.safeParse({ to: "discover", why: "x" }).success).toBe(true);
+    expect(switchPersonaTool.input.safeParse({ to: "schedule", why: "x" }).success).toBe(false);
     expect(switchPersonaTool.input.safeParse({ to: "account", why: "x" }).success).toBe(false);
   });
 });
