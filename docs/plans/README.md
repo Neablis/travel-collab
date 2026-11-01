@@ -63,3 +63,8 @@ Still do it: a plan for multi-step work is worth the effort (`plan-a-milestone` 
 milestone's). Treat `docs/plans/` as a **staging area**: the plan lives here while the work is in
 flight and is removed when it closes. Anything you would regret losing gets promoted to an ADR, a
 milestone note or a known issue *before* the plan goes.
+
+`docs/plans/TEMPLATE.md` is the copy-paste form of that shape, taken from the M46 plan. It is
+permanent: it is not a milestone plan, so it is never removed at close. The `plan-a-milestone`
+skill's step 4 is the source of truth for what a plan must contain; if the template and the
+skill disagree, the skill wins and the template gets fixed.
