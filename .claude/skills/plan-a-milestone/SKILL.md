@@ -1,6 +1,6 @@
 ---
 name: plan-a-milestone
-description: Plan a travel-collab milestone before any code — find it, settle its open decisions with Mitchell (with an interaction sketch for every part with user-visible behavior), name the session, open the prose-only part 0, split the work into parts that each target main, and create one sidebar task per part. Loaded by build-a-milestone; ends when the plan and the tasks exist.
+description: Plan a travel-collab milestone before any code — find it, settle its open decisions with Mitchell (with an interaction sketch for every part with user-visible behavior), name the session, open the prose-only part 0, split the work into one stack of parts, and create one sidebar task per part. Loaded by build-a-milestone; ends when the plan and the tasks exist.
 ---
 
 # Plan a milestone
@@ -13,7 +13,9 @@ do the code survey.
    whether it is scoped, say so first.
 2. **Review the decisions with Mitchell.** Have a subagent survey the code each decision touches,
    with file and line references. Ask each open decision in plain language, with a recommendation
-   (`AskUserQuestion`, recommended option marked). Nothing is built on an unanswered decision.
+   (`AskUserQuestion`, recommended option marked). Nothing is built on an unanswered decision, and **every decision is answered before part 1
+   starts**: this is the only step that needs Mitchell in the room, and the build after it runs
+   end to end without him (Mitchell, 2026-11-01).
    - **For every part with user-visible behavior, show the interaction model** in the same review: a few lines on how it
      is driven, such as the palette's *Action › Type › Target*, with what each key and click does.
      M41's palette was redesigned twice after Mitchell played with its preview.
@@ -29,27 +31,25 @@ do the code survey.
    (`claude/m<N>-part<K>-…`), so the part-only hooks leave it alone. Do not subscribe to it:
    unsubscribe if opening it subscribed you, and arm the first check-in (`build-a-milestone`).
    Part 0 merges last.
-5. **Split the parts.** One theme each, under about 80 reviewable files. Each part's branch is
+5. **Split the parts into one stack.** One theme each, under about 80 reviewable files. Each part's branch is
    `claude/m<N>-part<K>-<slug>`, K from 1 and N with an optional letter (`m48a`), e.g.
    `claude/m42-part2-drawer-is-cards`; the hooks
    recognise a part by that name (`scripts/hooks/lib/part-branch.mjs`).
    - A part's brief names at most about 15 files, its entry points and test files; the full
      scope list stays in the plan by section reference. If the entry points and test files alone
      exceed that, split the part.
-   - **Every part targets `main` and merges on its own when ready.** No part is based on part 0
-     or on another part. A part that needs an earlier one waits for it to merge to `main`, then
-     branches from `main`.
-   - **An unattended run (overnight, nobody merging) may stack instead** (Mitchell,
-     2026-10-17): part K+1 branches from part K's head and its PR targets part K's branch.
-     GitHub retargets it to `main` only if K's branch is deleted on merge; otherwise retarget it
-     (`github-rest`, `PATCH pulls/<n> -f base=main`, after `stacked-prs.md` §4's diff check).
-     The morning's job is to merge in order. Say in each stacked PR's body which PR it waits on.
-   - **Decisions are answered before an unattended run starts.** Step 2 is the only step that
-     needs Mitchell in the room; an overnight session that reaches it stalls until morning, so
-     it runs the evening before, and the brief says every decision is settled.
+   - **The parts are one stack** (Mitchell, 2026-11-01: *"use stacked PRs rather than stop and
+     wait for me to merge"*). Part 1 branches from `main` and its PR targets `main`; part K+1
+     branches from part K's head and its PR targets part K's branch. Order them so a part comes
+     after the parts it builds on. Part 0 stays outside the stack, on the session's branch.
+   - **Every part's PR is a draft.** A draft runs no CI; the milestone's one full CI run is on
+     the top part's PR, retargeted to `main` and marked ready once every part is done
+     (`close-a-milestone` step 1). The top PR is the one that merges; it lands every part.
+   - Each part's PR body says `Part K of N`, its base, and *"lands through the top part's PR"*.
 6. **Create the sidebar tasks**: one for the decisions, one per part, and one for the gate close.
    Each part's task lists its steps, ticked as the part moves:
-   build → test seen red → scoped checks → push (opened ready, not draft) → review → fixes →
-   CI green → merged.
+   build → test seen red → scoped checks → push (draft PR on the part below) → review → fixes
+   → fixes merged up to the top. Add one task for the stack's CI: `main` merged in → top
+   retargeted to `main` and ready → CI green → Mitchell's walk → top merged.
 
 Done when part 0 is open, the plan names every part, and the tasks exist. Next: `build-a-part`.

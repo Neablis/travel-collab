@@ -8,9 +8,12 @@ did this: M14 on 2026-09-24, as #222 → #223 → #226 → #221. That session's 
 `AGENTS.md` still owns the Definition of Done, the verification tiers and the review step (*Review is
 ours*). This file only adds what changes when there are several PRs instead of one.
 
-**A milestone is not a stack any more.** Since M41 its parts each target `main` and merge on their
-own, and only the prose-only part 0 waits for the end; nothing is based on part 0 or on another
-part. That process is `building-a-milestone.md`. This file is for other work too big for one PR.
+**A milestone is a stack again** (Mitchell, 2026-11-01: *"use stacked PRs rather than stop and
+wait for me to merge"*). From M41 to then its parts each targeted `main` and a dependent part
+waited on a merge. Now the parts are built end to end as one stack of draft PRs, and the top
+part's PR, retargeted to `main` and marked ready, carries the one full CI run and the one merge.
+`building-a-milestone.md` has what is different for a milestone; this file has the mechanics for
+it and for any other work too big for one PR.
 
 ## 1. Plan the stack when you plan the scope
 

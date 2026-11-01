@@ -1,12 +1,14 @@
 // PreToolUse hook (matcher: Bash). One ask and two refusals.
 //
 //   gh pr create   without --draft          -> ask
-//   gh pr create --draft  from a milestone part branch -> deny (it opens ready)
+//   gh pr create   without --draft  from a milestone part branch -> deny
 //   gh pr create|edit  with a model id in --title/--body/--body-file -> deny
 //
 // On a milestone part branch (`claude/m<N>-part<K>-...`, lib/part-branch.mjs)
-// the ask steps aside: build-a-part opens a part's PR ready for review,
-// and the phase-implementer that does it has only `gh`. The head branch is
+// the ask becomes a deny: a milestone is one stack of draft PRs, and only its
+// top part is marked ready, by the orchestrator's CI step, for the one full
+// run (building-a-milestone.md, 2026-11-01). Until then a part opened ready
+// was the rule, and each part paid the full suite on its own PR. The head branch is
 // `--head`/`-H` when given, else the branch checked out at the payload's cwd.
 // The model-id rule is pr-tool-guard.mjs's, for the PRs `gh` opens.
 //
@@ -141,15 +143,16 @@ const creates = calls.filter((c) => c.sub === "create");
 const headOf = (call) => optionValues(call.args, ["--head", "-H"]).pop() ?? currentBranch(cwd);
 const onPart = creates.filter((c) => isPartBranch(headOf(c)));
 
-if (onPart.some((c) => hasDraft(c.args))) {
+if (onPart.some((c) => !hasDraft(c.args))) {
   respond(
     "deny",
-    "This is a milestone part's branch: open it ready (build-a-part), not as a draft. " +
-      "Drop --draft. A push while a PR is draft cancels its ready-for-review CI run.",
+    "This is a milestone part's branch: open it as a draft (build-a-part), on the part " +
+      "below it or main for part 1. Add --draft. Only the top part of the stack is marked " +
+      "ready, for the milestone's one full CI run (close-a-milestone step 1).",
   );
 }
 
-if (creates.some((c) => !onPart.includes(c) && !hasDraft(c.args))) {
+if (creates.some((c) => !hasDraft(c.args))) {
   ask(
     "This opens a PR ready rather than as a draft. AGENTS.md: \"open that PR as a " +
       "draft, and mark it ready only when you believe it is green.\" Measured over " +

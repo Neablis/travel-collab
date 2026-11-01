@@ -1,11 +1,12 @@
 ---
 name: review-a-part
-description: Review policy for one milestone part in travel-collab — a part-reviewer subagent after every push, one extra fresh pass on the riskiest part, every finding fixed or answered, and when the part is ready to merge. Use right after a push to a part's PR.
+description: Review policy for one milestone part in travel-collab — a part-reviewer subagent after every push, one extra fresh pass on the riskiest part, every finding fixed or answered, and when the part is done and the stack is ready to merge. Use right after a push to a part's PR.
 ---
 
 # Review a part
 
-1. **After every push, run a new `part-reviewer` agent** (Sonnet) on the PR and its base (`main`). On a
+1. **After every push, run a new `part-reviewer` agent** (Sonnet) on the PR and its own base: the part below it, or
+   `main` for part 1, so it reads this part's diff and nothing from the parts under it. On a
    re-run, give it the path of the last review's file so it checks those fixes hold, and nothing
    else about the earlier review; never message the earlier reviewer (`closed-agent-guard.mjs`). A push of a part branch tells
    whoever pushed, usually the implementer, to report it (`push-review-nudge.mjs`); the hook does
@@ -26,11 +27,16 @@ description: Review policy for one milestone part in travel-collab — a part-re
 5. **Fixes go on the part's own branch**, through `build-a-part`, by a **new**
    `phase-implementer` whose brief names the branch, the head sha, the review file's path, the
    files and what done means. Findings in different files can go to separate agents in parallel
-   only if each has its own worktree. Parts sit on `main`, so nothing merges upward.
-6. **Ready to merge** when CI is green on the part's head and every finding is fixed or answered.
-   Say so in the PR body and in part 0's tracker, tick the part's task, and tell Mitchell.
+   only if each has its own worktree. The fix goes on the lowest part it touches, and the brief says to merge it upward to the top
+   (`build-a-part`, last paragraph), so the top always holds every fix.
+6. **A part is done** when every finding is fixed or answered and the fixes have reached the
+   top. It is a draft and runs no CI, so it is never "ready to merge" on its own; tick its task
+   and its row in part 0's tracker, and tell Mitchell nothing yet. **The stack is ready to merge**
+   when every part is done, CI is green on the top part's head after it is retargeted to `main`
+   and marked ready (`close-a-milestone` step 1), and the top's own findings are worked. Say so in
+   the top PR's body and part 0's tracker, and tell Mitchell then.
    **Do not request a preview for Mitchell's walk** (2026-10-25: previews are billed and built
-   on demand). The PR body's "Ready to merge" section says how to get one: add the `preview`
+   on demand). The top PR's body's "Ready to merge" section says how to get one: add the `preview`
    label to the PR, or run `vercel-preview` with the PR number. If one already exists for the
    head (a `phase-verifier` walk asked for it), that section carries its **URL**, for
    Mitchell's walk (Mitchell, 2026-10-12: Vercel's own PR comment stays off, `github.silent` in

@@ -53,9 +53,9 @@ to the previous commit; read the check runs of your own HEAD.
 ## Write
 
 ```bash
-# Create a PR, ready (a milestone part never opens draft: build-a-part)
-gh api -X POST $R/pulls -f title='…' -f head=<branch> -f base=main -F draft=false -F body=@body.md
-# Edit the body; retarget a stacked PR to main once the PR under it has merged
+# Create a PR as a draft (a milestone part always does, on the part below it: build-a-part)
+gh api -X POST $R/pulls -f title='…' -f head=<branch> -f base=<base> -F draft=true -F body=@body.md
+# Edit the body; retarget a stack's top PR to main (or a stacked PR once the one under it merged)
 gh api -X PATCH $R/pulls/<n> -F body=@body.md
 gh api -X PATCH $R/pulls/<n> -f base=main
 # Mark ready for review, or back to draft (the proxy's own routes)

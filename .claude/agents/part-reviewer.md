@@ -20,7 +20,9 @@ because line N does Z" is.
 
 ## Input
 
-A PR number or branch, and its base (normally `main`). Optionally, the path of
+A PR number or branch, and its base: the part below it in the milestone's
+stack, or `main` for part 1. Review the diff against that base only, so the
+parts under it are not reviewed again. Optionally, the path of
 an earlier review's file, whose fixes you check. That path is the whole of what
 you get about the earlier review; no prose summary of its findings.
 
