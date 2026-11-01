@@ -373,6 +373,19 @@ describe("`open` filters by class and by days (M43 decision 5)", () => {
       expect(rows).toEqual(["Overlap on Day 2"]);
     });
 
+    // More than 3 days out the trip is still planning, not soon: the whole trip all the same.
+    it("lists a clash on the days ahead while the trip is still being planned", () => {
+      const rendered = renderMacro(at(clashing, "2026-07-20T12:00:00Z"), "open", {});
+      const rows = rendered.status === "ok" && rendered.rendered.kind === "items" ? rendered.rendered.items.map((item) => item.label) : rendered;
+      expect(rows).toEqual(["Overlap on Day 2"]);
+    });
+
+    // A city line keeps its own scope, so before day 1 it has no day to check.
+    it("says nothing is planned today on a city line before the trip starts", () => {
+      expect(renderMacro(at(clashing, "2026-07-30T12:00:00Z"), "open", {}, { kind: "city", name: "Kyoto" }))
+        .toEqual({ status: "empty", because: "Nothing planned today" });
+    });
+
     // No `because`, so MacroView draws `emptyText`: the whole trip's settled line.
     it("says the whole trip is settled before it starts", () => {
       expect(renderMacro(at(quiet, "2026-07-30T12:00:00Z"), "open", {})).toEqual({ status: "empty" });

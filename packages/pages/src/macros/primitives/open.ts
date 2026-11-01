@@ -215,7 +215,6 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
     if (items.length > 0) return ok({ kind: "items", items });
     // `renderMacro` leaves a good-news widget's off-dates line to it.
     if (isNoDay(scope)) return empty(NOTHING_TODAY);
-    // `renderMacro` leaves a good-news widget's off-dates line to it.
     const everyClass = shows.size === OpenClass.options.length;
     const index = selection.value.days[0];
     if (everyClass && params.dates === undefined && onDays.size === 1 && trip.days.length > 1 && index !== undefined) {
