@@ -21,6 +21,7 @@ import { EFFECT_LEVEL, type AnyAssistantTool, type EffectLevel, type ToolDomain,
 import type { TaskClass } from "./taskClass";
 import type { AskScope } from "./context";
 import { ASSISTANT_TOOLS } from "./registry";
+import { surfaceGrants } from "./personas";
 
 /**
  * What the user is actually looking at, which is NOT the same axis as a tool
@@ -78,107 +79,16 @@ export interface DomainCap {
 export type SurfaceGrant = readonly DomainCap[];
 
 /**
- * The whole of "which tools exist on which surface", as data.
+ * The whole of "which tools exist on which surface", as data, **derived from
+ * the persona graph** (M57, ADR-085): each page kind holds the grant of the
+ * persona it enters (`personas.ts`, where the rationale for each row now lives).
  *
- * A missing domain means NOT GRANTED — `account` is absent from every trip row
- * here, so the cross-trip tools that declare it (M45) are offered on the
- * `account` surface and nowhere else. That is the correct default
- * for a capability table: silence denies. **`places` stopped being one of those
- * three when M9's grounding landed**, and the fact that adding the tool was not
- * enough — that it was offered nowhere until these two rows named its domain —
- * is the table working rather than an obstacle to route around.
+ * A missing domain means NOT GRANTED — `account` is absent from every trip row,
+ * so the cross-trip tools that declare it (M45) are offered on the `account`
+ * surface and nowhere else. Silence denies, which is the correct default for a
+ * capability table.
  */
-const UI = { domain: "ui", max: "read" } as const;
-
-export const SURFACES = {
-  trip: [
-    { domain: "itinerary", max: "propose" },
-    { domain: "library", max: "propose" },
-    // `read`, and it can never be more: `places` has no `propose` tool and the
-    // domain is a gazetteer lookup, not a change. Capped here rather than left
-    // to the tool's own `effect`, because the table is the thing a reader
-    // checks to answer "could a page turn ever spend the vendor key?".
-    { domain: "places", max: "read" },
-    // **`system` is the turn talking about itself**, not about the trip — the
-    // domain ADR-043 decision 2 reserved and left empty. Its one member is M9's
-    // escalation tool, which is further narrowed to a single POSTURE by
-    // `defineTool`'s `postures`; this row grants the domain, and that tag is
-    // what stops the tool being offered on every turn the row reaches.
-    //
-    // Two filters rather than one, deliberately: this table answers "which
-    // surfaces have system tools at all", which is a question about the
-    // product, and the tag answers "when is this particular one safe", which is
-    // a question about the tool. Collapsing them would put a tool's own
-    // condition in a table that knows nothing about it.
-    { domain: "system", max: "read" },
-    // ADR-084 §3: every surface with an assistant ends a turn the same ways
-    // when prose would strand the person. `read` because nothing in it changes
-    // anything; it is on every row below for the same reason.
-    UI,
-  ],
-  day: [
-    { domain: "itinerary", max: "propose" },
-    { domain: "library", max: "propose" },
-    { domain: "places", max: "read" },
-    { domain: "system", max: "read" },
-    UI,
-  ],
-  // A page turn reads the trip and writes the page. `library` stays at `read`
-  // rather than being left out, because a page turn browses the corpus today
-  // (`search_playbooks`) and only the `library` row keeps it.
-  //
-  // The spec says tagging `search_playbooks` `itinerary` would silently drop it
-  // from this surface. It would not, and the difference matters to whoever
-  // edits this table next: `itinerary` and `library` carry the SAME cap on all
-  // three rows, so retagging either library tool changes no tool set at all
-  // today. The tags are the audit vocabulary and what a fourth surface would
-  // grant one of without the other; they are pinned directly in `grants.test.ts`
-  // because nothing in this table can pin them.
-  // **No `places` row, deliberately, and the reason is SCOPE rather than
-  // citations.**
-  //
-  // A page turn's job is to write a document out of what the trip already
-  // contains — `insert_text` over readouts — so the gazetteer is not a source
-  // it draws on. A trip or day turn is the opposite: it answers about the trip
-  // AND the world around it, which is why a viewer there is offered the search
-  // even though they hold no tool that could cite one. Being unable to cite is
-  // not the disqualifier; a viewer asking *"is there a good ramen place near
-  // the hotel on day 2?"* gets a real answer out of a real lookup, and pays for
-  // it from their own daily geocode allowance.
-  //
-  // This is the first row where leaving a domain out is a decision rather than
-  // the absence of a tool.
-  //
-  // **No `system` row either, and that one is moot rather than decided.** A
-  // page turn's classifier picks a profile and never an effect (ADR-058), so
-  // its classifier cap is `propose` and its posture is `propose` — never
-  // `withheld`, which is the only posture the one system tool is offered in.
-  // The page's own pivot, `switch_intent`, is in the `pages` domain. The row is left out because a grant nothing can reach is
-  // noise, not because a page turn was judged unfit to escalate.
-  page: [
-    { domain: "itinerary", max: "read" },
-    { domain: "library", max: "read" },
-    { domain: "pages", max: "propose" },
-    UI,
-  ],
-  // **The account surface reads across trips and writes nothing** (M45: *"this
-  // assistant reads across trips and writes within one"*). One domain, at
-  // `read`, and no trip domain at all: there is no one trip for `read_trip` to
-  // read, and every itinerary tool is about one. `go_to` (ADR-072) is an
-  // `itinerary` tool, so it is not offered here either; its account twin,
-  // `open_trip`, is in this domain and names the trip in its input.
-  account: [{ domain: "account", max: "read" }, UI],
-  // **Each playbook page sees what is on it and nothing else** (M45 D9). A
-  // shared day reads the playbook on screen and may take it into a trip the
-  // person names, the two buttons it already has; a list page reads its own
-  // list and writes nothing, because it has no button that does. No trip
-  // domain on any of them: no `find_free_time`, no stop edits, no aggregates.
-  "playbook-day": [{ domain: "playbook", max: "propose" }, UI],
-  playbook: [{ domain: "playbook", max: "propose" }, UI],
-  discover: [{ domain: "playbookList", max: "read" }, UI],
-  city: [{ domain: "playbookList", max: "read" }, UI],
-  tag: [{ domain: "playbookList", max: "read" }, UI],
-} as const satisfies Record<SurfaceKind, SurfaceGrant>;
+export const SURFACES: Readonly<Record<SurfaceKind, SurfaceGrant>> = surfaceGrants();
 
 /**
  * The resolved grant: the most this turn may do in each domain it holds.

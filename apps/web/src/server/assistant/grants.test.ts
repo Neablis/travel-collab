@@ -22,6 +22,30 @@ import {
 } from "./grants";
 import { TASK_CLASSES } from "./taskClass";
 
+// **The table as it stood before it was derived from the persona graph** (M57
+// part 1), copied as literals and never read from `personas.ts`. Deriving
+// `SURFACES` was meant to change no grant; this is the one place that says so
+// in terms the derivation cannot agree with by construction.
+const SURFACES_BEFORE_PERSONAS = {
+  trip: [["itinerary", "propose"], ["library", "propose"], ["places", "read"], ["system", "read"], ["ui", "read"]],
+  day: [["itinerary", "propose"], ["library", "propose"], ["places", "read"], ["system", "read"], ["ui", "read"]],
+  page: [["itinerary", "read"], ["library", "read"], ["pages", "propose"], ["ui", "read"]],
+  account: [["account", "read"], ["ui", "read"]],
+  "playbook-day": [["playbook", "propose"], ["ui", "read"]],
+  playbook: [["playbook", "propose"], ["ui", "read"]],
+  discover: [["playbookList", "read"], ["ui", "read"]],
+  city: [["playbookList", "read"], ["ui", "read"]],
+  tag: [["playbookList", "read"], ["ui", "read"]],
+};
+
+describe("SURFACES derived from the persona graph", () => {
+  it("holds exactly the grants, in the order, it held as a hand-written table", () => {
+    const now = Object.fromEntries(Object.entries(SURFACES).map(([kind, grant]) => [kind, grant.map(({ domain, max }) => [domain, max])]));
+    expect(now).toEqual(SURFACES_BEFORE_PERSONAS);
+    expect(Object.keys(SURFACES)).toEqual(Object.keys(SURFACES_BEFORE_PERSONAS));
+  });
+});
+
 const READ_TOOLS = ["read_trip", "read_day", "find_days", "find_free_time", "search_playbooks"];
 // **In registry order, which puts it after the read tools and before the
 // commands** — `search_places` has to be read before the tools whose `placeRef`
