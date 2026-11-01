@@ -133,6 +133,55 @@ describe("`open` — what needs you (SPEC §25, M43 decision 4)", () => {
     ]);
   });
 
+  it("folds same-kind conflicts on one day into ONE row that counts them (Mitchell, 2026-11-01)", () => {
+    // `detectConflicts` raises one overlap per PAIR, so three stops that all
+    // collide are three conflicts. One row each printed three identical lines
+    // with the same link, and the reader could not tell why there were three.
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1", "a2", "a3"], "2026-08-01")],
+        conflicts: [
+          conflictOf("time-overlap", "c12", ["a1", "a2"]),
+          conflictOf("time-overlap", "c13", ["a1", "a3"]),
+          conflictOf("time-overlap", "c23", ["a2", "a3"]),
+        ],
+        activities: { a1: stop("Breakfast", "Kyoto"), a2: stop("Shrine", "Kyoto"), a3: stop("Market", "Kyoto") } as unknown as TripDetail["activities"],
+      }),
+    );
+    expect(items(result)).toEqual([
+      {
+        label: "3 overlaps on Day 1", sub: "Aug 1 · Kyoto", right: "Fix in Plan", tone: "warning",
+        act: { kind: "day", day: { kind: "dayId", dayId: DAY_1 } },
+      },
+    ]);
+  });
+
+  it("keeps different kinds, and the same kind on different days, as separate rows", () => {
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1", "a2"]), dayWith(DAY_2, ["a3", "a4"])],
+        conflicts: [
+          conflictOf("time-overlap", "c1", ["a1", "a2"]),
+          conflictOf("impossible-geography", "c2", ["a1", "a2"]),
+          conflictOf("time-overlap", "c3", ["a3", "a4"]),
+        ],
+      }),
+    );
+    expect(labels(result)).toEqual(["Overlap on Day 1", "Too far on Day 1", "Overlap on Day 2"]);
+  });
+
+  it("folds conflicts on no day by kind alone", () => {
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1"])],
+        conflicts: [conflictOf("over-budget", "c4", [TRIP_ID]), conflictOf("over-budget", "c5", [TRIP_ID])],
+      }),
+    );
+    expect(items(result).map(({ label, act }) => ({ label, act }))).toEqual([
+      { label: "2 over budget", act: { kind: "view", view: "Plan" } },
+    ]);
+  });
+
   it("sends a conflict on no day to the Plan, saying what happened", () => {
     // Over budget names the trip, not a stop, so there is no day for it to be
     // "on" and no date or city for the line under it: the domain's own
@@ -198,6 +247,23 @@ describe("`open` filters by class and by days (M43 decision 5)", () => {
     expect(labels(resolve(trip, { dates: { from: "2026-08-01", through: "2026-08-01" } }))).toEqual([
       "Overlap on Day 1", "Over budget", "1 idea is parked",
     ]);
+  });
+
+  it("filters folded conflict rows by class and by day, keeping each day's count whole", () => {
+    // Parts 3 and 4 both rewrote the conflict loop: the fold must sit inside
+    // the class filter and above the Days filter, or one of them goes missing.
+    const clashing = tripWith({
+      days: [dayWith(DAY_1, ["a1", "a2", "a3"], "2026-08-01"), dayWith(DAY_2, ["a4", "a5"], "2026-08-02")],
+      conflicts: [
+        conflictOf("time-overlap", "c12", ["a1", "a2"]),
+        conflictOf("time-overlap", "c13", ["a1", "a3"]),
+        conflictOf("time-overlap", "c45", ["a4", "a5"]),
+        conflictOf("time-overlap", "c45b", ["a4", "a5"]),
+      ],
+    });
+    expect(labels(resolve(clashing, { dates: ["2026-08-02"] }))).toEqual(["2 overlaps on Day 2"]);
+    expect(labels(resolve(clashing, { class: ["conflict"] }))).toEqual(["2 overlaps on Day 1", "2 overlaps on Day 2"]);
+    expect(resolve(clashing, { class: ["empty-day", "parked"] })).toEqual({ status: "empty", because: "Nothing here needs you." });
   });
 
   it("does not call the trip settled when a filter is what left nothing", () => {

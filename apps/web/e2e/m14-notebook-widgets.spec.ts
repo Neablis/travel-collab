@@ -1575,8 +1575,8 @@ test("What needs you lists a conflict, an empty day and the parked ideas, and ea
   await insertFromList(page, /What needs you/, "needs");
   await finishEditing(page);
 
-  // **Exactly three, in the design's order** — a row per conflict, a row per
-  // empty day, and ONE for the rack.
+  // **Exactly three, in the design's order** — a row per day and conflict
+  // kind, a row per empty day, and ONE for the rack.
   const rows = page.getByRole("list", { name: "What needs you" }).getByRole("listitem");
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText("Overlap on Day 1");

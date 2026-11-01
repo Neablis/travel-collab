@@ -66,6 +66,23 @@ const CONFLICT_LABEL: Record<string, string> = {
  */
 const FALLBACK_CONFLICT_LABEL = "Conflict";
 
+/**
+ * The same kinds, counted: "3 overlaps on Day 1".
+ *
+ * `detectConflicts` raises one overlap per PAIR of stops, so three stops that
+ * all collide are three conflicts. One row each drew three identical lines with
+ * one link, and nobody could tell why there were three (PR 660 review). So
+ * conflicts fold to one row per day and kind (Mitchell, 2026-11-01); the row's
+ * link already lands on the day where every one of them is visible.
+ */
+const CONFLICT_PLURAL: Record<string, string> = {
+  "time-overlap": "overlaps",
+  "impossible-geography": "journeys too far",
+  "anchor-violation": "anchors broken",
+  "over-budget": "over budget",
+};
+const FALLBACK_CONFLICT_PLURAL = "conflicts";
+
 const OPEN_FILTERS = ["dates"] as const satisfies readonly FilterDimension[];
 
 const OpenParams = filterParams(OPEN_FILTERS, { class: OpenClassRef.optional() });
@@ -127,16 +144,28 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
     //    A conflict is "on" the first day holding one of its stops. Over budget's
     //    subject is the trip itself, so it is on no day, and its own sentence
     //    takes the line a date and city would.
+    //
+    //    One row per day and kind, in the order each first appears. Conflicts
+    //    on no day fold by kind alone and keep the first one's sentence.
     const dismissed = new Set(trip.dismissedConflictIds);
+    const folded = new Map<string, { kind: string; index: number; description: string; count: number }>();
     for (const conflict of shows.has("conflict") ? trip.conflicts : []) {
       if (dismissed.has(conflict.id)) continue;
-      const label = CONFLICT_LABEL[conflict.kind] ?? FALLBACK_CONFLICT_LABEL;
       const index = trip.days.findIndex((day) => conflict.subjects.some((id) => day.activityIds.includes(id)));
+      const key = `${index}:${conflict.kind}`;
+      const seen = folded.get(key);
+      if (seen) seen.count += 1;
+      else folded.set(key, { kind: conflict.kind, index, description: conflict.description, count: 1 });
+    }
+    for (const { kind, index, description, count } of folded.values()) {
       const day = trip.days[index];
       if (day !== undefined && !onDays.has(index)) continue;
+      const label = count === 1
+        ? CONFLICT_LABEL[kind] ?? FALLBACK_CONFLICT_LABEL
+        : `${count} ${CONFLICT_PLURAL[kind] ?? FALLBACK_CONFLICT_PLURAL}`;
       items.push(
         day === undefined
-          ? { label, sub: conflict.description, right: "Fix in Plan", tone: "warning", act: PLAN }
+          ? { label, sub: description, right: "Fix in Plan", tone: "warning", act: PLAN }
           : { label: `${label} on ${dayLabel(index)}`, sub: whereAndWhen(day, trip.activities), right: "Fix in Plan", tone: "warning", act: toDay(day) },
       );
     }

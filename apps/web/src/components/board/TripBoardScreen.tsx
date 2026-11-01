@@ -765,7 +765,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   }, [linkedDay, activeTrip, setFocusedDay]);
   /**
    * **A link to a stop** (M46 D3), `?view=Plan&stop=<activityId>`, read as
-   * `?day=` is: once per value, by id, and only among this trip's stops. Its
+   * `?day=` is: once per arrival, by id, and only among this trip's stops. Its
    * day is selected and the stop focused, as *Go to › Stop* does.
    */
   const linkedStop = searchParams.get("stop");
