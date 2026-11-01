@@ -378,7 +378,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       if (outcome.rendered.kind === "items") {
         items += outcome.rendered.items.length;
         for (const item of outcome.rendered.items) {
-          expect(["notebook", "day", "view"]).toContain(item.act.kind);
+          expect(["notebook", "day", "view", "rack"]).toContain(item.act.kind);
           expect(Object.keys(item).sort()).toEqual(["act", "label", "right", "sub", "tone"]);
         }
         continue;

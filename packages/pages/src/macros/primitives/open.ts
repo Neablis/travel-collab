@@ -5,7 +5,7 @@ import { itemsOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { dayLabel, formatShortDate } from "../../format";
 import { dayCity } from "../../dayCity";
-import type { ResolvedLinkTarget } from "../../linkTarget";
+import type { ActTarget } from "../../linkTarget";
 import { filterInputs, filterParams } from "../../filters";
 import { narrow } from "../../select";
 
@@ -74,10 +74,12 @@ type OpenParams = z.infer<typeof OpenParams>;
 /** What each class is called in the settings, in `OpenClass` order, which is the order the rows come in. */
 const CLASS_LABEL: Record<OpenClass, string> = { conflict: "Conflicts", "empty-day": "Empty days", parked: "Parked ideas" };
 
-const toDay = (day: TripDetail["days"][number]): ResolvedLinkTarget => ({ kind: "day", day: { kind: "dayId", dayId: day.dayId } });
-// The rack is on the Plan, so that is where a parked idea is placed — and
-// where a conflict that names no day (the budget) is fixed.
-const PLAN: ResolvedLinkTarget = { kind: "view", view: "Plan" };
+const toDay = (day: TripDetail["days"][number]): ActTarget => ({ kind: "day", day: { kind: "dayId", dayId: day.dayId } });
+// Where a conflict that names no day (the budget) is fixed.
+const PLAN: ActTarget = { kind: "view", view: "Plan" };
+// Where a parked idea is placed: the rack, opened — not plain Plan, which
+// lands with the rack shut and the ideas this row named off screen.
+const RACK: ActTarget = { kind: "rack" };
 
 /** "Aug 1 · Kyoto": whichever of the two the day has, so a missing one leaves no stray dot. */
 function whereAndWhen(day: TripDetail["days"][number], activities: TripDetail["activities"]): string {
@@ -105,6 +107,7 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
   // wanted ("no days to show"); this one reports that the trip is settled, in
   // the design's words (`openBlock`'s `emptyLine`).
   emptyText: "Nothing is waiting on you — every day has something on it and no two stops collide.",
+  emptyIsGood: true,
   preview: "one row per thing waiting on a decision",
   resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<ItemsPayload> => {
     if (!trip) return needsTrip();
@@ -157,7 +160,7 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
         sub: parked.slice(0, 2).join(" · "),
         right: "Place them",
         tone: "plain",
-        act: PLAN,
+        act: RACK,
       });
     }
 

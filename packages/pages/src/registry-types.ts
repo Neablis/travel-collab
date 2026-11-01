@@ -9,7 +9,7 @@ import type {
 } from "./chartPayloads";
 import type { WeatherPayload } from "./weatherPayload";
 import type { SunPayload } from "./sunPayload";
-import type { LinkCardPayload, MissingNotebookPayload, ResolvedLinkTarget } from "./linkTarget";
+import type { ActTarget, LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
 import type { ItineraryPayload } from "./itineraryPayload";
 import type { TripNowClock } from "./now";
 import type { ChatMessage } from "@tc/contracts";
@@ -276,7 +276,7 @@ export interface Item {
   sub: string;
   right: string;
   tone: "warning" | "info" | "plain";
-  act: ResolvedLinkTarget;
+  act: ActTarget;
 }
 export interface ItemsPayload {
   kind: "items";
@@ -377,6 +377,7 @@ export const blockOf = (block: BlockPayload): Rendered => ({ kind: "block", bloc
 export const linkOf = (href: string, t: string): Rendered => ({ kind: "link", href, text: t });
 export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rendered =>
   headings === undefined ? { kind: "rows", rows } : { kind: "rows", rows, headings };
+/** A widget's action rows as a `Rendered` of kind `items`, passed through unchanged (M43 decision 4). */
 export const itemsOf = (payload: ItemsPayload): Rendered => ({ kind: "items", items: payload.items });
 
 // What a widget TAKES, declared so a UI can choose a control for it
@@ -773,6 +774,10 @@ export interface MacroDef<P, T> {
   requires?: ReaderCapability;
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
+  // Nothing to show is the GOOD news (`open`: the trip is settled), so the
+  // renderer draws `emptyText` as the design's success line, not the muted
+  // chip that reads as something missing. Absent for every other widget.
+  emptyIsGood?: true;
   // The insert sidebar's sample. **A fixed string, never a computed value**
   // (ADR-037 decision 5): a preview asserting numbers the live widget computes
   // makes the sidebar and the page contradict each other in one session, which

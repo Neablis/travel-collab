@@ -1,4 +1,4 @@
-import type { ResolvedLinkTarget } from "@tc/pages";
+import type { ActTarget } from "@tc/pages";
 
 /**
  * Where an internal link card goes (ADR-056) — the one place a stored
@@ -16,7 +16,7 @@ import type { ResolvedLinkTarget } from "@tc/pages";
  * (`?page=`, `OverviewLens`): until 2026-09-27 the demo's "Also in this trip"
  * cards drew with no link at all, and Mitchell reported them dead.
  */
-export function linkHref(to: ResolvedLinkTarget, tripId: string, pathname: string): string {
+export function linkHref(to: ActTarget, tripId: string, pathname: string): string {
   // No pathname is a render outside the router, which only a test does.
   const offTrip = pathname !== "" && !pathname.startsWith("/trips/");
   if (to.kind === "notebook") {
@@ -24,6 +24,8 @@ export function linkHref(to: ResolvedLinkTarget, tripId: string, pathname: strin
   }
   const base = pathname.includes("/pages") ? `/trips/${tripId}` : pathname;
   if (to.kind === "view") return `${base}?view=${to.view}`;
+  // The board opens the rack on arrival (`TripBoardScreen`, read as `?day=` is).
+  if (to.kind === "rack") return `${base}?view=Plan&rack=open`;
   // The resolver hands every day target over by id; an index form never
   // reaches here, and if it did, Plan without a focused day is still true.
   return to.day.kind === "dayId" ? `${base}?view=Plan&day=${to.day.dayId}` : `${base}?view=Plan`;

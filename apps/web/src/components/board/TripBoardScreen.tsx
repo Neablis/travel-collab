@@ -862,6 +862,23 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // reducer with its own unit tests), not here.
   const [rack, setRack] = useState<RackDisclosure>({ open: false, openedByDrag: false });
   const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
+  /**
+   * **"Place them"** (`open`'s parked row, M43 decision 4) arrives as
+   * `?view=Plan&rack=open`, and the rack opens as the design's `blOpen: true`
+   * does: Plan alone lands with the ideas the row named shut away. Once per
+   * arrival, as `?day=` is, so shutting it afterwards is not undone.
+   */
+  const linkedRack = searchParams.get("rack") === "open";
+  const appliedRackLink = useRef(false);
+  useEffect(() => {
+    if (!linkedRack) {
+      appliedRackLink.current = false;
+      return;
+    }
+    if (appliedRackLink.current) return;
+    appliedRackLink.current = true;
+    setRack((state) => rackDisclosure(state, { type: "reveal" }));
+  }, [linkedRack]);
   // The day whose group a column's "Unscheduled" chip last asked the rack to
   // show (PR #269). `seq` so a second click on the same chip reveals again —
   // after the reader has scrolled the rack elsewhere, say.

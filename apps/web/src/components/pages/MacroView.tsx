@@ -163,6 +163,13 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // different questions sit behind `attribute` and they used to share one
   // shrug — see `MacroResult`'s `because`.
   if (outcome.status === "empty") {
+    // A widget whose empty state is the good one (`open`: the trip is settled)
+    // draws the design's success line (`emptyLine`), a block on the success
+    // tint. In the muted chip it read as a placeholder, and at phone width its
+    // sentence wrapped into a stadium-shaped pill.
+    if (def?.emptyIsGood && outcome.because === undefined) {
+      return <span className="my-1 block rounded-md bg-success-tint px-3.5 py-3 text-sm text-success-ink">{def.emptyText}</span>;
+    }
     return <EmptyChip tone="muted" label={outcome.because ?? def?.emptyText ?? "—"} />;
   }
   // ADR-052 decision 4: the trip has what is needed and the outside source has
@@ -260,14 +267,17 @@ export function MacroView({ detail, context, user = null, globals = null, extern
           )}
           // **`min-content`, not `0`, as the lead's floor.** Mitchell, on the
           // preview: *"The Issue text is still going down side of page"* — on a
-          // 1728px DESKTOP, so the phone rule was not the whole of it.
+          // 1728px DESKTOP, so the phone rule was not the whole of it. He saw it
+          // on `open`, which has since left this table (M43 decision 4); the
+          // cause stays wherever a value column holds prose.
           //
           // `minmax(0, 1fr)` says the lead may be squeezed to nothing, and an
           // `auto` value column will do exactly that when its content is prose:
           // `auto` resolves toward max-content, and the only thing stopping it
-          // is the other track's minimum. At zero there is none, so a row whose
-          // value is a conflict's description drove "Empty day" down to a word
-          // — or a letter — a line.
+          // is the other track's minimum. At zero there is none, so a
+          // `stop.rows` whose Notes column holds a paragraph drives the stop's
+          // name down to a word — or a letter — a line. The geometry walk in
+          // `m14-notebook-widgets.spec.ts` holds that case.
           //
           // `min-content` is the honest floor: a track may not be starved below
           // what its own content needs. It costs nothing to the widgets whose

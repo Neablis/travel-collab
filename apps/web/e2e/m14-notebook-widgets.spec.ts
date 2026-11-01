@@ -1020,6 +1020,7 @@ async function addStopViaApi(
     cost?: { amountMinor: number; currency: string };
     kind?: string;
     tags?: string[];
+    notes?: string;
   } = {},
 ): Promise<void> {
   const response = await page.request.post(`/api/trips/${tripId}/commands`, {
@@ -1553,10 +1554,9 @@ test("the settings column pins below the sticky chrome, not behind it", async ({
 });
 
 test("What needs you lists a conflict, an empty day and the parked ideas, and each row goes where it is fixed", async ({ page }) => {
-  // M43 decision 4: the design's rows (`openBlock`), not the two-column table
-  // this walk used to measure — so the table's lead-column geometry has
-  // nothing left to hold, and what is held instead is the three row kinds and
-  // where a tap on one lands.
+  // M43 decision 4: the design's rows (`openBlock`), not a two-column table.
+  // What is held is the three row kinds and where a tap on one lands; the
+  // table's geometry is the walk below's, on a widget that still draws one.
   //
   // A real conflict rather than a fixture: two stops that overlap in time on
   // Day 1, so the domain's own engine raises it. Day 2 is left empty, and one
@@ -1588,6 +1588,54 @@ test("What needs you lists a conflict, an empty day and the parked ideas, and ea
   await rows.nth(0).getByRole("link", { name: /Fix in Plan/ }).click();
   await expect(page).toHaveURL(new RegExp(`/trips/${tripId}\\?view=Plan&day=${dayId}$`));
   await expect(page.getByRole("tab", { name: "Plan" })).toHaveAttribute("aria-selected", "true");
+
+  // **"Place them" lands with the rack open**, the design's `blOpen: true`:
+  // Plan alone arrived with the rack shut and the parked idea off screen.
+  await page.goBack();
+  await page.getByRole("list", { name: "What needs you" }).getByRole("link", { name: /Place them/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}\\?view=Plan&rack=open$`));
+  await expect(page.getByTestId("unscheduled-rack").getByRole("button", { name: /^Unscheduled/ })).toHaveAttribute("aria-expanded", "true");
+});
+
+test("a long value does not squeeze a repeat table's lead column to nothing", async ({ page }) => {
+  // Mitchell, on the preview, at 1728px: *"The Issue text is still going down
+  // side of page"*. He saw it on `open`, which draws rows of its own now (M43
+  // decision 4); the table and its cause remain for every other repeat widget.
+  // `stop.rows` with a Notes column is the widest case: a paragraph in an
+  // `auto` value track beside a one-word lead, which a zero floor lets that
+  // track squeeze to a letter a line.
+  //
+  // Red-checked by putting `minmax(0, 1fr)` back in `MacroView`.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  const notes =
+    "Buy the return ticket at the bottom station, because the machine at the top takes cash only and the last car down leaves well before the restaurant closes.";
+  await addStopViaApi(page, tripId, "Funicular", { notes });
+
+  await openSeededPage(page);
+  await insertLinesFor(page, "Stop");
+  const addColumn = settingsPanel(page).getByRole("combobox", { name: "Add a column" });
+  await addColumn.click();
+  await addColumn.fill("notes");
+  await page.getByRole("option", { name: "Notes", exact: true }).click();
+
+  const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Notes" }) });
+  const lead = table.getByRole("rowheader", { name: "Funicular" });
+  await expect(lead).toBeVisible();
+
+  // **The witness: the value really is long.** A short one would pass with
+  // the floor removed, the vacuity every geometry walk here has been caught by.
+  const valueBox = await boxOf(table.getByRole("cell").filter({ hasText: "Buy the return ticket" }));
+  expect(valueBox.width, "the value is not long enough for this walk to prove anything").toBeGreaterThan(200);
+
+  // One line, not a column of letters, measured against the lead's own line
+  // height. `py-2` is 8px top and bottom, so one line is `line + 16`.
+  const geometry = await lead.evaluate((el) => ({
+    height: el.getBoundingClientRect().height,
+    line: parseFloat(getComputedStyle(el).lineHeight),
+  }));
+  expect(geometry.height, `the lead wrapped: ${geometry.height}px tall for one line of ${geometry.line}px`).toBeLessThan(geometry.line * 2);
 });
 
 test("What needs you hides a class and narrows to a day from its settings, and keeps both after a reload", async ({ page }) => {
