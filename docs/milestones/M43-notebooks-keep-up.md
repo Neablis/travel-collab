@@ -82,7 +82,9 @@ Candidates absorbed (each deleted by this gate):
 - **5: three classes, and `open` follows the notebook's date scope.** The class filter offers
   conflict, empty day and parked. The Days filter is the existing `dates` dimension; an explicit
   Days filter wins, otherwise the notebook's date scope applies (`followsDateScope`). Parked
-  ideas carry no date, so only the class filter hides them.
+  ideas carry no date, so only the class filter hides them. **On a Today notebook that follows the
+  clock, the notebook's scope wins** (the 2026-10-24 rule, kept by part 4's review): its Days
+  control is hidden there, so no stored Days filter is silently ignored.
 
 ## Scope
 
