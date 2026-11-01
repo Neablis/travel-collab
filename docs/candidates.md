@@ -16,19 +16,6 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
-- **Assistant personas: a graph of who the assistant is, with debug mode and value metrics (asked 2026-10-30).**
-  Mitchell, weighing M56 part 5's prompt cost (PR 641): personas that each define their tools, the
-  first chosen by the starting page, a tool to switch between them along a directed graph (so some
-  are never reachable), a developer view of the tools and the graph, and AI metrics tied to it so
-  its return is visible. Today's `SURFACES` (`apps/web/src/server/assistant/grants.ts:91`) is
-  already the per-persona tool table; what is missing is edges (switching is navigation or M56's
-  `hand_off`), a persona column in the `ai_usage` ledger, outcome events, and any picture of it.
-  Design and the build-vs-adopt research (keep the AI SDK, own the graph and the metrics, a
-  Langfuse trial on previews at most): `docs/specs/2026-10-30-assistant-personas-design.md`.
-  Open: the persona set, whether a trip-starting persona reopens M56's D1, switches per turn, and
-  what history crosses an edge.
-  *Placed 2026-11-01 → `docs/milestones/M57-assistant-personas.md` (scoped). M57's gate deletes this entry at close.*
-
 - **Writes made through an API token or a connected app say so (asked 2026-10-27).**
   Moved out of M55 at scoping (decision 10): Mitchell widened D10 to build these labels, then
   withdrew that the same day to keep M55 simple. Today History knows only one origin label,

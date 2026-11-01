@@ -106,9 +106,12 @@ Ticked at the close, on part 0. CI is the `ci` run on each part's final PR head.
 part's PR body's red-first table: the source edit and the failure text. Part PR heads and `ci`
 runs: PR 668 `1411211` run 41320094857, PR 670 `ea559f9` run 41324757720, PR 671 `d6c6cff` run
 41329821024, PR 672 `f788d75` run 41348167445, PR 673 `8edb9de` run 41348170692, PR 674
-`bfacb7d` run 41357541647 (`ci-ok` check run 125002637451). Each is attempt 1 and green; the
-earlier heads of PR 674 were red, and `325b6e1` and `bfacb7d` fixed two real causes (a phone
-Ask-panel mount race and an m41 test that depended on shared-user trips), not a re-run.
+`a40c632` run 41359705691 (`ci-ok` check run 125009047622), the head Mitchell merges. Each is
+attempt 1 and green; the earlier heads of PR 674 were red, and `325b6e1` and `bfacb7d` fixed two
+real causes (a phone Ask-panel mount race and an m41 test that depended on shared-user trips),
+not a re-run. `bfacb7d` (run 41357541647, `ci-ok` check run 125002637451) was green too and is
+kept as history. `a40c632`'s diff is prompt text only: `handleAskRequest.ts`, `places.ts`, and
+the `contextBudget` test and baseline.
 
 - [x] **Decisions D1–D8 are answered and recorded here**, and ADR-085 is written. *Evidence:*
       *Decisions* above; `docs/architecture/ADR-085-the-assistant-is-a-graph-of-personas.md`,
@@ -137,20 +140,23 @@ Ask-panel mount race and an m41 test that depended on shared-user trips), not a 
       guard and records the transition; the pivot and escalation are edges, not special cases in
       `prepareStep`. Seen red. *Evidence:* PR 672 (merge `3d0db6a`), its red-first tables, `ci`
       run 41348167445.
-- [ ] **The split pays and does not regress.** `contextBudget` shows Schedule's and Discover's edit
+- [x] **The split pays and does not regress.** `contextBudget` shows Schedule's and Discover's edit
       steps each smaller than today's `trip · edit` (31,630 chars), and a live eval run, on
-      Mitchell's word, grades no worse than the last baseline. **Open, two halves, neither
-      claimed.** *Size:* `apps/web/src/server/ai/contextBudget.baseline.json` on `main` gives
-      Schedule's edit step 28,786 chars (20 tools; 3,002 fewer than before, PR 672's table), but
-      `trip · edit · switched to discover`, Discover's edit step, 31,963 chars (23 tools), which
-      is 333 **more** than 31,630. Discover is the old trip planner's whole grant by design, so
-      the gate's "each smaller" is met for Schedule only. *Grades:* no before/after baseline was
-      run. Mitchell's decision (2026-11-01): he chose not to run one. He ran the four persona
-      cases instead and all pass: `s-ramen-near-hotel` (after its prompt was reworded, on PR 674
-      head `85c6202`; see KI-2026-11-01-x) and `d-coffee-near-now`, `s-named-place`,
-      `s-move-museum` on `main`. Per turn on `main` (n=4): about 63k input tokens, about 550
-      output, 5 steps, about $0.053. That is a pass of four cases, not a comparison with a
-      baseline, and is not recorded as one. Ticking it needs Mitchell to accept both.
+      Mitchell's word, grades no worse than the last baseline. *Size:* Discover's edit step was
+      31,963 chars, 333 over, because it is the old trip planner's whole grant. Mitchell chose to
+      trim Discover first (2026-11-01). Commit `a40c632` on PR 674 trimmed prompt text
+      (`handleAskRequest.ts`, `places.ts`) and regenerated
+      `apps/web/src/server/ai/contextBudget.baseline.json`: Discover edit (`trip · edit · switched
+      to discover`) 31,963 to 31,609, Schedule edit 28,786. The margin is 21 chars under 31,630.
+      `contextBudget.test.ts` gained an assertion that no persona's edit step reaches 31,630
+      (`PRE_SPLIT_EDIT_CHARS`), so the margin cannot silently close. Green CI: `ci` run
+      41359705691 on `a40c632`, `ci-ok` check run 125009047622. *Grades:* no before/after
+      baseline was run. Mitchell's decision (2026-11-01): he chose not to run one. He ran the four
+      persona cases instead and all pass: `s-ramen-near-hotel` (after its prompt was reworded, on
+      PR 674 head `85c6202`; ruling in KI-20261101-x, resolved) and `d-coffee-near-now`,
+      `s-named-place`, `s-move-museum` on `main`. Per turn on `main` (n=4): about 63k input
+      tokens, about 550 output, 5 steps, about $0.053. That is a pass of four cases, not a
+      comparison with a baseline, and is not recorded as one.
 - [x] **Debug mode in the Ask panel**: an operator sees the graph from the page, the tools per
       persona, and each turn's breakdown after it runs; a non-operator sees no toggle and gets 404
       from its endpoints. Unit tests seen red; e2e green in CI. *Evidence:* PR 673 (merge
@@ -158,9 +164,11 @@ Ask-panel mount race and an m41 test that depended on shared-user trips), not a 
       41357541647. Mitchell walked the operator Debug toggle on 2026-11-01.
 - [x] **The console's Personas tab** shows the map with per-persona and per-edge aggregates and a
       recent-turns list that opens a turn's breakdown; operators only. Seen red; e2e green in CI.
-      *Evidence:* PR 674, red-first tables in its body; `ci` run 41357541647 on `bfacb7d`, with
-      `ci-ok` (check run 125002637451) and both e2e shards (check runs 125000762442 and
-      125000762524) success; `e2e/m57-console-personas.spec.ts`.
+      *Evidence:* PR 674, red-first tables in its body; `ci` run 41359705691 on `a40c632`, with
+      `ci-ok` (check run 125009047622) and both e2e shards (check runs 125007305261 and
+      125007305259) success; `e2e/m57-console-personas.spec.ts`. The same spec was green on
+      `bfacb7d`, run 41357541647 (`ci-ok` check run 125002637451, e2e shards 125000762442 and
+      125000762524); `a40c632` changes prompt text only.
 - [x] **Mitchell walks the preview** (debug toggle on a trip page, a turn that switches, the
       console tab) and reports nothing to change, or each change is a merged part. *Evidence:*
       Mitchell's word, 2026-11-01. He walked the previews of PR 674: the Personas graph, where his
@@ -168,16 +176,16 @@ Ask-panel mount race and an m41 test that depended on shared-user trips), not a 
       with border-clipped curved edges and per-node "nowhere" stubs (he asked to check it on a
       phone too), and the operator Debug toggle in the Ask panel. Ticked on his word.
 
-## Retro — written 2026-11-01 (9 of 10 boxes ticked)
+## Retro — written 2026-11-01 (10 of 10 boxes ticked)
 
 Drafted on part 0 (PR 667) after all six parts were built: parts 1 to 5 are on `main` (last merge
-`f5bbd18`), part 6 is PR 674 at `bfacb7d`, not yet merged. One box is left open on purpose (below).
+`f5bbd18`), part 6 is PR 674 at `a40c632`, not yet merged. All ten boxes are ticked; the last one (*The split pays*) waited on Mitchell's ruling, below.
 
 ### What went well
 
 - **Five of six parts merged with a green first-attempt `ci` run each.** PR 668 run 41320094857,
   PR 670 run 41324757720, PR 671 run 41329821024, PR 672 run 41348167445, PR 673 run 41348170692;
-  PR 674's final head `bfacb7d` is green on run 41357541647 (`ci-ok` check run 125002637451).
+  PR 674's final head `a40c632` is green on run 41359705691 (`ci-ok` check run 125009047622); `bfacb7d` was green too, on run 41357541647 (check run 125002637451).
 - **The migrations went in between merges.** `migrate-production` run 41351040591 applied `0071`
   and `0072` on `951ebe6`, before parts 4 to 6 landed.
 - **The red e2e on PR 674 had two real causes, and each was fixed, not re-run.** `325b6e1` fixed a
@@ -201,11 +209,11 @@ Drafted on part 0 (PR 667) after all six parts were built: parts 1 to 5 are on `
   the plan's part 4 should have stated Discover's size as a number the gate could check.
 - **The live-eval half of the same box was not run as a comparison.** Mitchell chose not to run a
   before/after baseline; he ran the four persona cases and all pass (about 63k input tokens,
-  about 550 output, 5 steps, about $0.053 a turn, n=4, on `main`). The box stays open until he
-  accepts that and the Discover size (below).
+  about 550 output, 5 steps, about $0.053 a turn, n=4, on `main`). That is recorded as four
+  passing cases, not as a comparison.
 - **A live-set prompt was edited under its old id.** `s-ramen-near-hotel` was reworded in
   `85c6202` (the seed has no day-2 hotel) against the file's "never edit, only add" rule. Filed
-  as KI-2026-11-01-x, with Mitchell's ruling pending.
+  as KI-20261101-x; Mitchell ruled on 2026-11-01 to keep the edit, and the entry is resolved.
 - **PR 674's final head was red twice before it was green.** The two causes above cost two fix
   rounds (a 44-call implementer, 485k units, the costliest agent of the close session).
 - **Orchestrator share missed its target** (25.1% in the close session, 15.9% in the earlier ones).
@@ -214,10 +222,13 @@ Drafted on part 0 (PR 667) after all six parts were built: parts 1 to 5 are on `
 
 ### Leftovers
 
-- **The open box** (Discover's edit step 333 chars over 31,630, and no baseline comparison of
-  grades): Mitchell's call, either accept both and tick it, or amend the gate.
+- **The Discover trim (2026-11-01).** Mitchell chose to trim Discover first. `a40c632` on PR 674
+  took Discover's edit step from 31,963 to 31,609 chars (21 under 31,630) with prompt text only,
+  and `contextBudget.test.ts` now fails if any persona's edit step reaches 31,630. The margin is
+  thin: the next tool or prompt line added to Discover's edit step trips that test.
+- **Mitchell's ramen ruling (2026-11-01).** Keep the edited `s-ramen-near-hotel` prompt under its
+  id (KI-20261101-x, resolved). Runs of that id before `85c6202` graded a different prompt.
 - **KI-2026-11-01-w** (the simulated model calls `find_places_near_now` from Schedule),
-  **-x** (`s-ramen-near-hotel` edited under its id; Mitchell has not ruled),
   **-y** (the Personas report loads every row in the window into Node), **-z** (node turns need
   not sum to the total; a self-loop can be credited with an earlier escalation) and **-aa**
   (`EdgeDef` duplicates `DebugEdge`): filed at this close, from PR 674's body.
@@ -302,6 +313,7 @@ and are not re-derived here.
 | Earlier orchestrators | orchestrator share 15.9% (target under 15%, missed); worst phase-implementer context 182k (met); coordinator re-writes 0; `orchestrator-context-limit` hook fired 4 times | carried in the hand-off |
 | Plan session | 2 agents, 110 API calls, 1.77M units (Explore 60.3%, orchestrator 39.7%) | carried in the hand-off |
 | Build session 2 (handed off at about 252k context) | about 17 subagents: reviewers, fixers, triage and one Opus audit; session-metrics could not read the transcripts | counted from the hand-off, no units |
+| Second close pass (this session) | 1 Sonnet fixer and 1 Sonnet reviewer for the Discover trim (`a40c632`), plus the close agent; no units or cost recorded, so none are claimed | counted, not measured |
 | Close session | 4 Sonnet subagents before the close agent (2 fixers, 2 reviewers), plus the close agent | the generated block above |
 
 No total across sessions is given: the build sessions have no units, and `--cost-usd` and

@@ -21,16 +21,17 @@ general setup.
 
 ## Where the work is right now
 
-**M57 is built, with one gate box open (9 of 10)** (*The assistant is a graph of personas, and you
-can watch it work*; decisions in `docs/milestones/M57-assistant-personas.md`, mechanisms in
-ADR-085). Parts 1 to 5 are on `main` (PRs 668, 670, 671, 672, 673; last merge `f5bbd18`;
-migrations `0071` and `0072` applied by `migrate-production` run 41351040591). Part 6 is PR 674
-(`bfacb7d`, `ci-ok` green, run 41357541647) and waits on Mitchell's merge. Part 0 (PR 667,
-`ccr-295c38f8-0l82gi`, prose only) carries the retro, ADR-085 decisions 7 to 9 and five known
-issues (KI-2026-11-01-w to -aa); the plan is deleted. **Open box:** *The split pays* (Discover's
-edit step is 31,963 chars, 333 over the 31,630 it should beat, and no before/after grade
-comparison was run; the evidence is in the milestone file). `pnpm milestone close M57 --confirm`
-has not run, because it refuses with a box unticked.
+**M57 closed 2026-11-01, gate 10 of 10** (*The assistant is a graph of personas, and you can watch
+it work*; decisions in `docs/milestones/M57-assistant-personas.md`, mechanisms in ADR-085), by
+`pnpm milestone close M57 --confirm` on part 0 (PR 667, `ccr-295c38f8-0l82gi`, prose only), which
+**waits on Mitchell's merge**. Parts 1 to 5 are on `main` (PRs 668, 670, 671, 672, 673; last merge
+`f5bbd18`; migrations `0071` and `0072` applied by `migrate-production` run 41351040591). Part 6
+is PR 674 (`a40c632`, `ci-ok` green, `ci` run 41359705691, `ci-ok` check run 125009047622) and
+waits on Mitchell's merge; `a40c632` is prompt text only (the Discover trim: edit step 31,963 to
+31,609 chars, under the 31,630 the last gate box asked for). Mitchell ruled on KI-20261101-x:
+keep the edited `s-ramen-near-hotel` prompt (resolved). Part 0 carries the retro, ADR-085
+decisions 7 to 9 and five known issues (KI-2026-11-01-w, -y, -z, -aa and the earlier -s to -v);
+the plan is deleted.
 
 **M43 closed 2026-11-01, gate 6 of 6**, by `pnpm milestone close M43 --confirm` on part 0
 (PR 659, `ccr-96adddf8-iksgbh`, prose only), which **waits on Mitchell's merge**. All five code
@@ -88,14 +89,14 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** Mitchell (1) rules on the open M57 box (*The split pays*: accept that Discover's
-edit step is 333 chars over 31,630 and that grades were four passing cases rather than a baseline
-comparison, or amend the gate) and on KI-2026-11-01-x (the edited `s-ramen-near-hotel` prompt);
-(2) merges PR 674 with a merge commit; (3) dispatches `migrate-production` only if a migration is
-not yet applied (re-read the runs first: `0071` and `0072` were applied by run 41351040591, and
-PR 674 adds none, so none is expected); (4) merges PR 667 after `pnpm milestone close M57 --confirm`
-has been run on it. Then remove the orchestrator's `tc-orchestrator` guard file from the build
-session's git dir. Earlier next action, still open: Mitchell merges M43's part 0 (PR 659) if it is
+**Next action:**
+1. Mitchell merges PR 674 (merge commit).
+2. No `migrate-production` is needed: `0070` to `0072` are applied (`pnpm state` shows all 73
+   applied, with `0072_ai_turn_outcomes`), and PR 674 adds none.
+3. Mitchell merges PR 667.
+4. Close no lower drafts: parts 1 to 5 are already merged.
+Then remove the orchestrator's `tc-orchestrator` guard file from the build session's git dir.
+Earlier next action, still open: Mitchell merges M43's part 0 (PR 659) if it is
 not merged yet. Then scope M44 with him
 (`plan-a-milestone`; `docs/milestones/M44-a-stop-knows-what-was-booked.md`, not scoped; since
 2026-10-22 it keeps containment only, `booking` having moved to M52). Open follow-ups from M43:
