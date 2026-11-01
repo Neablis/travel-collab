@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { microUsdFor } from "@/server/entitlements/modelRates";
 import { MAX_STEP_OUTPUT_TOKENS } from "@/server/ai/handleAskRequest";
-import { capMicroUsdFrom, DEFAULT_CAP_MICRO_USD, dollars, turnSpend, UNREPORTED_INPUT_TOKENS, unpricedModels } from "./spend";
+import { capMicroUsdFrom, DEFAULT_CAP_MICRO_USD, dollars, summariseRows, turnSpend, UNREPORTED_INPUT_TOKENS, unpricedModels } from "./spend";
 
 const AT = new Date("2026-10-05T12:00:00Z");
 
@@ -134,5 +134,20 @@ describe("capMicroUsdFrom", () => {
 
   it("refuses a value that is not a finite, non-negative number", () => {
     for (const raw of ["abc", "$0.10", "-1", "Infinity", "NaN"]) expect(capMicroUsdFrom(raw), raw).toBeNull();
+  });
+});
+
+describe("summariseRows", () => {
+  it("means each figure over the turns that reported it, so an unpriced turn is not free", () => {
+    expect(
+      summariseRows([
+        { inputTokens: 10_000, outputTokens: 200, steps: 3, microUsd: 4_000 },
+        { inputTokens: 20_000, outputTokens: null, steps: 5, microUsd: null },
+      ]),
+    ).toEqual({ turns: 2, meanInputTokens: 15_000, meanOutputTokens: 200, meanSteps: 4, meanMicroUsd: 4_000 });
+  });
+
+  it("is null, not zero, where nothing was reported", () => {
+    expect(summariseRows([])).toEqual({ turns: 0, meanInputTokens: null, meanOutputTokens: null, meanSteps: null, meanMicroUsd: null });
   });
 });

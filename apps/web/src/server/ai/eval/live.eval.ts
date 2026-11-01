@@ -50,8 +50,8 @@ import { accountExpectationFor, expectationFor, playbookExpectationFor, type See
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { postMessage } from "@/server/chat/messages";
 import type { TurnOrigin } from "@/server/assistant/defineTool";
-import { endedIn, grade, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
-import { capMicroUsdFrom, dollars, turnSpend, unpricedModels, type TurnSpend } from "./spend";
+import { endedIn, grade, type EvalPersonaStep, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
+import { capMicroUsdFrom, dollars, summariseRows, turnSpend, unpricedModels, type TurnSpend } from "./spend";
 import { ACCOUNT_TRIPS, accountTripCommands, evalInstant, japanTodayStart, longTripCommands, phaseFor, planningStart, type EvalTripName } from "./trips";
 import { pinClock, type EvalClock } from "./evalClock";
 
@@ -202,6 +202,17 @@ async function seedPlaybook(): Promise<{ userId: string; savedDayId: string; sto
   return { userId, savedDayId: kept.value.savedDayId, stopTitles: kept.value.stops.map((stop) => stop.title) };
 }
 
+/**
+ * The persona each step ran as, read from the ledger; undefined where the build
+ * records none (main), so the persona checks say nothing there instead of
+ * failing for a field that does not exist.
+ */
+function personaPathOf(ledger: TurnLedger | undefined): EvalPersonaStep[] | undefined {
+  const steps = ledger?.stepSpend as readonly { persona?: EvalPersonaStep["persona"]; fromPersona?: EvalPersonaStep["fromPersona"]; edgeKind?: string | null }[] | undefined;
+  if (steps === undefined || steps.length === 0 || steps.some((step) => step.persona === undefined)) return undefined;
+  return steps.map((step) => ({ persona: step.persona!, fromPersona: step.fromPersona ?? null, edgeKind: step.edgeKind ?? null }));
+}
+
 function chunksOf(body: string): Record<string, unknown>[] {
   return body
     .split("\n")
@@ -261,6 +272,7 @@ async function runTurn(
     retracted: retractedText(chunks),
     navigations: navigatedTo(chunks),
     widget: endedIn(chunks),
+    personaPath: personaPathOf(ledgers[0]),
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
     providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
     generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],
@@ -289,6 +301,10 @@ interface RunRow {
   costEstimated: string[];
   /** Text that streamed and was taken back (KI-2026-10-12-h). Reported, never failed. */
   retracted: { parts: number; chars: number };
+  /** The persona each step ran as; null on a build with no personas (main). */
+  personaPath: readonly EvalPersonaStep[] | null;
+  /** Persona changes the turn made (steps that crossed to another persona); null where no path was read. */
+  switches: number | null;
   checks: EvalCheck[];
 }
 
@@ -328,7 +344,11 @@ afterAll(() => {
     startedAt: new Date(startedAt).toISOString(),
     finishedAt: new Date(finishedAt).toISOString(),
   };
-  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, estimatedTurns, unpricedTurns, rows, ...clockReport }, null, 2)}\n`);
+  // Per-turn means over the whole run: two runs (main, then a branch) over the
+  // same prompts compare on this block, and per prompt on `rows`.
+  const summary = summariseRows(rows);
+  const personas = rows.some((row) => row.personaPath !== null);
+  writeFileSync(file, `${JSON.stringify({ models, repeat, personas, summary, spentMicroUsd, estimatedTurns, unpricedTurns, rows, ...clockReport }, null, 2)}\n`);
   const failed = rows.flatMap((row) => row.checks.filter((check) => !check.pass).map((check) => `${row.id}#${row.run}: ${check.name}`));
   console.log(
     [
@@ -337,6 +357,7 @@ afterAll(() => {
       `models: ${JSON.stringify(models)}`,
       `clock: every turn started at ${clockReport.pinnedAt} (12:30 JST); the run really ran ${clockReport.startedAt} to ${clockReport.finishedAt}`,
       `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-2026-10-12-h; not a failure)`,
+      `per turn: ${summary.meanInputTokens ?? "?"} in, ${summary.meanOutputTokens ?? "?"} out, ${summary.meanSteps ?? "?"} steps, ${summary.meanMicroUsd === null ? "?" : dollars(summary.meanMicroUsd)}; persona path ${personas ? `read, ${rows.reduce((n, row) => n + (row.switches ?? 0), 0)} switch(es)` : "not read (no personas in this build), persona checks skipped"}`,
       `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${estimatedTurns > 0 ? `, ${estimatedTurns} turn(s) of it estimated` : ""}${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
         (row) =>
@@ -416,6 +437,8 @@ describe.skipIf(!confirmed)("the live set, on production's models", () => {
           microUsd,
           costEstimated: estimated,
           retracted: turn.retracted,
+          personaPath: turn.personaPath ?? null,
+          switches: turn.personaPath?.filter((step) => step.fromPersona != null && step.fromPersona !== step.persona).length ?? null,
           checks,
         });
         for (const check of checks) console.log(`    ${check.pass ? "✓" : "✗"} ${check.name}: ${check.detail}`);

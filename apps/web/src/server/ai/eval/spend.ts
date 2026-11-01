@@ -103,3 +103,41 @@ export function capMicroUsdFrom(raw: string | undefined): number | null {
 export function dollars(microUsd: number): string {
   return `$${(microUsd / 1_000_000).toFixed(4)}`;
 }
+
+/** The fields of a run's row that a cost comparison reads. */
+export interface SpendRow {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  steps: number;
+  microUsd: number | null;
+}
+
+/** A run's per-turn means: the numbers two runs (main, then a branch) are laid side by side on. */
+export interface RunSummary {
+  turns: number;
+  /** Means over the turns that reported the figure; null where none did. */
+  meanInputTokens: number | null;
+  meanOutputTokens: number | null;
+  meanSteps: number | null;
+  meanMicroUsd: number | null;
+}
+
+/**
+ * The mean tokens, steps and spend per turn. A turn with no reported figure
+ * is left out of that figure's mean rather than counted as zero, so an
+ * unpriced turn cannot make a run look cheaper (the ledger's own rule:
+ * unmeasured is not free).
+ */
+export function summariseRows(rows: readonly SpendRow[]): RunSummary {
+  const mean = (values: readonly (number | null)[]): number | null => {
+    const known = values.filter((value): value is number => value !== null);
+    return known.length === 0 ? null : Math.round(known.reduce((sum, value) => sum + value, 0) / known.length);
+  };
+  return {
+    turns: rows.length,
+    meanInputTokens: mean(rows.map((row) => row.inputTokens)),
+    meanOutputTokens: mean(rows.map((row) => row.outputTokens)),
+    meanSteps: mean(rows.map((row) => row.steps)),
+    meanMicroUsd: mean(rows.map((row) => row.microUsd)),
+  };
+}
