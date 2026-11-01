@@ -2538,6 +2538,7 @@ export function instructionBlocks(
     ...rules.map(rule),
     ...capabilityBlock(scope.kind === "day" ? "day" : "trip", limit, undefined, persona),
     rule(VOICE_RULE),
+    rule(INTERNALS_RULE),
     ...now,
     ...style,
     scopeBlock(scope),
@@ -2551,6 +2552,11 @@ export function instructionBlocks(
  * varying it between steps.
  */
 const VOICE_RULE = "Talk like a friend who has been there, plain, specific, no filler.";
+
+// Personas, modes and tool switches are internal (Mitchell, 2026-11-01): the
+// person asked for a trip, not for how the assistant is built.
+const INTERNALS_RULE =
+  "Never ask the person whether to switch, never offer them a choice of persona or mode, and never ask which one to use: switch yourself when the task needs it.";
 
 /**
  * **The account turn's instruction** (M45): every trip, read through four
@@ -2570,7 +2576,7 @@ export function accountInstructionBlocks(scope: AskScope, clock: TimeFormat = "1
     clockTimesLine(clock),
     "Answer in prose, briefly — a sentence or three. No headings, no bullet lists unless the user asks for a list.",
   ];
-  return [...rules.map(rule), ...capabilityBlock("account", limit), rule(VOICE_RULE), scopeBlock(scope)];
+  return [...rules.map(rule), ...capabilityBlock("account", limit), rule(VOICE_RULE), rule(INTERNALS_RULE), scopeBlock(scope)];
 }
 
 /** What each playbook page is, said to the model in a sentence (M45 D9). */
@@ -2608,7 +2614,7 @@ export function playbookInstructionBlocks(scope: AskScope, surface: SurfaceKind,
     clockTimesLine(clock),
     "Answer in prose, briefly — a sentence or three. No headings, no bullet lists unless the user asks for a list.",
   ];
-  return [...rules.map(rule), ...capabilityBlock(surface, limit), rule(VOICE_RULE), scopeBlock(scope)];
+  return [...rules.map(rule), ...capabilityBlock(surface, limit), rule(VOICE_RULE), rule(INTERNALS_RULE), scopeBlock(scope)];
 }
 
 /**
