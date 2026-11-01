@@ -102,6 +102,15 @@ which the templates, their tests and three e2e walks all pinned.
    `?view=Overview&page=<id>`, and the Overview tab reads that notebook read-only in the
    Overview's place (`linkHref`, `OverviewLens`). Picking a tab leaves it.
 
+## Amendment 2026-10-31 (M43, decision 2): the Overview is a column, not a context marker
+
+Where this ADR says a page is the Overview because it carries `kind: "overview"` in its context,
+read `pages.kind = 'overview'` from M43 part 1 on (migration `0070`). `PageContext.kind` is retired
+(`docs/contracts/CHANGELOG.md`); a page's kind follows its `seed_key`, which only the `system`
+actor sets, and a partial unique index allows one Overview per trip. Old events that carry the
+marker are still read on `system` events only (`seedKeyOf`). A person can no longer mark a page as
+the Overview.
+
 ## Consequences
 
 - **Every new trip opens with four notebooks**, and the seeded-template test holds all

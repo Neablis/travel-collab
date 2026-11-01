@@ -250,6 +250,15 @@ common case of entering Editing mode, reading, and leaving must not manufacture 
 change sends nothing at all. One that changed and then changed back sends its document, and
 `decidePageCommand` appends nothing for it.
 
+## Amendment 2026-10-31 (M43, decision 2): the Overview is a column, not a context marker
+
+Where this ADR says a page is the Overview because it carries `kind: "overview"` in its context,
+read `pages.kind = 'overview'` from M43 part 1 on (migration `0070`). `PageContext.kind` is retired
+(`docs/contracts/CHANGELOG.md`); a page's kind follows its `seed_key`, which only the `system`
+actor sets, and a partial unique index allows one Overview per trip. Old events that carry the
+marker are still read on `system` events only (`seedKeyOf`). A person can no longer mark a page as
+the Overview.
+
 ## Consequences
 
 - **A contract and a migration.** Page events need types (`PageContentEdited`, and
