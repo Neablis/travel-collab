@@ -24,8 +24,8 @@ Format:
   is persisted in every document carrying it, so its shape is the contract's (ADR-037 decision 9).
 - Consumers updated: `packages/pages` — `open` takes `class` and the `dates` filter, declares a
   day `selection` (so it is now a primitive and follows a page's date scope), and a new
-  `WidgetInput` type `choices`, whose options `search_widgets` and `get_widget` list as the param's
-values; `apps/web` — `ChoicesFilter.tsx` and `widgetBind.tsx` (the control
+  `WidgetInput` type `choices`, whose options `get_widget` lists as the param's values
+  (`search_widgets` points at `get_widget` for them); `apps/web` — `ChoicesFilter.tsx` and `widgetBind.tsx` (the control
   in the settings column, the phone sheets and the insert step, and the "Showing" line) and
   `server/assistant/tools/widgets.ts` (`get_widget`'s output schema lists a `choices` input), in
   this same PR.

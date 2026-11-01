@@ -44,9 +44,11 @@ const conflictOf = (kind: string, id: string, subjects = ["a1"]) => ({
 describe("`open` — what needs you (SPEC §25, M43 decision 4)", () => {
   it("says a settled trip is settled, rather than listing nothing", () => {
     // The empty state is the GOOD one here: a trip with a full day, no
-    // conflicts and an empty rack has nothing waiting on anyone.
+    // conflicts and an empty rack has nothing waiting on anyone. No
+    // `because`: that is what lets `MacroView` draw the success line, which a
+    // filtered empty must not get.
     const result = resolve(tripWith({ days: [dayWith(DAY_1, ["a1"])] }));
-    expect(result.status).toBe("empty");
+    expect(result).toEqual({ status: "empty" });
   });
 
   it("draws the design's three rows — a conflict, an empty day and the parked ideas — each with its way to fix it", () => {

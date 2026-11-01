@@ -454,7 +454,7 @@ export type WidgetInput =
   // classes). Unlike `choice` it narrows what a widget reads, so it is a
   // filter: absent is every option, and the control stores the picked ones in
   // `options` order, never none — the shape the widget's own params schema
-  // declares (`OpenClassRef`).
+  // declares (`ChoicesRef` over its own options).
   | { name: string; type: "choices"; label: string; options: readonly { value: string; label: string }[] }
   // **Where an internal link goes** (M30, ADR-056): a notebook, a day or a tab
   // of this trip, stored as a `LinkTarget` — ids, never a URL — and chosen from

@@ -44,6 +44,11 @@ export function withChoices(
   return merged;
 }
 
+/**
+ * A labelled group of checkboxes, one per `input.options`, ticked as `params`
+ * picks them. A change calls `onChange` with `params` re-spelt by
+ * `withChoices`; unticking the last ticked box writes nothing.
+ */
 export function ChoicesFilter({
   input,
   params,
