@@ -142,10 +142,13 @@ export function LensRouter({ children }: { children: React.ReactNode }) {
         // A notebook followed from a link card (`?page=`, `OverviewLens`) is
         // the Overview tab's; picking a tab — Overview included — leaves it.
         n.delete("page");
-        // "Place them"'s `rack=open` (`TripBoardScreen`) is a one-time
-        // arrival too. Left behind, it keeps the arrival looking applied, and
-        // the next tap lands with the rack shut.
+        // "Place them"'s `rack=open`, and a link's `day` and `stop`
+        // (`TripBoardScreen`), are one-time arrivals too. Left behind, they
+        // keep the arrival looking applied, and the next tap on the same link
+        // lands with the rack shut or on whichever day was focused last.
         n.delete("rack");
+        n.delete("day");
+        n.delete("stop");
         window.history.replaceState(null, "", `${pathname}?${n.toString()}`);
       }, // one direction: click -> URL -> derive
     };
