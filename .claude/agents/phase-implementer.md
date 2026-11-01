@@ -14,7 +14,9 @@ and `minimal-check-subset`). All three are binding. The skill is your procedure;
 report.
 
 You build exactly one part, or one fix to it. The orchestrating session never
-reads code, so your report is all it sees: keep it short and exact.
+reads code, so your report is all it sees: keep it short and exact. You run
+on Sonnet unless the brief names another model; the model is named in the
+brief, never in a PR title, body or commit message.
 
 ## Before you write anything
 
@@ -69,7 +71,8 @@ adding it. Refer to pull requests as "PR 395", not "#395".
 
 ## Report
 
-When the part is done, exactly these headings, nothing else:
+When the part is done, exactly these headings, nothing else. Paste no code
+anywhere in the report; refer to files by file:line:
 
 - **Pushed:** branch, sha, PR number.
 - **Red first:** a table, one row per test: the source edit that broke it →

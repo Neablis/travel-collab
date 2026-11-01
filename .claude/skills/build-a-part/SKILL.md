@@ -6,7 +6,8 @@ description: The hot loop for one milestone part in travel-collab, run by a phas
 # Build a part
 
 One part, one branch from `main`, one PR into `main`. CI on the PR is the verdict; locally you run
-only what touches your diff.
+only what touches your diff. This skill runs on Sonnet unless the brief names another model; the
+model is named in the brief, never in the PR title or body.
 
 The branch is `claude/m<N>-part<K>-<slug>`, with K from 1 (`claude/m42-part2-drawer-is-cards`). The
 hooks know a part by that name (`scripts/hooks/lib/part-branch.mjs`): on it, and only on it, the
@@ -43,7 +44,8 @@ PR opens ready and a push prints the review reminder.
    thread reply is one line naming the commit. Git runs as plain single commands from your worktree
    root: no `cd … &&`, `git -C`, `$(…)`, pipes or `;`/`&&` chains, which the isolation guard refuses (PR 510: 10 of 18 failed calls; Mitchell, 2026-10-21).
 6. **Report** in the `phase-implementer` format; a stop without the pushed sha, the red-first
-   table and the `Closed:` line is sent back (`implementer-report-check.mjs`). Review is
+   table and the `Closed:` line is sent back (`implementer-report-check.mjs`). Paste no code in the
+   report; refer to files by file:line. Review is
    `review-a-part`. Once you have reported you are closed: you take no follow-up.
 
 A fix after review is the same loop on the same branch, run by a **new** agent from a brief: the

@@ -6,7 +6,7 @@ description: Close a travel-collab milestone on its prose-only part 0 — keep t
 # Close a milestone
 
 `docs/guidelines/building-a-milestone.md` §4 is the source. A subagent does the edits; you answer
-Mitchell. **Steps 4 to 6 run in a fresh session**, which the orchestrator starts itself with
+Mitchell. The close runs on Sonnet (`building-a-milestone.md`, *Models*). **Steps 4 to 6 run in a fresh session**, which the orchestrator starts itself with
 `create_session` from the `/next-prompt` handoff once every part is merged
 (`building-a-milestone.md`, *Hand-off*), so the close does not re-read the whole build on every
 call.
@@ -30,6 +30,7 @@ call.
      gives. Its `## Spend` block comes from
      `pnpm -s session-metrics --milestone <the build session's transcript> --parts <n> --lines-added <n> --cost-usd <n>`,
      run in each build session before its hand-off, because the transcripts go with the container.
+     The block carries the cost broken down by model, alongside the session-metrics total.
      The handoff text carries each session's block; the retro sums them.
      `pnpm milestone close` refuses without that block;
    - run `pnpm milestone close <M>`, then again with `--confirm`;
