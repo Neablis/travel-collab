@@ -339,5 +339,17 @@ describe("`open` filters by class and by days (M43 decision 5)", () => {
     it("names the day when the scoped day is not today", () => {
       expect(open.resolve(onDay2, {}, { kind: "day", index: 2 })).toEqual({ status: "empty", because: "Nothing needs you on Day 3", good: true });
     });
+
+    // A Show filter the reader set may have hidden parked ideas or empty days,
+    // so the day is not known to be settled: the muted chip stays.
+    it("keeps the muted chip when a Show filter left nothing", () => {
+      expect(renderMacro(onDay2, "open", { class: ["conflict"] })).toEqual({ status: "empty", because: "Nothing here needs you." });
+    });
+
+    // The notebook's today supersedes a stored Days filter, so no filter the
+    // reader can see hid anything.
+    it("says nothing needs you today over a stored Days filter", () => {
+      expect(renderMacro(onDay2, "open", { dates: ["2026-08-01"] })).toEqual({ status: "empty", because: "Nothing needs you today", good: true });
+    });
   });
 });
