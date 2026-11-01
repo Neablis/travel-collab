@@ -1,10 +1,12 @@
 // ADR-058's pivot: which intents a turn may reach, and the latch that moves it.
 import { describe, expect, it } from "vitest";
 import { grantFor } from "./grants";
-import { MAX_PIVOTS, newIntentLatch, reachableIntents } from "./intents";
+import { MAX_PIVOTS, newIntentLatch, reachableIntents, type PersonaStart } from "./intents";
 import { switchIntentTool } from "./tools/intent";
 
 const EDITOR_PAGE = grantFor({ surface: "page", role: "propose", plan: "propose", classifier: "propose" });
+// A page turn: the persona only matters to the tests that switch it, below.
+const START: PersonaStart = { entry: "page-writer", caps: { role: "propose", plan: "propose", classifier: "propose" } };
 const VIEWER_PAGE = grantFor({ surface: "page", role: "read", plan: "propose", classifier: "propose" });
 
 describe("the intents a turn may reach", () => {
@@ -22,7 +24,7 @@ describe("the intents a turn may reach", () => {
 describe("the intent latch", () => {
   it("moves to a reachable intent and records from, to, reason and step", () => {
     let steps = 0;
-    const latch = newIntentLatch("compose", ["compose", "question"], () => steps);
+    const latch = newIntentLatch("compose", ["compose", "question"], () => steps, START);
     steps = 1;
     expect(latch.request("question", "they asked how much food costs")).toEqual({ ok: true });
     expect(latch.current()).toBe("question");
@@ -30,7 +32,7 @@ describe("the intent latch", () => {
   });
 
   it("refuses an intent outside what the turn may reach, and stays put", () => {
-    const latch = newIntentLatch("compose", reachableIntents("page", EDITOR_PAGE), () => 0);
+    const latch = newIntentLatch("compose", reachableIntents("page", EDITOR_PAGE), () => 0, START);
     const result = latch.request("edit", "they want a stop moved");
     expect(result).toEqual({ ok: false, refused: expect.stringContaining("not open to this turn") });
     expect(latch.current()).toBe("compose");
@@ -38,7 +40,7 @@ describe("the intent latch", () => {
   });
 
   it(`holds a turn to ${MAX_PIVOTS} pivots`, () => {
-    const latch = newIntentLatch("compose", ["compose", "question"], () => 0);
+    const latch = newIntentLatch("compose", ["compose", "question"], () => 0, START);
     expect(latch.request("question", "a").ok).toBe(true);
     expect(latch.request("compose", "b").ok).toBe(true);
     expect(latch.request("question", "c")).toEqual({ ok: false, refused: expect.stringContaining("already switched") });
@@ -47,7 +49,7 @@ describe("the intent latch", () => {
   });
 
   it("answers the model through switch_intent in words it can act on", async () => {
-    const intent = newIntentLatch("question", ["question"], () => 0);
+    const intent = newIntentLatch("question", ["question"], () => 0, START);
     expect(await switchIntentTool.run({ to: "compose", reason: "build the page" }, { intent })).toEqual({
       switched: false,
       refused: expect.stringContaining("question"),

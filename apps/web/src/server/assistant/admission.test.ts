@@ -363,7 +363,8 @@ describe("the ai.grant record", () => {
     // tool, which `defineTool`'s `postures` narrows further to the `withheld`
     // turn. A granted DOMAIN and an offered TOOL are different facts, and this
     // is the record of the first: `record.tools` below is the second.
-    expect(record.grants).toEqual({ itinerary: "propose", library: "propose", places: "read", system: "read", ui: "read" });
+    // Schedule's row (M57 part 4): the lookup domains are Discover's, reached by a switch.
+    expect(record.grants).toEqual({ itinerary: "propose", system: "read", ui: "read" });
     expect(record.tools).not.toContain("request_change_tools");
     expect(record.tools).toContain("read_trip");
     expect(record.tools).toContain("AddActivity");
@@ -427,7 +428,7 @@ describe("the ai.grant record", () => {
     });
     const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
 
-    expect(records[0]!.grants).toEqual({ itinerary: "read", library: "read", places: "read", system: "read", ui: "read" });
+    expect(records[0]!.grants).toEqual({ itinerary: "read", system: "read", ui: "read" });
     // Escalation is impossible, not merely unoffered: nothing to escalate TO.
     if (!admission.ok) throw new Error("refused");
     expect(admission.grant.escalation).toBeNull();
@@ -530,7 +531,12 @@ describe("the grant a turn holds", () => {
     const tools = async (origin: "chat" | undefined, ports: AdmissionPorts) => {
       const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports, ...(origin ? { origin } : {}) });
       if (!admission.ok) throw new Error(admission.refusal.reason);
-      return [...admission.grant.tools, ...(admission.grant.escalation?.tools ?? [])].map((tool) => tool.name);
+      // Schedule holds no place search (M57 part 4): what a switch to Discover
+      // would hold is part of what the turn can be offered, and is checked too.
+      const { tools, escalation, switches } = admission.grant;
+      return [...tools, ...(escalation?.tools ?? []), ...Object.values(switches).flatMap((entry) => [...entry.tools, ...(entry.escalation?.tools ?? [])])].map(
+        (tool) => tool.name,
+      );
     };
     const asQuestion = () => spyPorts({ classify: async () => ({ ...CLASSIFIED_AS_WRITE, intent: "question" as const }) }).ports;
     const viewer = () =>
@@ -563,7 +569,12 @@ describe("the grant a turn holds", () => {
         ...(at === null ? {} : { now: (detail: TripDetail) => turnNowOf(detail, null, Date.parse(at)) }),
       });
       if (!admission.ok) throw new Error(admission.refusal.reason);
-      return [...admission.grant.tools, ...(admission.grant.escalation?.tools ?? [])].map((tool) => tool.name);
+      // Schedule holds no place search (M57 part 4): what a switch to Discover
+      // would hold is part of what the turn can be offered, and is checked too.
+      const { tools, escalation, switches } = admission.grant;
+      return [...tools, ...(escalation?.tools ?? []), ...Object.values(switches).flatMap((entry) => [...entry.tools, ...(entry.escalation?.tools ?? [])])].map(
+        (tool) => tool.name,
+      );
     };
     const asQuestion = async () => ({ ...CLASSIFIED_AS_WRITE, intent: "question" as const });
 
@@ -585,7 +596,12 @@ describe("the grant a turn holds", () => {
     const offered = async (origin: "chat" | undefined) => {
       const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: spyPorts().ports, ...(origin ? { origin } : {}) });
       if (!admission.ok) throw new Error(admission.refusal.reason);
-      return [...admission.grant.tools, ...(admission.grant.escalation?.tools ?? [])].map((tool) => tool.name);
+      // Schedule holds no place search (M57 part 4): what a switch to Discover
+      // would hold is part of what the turn can be offered, and is checked too.
+      const { tools, escalation, switches } = admission.grant;
+      return [...tools, ...(escalation?.tools ?? []), ...Object.values(switches).flatMap((entry) => [...entry.tools, ...(entry.escalation?.tools ?? [])])].map(
+        (tool) => tool.name,
+      );
     };
     expect(await offered(undefined)).toContain("go_to");
     expect(await offered("chat")).not.toContain("go_to");

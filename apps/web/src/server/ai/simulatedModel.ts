@@ -58,6 +58,7 @@ import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { GO_TO_TOOL_NAME, OPEN_TRIP_TOOL_NAME, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME } from "@/server/assistant/tools/navigate";
 import { READ_CHAT_TOOL_NAME } from "@/server/assistant/tools/chat";
+import { SWITCH_PERSONA_TOOL_NAME } from "@/server/assistant/tools/switchPersona";
 import { ASK_USER_TOOL_NAME, HAND_OFF_TOOL_NAME } from "@/server/assistant/tools/ui";
 import { FIND_PLACES_NEAR_NOW_TOOL_NAME, type PlaceSearchReadout } from "@/server/assistant/tools/places";
 import {
@@ -277,6 +278,12 @@ const WAKING_HOURS = { after: "08:00", before: "22:00" };
  */
 function askQuestions(scope: AskScope, options: CallOptionsLike): ToolCall[] {
   const calls = [call("read_trip", {})];
+  // A trip turn enters Schedule, which holds no library search (M57 part 4): a
+  // model asked for a playbook day says it needs Discover, in the same step as
+  // its first read, so the step after holds the search.
+  if (asksForAPlaybookDay(latestUserText(options)) && offered(options, SWITCH_PERSONA_TOOL_NAME)) {
+    calls.push(call(SWITCH_PERSONA_TOOL_NAME, { to: "discover", why: "they asked for a playbook day" }));
+  }
   if (scope.kind === "day") calls.push(call("read_day", { days: scope.dayIndex + 1 }));
   // Only when it was handed over: a viewer's turn holds `read_trip` and
   // `read_day` alone (ADR-058 decision 9), and calling a tool the turn was

@@ -21,7 +21,7 @@ import { EFFECT_LEVEL, type AnyAssistantTool, type EffectLevel, type ToolDomain,
 import type { TaskClass } from "./taskClass";
 import type { AskScope } from "./context";
 import { ASSISTANT_TOOLS } from "./registry";
-import { surfaceGrants } from "./personas";
+import { PERSONAS, surfaceGrants, type PersonaId } from "./personas";
 
 /**
  * What the user is actually looking at, which is NOT the same axis as a tool
@@ -157,9 +157,22 @@ export const permitsPropose: PlanEffectPort = () => "propose";
  * surface knows that a page turn reads the itinerary and writes the page.
  */
 export function grantFor(caps: EffectCaps): GrantedEffects {
+  return capped(SURFACES[caps.surface], caps);
+}
+
+/**
+ * The same minimum for a persona the turn SWITCHED to (M57): its own grant row
+ * under the caps the turn was admitted with, so a switch can never hold more
+ * than `grantFor` would have given a turn that started there.
+ */
+export function grantForPersona(persona: PersonaId, caps: Omit<EffectCaps, "surface">): GrantedEffects {
+  return capped(PERSONAS[persona].grants, caps);
+}
+
+function capped(row: SurfaceGrant, caps: Pick<EffectCaps, "role" | "plan" | "classifier">): GrantedEffects {
   const ceiling = minEffect(caps.role, minEffect(caps.plan, caps.classifier));
   const grant: Partial<Record<ToolDomain, EffectLevel>> = {};
-  for (const { domain, max } of SURFACES[caps.surface]) grant[domain] = minEffect(max, ceiling);
+  for (const { domain, max } of row) grant[domain] = minEffect(max, ceiling);
   return grant;
 }
 

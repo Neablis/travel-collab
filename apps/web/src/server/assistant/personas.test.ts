@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { HAND_OFF_TARGETS } from "@tc/contracts";
 import { capabilitiesOf, type ChangeLimit } from "./capabilities";
-import { EDGES, ENTRY, PERSONAS, guardHolds, reachable, type PersonaId, type TurnCaps } from "./personas";
+import { EDGES, ENTRY, PERSONAS, guardHolds, reachable, switchTargetsOf, type PersonaId, type TurnCaps } from "./personas";
 import { SURFACES, type SurfaceKind } from "./grants";
 import { SURFACE_INTENTS } from "./intents";
 import { ASSISTANT_TOOLS } from "./registry";
@@ -15,8 +15,39 @@ const SURFACE_KINDS = Object.keys(ENTRY) as SurfaceKind[];
 const OPEN: TurnCaps = { role: "propose", plan: "propose", classifier: "propose" };
 
 describe("the persona graph", () => {
-  it("enters every persona from some page", () => {
-    expect([...new Set(Object.values(ENTRY))].sort()).toEqual([...IDS].sort());
+  // Discover is the one persona no page enters: a turn gets there by
+  // `switch_persona` from Schedule (M57 part 4), so the test says which, and
+  // would fail for a persona that is neither entered nor switched to.
+  it("enters every persona from some page, or by a switch from one that is entered", () => {
+    const entered = new Set(Object.values(ENTRY));
+    const switchedTo = new Set(EDGES.filter((e) => e.kind === "switch" && e.via === "switch_persona" && entered.has(e.from)).map((e) => e.to));
+    expect([...new Set([...entered, ...switchedTo])].sort()).toEqual([...IDS].sort());
+    expect([...IDS].filter((id) => !entered.has(id))).toEqual(["discover"]);
+  });
+
+  // Schedule and Discover trade places in both directions, guarded on the caps
+  // that let a turn change the trip at all. A turn makes one switch, so the way
+  // back is for a graph that grows a second entry, not for today's turn.
+  it("joins Schedule and Discover with a guarded switch each way", () => {
+    for (const [from, to] of [["schedule", "discover"], ["discover", "schedule"]] as const) {
+      const edge = EDGES.find((e) => e.kind === "switch" && e.via === "switch_persona" && e.from === from && e.to === to);
+      expect(edge, `${from} -> ${to}`).toBeDefined();
+      expect(edge!.guard).toEqual({ role: "propose", plan: "propose" });
+    }
+    expect(switchTargetsOf("schedule")).toEqual(["discover"]);
+    expect(switchTargetsOf("discover")).toEqual(["schedule"]);
+    expect(switchTargetsOf("page-writer")).toEqual([]);
+  });
+
+  // The split moves tools out of the entry persona; it must never leave a turn
+  // that switched holding less than one that started there would have.
+  it("lets Discover hold every domain Schedule does, at least as high", () => {
+    const rank = { read: 0, propose: 1 } as const;
+    for (const { domain, max } of PERSONAS.schedule.grants) {
+      const theirs = PERSONAS.discover.grants.find((g) => g.domain === domain);
+      expect(theirs, domain).toBeDefined();
+      expect(rank[theirs!.max], domain).toBeGreaterThanOrEqual(rank[max]);
+    }
   });
 
   it("is reachable: every persona can be reached from some page under full caps", () => {

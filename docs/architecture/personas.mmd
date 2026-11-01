@@ -1,13 +1,14 @@
 %% Generated from apps/web/src/server/assistant/personas.ts. Do not edit; see personaReachability.test.ts.
 flowchart LR
-  trip_planner["Trip planner"]
+  schedule["Schedule"]
+  discover["Discover"]
   page_writer["Page writer"]
   account["Account"]
   playbook_editor["Playbook editor"]
   explorer["Explorer"]
   nowhere(("leaves the graph"))
-  page_trip(["trip page"]) --> trip_planner
-  page_day(["day page"]) --> trip_planner
+  page_trip(["trip page"]) --> schedule
+  page_day(["day page"]) --> schedule
   page_page(["page page"]) --> page_writer
   page_account(["account page"]) --> account
   page_playbook_day(["playbook-day page"]) --> playbook_editor
@@ -15,17 +16,24 @@ flowchart LR
   page_discover(["discover page"]) --> explorer
   page_city(["city page"]) --> explorer
   page_tag(["tag page"]) --> explorer
-  trip_planner ==>|"request_change_tools [role=propose plan=propose classifier=read]"| trip_planner
+  schedule ==>|"request_change_tools [role=propose plan=propose classifier=read]"| schedule
+  discover ==>|"request_change_tools [role=propose plan=propose classifier=read]"| discover
   page_writer ==>|"switch_intent [role=propose plan=propose]"| page_writer
-  trip_planner -->|"go_to [role=propose plan=propose]"| page_writer
-  account -->|"open_trip"| trip_planner
-  page_writer -->|"plan_page [role=propose plan=propose]"| trip_planner
-  account -->|"plan_page [role=propose plan=propose]"| trip_planner
-  playbook_editor -->|"plan_page [role=propose plan=propose]"| trip_planner
-  explorer -->|"plan_page [role=propose plan=propose]"| trip_planner
-  trip_planner -->|"new_trip"| nowhere
-  trip_planner -->|"nowhere"| nowhere
-  trip_planner -->|"upgrade [role=propose plan=read]"| nowhere
+  schedule ==>|"switch_persona [role=propose plan=propose]"| discover
+  discover ==>|"switch_persona [role=propose plan=propose]"| schedule
+  schedule -->|"go_to [role=propose plan=propose]"| page_writer
+  discover -->|"go_to [role=propose plan=propose]"| page_writer
+  account -->|"open_trip"| schedule
+  page_writer -->|"plan_page [role=propose plan=propose]"| schedule
+  account -->|"plan_page [role=propose plan=propose]"| schedule
+  playbook_editor -->|"plan_page [role=propose plan=propose]"| schedule
+  explorer -->|"plan_page [role=propose plan=propose]"| schedule
+  schedule -->|"new_trip"| nowhere
+  schedule -->|"nowhere"| nowhere
+  schedule -->|"upgrade [role=propose plan=read]"| nowhere
+  discover -->|"new_trip"| nowhere
+  discover -->|"nowhere"| nowhere
+  discover -->|"upgrade [role=propose plan=read]"| nowhere
   page_writer -->|"new_trip"| nowhere
   page_writer -->|"nowhere"| nowhere
   page_writer -->|"upgrade [role=propose plan=read]"| nowhere

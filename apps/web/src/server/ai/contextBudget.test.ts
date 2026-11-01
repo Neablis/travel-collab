@@ -33,6 +33,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { tripDetailFactory } from "@tc/factories";
 import {
   accountInstructionBlocks,
+  instructionBlocks,
   instructionsFor,
   playbookInstructionBlocks,
   type PageBrief,
@@ -41,10 +42,13 @@ import type { TaskClass } from "@/server/assistant/taskClass";
 import type { AskScope } from "@/server/assistant/context";
 import { nowBlocks, turnNowOf } from "@/server/assistant/context";
 import { TURN_DEP_KEYS, type TurnDeps } from "@/server/assistant/deps";
-import { grantFor, postureFor, toolsFor, type EffectCaps } from "@/server/assistant/grants";
+import { grantForPersona, postureFor, toolsFor, type EffectCaps } from "@/server/assistant/grants";
+import { switchedBlock } from "@/server/assistant/capabilities";
+import { ENTRY, type PersonaId } from "@/server/assistant/personas";
 import { renderPrompt } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS, aiToolsFor } from "@/server/assistant/registry";
 import { SWITCH_INTENT_TOOL_NAME } from "@/server/assistant/tools/intent";
+import { SWITCH_PERSONA_TOOL_NAME } from "@/server/assistant/tools/switchPersona";
 
 const BASELINE = new URL("./contextBudget.baseline.json", import.meta.url);
 
@@ -73,6 +77,13 @@ interface Shape {
   scope?: AskScope;
   /** On a trip under way: offered what only such a turn is, and told `UNDERWAY_NOW`. */
   underway?: true;
+  /**
+   * A step run after `switch_persona` crossed to this persona (M57): its tools
+   * without the switch tool (the turn's one switch is spent), and its
+   * instruction with the line `switchedBlock` adds. Absent means the entry
+   * persona of `caps.surface`.
+   */
+  switchedTo?: PersonaId;
 }
 
 // A fixed page and trip shape, so a page shape's instruction is measured like a
@@ -106,6 +117,12 @@ const SHAPES: Record<string, Shape> = {
   "trip · edit": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "edit", prompt: "board" },
   "trip · plan": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "plan", prompt: "board" },
   "trip · unsure": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: undefined, prompt: "board" },
+  // The step after a Schedule turn switched (M57 part 4): the old trip planner's
+  // sets, which is what Discover holds. Measured with the entry shapes above so
+  // a turn's cost before and after the split reads off one file.
+  "trip · question · switched to discover": { caps: { surface: "trip", ...editor, classifier: "read" }, narrowBy: "question", prompt: "board", switchedTo: "discover" },
+  "trip · edit · switched to discover": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "edit", prompt: "board", switchedTo: "discover" },
+  "trip · plan · switched to discover": { caps: { surface: "trip", ...editor, classifier: "propose" }, narrowBy: "plan", prompt: "board", switchedTo: "discover" },
   "page · compose": { caps: { surface: "page", ...editor, classifier: "propose" }, narrowBy: "compose", prompt: "page" },
   "page · question": { caps: { surface: "page", ...editor, classifier: "propose" }, narrowBy: "question", prompt: "page" },
   // M45 and M45 D9, at the account door, with the caps `grantTools` resolves
@@ -149,11 +166,18 @@ async function wireCharsOf(names: readonly string[]): Promise<Record<string, num
   return out;
 }
 
+const personaOf = (shape: Shape): PersonaId => shape.switchedTo ?? ENTRY[shape.caps.surface];
+
 /** The system instruction a turn of this shape is sent, rendered. */
 function instructionOf(shape: Shape, posture: ReturnType<typeof postureFor>, classWithheld: boolean): string {
   switch (shape.prompt) {
     case "board":
-      return instructionsFor({ kind: "trip" }, 10, posture, null, classWithheld, undefined, undefined, undefined, shape.underway ? UNDERWAY_NOW : []);
+      return shape.switchedTo === undefined
+        ? instructionsFor({ kind: "trip" }, 10, posture, null, classWithheld, undefined, undefined, undefined, shape.underway ? UNDERWAY_NOW : [], undefined, personaOf(shape))
+        : renderPrompt([
+            ...instructionBlocks({ kind: "trip" }, 10, posture, null, classWithheld, undefined, undefined, undefined, shape.underway ? UNDERWAY_NOW : [], undefined, shape.switchedTo),
+            ...switchedBlock(shape.switchedTo),
+          ]);
     case "page":
       return instructionsFor({ kind: "page", pageId: "page-1" }, 10, posture, { ...PAGE_BRIEF, intent: shape.narrowBy });
     case "account":
@@ -169,15 +193,18 @@ async function measure() {
   const toolChars = await wireCharsOf(ASSISTANT_TOOLS.map((tool) => tool.name));
   const shapes: Record<string, { tools: string[]; toolChars: number; instructionChars: number; totalChars: number; approxTokens: number }> = {};
   for (const [label, shape] of Object.entries(SHAPES)) {
-    const grants = grantFor(shape.caps);
+    const grants = grantForPersona(personaOf(shape), shape.caps);
     const posture = postureFor(shape.caps);
     const phase = shape.underway ? ("underway" as const) : undefined;
-    const offerable = toolsFor(grants, undefined, posture, "ask", phase);
+    // Spent by getting to a switched persona; and a persona with no edge out has none to offer.
+    const unspent = (tool: { name: string }) => shape.switchedTo === undefined || tool.name !== SWITCH_PERSONA_TOOL_NAME;
+    const offerable = toolsFor(grants, undefined, posture, "ask", phase).filter(unspent);
     const tools = toolsFor(grants, shape.narrowBy, posture, "ask", phase)
       // admission drops the pivot when a page has nowhere to pivot to; every
       // page here can pivot (compose ↔ question), so it is kept. Nothing else
       // is a page, so nothing else can pivot.
       .filter((tool) => shape.prompt === "page" || tool.name !== SWITCH_INTENT_TOOL_NAME)
+      .filter(unspent)
       .map((tool) => tool.name);
     const toolsTotal = tools.reduce((sum, name) => sum + toolChars[name]!, 0);
     const instructionChars = instructionOf(shape, posture, tools.length < offerable.length).length;
