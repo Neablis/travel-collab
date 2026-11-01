@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 const fetchTurnTrace = vi.fn();
 vi.mock("@/lib/apiClient", () => ({ fetchTurnTrace: (id: string) => fetchTurnTrace(id) }));
 
-import { PersonasTab } from "./PersonasTab";
+import { PersonasTab, clipToNode, place, routeEdge } from "./PersonasTab";
 
 afterEach(() => {
   cleanup();
@@ -79,5 +79,33 @@ describe("the Personas tab", () => {
     expect(screen.getByText("No assistant turns in the last 7 days")).toBeTruthy();
     await userEvent.click(screen.getByRole("tab", { name: "90 days" }));
     expect(push).toHaveBeenCalledWith("/admin?tab=personas&days=90");
+  });
+
+  describe("the graph's geometry", () => {
+    const a = place(0, 6);
+    const b = place(1, 6);
+    const c = place(2, 6);
+    // On the border: one coordinate sits exactly half the box away from the centre.
+    const onBorder = (p: { x: number; y: number }, n: { x: number; y: number }) => Math.abs(p.x - n.x) === 66 || Math.abs(p.y - n.y) === 22;
+
+    it("starts and ends an edge on the node borders, so the arrowhead is not inside a box", () => {
+      const route = routeEdge(a, place(4, 6), [], false);
+      expect(onBorder(route.start, a)).toBe(true);
+      expect(onBorder(route.end, place(4, 6))).toBe(true);
+      expect(onBorder(clipToNode(a, c), a)).toBe(true);
+    });
+
+    it("draws the two directions of a pair apart, so their labels do not share a spot", () => {
+      const there = routeEdge(a, b, [], true).label;
+      const back = routeEdge(b, a, [], true).label;
+      expect(Math.hypot(there.x - back.x, there.y - back.y)).toBeGreaterThan(20);
+    });
+
+    it("bends an edge round a node that sits on its straight line", () => {
+      const straight = routeEdge(a, c, [], false);
+      const round = routeEdge(a, c, [b], false);
+      expect(straight.control.y).toBe(a.y);
+      expect(round.control.y).not.toBe(a.y);
+    });
   });
 });

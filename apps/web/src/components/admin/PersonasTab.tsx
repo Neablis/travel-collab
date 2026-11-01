@@ -23,62 +23,124 @@ import { microUsdCost } from "./microUsd";
 
 const WINDOW_OPTIONS = PERSONA_WINDOWS.map((days) => ({ value: String(days), label: `${days} days` }));
 
-const W = 420;
-const H = 240;
+const W = 960;
+const H = 340;
+const COLS = 3;
+const NODE_W = 132;
+const NODE_H = 44;
+const STUB = 30;
 const NOWHERE = "nowhere";
 
-function place(index: number, total: number): { x: number; y: number } {
-  const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
-  return { x: W / 2 + 150 * Math.cos(angle), y: H / 2 + 88 * Math.sin(angle) };
+type Point = { x: number; y: number };
+
+/** Nodes in a grid that spans the panel: the rows are what keep the edges short and the labels clear. */
+export function place(index: number, total: number): Point {
+  const rows = Math.ceil(total / COLS);
+  const col = index % COLS;
+  const row = Math.floor(index / COLS);
+  return { x: ((col + 0.5) / COLS) * W, y: rows === 1 ? H / 2 : 100 + row * 140 };
+}
+
+/** Where the ray from a node's centre toward `toward` leaves the node's rectangle, so an edge starts and ends on the border. */
+export function clipToNode(centre: Point, toward: Point): Point {
+  const dx = toward.x - centre.x;
+  const dy = toward.y - centre.y;
+  if (dx === 0 && dy === 0) return centre;
+  const t = Math.min(dx === 0 ? Infinity : NODE_W / 2 / Math.abs(dx), dy === 0 ? Infinity : NODE_H / 2 / Math.abs(dy));
+  return { x: centre.x + dx * t, y: centre.y + dy * t };
+}
+
+const quadAt = (a: Point, c: Point, b: Point, t: number): Point => ({
+  x: (1 - t) ** 2 * a.x + 2 * (1 - t) * t * c.x + t * t * b.x,
+  y: (1 - t) ** 2 * a.y + 2 * (1 - t) * t * c.y + t * t * b.y,
+});
+
+const insideNode = (p: Point, centre: Point, margin: number) => Math.abs(p.x - centre.x) < NODE_W / 2 + margin && Math.abs(p.y - centre.y) < NODE_H / 2 + margin;
+
+export type EdgeRoute = { start: Point; end: Point; control: Point; label: Point; d: string };
+
+/**
+ * One edge as a quadratic curve from border to border. `bend` pushes the
+ * control point sideways, so the two directions of a pair (same bend, opposite
+ * heading) land on opposite sides; the first bend that keeps the curve out of
+ * every `others` node wins.
+ */
+export function routeEdge(from: Point, to: Point, others: Point[], paired: boolean): EdgeRoute {
+  const len = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+  const perp = { x: -(to.y - from.y) / len, y: (to.x - from.x) / len };
+  const bends = paired ? [36, -36, 72, -72, 110, -110] : [0, 40, -40, 80, -80, 120, -120];
+  let route!: EdgeRoute;
+  for (const bend of bends) {
+    const control = { x: (from.x + to.x) / 2 + perp.x * bend, y: (from.y + to.y) / 2 + perp.y * bend };
+    const start = clipToNode(from, control);
+    const end = clipToNode(to, control);
+    route = { start, end, control, label: quadAt(start, control, end, 0.5), d: `M${start.x} ${start.y} Q${control.x} ${control.y} ${end.x} ${end.y}` };
+    const clear = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].every((t) => {
+      const p = quadAt(start, control, end, t);
+      return !others.some((o) => insideNode(p, o, 6));
+    });
+    if (clear) break;
+  }
+  return route;
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+function Pill({ at, text, width }: { at: Point; text: string; width: number }) {
+  return (
+    <>
+      <rect x={at.x - width / 2} y={at.y - 10} width={width} height={20} rx={10} className="fill-surface stroke-current text-hairline" />
+      <text x={at.x} y={at.y + 4} textAnchor="middle" fontSize={12} className="fill-current">
+        {text}
+      </text>
+    </>
+  );
+}
+
 function Graph({ nodes, edges }: { nodes: PersonaNode[]; edges: PersonaEdge[] }) {
   const at = new Map(nodes.map((node, index) => [node.id, place(index, nodes.length)]));
-  // The one place a hand-off to nowhere lands: off to the side, so it is not mistaken for a persona.
-  const nowhere = { x: W - 30, y: H - 28 };
   const drawn = edges.filter((edge) => edge.from !== edge.to);
+  const linked = drawn.filter((edge) => edge.to !== null);
   const dangling = new Set(drawn.filter((edge) => edge.to === null).map((edge) => edge.from));
+  const has = (from: string, to: string) => linked.some((edge) => edge.from === from && edge.to === to);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Persona graph" className="w-full max-w-xl text-ink">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Persona graph" className="w-full text-ink">
       <defs>
         <marker id="personas-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
           <path d="M0 0 L8 4 L0 8 z" className="fill-current" />
         </marker>
       </defs>
-      {drawn
-        .filter((edge) => edge.to !== null)
-        .map((edge) => {
-          const from = at.get(edge.from)!;
-          const to = at.get(edge.to!)!;
-          return (
-            <g key={`${edge.from}-${edge.via}-${edge.to}`} className="text-brand">
-              <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd="url(#personas-arrow)" strokeDasharray={edge.kind === "hand-off" ? "4 3" : undefined} className="stroke-current" />
-              <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 3} textAnchor="middle" fontSize={12} className="fill-current">
-                {edge.count}
-              </text>
-            </g>
-          );
-        })}
-      {[...dangling].map((from) => {
-        const start = at.get(from)!;
-        return <line key={from} x1={start.x} y1={start.y} x2={nowhere.x} y2={nowhere.y} strokeDasharray="2 3" className="stroke-current text-hairline" />;
+      {linked.map((edge) => {
+        const others = nodes.filter((node) => node.id !== edge.from && node.id !== edge.to).map((node) => at.get(node.id)!);
+        const route = routeEdge(at.get(edge.from)!, at.get(edge.to!)!, others, has(edge.to!, edge.from));
+        return (
+          <g key={`${edge.from}-${edge.via}-${edge.to}`} className="text-brand">
+            <path d={route.d} fill="none" markerEnd="url(#personas-arrow)" strokeDasharray={edge.kind === "hand-off" ? "4 3" : undefined} className="stroke-current" />
+            <Pill at={route.label} text={String(edge.count)} width={String(edge.count).length * 8 + 14} />
+          </g>
+        );
       })}
-      {dangling.size > 0 && (
-        <g>
-          <circle cx={nowhere.x} cy={nowhere.y} r={26} className="fill-surface stroke-current text-hairline" />
-          <text x={nowhere.x} y={nowhere.y + 4} textAnchor="middle" fontSize={12} className="fill-current text-slate">
-            nowhere
-          </text>
-        </g>
-      )}
+      {/* A hand-off to nowhere is a short stub off the node's outer side, so it crosses nothing. */}
+      {[...dangling].map((from) => {
+        const c = at.get(from)!;
+        const dir = c.y < H / 2 || nodes.length <= COLS ? -1 : 1;
+        const start = { x: c.x, y: c.y + dir * (NODE_H / 2) };
+        const end = { x: c.x, y: start.y + dir * STUB };
+        return (
+          <g key={from} className="text-hairline">
+            <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} strokeDasharray="2 3" markerEnd="url(#personas-arrow)" className="stroke-current" />
+            <g className="text-slate">
+              <Pill at={{ x: end.x, y: end.y + dir * 12 }} text="nowhere" width={64} />
+            </g>
+          </g>
+        );
+      })}
       {nodes.map((node) => {
         const { x, y } = at.get(node.id)!;
         return (
           <g key={node.id} className={cn(node.turns === 0 && "opacity-50")}>
-            <rect x={x - 52} y={y - 19} width={104} height={38} rx={6} className={cn("stroke-current", node.entryPages.length > 0 ? "fill-brand-tint text-brand" : "fill-surface text-hairline")} />
-            <text x={x} y={y - 3} textAnchor="middle" fontSize={12} className="fill-current">
+            <rect x={x - NODE_W / 2} y={y - NODE_H / 2} width={NODE_W} height={NODE_H} rx={6} className={cn("stroke-current", node.entryPages.length > 0 ? "fill-brand-tint text-brand" : "fill-surface text-hairline")} />
+            <text x={x} y={y - 4} textAnchor="middle" fontSize={12} className="fill-current">
               {node.label}
             </text>
             <text x={x} y={y + 12} textAnchor="middle" fontSize={12} className="fill-current text-slate">
