@@ -78,14 +78,16 @@ export interface CapabilityGapRecord {
  * (`ai_capability_gaps`), because a log line cannot say which persona declines
  * what over a month; the line stays, as `ai.ask` stays beside `ai_usage`.
  */
-export function logCapabilityGap(record: CapabilityGapRecord): void {
+export function logCapabilityGap(record: CapabilityGapRecord): Promise<boolean> {
   const task = sanitizeForLog(record.task, 200);
   Sentry.withIsolationScope(() => {
     console.info("ai.capability_gap", JSON.stringify({ ...record, task }));
   });
-  // Not awaited: this is called from `messageMetadata`, which is synchronous,
-  // and the writer never throws.
-  void recordCapabilityGap({ turnId: record.turnId, persona: record.persona, target: record.to, task });
+  // Returned, not awaited here: this is called from `messageMetadata`, which
+  // is synchronous, and the writer never throws. The caller puts the promise
+  // on the turn's `settled`, because a write nobody holds can be lost when a
+  // serverless invocation stops once the response closes.
+  return recordCapabilityGap({ turnId: record.turnId, persona: record.persona, target: record.to, task });
 }
 
 export const admissionPorts: AdmissionPorts = {

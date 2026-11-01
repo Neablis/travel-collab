@@ -144,6 +144,7 @@ const arbCost: fc.Arbitrary<TurnCost> = fc.record({
   classifier: fc.option(arbSpend, { nil: null }),
   steps: fc.integer({ min: 0, max: 32 }),
   planVersionRef: fc.option(fc.constantFrom("plus@v1", "premium@v3"), { nil: null }),
+  entryPersona: fc.constantFrom("trip-planner" as const, "account" as const),
 });
 
 // Deliberately reaches non-empty, multi-call capacity: a generator that only
@@ -232,6 +233,7 @@ describe("cost and capacity are two ledgers, not two fields of one", () => {
       turnId: null,
       latencyMs: null,
       planExamples: null,
+      entryPersona: "trip-planner",
     };
     expect(billableRoundTrips({ cost, capacity: [], toolCalls: [], stepSpend: [] })).toBe(3);
     expect(

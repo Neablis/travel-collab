@@ -112,6 +112,7 @@ function ledgerOf(record: AskAnalyticsRecord, toolCalls: TurnLedger["toolCalls"]
       planVersionRef: null,
       latencyMs: record.latencyMs,
       planExamples: null,
+      entryPersona: "trip-planner",
     },
     capacity: [],
     toolCalls,

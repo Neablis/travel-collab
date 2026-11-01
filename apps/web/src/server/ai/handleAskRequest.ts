@@ -542,6 +542,11 @@ export async function handleAskRequest(
   // is that path's writes. Registered now, inside the request's own scope,
   // because `after()` throws when called from outside one.
   afterResponse?.(() => settled);
+  // A write started before the latch fires (the capability gap, from the final
+  // chunk's metadata) joins `settled`, and the latch keeps what is already on it.
+  const track = (write: Promise<unknown>): void => {
+    settled = Promise.all([settled, write]).then(() => undefined);
+  };
 
   // Why the run wrapped up early — the step deadline or the input-token
   // ceiling — for the record, which reads it. Declared BEFORE the recorder,
@@ -717,6 +722,7 @@ export async function handleAskRequest(
       // already cleared admission — but a defensive skip is cheaper than a
       // throw for a turn the user is already being served.
       settled = Promise.all([
+        settled,
         grant.stepReservation ? settleAiSteps(grant.stepReservation, billableRoundTrips(ledger)) : Promise.resolve(),
         recorded,
       ]).then(() => undefined);
@@ -1126,7 +1132,7 @@ export async function handleAskRequest(
         }
         if (part.type !== "finish") return undefined;
         return withTurnId(
-          withPaletteCommands(withUiOutcome(finalOutcome(), uiOutcome, { turnId, surface: grant.surface, persona: grant.persona }), paletteCommands),
+          withPaletteCommands(withUiOutcome(finalOutcome(), uiOutcome, { turnId, surface: grant.surface, persona: grant.persona, track }), paletteCommands),
           turnId,
         );
       },
@@ -1443,6 +1449,11 @@ export async function handleBeyondTripAskRequest(
   // the step refund, written once on whichever path the turn ends.
   let settled: Promise<void> = Promise.resolve();
   afterResponse?.(() => settled);
+  // A write started before the latch fires (the capability gap, from the final
+  // chunk's metadata) joins `settled`, and the latch keeps what is already on it.
+  const track = (write: Promise<unknown>): void => {
+    settled = Promise.all([settled, write]).then(() => undefined);
+  };
   let wrapUpReason: AskWrapUp | null = null;
   const recorder = createAskRecorder({
     turnId,
@@ -1468,6 +1479,7 @@ export async function handleBeyondTripAskRequest(
       (sink ?? logAskAnalytics)(record, ledger);
       recordAskMetrics(record, ledger);
       settled = Promise.all([
+        settled,
         grant.stepReservation ? settleAiSteps(grant.stepReservation, billableRoundTrips(ledger)) : Promise.resolve(),
         recordTurnLedger(ledger),
       ]).then(() => undefined);
@@ -1562,7 +1574,7 @@ export async function handleBeyondTripAskRequest(
         }
         if (part.type !== "finish") return undefined;
         const proposal = playbookProposal.collected();
-        const outcome = withUiOutcome(proposal === null ? undefined : { proposal }, uiOutcome, { turnId, surface: grant.surface, persona: grant.persona });
+        const outcome = withUiOutcome(proposal === null ? undefined : { proposal }, uiOutcome, { turnId, surface: grant.surface, persona: grant.persona, track });
         return withTurnId(withPaletteCommands(outcome, paletteCommands), turnId);
       },
       onError: askFailureMessage,
@@ -1706,12 +1718,15 @@ function withTurnId(outcome: AskStreamMetadata | undefined, turnId: string): Ask
 function withUiOutcome(
   outcome: AskStreamMetadata | undefined,
   ui: UiOutcomeBuffer,
-  gap: { turnId: string; surface: SurfaceKind; persona: PersonaId },
+  gap: { turnId: string; surface: SurfaceKind; persona: PersonaId; track: (write: Promise<unknown>) => void },
 ): AskStreamMetadata | undefined {
   const widget: UiOutcome | null = ui.outcome();
   if (widget === null) return outcome;
   if (outcome !== undefined && Object.keys(outcome).some((key) => key !== "paletteCommands")) return outcome;
-  if ("handOff" in widget) logCapabilityGap({ ...gap, task: widget.handOff.task, to: widget.handOff.to });
+  if ("handOff" in widget) {
+    const { track, ...record } = gap;
+    track(logCapabilityGap({ ...record, task: widget.handOff.task, to: widget.handOff.to }));
+  }
   return widget;
 }
 

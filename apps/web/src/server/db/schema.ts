@@ -1630,6 +1630,15 @@ export const aiUsageSteps = pgTable(
 // `task` is the model's own words for it, through `sanitizeForLog` and capped
 // at write time — never the person's message. Not keyed by turn: a turn ends
 // on one outcome, but the id is only a join, and no foreign key (ADR-025).
+//
+// **The first content-bearing ledger table.** `ai_usage` and its step and
+// tool-call rows hold counts and sizes only (M36 D7); `task` holds
+// model-paraphrased text, which can still carry a place, a date or a
+// companion's name, and it joins to a person through `turn_id` ->
+// `ai_usage.user_id`. Readable by operators only. Retention is UNDECIDED
+// (nothing prunes it, and `ai_usage` is not pruned either) and is flagged for
+// Mitchell on PR 670. The exception is limited to this one column: the "carries
+// no content" test in usage.int.test.ts lists the table's columns exactly.
 export const aiCapabilityGaps = pgTable(
   "ai_capability_gaps",
   {
