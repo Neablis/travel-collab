@@ -352,4 +352,34 @@ describe("`open` filters by class and by days (M43 decision 5)", () => {
       expect(renderMacro(onDay2, "open", { dates: ["2026-08-01"] })).toEqual({ status: "empty", because: "Nothing needs you today", good: true });
     });
   });
+
+  // Mitchell, 2026-11-01: the Overview is the Today notebook from three days
+  // out, and "Nothing planned today" there hid the clashes just ahead. Before
+  // day 1 the widget checks the whole trip; after the last day it does not.
+  describe("on a Today notebook off the trip's dates", () => {
+    const quiet = tripWith({
+      days: [dayWith(DAY_1, ["a1"], "2026-08-01"), dayWith(DAY_2, ["a3", "a4"], "2026-08-02"), dayWith(DAY_3, ["a5"], "2026-08-03")],
+      activities: { a1: stop("Breakfast"), a3: stop("Shrine"), a4: stop("Temple"), a5: stop("Market") } as unknown as TripDetail["activities"],
+    });
+    const clashing = { ...quiet, conflicts: [conflictOf("time-overlap", "c34", ["a3", "a4"])] };
+    const at = (trip: TripDetail, instant: string): WidgetContext => ({
+      trip, globals: null, user: null, today: null,
+      page: { tripId: TRIP_ID, dateScope: "today" }, now: { at: Date.parse(instant), deviceZone: "UTC" },
+    });
+
+    it("lists a clash on the days ahead before the trip starts", () => {
+      const rendered = renderMacro(at(clashing, "2026-07-30T12:00:00Z"), "open", {});
+      const rows = rendered.status === "ok" && rendered.rendered.kind === "items" ? rendered.rendered.items.map((item) => item.label) : rendered;
+      expect(rows).toEqual(["Overlap on Day 2"]);
+    });
+
+    // No `because`, so MacroView draws `emptyText`: the whole trip's settled line.
+    it("says the whole trip is settled before it starts", () => {
+      expect(renderMacro(at(quiet, "2026-07-30T12:00:00Z"), "open", {})).toEqual({ status: "empty" });
+    });
+
+    it("says nothing is planned today once the trip has ended", () => {
+      expect(renderMacro(at(clashing, "2026-08-05T12:00:00Z"), "open", {})).toEqual({ status: "empty", because: "Nothing planned today" });
+    });
+  });
 });
