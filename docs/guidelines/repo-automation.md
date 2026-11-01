@@ -91,8 +91,10 @@ Cannot see a cycle between a folder and its own subfolder
 as without). The rule was followed on
 **4 of 15 branches**; PR #196, opened ready, spent **41 CI runs and 8 failures**.
 On a milestone part branch (`claude/m<N>-part<K>-<slug>`, N may carry a letter
-as in `m48a`, from `--head` or the checked-out branch) the ask steps aside,
-because a part opens ready, and `gh pr create --draft` is **denied** instead.
+as in `m48a`, from `--head` or the checked-out branch) the ask becomes a
+**deny**: a part always opens draft on the part below it, and only the top of
+the stack is marked ready (`building-a-milestone.md`, 2026-11-01).
+`pr-tool-guard.mjs` refuses the same through the MCP tools.
 `gh pr ready` passes: marking a PR ready is what makes CI run the full suite. It also
 denies a model id in a `gh pr create|edit` title, body or body file.
 
