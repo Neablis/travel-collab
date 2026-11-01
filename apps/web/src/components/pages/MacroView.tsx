@@ -166,11 +166,12 @@ export function MacroView({ detail, context, user = null, globals = null, extern
     // A widget whose empty state is the good one (`open`: the trip is settled)
     // draws the design's success line (`emptyLine`), a block on the success
     // tint. In the muted chip it read as a placeholder, and at phone width its
-    // sentence wrapped into a stadium-shaped pill.
-    if (def?.emptyIsGood && outcome.because === undefined) {
+    // sentence wrapped into a stadium-shaped pill. A `because` marked `good`
+    // is the same news for one day (M43 part 5); any other is a filter.
+    if (def?.emptyIsGood && (outcome.because === undefined || outcome.good)) {
       return (
         <span data-testid="macro-empty-good" className="my-1 block rounded-md bg-success-tint px-3.5 py-3 text-sm text-success-ink">
-          {def.emptyText}
+          {outcome.because ?? def.emptyText}
         </span>
       );
     }

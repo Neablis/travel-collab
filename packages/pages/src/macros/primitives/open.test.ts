@@ -316,4 +316,83 @@ describe("`open` filters by class and by days (M43 decision 5)", () => {
     const rows = rendered.status === "ok" && rendered.rendered.kind === "items" ? rendered.rendered.items.map((item) => item.label) : [];
     expect(rows).toEqual(["Over budget", "Day 3 has nothing on it", "1 idea is parked"]);
   });
+
+  // Mitchell, 2026-11-01 (M43 part 5): the notebook's scope is not a filter the
+  // reader set, so a quiet scoped day is the good news, said for that day. The
+  // Overview turns into the Today notebook as the trip nears, and drawing the
+  // muted chip there made the same settled trip flip between two looks. A Days
+  // filter the author set keeps the muted line: the test two above.
+  describe("when only a scope hid the other days", () => {
+    const settled = tripWith({
+      days: [dayWith(DAY_1, ["a1"], "2026-08-01"), dayWith(DAY_2, ["a3"], "2026-08-02"), dayWith(DAY_3, ["a4"], "2026-08-03")],
+      activities: { a1: stop("Breakfast"), a3: stop("Shrine"), a4: stop("Temple") } as unknown as TripDetail["activities"],
+    });
+    const onDay2: WidgetContext = {
+      trip: settled, globals: null, user: null, today: null,
+      page: { tripId: TRIP_ID, dateScope: "today" }, now: { at: Date.parse("2026-08-02T12:00:00Z"), deviceZone: "UTC" },
+    };
+
+    it("says nothing needs you today on a Today notebook", () => {
+      expect(renderMacro(onDay2, "open", {})).toEqual({ status: "empty", because: "Nothing needs you today", good: true });
+    });
+
+    it("names the day when the scoped day is not today", () => {
+      expect(open.resolve(onDay2, {}, { kind: "day", index: 2 })).toEqual({ status: "empty", because: "Nothing needs you on Day 3", good: true });
+    });
+
+    // A Show filter the reader set may have hidden parked ideas or empty days,
+    // so the day is not known to be settled: the muted chip stays.
+    it("keeps the muted chip when a Show filter left nothing", () => {
+      expect(renderMacro(onDay2, "open", { class: ["conflict"] })).toEqual({ status: "empty", because: "Nothing here needs you." });
+    });
+
+    // The notebook's today supersedes a stored Days filter, so no filter the
+    // reader can see hid anything.
+    it("says nothing needs you today over a stored Days filter", () => {
+      expect(renderMacro(onDay2, "open", { dates: ["2026-08-01"] })).toEqual({ status: "empty", because: "Nothing needs you today", good: true });
+    });
+  });
+
+  // Mitchell, 2026-11-01: the Overview is the Today notebook from three days
+  // out, and "Nothing planned today" there hid the clashes just ahead. Before
+  // day 1 the widget checks the whole trip; after the last day it does not.
+  describe("on a Today notebook off the trip's dates", () => {
+    const quiet = tripWith({
+      days: [dayWith(DAY_1, ["a1"], "2026-08-01"), dayWith(DAY_2, ["a3", "a4"], "2026-08-02"), dayWith(DAY_3, ["a5"], "2026-08-03")],
+      activities: { a1: stop("Breakfast"), a3: stop("Shrine"), a4: stop("Temple"), a5: stop("Market") } as unknown as TripDetail["activities"],
+    });
+    const clashing = { ...quiet, conflicts: [conflictOf("time-overlap", "c34", ["a3", "a4"])] };
+    const at = (trip: TripDetail, instant: string): WidgetContext => ({
+      trip, globals: null, user: null, today: null,
+      page: { tripId: TRIP_ID, dateScope: "today" }, now: { at: Date.parse(instant), deviceZone: "UTC" },
+    });
+
+    it("lists a clash on the days ahead before the trip starts", () => {
+      const rendered = renderMacro(at(clashing, "2026-07-30T12:00:00Z"), "open", {});
+      const rows = rendered.status === "ok" && rendered.rendered.kind === "items" ? rendered.rendered.items.map((item) => item.label) : rendered;
+      expect(rows).toEqual(["Overlap on Day 2"]);
+    });
+
+    // More than 3 days out the trip is still planning, not soon: the whole trip all the same.
+    it("lists a clash on the days ahead while the trip is still being planned", () => {
+      const rendered = renderMacro(at(clashing, "2026-07-20T12:00:00Z"), "open", {});
+      const rows = rendered.status === "ok" && rendered.rendered.kind === "items" ? rendered.rendered.items.map((item) => item.label) : rendered;
+      expect(rows).toEqual(["Overlap on Day 2"]);
+    });
+
+    // A city line keeps its own scope, so before day 1 it has no day to check.
+    it("says nothing is planned today on a city line before the trip starts", () => {
+      expect(renderMacro(at(clashing, "2026-07-30T12:00:00Z"), "open", {}, { kind: "city", name: "Kyoto" }))
+        .toEqual({ status: "empty", because: "Nothing planned today" });
+    });
+
+    // No `because`, so MacroView draws `emptyText`: the whole trip's settled line.
+    it("says the whole trip is settled before it starts", () => {
+      expect(renderMacro(at(quiet, "2026-07-30T12:00:00Z"), "open", {})).toEqual({ status: "empty" });
+    });
+
+    it("says nothing is planned today once the trip has ended", () => {
+      expect(renderMacro(at(clashing, "2026-08-05T12:00:00Z"), "open", {})).toEqual({ status: "empty", because: "Nothing planned today" });
+    });
+  });
 });

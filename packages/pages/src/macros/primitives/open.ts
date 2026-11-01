@@ -2,12 +2,14 @@ import type { z } from "zod";
 import { OpenClass, OpenClassRef, type FilterDimension, type TripDetail } from "@tc/contracts";
 import type { Item, ItemsPayload, MacroDef, WidgetContext } from "../../registry-types";
 import { itemsOf } from "../../registry-types";
-import { ok, empty, needsTrip, type MacroResult } from "../../result";
+import { ok, empty, goodEmpty, needsTrip, type MacroResult } from "../../result";
+import { tripNow } from "../../now";
 import { dayLabel, formatShortDate } from "../../format";
 import { dayCity } from "../../dayCity";
 import type { ActTarget } from "../../linkTarget";
 import { filterInputs, filterParams } from "../../filters";
-import { narrow } from "../../select";
+import { isNoDay, narrow } from "../../select";
+import { NOTHING_TODAY } from "./directions";
 
 // `open` — "What needs you". SPEC §25's second half of the Overview page.
 //
@@ -33,6 +35,11 @@ import { narrow } from "../../select";
 // when the author left it open, as it does theirs (`followsDateScope`). A
 // parked idea is on no day and the budget is the whole trip's, so a Days
 // filter places neither: only the class filter hides them.
+//
+// **Before day 1 a Today notebook's no-day is the whole trip** (Mitchell,
+// 2026-11-01). The Overview becomes the Today notebook three days out, and
+// "Nothing planned today" there hid the clashes on the days just ahead. After
+// the last day nothing is ahead, so it still says that.
 
 /**
  * What each conflict kind is CALLED at the start of its row.
@@ -126,11 +133,13 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
   emptyText: "Nothing is waiting on you — every day has something on it and no two stops collide.",
   emptyIsGood: true,
   preview: "one row per thing waiting on a decision",
-  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<ItemsPayload> => {
+  resolve: ({ trip, globals, now }: WidgetContext, params, item): MacroResult<ItemsPayload> => {
     if (!trip) return needsTrip();
     const shows = new Set<OpenClass>(params.class ?? OpenClass.options);
+    const phase = now ? tripNow(trip, globals, now).phase : null;
+    const scope = item?.kind === "no-day" && (phase === "planning" || phase === "soon") ? undefined : item;
     // The days the Days filter, or the page's scope, leaves (`narrow`).
-    const selection = narrow(trip, globals, { dates: params.dates }, item);
+    const selection = narrow(trip, globals, { dates: params.dates }, scope);
     if (selection.status !== "ok") return selection;
     const onDays = new Set(selection.value.days);
 
@@ -198,9 +207,21 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
     // `emptyText` vouches for every day and every conflict, which is only
     // known when no filter hid any: Parked alone, or a Days filter, would
     // otherwise tell the reader a clash it skipped is not there.
-    const filtered = shows.size < OpenClass.options.length || onDays.size < trip.days.length;
-    if (items.length === 0) return filtered ? empty("Nothing here needs you.") : empty();
-    return ok({ kind: "items", items });
+    //
+    // A scope the author did not set (the notebook's today, a day line) that
+    // leaves one day is still the good news, said for that day: the Overview
+    // becomes the Today notebook as the trip nears, and a muted chip there made
+    // one settled trip flip between two looks (Mitchell, 2026-11-01).
+    if (items.length > 0) return ok({ kind: "items", items });
+    // `renderMacro` leaves a good-news widget's off-dates line to it.
+    if (isNoDay(scope)) return empty(NOTHING_TODAY);
+    const everyClass = shows.size === OpenClass.options.length;
+    const index = selection.value.days[0];
+    if (everyClass && params.dates === undefined && onDays.size === 1 && trip.days.length > 1 && index !== undefined) {
+      const today = now ? tripNow(trip, globals, now).dayId : null;
+      return goodEmpty(trip.days[index]!.dayId === today ? "Nothing needs you today" : `Nothing needs you on ${dayLabel(index)}`);
+    }
+    return everyClass && onDays.size === trip.days.length ? empty() : empty("Nothing here needs you.");
   },
   render: itemsOf,
 };
