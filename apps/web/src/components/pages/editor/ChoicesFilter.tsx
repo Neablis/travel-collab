@@ -9,7 +9,9 @@ import { CheckboxField } from "@/components/ui/checkbox";
 //
 // Every box starts ticked, because absent is every option (ADR-039 decision 2),
 // and the last ticked one cannot be cleared: hiding every row is not a filter
-// anybody means, and the stored list is never empty (`OpenClassRef`).
+// anybody means, and the stored list is never empty (`ChoicesRef`). That box
+// is `aria-disabled`, not `disabled`, and described by the line saying so: a
+// disabled one leaves the tab order and is read as "dimmed" with no reason.
 
 type ChoicesInput = Extract<WidgetInput, { type: "choices" }>;
 
@@ -59,6 +61,7 @@ export function ChoicesFilter({
   name?: string;
 }) {
   const picked = pickedChoices(input, params[input.name]);
+  const lastId = `${id}-last`;
   return (
     <fieldset
       id={id}
@@ -68,13 +71,16 @@ export function ChoicesFilter({
       <legend className={layout === "inline" ? "sr-only" : "mb-1.5 text-sm font-medium text-slate"}>{input.label}</legend>
       {input.options.map((option) => {
         const on = picked.includes(option.value);
+        const last = on && picked.length === 1;
         return (
           <div key={option.value} className={layout === "inline" ? "inline-flex items-center" : "flex min-h-11 items-center"}>
             <CheckboxField
               id={`${id}-${option.value}`}
               checked={on}
-              disabled={on && picked.length === 1}
+              aria-disabled={last || undefined}
+              aria-describedby={last ? lastId : undefined}
               onCheckedChange={(next) => {
+                if (last) return;
                 const set = new Set(picked);
                 if (next) set.add(option.value);
                 else set.delete(option.value);
@@ -85,6 +91,11 @@ export function ChoicesFilter({
           </div>
         );
       })}
+      {picked.length === 1 && (
+        <span id={lastId} className={layout === "inline" ? "sr-only" : "text-xs text-slate"}>
+          At least one stays shown
+        </span>
+      )}
     </fieldset>
   );
 }

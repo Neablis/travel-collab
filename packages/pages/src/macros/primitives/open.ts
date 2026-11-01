@@ -164,7 +164,11 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
       });
     }
 
-    if (items.length === 0) return empty();
+    // `emptyText` vouches for every day and every conflict, which is only
+    // known when no filter hid any: Parked alone, or a Days filter, would
+    // otherwise tell the reader a clash it skipped is not there.
+    const filtered = shows.size < OpenClass.options.length || onDays.size < trip.days.length;
+    if (items.length === 0) return filtered ? empty("Nothing here needs you.") : empty();
     return ok({ kind: "items", items });
   },
   render: itemsOf,

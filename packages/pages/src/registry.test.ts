@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
-import { FilterDimension } from "@tc/contracts";
+import { ChoicesRef, FilterDimension } from "@tc/contracts";
+import { z } from "zod";
 import { distinctApplies, getMacro, inputsFor, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
@@ -90,7 +91,7 @@ describe("registry", () => {
   // exercise each macro's own validator rather than just reading its keys.
   // `choice` is absent because no one value fits every choice: each is sampled
   // from its own declared options below, all of them.
-  const SAMPLE: Record<Exclude<WidgetInput["type"], "choice">, unknown> = {
+  const SAMPLE: Record<Exclude<WidgetInput["type"], "choice" | "choices">, unknown> = {
     // The non-default value, which is the only one a toggle ever stores.
     toggle: false,
     day: { kind: "index", index: 0 },
@@ -117,8 +118,6 @@ describe("registry", () => {
     text: "Tickets",
     // A member's `userId` (`PersonRef`) — `detail`'s one member.
     person: "u1",
-    // `open`'s row classes (`OpenClassRef`): a list, in class order.
-    choices: ["conflict", "parked"],
   };
 
   it("every declared input names a key its own macro's params schema accepts", () => {
@@ -128,7 +127,14 @@ describe("registry", () => {
       if (def.inputs.length === 0) continue;
       // A `multiple` field input stores a list of what the single one stores.
       const sampleOf = (i: WidgetInput) =>
-        i.type === "choice" ? i.options.at(-1)!.value : i.type === "field" && i.multiple ? [SAMPLE.field] : SAMPLE[i.type];
+        i.type === "choice"
+          ? i.options.at(-1)!.value
+          : // A `choices` list is its own options' vocabulary (`ChoicesRef`): the first and last, in order.
+            i.type === "choices"
+            ? [i.options[0]!.value, i.options.at(-1)!.value]
+            : i.type === "field" && i.multiple
+              ? [SAMPLE.field]
+              : SAMPLE[i.type];
       const bound = Object.fromEntries(def.inputs.map((i) => [i.name, sampleOf(i)]));
       const parsed = def.params.safeParse(bound);
       // Every option a choice offers is one the schema keeps, its default too:
@@ -770,5 +776,17 @@ describe("`open`'s class param", () => {
     expect(parses(["parked", "parked"])).toBe(false);
     expect(parses([])).toBe(false);
     expect(parses(["time-overlap"])).toBe(false);
+  });
+
+  // ADR-037 decision 9: one stored shape per input TYPE. A second `choices`
+  // input gets the same rule over its own options, not a refine of its own
+  // that may drift from what `ChoicesFilter` writes.
+  it("is the one `choices` shape, which any closed list takes", () => {
+    const parses = (value: unknown) => ChoicesRef(z.enum(["north", "east", "south"])).safeParse(value).success;
+    expect(parses(["north", "south"])).toBe(true);
+    expect(parses(["south", "north"])).toBe(false);
+    expect(parses(["east", "east"])).toBe(false);
+    expect(parses([])).toBe(false);
+    expect(parses(["conflict"])).toBe(false);
   });
 });

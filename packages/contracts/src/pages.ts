@@ -252,21 +252,25 @@ export const OpenClass = z.enum(["conflict", "empty-day", "parked"]);
 export type OpenClass = z.infer<typeof OpenClass>;
 
 /**
- * `open`'s `class` param: the row classes it shows. Absent is all three — a
- * filter left alone means everything (ADR-039 decision 2) — so the key is
- * stored only when something is hidden.
- *
- * Stored in a widget's params, so here for the reason `TagRef` is (ADR-037
- * decision 9). One spelling per set, as `DateListRef`: each class once, in
- * `OpenClass` order, and never empty — showing nothing is not a filter anybody
- * means.
+ * What a `choices` input stores (ADR-037 decision 9: one stored shape per input
+ * type): the options picked from `values`, each once, in `values` order, never
+ * empty. Absent is every option — a filter left alone means everything (ADR-039
+ * decision 2) — so the key is stored only when something is hidden. One
+ * spelling per set, as `DateListRef`, so two equal filters are equal in the
+ * document; showing nothing is not a filter anybody means.
  */
-export const OpenClassRef = z
-  .array(OpenClass)
-  .min(1, "show at least one class, or leave class out for all three")
-  .refine((list) => list.every((value, i) => i === 0 || OpenClass.options.indexOf(list[i - 1]!) < OpenClass.options.indexOf(value)), {
-    message: "list each class once, in conflict, empty-day, parked order",
-  });
+export const ChoicesRef = <T extends z.ZodEnum>(values: T) => {
+  const order = values.options as readonly string[];
+  return z
+    .array(values)
+    .min(1, "pick at least one, or leave the key out for all")
+    .refine((list) => list.every((value, i) => i === 0 || order.indexOf(list[i - 1] as string) < order.indexOf(value as string)), {
+      message: `list each once, in ${order.join(", ")} order`,
+    });
+};
+
+/** `open`'s `class` param: the row classes it shows. */
+export const OpenClassRef = ChoicesRef(OpenClass);
 export type OpenClassRef = z.infer<typeof OpenClassRef>;
 
 export const FILTER_VALUE_SCHEMAS = {

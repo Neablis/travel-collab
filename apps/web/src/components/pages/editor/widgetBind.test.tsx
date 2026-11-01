@@ -392,13 +392,21 @@ describe("`open`'s class filter", () => {
     expect(stored()).toEqual({});
   });
 
-  it("keeps the last ticked class, since showing nothing is no filter", async () => {
+  it("keeps the last ticked class, since showing nothing is no filter, and says why", async () => {
     const user = userEvent.setup();
     render(<Harness name="open" inputs={classes} initial={{ class: ["parked"] }} />);
-    expect(box("Parked ideas").disabled).toBe(true);
+    // Still in the tab order: a `disabled` box is skipped by Tab and read as
+    // "dimmed" with no reason, so a keyboard user never learns it is the last.
+    const last = screen.getByRole("checkbox", { name: "Parked ideas", description: "At least one stays shown" }) as HTMLInputElement;
+    expect(last.disabled).toBe(false);
+    expect(last.getAttribute("aria-disabled")).toBe("true");
+    await user.click(last);
+    expect(last.checked).toBe(true);
+    expect(stored()).toEqual({ class: ["parked"] });
     await user.click(box("Empty days"));
     expect(stored()).toEqual({ class: ["empty-day", "parked"] });
-    expect(box("Parked ideas").disabled).toBe(false);
+    expect(box("Parked ideas").hasAttribute("aria-disabled")).toBe(false);
+    expect(screen.queryByRole("checkbox", { name: "Parked ideas", description: "At least one stays shown" })).toBeNull();
   });
 
   it("names the classes shown in the 'Pointed at' summary, and nothing for all three", () => {

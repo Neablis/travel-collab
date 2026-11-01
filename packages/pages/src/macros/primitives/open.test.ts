@@ -198,6 +198,20 @@ describe("`open` filters by class and by days (M43 decision 5)", () => {
     ]);
   });
 
+  it("does not call the trip settled when a filter is what left nothing", () => {
+    // The settled line says every day has something on it and no two stops
+    // collide. With Parked alone ticked, or the Days filter on a day with
+    // stops, neither is known — here both are false.
+    const narrower = { status: "empty", because: "Nothing here needs you." };
+    const unparked = { ...trip, backlog: [] };
+    expect(resolve(unparked, { class: ["parked"] })).toEqual(narrower);
+    const quiet = tripWith({
+      days: [dayWith(DAY_1, ["a1"], "2026-08-01"), dayWith(DAY_2, ["a3"], "2026-08-02"), dayWith(DAY_3, [], "2026-08-03")],
+      activities: { a1: stop("Breakfast"), a3: stop("Shrine") } as unknown as TripDetail["activities"],
+    });
+    expect(resolve(quiet, { dates: ["2026-08-02"] })).toEqual(narrower);
+  });
+
   it("follows the notebook's date scope when no Days filter is set", () => {
     const today: WidgetContext = {
       trip, globals: null, user: null, today: null,

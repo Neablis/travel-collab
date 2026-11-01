@@ -13,16 +13,19 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-10-31 — `OpenClass` and `OpenClassRef`: *What needs you*'s class filter (M43 part 4)
+## 2026-10-31 — `OpenClass`, `ChoicesRef` and `OpenClassRef`: *What needs you*'s class filter (M43 part 4)
 - **New** (`packages/contracts/src/pages.ts`): `OpenClass`, the three row classes `open` draws
-  (`conflict`, `empty-day`, `parked`), and `OpenClassRef`, the stored value of its `class` param:
-  the classes shown, each once in `OpenClass` order, never empty. Absent is all three.
+  (`conflict`, `empty-day`, `parked`); `ChoicesRef(values)`, the one stored shape of a `choices`
+  input over any closed list (ADR-037 decision 9): the values picked, each once in `values` order,
+  never empty, absent for all; and `OpenClassRef = ChoicesRef(OpenClass)`, the stored value of
+  `open`'s `class` param.
 - Why: M43 decision 5. The filter offers the row classes, not `Conflict.kind`, which is an open
   string; a closed list of its values would make any kind added later unreachable. A widget param
   is persisted in every document carrying it, so its shape is the contract's (ADR-037 decision 9).
 - Consumers updated: `packages/pages` — `open` takes `class` and the `dates` filter, declares a
   day `selection` (so it is now a primitive and follows a page's date scope), and a new
-  `WidgetInput` type `choices`; `apps/web` — `ChoicesFilter.tsx` and `widgetBind.tsx` (the control
+  `WidgetInput` type `choices`, whose options `search_widgets` and `get_widget` list as the param's
+values; `apps/web` — `ChoicesFilter.tsx` and `widgetBind.tsx` (the control
   in the settings column, the phone sheets and the insert step, and the "Showing" line) and
   `server/assistant/tools/widgets.ts` (`get_widget`'s output schema lists a `choices` input), in
   this same PR.
