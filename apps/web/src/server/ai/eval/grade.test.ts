@@ -29,7 +29,7 @@ import {
   phaseFor,
   planningStart,
 } from "./trips";
-import { endedIn, grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
+import { asksToSwitch, endedIn, grade, namesAmount, namesDayNumber, navigatedTo, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
 function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most open.", proposalCommands = 0): EvalTurn {
@@ -604,5 +604,98 @@ describe("no text before a tool call", () => {
       expect(retractedText(streamed(true))).toEqual({ parts: 1, chars: "Gap 5:30–7 pm. Look up a cafe in Shibuya.".length });
       expect(retractedText(streamed(false))).toEqual({ parts: 0, chars: 0 });
     });
+  });
+});
+
+// M57 part 4: the persona path. A trip turn enters Schedule and crosses to
+// Discover with `switch_persona` when the message needs a real place; these
+// checks read that path from the ledger's steps, and read nothing on a build
+// with no personas (`personaPath` absent), so main grades the same prompts
+// without failing for a field it does not have.
+describe("grade, the persona path", () => {
+  const SCHEDULE = { persona: "schedule" as const };
+  const toDiscover = { persona: "discover" as const, fromPersona: "schedule" as const, edgeKind: "switch" as const };
+  const call = (name: string) => ({ name, input: {} });
+  const personaTurn = (calls: string[], path: EvalTurn["personaPath"], text = "Added Hinode Ramen to day 2.") => ({
+    ...turn({ toolCalls: calls.map(call) }, text, 1),
+    personaPath: path,
+  });
+  const conforming = personaTurn(["read_day", "switch_persona", "search_places", "AddActivity"], [SCHEDULE, toDiscover, { persona: "discover" }]);
+
+  it("passes one switch from Schedule to Discover, made before the search and the write", () => {
+    expect(failing(grade(conforming, { switchesTo: "discover", switchesBefore: ["search_places", "AddActivity"], neverAsksToSwitch: true }))).toEqual([]);
+  });
+
+  it("fails a turn that searched without ever switching", () => {
+    const stayed = personaTurn(["read_day", "search_places", "AddActivity"], [SCHEDULE, { persona: "schedule" }]);
+    const checks = grade(stayed, { switchesTo: "discover", switchesBefore: ["search_places"] });
+    expect(failing(checks)).toEqual(["switches once to discover", "switches before search_places"]);
+    expect(checks.find((c) => c.name === "switches before search_places")!.detail).toBe("schedule, schedule; calls: read_day, search_places, AddActivity");
+  });
+
+  it("fails two switches", () => {
+    const twice = personaTurn(
+      ["switch_persona", "switch_persona", "search_places"],
+      [SCHEDULE, toDiscover, { persona: "schedule", fromPersona: "discover", edgeKind: "switch" }],
+    );
+    expect(failing(grade(twice, { switchesTo: "discover" }))).toEqual(["switches once to discover"]);
+  });
+
+  it("fails a write made before the switch", () => {
+    const early = personaTurn(["AddActivity", "switch_persona", "search_places"], [SCHEDULE, toDiscover]);
+    expect(failing(grade(early, { switchesTo: "discover", switchesBefore: ["AddActivity"] }))).toEqual(["switches before AddActivity"]);
+  });
+
+  it("holds a pure scheduling ask to Schedule, with no switch", () => {
+    const stays = personaTurn(["read_day", "MoveActivity"], [SCHEDULE, { persona: "schedule" }]);
+    expect(failing(grade(stays, { switchesTo: null }))).toEqual([]);
+    expect(failing(grade(conforming, { switchesTo: null }))).toEqual(["stays in its persona"]);
+    // A refused attempt is still a model reaching for the other persona.
+    const refused = personaTurn(["switch_persona", "MoveActivity"], [SCHEDULE, { persona: "schedule" }]);
+    expect(failing(grade(refused, { switchesTo: null }))).toEqual(["stays in its persona"]);
+  });
+
+  it.each([
+    "Shall I switch to Discover to look that up?",
+    "I found a few ramen places. Would you like me to switch to Discover mode first?",
+    "Which do you prefer: Discover or Schedule?",
+    "Please switch to the Discover persona and ask again.",
+  ])("fails a reply that asks the person to switch or pick a persona: %s", (reply) => {
+    const asked = personaTurn(["switch_persona", "search_places"], [SCHEDULE, toDiscover], reply);
+    expect(failing(grade(asked, { neverAsksToSwitch: true }))).toEqual(["never asks to switch"]);
+  });
+
+  it("lets an ordinary question about the plan stand", () => {
+    expect(asksToSwitch("Want me to put it after lunch? I scheduled it for 1 pm.")).toBeNull();
+    expect(asksToSwitch("Added Hinode Ramen near Trunk Hotel.")).toBeNull();
+  });
+
+  // The same prompts run on main, which has no persona in its ledger.
+  it("adds no persona check where the build has no personas", () => {
+    const onMain = personaTurn(["search_places"], undefined, "Shall I switch to Discover?");
+    expect(grade(onMain, { switchesTo: "discover", switchesBefore: ["search_places"], neverAsksToSwitch: true }).map((c) => c.name)).toEqual([
+      "completes",
+      "no text before a tool call",
+    ]);
+  });
+
+  // The near-now search lives in Discover (it is a `places` tool), so the
+  // day-of coffee turn is a switch and then the one call; before part 4 it was
+  // the one call from the trip planner.
+  it("grades the day-of coffee ask as a switch and then the one near-now call", () => {
+    const expected = expectationFor("d-coffee-near-now", demoTripDetail(DEMO_TRIP_ID))!;
+    const ok = personaTurn(["read_trip", "switch_persona", "find_places_near_now"], [SCHEDULE, toDiscover], "Near the Forum: Sant'Eustachio.");
+    const asConfigured = { ...ok, record: { ...ok.record }, proposalCommands: 0 };
+    expect(failing(grade(asConfigured, expected))).toEqual([]);
+    const searchedFromSchedule = personaTurn(["read_trip", "find_places_near_now"], [SCHEDULE, { persona: "schedule" }], "Near the Forum: Sant'Eustachio.");
+    expect(failing(grade({ ...searchedFromSchedule, proposalCommands: 0 }, expected))).toEqual(["switches once to discover", "switches before find_places_near_now"]);
+  });
+
+  it("holds the persona cases of the live set to their paths", () => {
+    const pathOf = (id: string) => expectationFor(id, demoTripDetail(DEMO_TRIP_ID))!;
+    expect(pathOf("s-ramen-near-hotel")).toMatchObject({ switchesTo: "discover", switchesBefore: ["search_places", "AddActivity"], neverAsksToSwitch: true });
+    expect(pathOf("s-named-place")).toMatchObject({ switchesTo: "discover", switchesBefore: ["search_places", "AddActivity"] });
+    expect(pathOf("s-move-museum")).toMatchObject({ switchesTo: null, mustNotCall: ["search_places", "find_places_near_now"] });
+    expect(pathOf("d-coffee-near-now")).toMatchObject({ switchesTo: "discover", mustCall: ["find_places_near_now"] });
   });
 });
