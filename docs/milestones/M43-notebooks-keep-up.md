@@ -1,8 +1,9 @@
 # M43 — A trip's notebooks keep up with their templates
 
-**Status:** **Built 2026-11-01; gate 4 of 6, waiting on Mitchell's production walk.** All four
-code parts are on `main` in `e3629e2` (PRs 661, 662, 660, 663), `0070` is applied, and the retro
-draft is below. **Scoped 2026-10-31 with Mitchell**: decisions 2 to 5 are answered below, each as
+**Status:** **Closed 2026-11-01, gate 6 of 6**, by `pnpm milestone close M43 --confirm` on part 0
+(PR 659, prose only). All five code parts are on `main` in `c3452b7`: PRs 661, 662, 660 and 663
+(`e3629e2`, `0070` applied), and part 5 (PR 665), from Mitchell's production walk. The retro is
+below; the plan is deleted. **Scoped 2026-10-31 with Mitchell**: decisions 2 to 5 are answered below, each as
 recommended; the ADR-037 amendment of that date records decision 4. Plan:
 `docs/plans/2026-10-31-M43-notebooks-keep-up.md` (four parts). Proposed 2026-10-06; moved last
 2026-10-12, after M49, by Mitchell (nothing it fixes is hurting today). Minted from `docs/candidates.md` (see
@@ -90,6 +91,23 @@ Candidates absorbed (each deleted by this gate):
   clock, the notebook's scope wins** (the 2026-10-24 rule, kept by part 4's review): its Days
   control is hidden there, so no stored Days filter is silently ignored.
 
+**From the production walk (Mitchell, 2026-11-01; part 5, PR 665, merged `c3452b7`).** An empty
+*What needs you* flipped between the green success line and the muted *Nothing here needs you.*
+chip, because a Today notebook's day scope was read as a filter, and the Overview becomes the
+Today notebook from three days before the trip. Two decisions:
+
+- **A day-scoped empty is the good news, worded for that day.** When no filter the author set hid
+  anything and the notebook's scope (its today, a day line) leaves one day of several, `open`
+  draws the green line as *Nothing needs you today* (the trip's today) or *Nothing needs you on
+  Day N*. A class filter, a Days filter or any other partial scope still draws the muted chip,
+  since only an unfiltered look can vouch for what it skipped. The result carries this as
+  `empty` with `good: true` (`goodEmpty`, `packages/pages/src/result.ts`); ADR-037's M43
+  amendment records the rule.
+- **Before day 1, What needs you on a Today notebook checks the whole trip.** In the trip's
+  `planning` and `soon` phases its no-day scope is dropped, so the clashes on the days just ahead
+  show instead of *Nothing planned today*. After the last day nothing is ahead, so it still says
+  that. `renderMacro` no longer replaces a good-news widget's empty with the off-dates line.
+
 ## Scope
 
 - The Overview's identity in the database, and the contracts change retiring `PageContext.kind`.
@@ -150,16 +168,22 @@ since both were built before this milestone was scoped; the [walk] loses its see
       green on both shards: runs 41256318374 (661), 41258109890 (662), 41269405719 (660). The
       milestone's walks are in `e2e/m14-notebook-widgets.spec.ts` and
       `e2e/m14-mobile-notebook.spec.ts` (*What needs you*).
-- [ ] **[walk]** On the PR preview, *What needs you* is walked against the design, with both
-      filters, and a renamed trip's Overview title follows it. *Open:* Mitchell is walking it on
-      production himself (every part is merged); ticked from his report.
-- [ ] A retro is appended at gate close.
+- [x] **[walk]** On the PR preview, *What needs you* is walked against the design, with both
+      filters, and a renamed trip's Overview title follows it.
+      *Evidence:* Mitchell walked it on production himself on 2026-11-01, signed in (a
+      `phase-verifier` was stopped at Google-only sign-in), after every part had merged. Every
+      check passed but one: an empty *What needs you* flipped between the green success line and
+      the muted *Nothing here needs you.* chip. Part 5 (PR 665, branch
+      `claude/m43-part5-open-day-empty`) fixed it on his two decisions (*Decisions*, above):
+      reviews approved at `f876310` (one minor, fixed in `817bc68`) and at `54d7401` (three
+      minors, fixed in `f69bdcd`, test-only plus a comment); run 41276618297 on `f69bdcd` green,
+      `ci-ok` and both e2e shards; merged as `c3452b7` at 13:59Z.
+- [x] A retro is appended at gate close. *Evidence:* *Retro*, below, with its `## Spend` block.
 
-## Retro — written 2026-11-01 (4 of 6 boxes ticked)
+## Retro — written 2026-11-01 (6 of 6 boxes ticked)
 
-A draft, written on part 0 (PR 659) in the continuation session after every code part had merged
-in `e3629e2`. Two boxes are open: the **[walk]**, which Mitchell is doing on production, and this
-retro's own box, ticked at the close. If the walk sends work back, this retro gains that round.
+Drafted on part 0 (PR 659) after the four planned parts merged in `e3629e2`, and finished at the
+close after Mitchell's production walk and its one round (part 5, PR 665, `c3452b7`).
 
 ### What went well
 
@@ -178,10 +202,16 @@ retro's own box, ticked at the close. If the walk sends work back, this retro ga
   tap on *Place them* left the rack shut, because `setView` kept `rack` in the URL. The fix
   (`d2c9470`) came with an e2e step seen red at `m14-notebook-widgets.spec.ts:1610`
   (`Expected: "true" Received: "false"`) before it went green.
+- **The walk found one thing, and one part fixed it the same day.** Mitchell's production walk
+  passed every check but the flipping empty state. A `general-purpose` agent diagnosed it (a Today
+  notebook's day scope read as a filter, and the Overview turning into the Today notebook three
+  days out), Mitchell made two decisions, and part 5 (PR 665) was built, reviewed twice (four
+  minors, all fixed), green on run 41276618297 and merged at 13:59Z, about nine hours after it was
+  opened.
 - **Two review findings were left on purpose and filed**, not lost: KI-2026-11-01-s and
   KI-2026-11-01-t, from PR 662's review at `db8b246`.
 - **The continuation session met four of five spend targets** (block below): no GitHub wakes,
-  no coordinator follow-ups, no builder above a 62k average context, $3.24 per 1,000 lines.
+  no coordinator follow-ups, no builder above a 70k average context, $5.86 per 1,000 lines.
 
 ### What could be better
 
@@ -214,65 +244,76 @@ retro's own box, ticked at the close. If the walk sends work back, this retro ga
   `60b9954` review found a staged change there that no agent owned and that would have reverted
   the context-budget baseline. The briefs already said not to check anything out there. Would
   have prevented it: every builder and reviewer in its own worktree, as this close ran.
-- **The orchestrator's share missed its target again**: 30.0% in the continuation session,
-  against under 15%. Subagent reports were 45.8% of the orchestrator's units and Mitchell's turns
-  35.1%, on a milestone of four parts.
+- **The orchestrator's share missed its target again**: 32.1% in the continuation session,
+  against under 15%. Subagent reports and completions were 70.0% of the orchestrator's units and
+  Mitchell's turns 20.9%, on a milestone of five parts.
 - **The production walk could not be delegated.** A `phase-verifier` (153k units) was blocked at
-  sign-in and walked none of its five checks, so the **[walk]** waits on Mitchell.
+  Google-only sign-in and walked none of its five checks, so Mitchell walked it himself.
+- **The empty state's rule was decided per widget state, not for the notebook that changes
+  under it.** Part 4 tested a filtered empty and an unfiltered one, but not the Overview turning
+  into the Today notebook as the trip nears, so the same settled trip read two ways only in
+  production. Would have prevented it: a test, written with the scope rule, that resolves one
+  trip on one notebook at two clock times. Part 5 added those (`open.test.ts`).
+- **The close prep cost more than any build agent.** *Prepare M43 gate close on part 0* came to
+  1.23M units ($4.63) over 88 calls, more than twice the costliest review (536k); it was 372k
+  over 30 calls when the draft was measured, so most of it came after. Would have prevented it:
+  brief the close prep once the walk is in, so a long-lived agent does not carry the milestone's
+  context across rounds.
 
 ### Leftovers
 
-- **The [walk] box**: Mitchell's production walk; ticked from his report.
 - **KI-2026-11-01-s** (trip history names the Overview by its stored title) and
   **KI-2026-11-01-t** (v1 refuses an Overview edit whose shown title is over 200 characters):
   open, filed during M43.
 - **KI-2026-11-01-u** (CI e2e hangs in `install-deps`) and **KI-2026-11-01-v** (stale
   tsbuildinfo): filed at this close.
 - **PR 660's last review minor** (at `39fe517`): *has a plural for every kind it has a label for*
-  lists its four kinds by hand, so a fifth kind given a label and no plural stays green. Not fixed
-  before merge. Mitchell's call.
-- **The plan**, `docs/plans/2026-10-31-M43-notebooks-keep-up.md`, is deleted in the close commit,
-  after the walk, in case the walk sends a part back.
+  lists its four kinds by hand, so a fifth kind given a label and no plural stays green. It stays
+  as it is, by Mitchell's decision.
+- **Part 5 has no test for an undated trip** (no phase, so no before-day-1 widening). Noted from
+  its review, not fixed. Mitchell's call.
+- **The plan**, `docs/plans/2026-10-31-M43-notebooks-keep-up.md`, is deleted in the close commit;
+  nothing in it outlived the decisions recorded above.
 
 ## Spend
 <!-- session-metrics:milestone v1 -->
 
-19 agents, 525 API calls, 5.31M units, $19.13 recorded. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+27 agents, 795 API calls, 9.40M units, $35.36 recorded. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
 
 **By agent type**
 
 | Who | Agents | Calls | Avg context | Peak context | Units | ≈ $ | Share |
 |---|---|---|---|---|---|---|---|
-| `part-reviewer` | 7 | 187 | 62k | 114k | 1.70M | $6.10 | 31.9% |
-| `orchestrator` | 1 | 81 | 160k | 219k | 1.59M | $5.74 | 30.0% |
-| `phase-implementer` | 9 | 205 | 48k | 80k | 1.50M | $5.40 | 28.2% |
-| `general-purpose` | 1 | 30 | 85k | 102k | 372k | $1.34 | 7.0% |
-| `phase-verifier` | 1 | 22 | 42k | 53k | 153k | $0.55 | 2.9% |
+| `orchestrator` | 1 | 115 | 187k | 278k | 3.02M | $11.36 | 32.1% |
+| `phase-implementer` | 13 | 294 | 52k | 100k | 2.32M | $8.73 | 24.7% |
+| `part-reviewer` | 9 | 239 | 61k | 114k | 2.16M | $8.13 | 23.0% |
+| `general-purpose` | 3 | 125 | 110k | 166k | 1.75M | $6.57 | 18.6% |
+| `phase-verifier` | 1 | 22 | 42k | 53k | 153k | $0.58 | 1.6% |
 
 **Costliest agents**
 
 | Agent (description) | Type | Calls | Avg context | Peak context | Units | ≈ $ |
 |---|---|---|---|---|---|---|
-| Re-review PR 660 at d2c9470 | `part-reviewer` | 53 | 76k | 114k | 536k | $1.93 |
-| Re-review PR 663 at ce1df31 | `part-reviewer` | 53 | 76k | 105k | 514k | $1.85 |
-| Prepare M43 gate close on part 0 | `general-purpose` | 30 | 85k | 102k | 372k | $1.34 |
-| Fix PR 660 review findings | `phase-implementer` | 43 | 62k | 80k | 349k | $1.26 |
-| PR 663 merge part 3 + instruction fix | `phase-implementer` | 32 | 51k | 60k | 223k | $0.80 |
-| PR 663 fix minor and merge part 3 | `phase-implementer` | 33 | 47k | 57k | 215k | $0.77 |
-| PR 660 fold overlap rows | `phase-implementer` | 21 | 53k | 62k | 183k | $0.66 |
-| Re-review PR 660 at 90a8af1 | `part-reviewer` | 23 | 48k | 64k | 177k | $0.64 |
-| Walk M43 on production | `phase-verifier` | 22 | 42k | 53k | 153k | $0.55 |
-| Re-review PR 663 at 60b9954 | `part-reviewer` | 17 | 41k | 54k | 132k | $0.48 |
+| Prepare M43 gate close on part 0 | `general-purpose` | 88 | 118k | 166k | 1.23M | $4.63 |
+| Re-review PR 660 at d2c9470 | `part-reviewer` | 53 | 76k | 114k | 536k | $2.02 |
+| Re-review PR 663 at ce1df31 | `part-reviewer` | 53 | 76k | 105k | 514k | $1.93 |
+| Fix What needs you empty state | `phase-implementer` | 38 | 70k | 100k | 382k | $1.44 |
+| Diagnose What needs you empty-state swap | `general-purpose` | 30 | 96k | 113k | 372k | $1.40 |
+| Fix PR 660 review findings | `phase-implementer` | 43 | 62k | 80k | 349k | $1.31 |
+| Review PR 665 part 5 | `part-reviewer` | 28 | 59k | 80k | 258k | $0.97 |
+| PR 665 pre-trip whole-trip scope | `phase-implementer` | 22 | 65k | 82k | 229k | $0.86 |
+| PR 663 merge part 3 + instruction fix | `phase-implementer` | 32 | 51k | 60k | 223k | $0.84 |
+| PR 663 fix minor and merge part 3 | `phase-implementer` | 33 | 47k | 57k | 215k | $0.81 |
 
 **Orchestrator turns, by what started them**
 
 | What started the turn | Turns | Units | ≈ $ | Share of orchestrator | Idle |
 |---|---|---|---|---|---|
 | GitHub / trigger notification | 0 | 0 | $0.00 | 0.0% | 0 of 0 (0 units) |
-| Subagent report | 16 | 730k | $2.63 | 45.8% | – |
-| Subagent finished | 1 | 26k | $0.09 | 1.6% | – |
-| Harness | 11 | 278k | $1.00 | 17.4% | – |
-| Human | 10 | 560k | $2.02 | 35.1% | – |
+| Subagent report | 22 | 1.19M | $4.47 | 39.4% | – |
+| Subagent finished | 5 | 923k | $3.47 | 30.6% | – |
+| Harness | 11 | 278k | $1.05 | 9.2% | – |
+| Human | 12 | 629k | $2.37 | 20.9% | – |
 | Other (unrecognised frame) | 0 | 0 | $0.00 | 0.0% | – |
 
 **Follow-ups and cache re-writes**
@@ -288,47 +329,49 @@ retro's own box, ticked at the close. If the walk sends work back, this retro ga
 
 | Hook | deny | note |
 |---|---|---|
-| `implementer-brief-check` | 1 | 0 |
+| `implementer-brief-check` | 2 | 0 |
+| `orchestrator-context-limit` | 0 | 11 |
 
 **Targets**
 
 | Target | Result | Measured |
 |---|---|---|
-| Orchestrator share of units < 15% | missed | 30.0% |
-| No phase-implementer averaging > 250k context | met | worst 62k |
+| Orchestrator share of units < 15% | missed | 32.1% |
+| No phase-implementer averaging > 250k context | met | worst 70k |
 | GitHub wakes per merged part < 5 | met | 0 / 5 = 0.0 |
-| Dollars per 1k lines added < 20 | met | $3.24 |
+| Dollars per 1k lines added < 20 | met | $5.86 |
 | Coordinator-message re-writes <= 2 | met | 0 |
 
 ### Both sessions
 
-The block above is the continuation session only (`2d249f0e`, from 00:55Z through this draft).
+The block above is the continuation session only (`2d249f0e`, from 00:55Z through the close,
+re-run after part 5 with `--parts 5 --lines-added 6034 --cost-usd 35.36`).
 The first build session's transcript went with its container; its totals were carried in the
 hand-off, and its cost is the one recorded on that session (`external_metadata.usage.cost_usd`).
 
 | Session | Agents | Calls | Units | Recorded $ |
 |---|---|---|---|---|
 | First build session (scoping, every part's first build and review) | 27 | 1,328 | 16.81M | $56.85 |
-| Continuation (fix rounds, merges, this draft) | 19 | 525 | 5.31M | $19.13 |
-| **Total** | **46** | **1,853** | **22.12M** | **$75.98** |
+| Continuation (fix rounds, merges, the walk round, the close) | 27 | 795 | 9.40M | $35.36 |
+| **Total** | **54** | **2,123** | **26.21M** | **$92.21** |
 
-**Lines added: 5,909** by the rule: `git diff --shortstat 86beb38^1 e3629e2`, without `docs/`,
-`*.generated.json` and `pnpm-lock.yaml`, gives 63 files, 5,909 insertions and 463 deletions.
-4,216 of them are the generated drizzle snapshot `apps/web/drizzle/meta/0070_snapshot.json`;
-without it, **1,693**.
+**Lines added: 6,034** by the rule: `git diff --shortstat 86beb38^1 c3452b7`, without `docs/`,
+`*.generated.json` and `pnpm-lock.yaml`, gives 65 files, 6,034 insertions and 469 deletions
+(part 5 added 134). 4,216 of them are the generated drizzle snapshot
+`apps/web/drizzle/meta/0070_snapshot.json`; without it, **1,818**.
 
 ### Spend against the last milestone
 
 M56 is the last closed milestone. It carried no dollar cost, and its units left out a session.
 
-- **Dollars per 1,000 lines added (under 20):** met by the rule at **$12.86** ($75.98 over
-  5,909 lines); **missed at $44.88** without the snapshot, as M46, M50 and M55 also read theirs.
-  Small scope is the cause: four parts carried the fixed costs of a plan, two stacks and a review
-  per fix round over 1,693 hand-written lines. M56: not measurable.
-- **Units per 1,000 lines:** 3.74M (13.07M without the snapshot), against M56's 2.70M.
-- **Orchestrator's share (under 15%):** missed at 30.0% in the continuation session; the first
+- **Dollars per 1,000 lines added (under 20):** met by the rule at **$15.28** ($92.21 over
+  6,034 lines); **missed at $50.72** without the snapshot, as M46, M50 and M55 also read theirs.
+  Small scope is the cause: five parts carried the fixed costs of a plan, two stacks, a walk
+  round and a review per fix round over 1,818 hand-written lines. M56: not measurable.
+- **Units per 1,000 lines:** 4.34M (14.42M without the snapshot), against M56's 2.70M.
+- **Orchestrator's share (under 15%):** missed at 32.1% in the continuation session; the first
   session's share was not carried. M56: 22.8% and 25.9%.
-- **A builder's average context (none over 250k):** met in the continuation session (worst 62k);
+- **A builder's average context (none over 250k):** met in the continuation session (worst 70k);
   not carried for the first. M56: not measurable.
 - **GitHub wakes per merged part (under 5):** met, 0 in the continuation session. M56: not
   measurable.

@@ -579,6 +579,18 @@ Conflicts are **one row per day and kind** (Mitchell, 2026-11-01, on part 3's re
 overlapping stops on Day 1 read `3 overlaps on Day 1`, not three identical rows, and a single
 conflict keeps its own wording. Conflicts with no day (budget, backlog anchor) fold by kind alone.
 
+**An empty that is good news can be narrower than `emptyText`** (Mitchell, 2026-11-01, from the
+M43 production walk; part 5, PR 665). A widget whose empty is good news (`emptyIsGood`) has two
+empties: the unfiltered one, drawn as its green `emptyText`, and a filtered one, drawn as a muted
+chip, because a filter may have hidden what the good news vouches for. A scope the author did not
+set is not a filter. When `open` finds nothing on the one day a notebook's scope leaves (its
+today, a day line) and no class or Days filter is set, it returns `empty` with `good: true`
+(`goodEmpty`, `packages/pages/src/result.ts`), and the renderer draws the green line worded for
+that day: *Nothing needs you today* or *Nothing needs you on Day N*. Before day 1 (`planning`,
+`soon`), a Today notebook's no-day scope is dropped so the whole trip is checked; and
+`renderMacro` leaves a good-news widget's off-dates empty to the widget instead of replacing it
+with *Nothing planned today*. A later good-news widget reuses `good`, not a new status.
+
 ## Alternatives rejected
 
 - **Keep the switch and add cases.** It is the status quo, it costs one component edit per
