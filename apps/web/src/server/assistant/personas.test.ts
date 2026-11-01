@@ -6,6 +6,9 @@ import { HAND_OFF_TARGETS } from "@tc/contracts";
 import { capabilitiesOf, type ChangeLimit } from "./capabilities";
 import { EDGES, ENTRY, PERSONAS, guardHolds, reachable, type PersonaId, type TurnCaps } from "./personas";
 import { SURFACES, type SurfaceKind } from "./grants";
+import { SURFACE_INTENTS } from "./intents";
+import { ASSISTANT_TOOLS } from "./registry";
+import { personaMermaid } from "./personas";
 
 const IDS = Object.keys(PERSONAS) as PersonaId[];
 const SURFACE_KINDS = Object.keys(ENTRY) as SurfaceKind[];
@@ -65,6 +68,40 @@ describe("the persona graph", () => {
         // `plan_page` is a target only where the page is not itself the trip planner.
         expect([...offered].sort(), `${kind}, limit ${limit}`).toEqual([...capabilitiesOf(kind, limit).targets].sort());
       }
+    }
+  });
+
+  // The graph names its tools by string, so it can drift from the registry
+  // unseen: an edge whose tool the persona is never granted is a dead edge.
+  it("ties every switch, go_to and open_trip edge to a real tool the persona is granted", () => {
+    for (const edge of EDGES.filter((e) => e.kind === "switch" || e.via === "go_to" || e.via === "open_trip")) {
+      const tool = ASSISTANT_TOOLS.find((t) => t.name === edge.via);
+      expect(tool, `${edge.via} is a registered tool`).toBeDefined();
+      const domains = PERSONAS[edge.from].grants.map((g) => g.domain);
+      expect(domains, `${edge.via} from ${edge.from}`).toContain(tool!.domain);
+    }
+  });
+
+  // A page whose SURFACE_INTENTS has something to pivot between must have the
+  // switch edge for its pivot tool; a single-intent page must have none.
+  it("has a switch edge for a page's pivot exactly when the page has an intent to pivot to", () => {
+    for (const kind of SURFACE_KINDS) {
+      const { allowed, pivot } = SURFACE_INTENTS[kind];
+      const switches = EDGES.filter((e) => e.kind === "switch" && e.from === ENTRY[kind]).map((e) => e.via);
+      if (allowed.length > 1) expect(switches, `${kind} pivots with ${pivot}`).toContain(pivot);
+      else expect(switches, `${kind} has one intent`).toEqual([]);
+    }
+  });
+
+  it("emits a valid Mermaid id for a persona id with several hyphens", () => {
+    const persona = { id: "a-b-c", label: "Multi" };
+    const mutable = PERSONAS as unknown as Record<string, unknown>;
+    mutable["a-b-c"] = { ...persona, grants: [] };
+    try {
+      expect(personaMermaid()).toContain("  a_b_c[");
+      expect(personaMermaid()).not.toMatch(/^ *\S*-\S*\[/m);
+    } finally {
+      delete mutable["a-b-c"];
     }
   });
 

@@ -1,14 +1,22 @@
 // **The assistant as a graph of personas** (M57, ADR-085).
 //
-// A persona is what `SURFACES` used to call a row: a grant, now with a name, the
-// page kinds that enter it, and the edges that leave it. `SURFACES` (grants.ts)
-// is derived from this table, so there is one statement of "which tools exist
-// where" and the graph around it. Part 1 changes no behaviour: the five
-// personas below are the five distinct tool sets the nine surfaces already
-// held, and the trip planner is still one persona over trip and day.
+// A persona is a named grant, the page kinds that enter it, and the edges that
+// leave it. `SURFACES` (grants.ts) is derived from this table, so "which tools
+// exist where" and the graph around it have one statement. The five personas
+// are the five distinct tool sets the nine surfaces hold; the trip planner is
+// one persona over trip and day because they hold the same grant.
 //
 // Pure data and pure functions: the reachability baseline and the Mermaid
 // drawing are both read off it (`personaReachability.test.ts`).
+//
+// **A switch edge is always a self-loop** (the pivot stays inside one
+// persona), so the reachability baseline, which records persona sets, cannot
+// see one; nor does a hand-off to nowhere enter it. Those edges and their
+// guards are pinned by `personas.test.ts` and by the drift check on
+// `docs/architecture/personas.mmd`, whose diff is where a dropped guard shows.
+//
+// **`switch_intent` is the page writer's pivot**, a `pages` tool; the trip
+// planner's is `request_change_tools`, the `system` escalation.
 import type { DomainCap, SurfaceGrant, SurfaceKind } from "./grants";
 import type { EffectLevel } from "./defineTool";
 
@@ -49,10 +57,10 @@ export const PERSONAS = {
     ],
   },
   // A page turn reads the trip and writes the page. `library` stays at `read`
-  // rather than being left out, because a page turn browses the corpus today
+  // rather than being left out, because a page turn browses the corpus
   // (`search_playbooks`) and only the `library` row keeps it. `itinerary` and
-  // `library` carry the SAME cap on all three of the old rows, so retagging
-  // either library tool changes no tool set today; the tags are pinned directly
+  // `library` carry the same cap here as on the trip planner, so retagging
+  // either library tool would change no tool set; the tags are pinned directly
   // in `grants.test.ts` because nothing in this table can pin them.
   //
   // **No `places` row, deliberately, and the reason is SCOPE rather than
@@ -186,12 +194,12 @@ function guardText(guard: Guard): string {
 /** The graph as Mermaid, for `docs/architecture/personas.mmd` (drift-checked by the reachability test). */
 export function personaMermaid(): string {
   const lines = ["%% Generated from apps/web/src/server/assistant/personas.ts. Do not edit; see personaReachability.test.ts.", "flowchart LR"];
-  for (const persona of Object.values(PERSONAS)) lines.push(`  ${persona.id.replace("-", "_")}["${persona.label}"]`);
+  for (const persona of Object.values(PERSONAS)) lines.push(`  ${persona.id.replaceAll("-", "_")}["${persona.label}"]`);
   lines.push('  nowhere(("leaves the graph"))');
-  for (const kind of Object.keys(ENTRY) as SurfaceKind[]) lines.push(`  page_${kind.replace("-", "_")}(["${kind} page"]) --> ${ENTRY[kind].replace("-", "_")}`);
+  for (const kind of Object.keys(ENTRY) as SurfaceKind[]) lines.push(`  page_${kind.replaceAll("-", "_")}(["${kind} page"]) --> ${ENTRY[kind].replaceAll("-", "_")}`);
   for (const edge of EDGES) {
     const arrow = edge.kind === "switch" ? "==>" : "-->";
-    lines.push(`  ${edge.from.replace("-", "_")} ${arrow}|"${edge.via}${guardText(edge.guard)}"| ${edge.to === null ? "nowhere" : edge.to.replace("-", "_")}`);
+    lines.push(`  ${edge.from.replaceAll("-", "_")} ${arrow}|"${edge.via}${guardText(edge.guard)}"| ${edge.to === null ? "nowhere" : edge.to.replaceAll("-", "_")}`);
   }
   return `${lines.join("\n")}\n`;
 }
