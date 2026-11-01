@@ -1591,10 +1591,23 @@ test("What needs you lists a conflict, an empty day and the parked ideas, and ea
 
   // **"Place them" lands with the rack open**, the design's `blOpen: true`:
   // Plan alone arrived with the rack shut and the parked idea off screen.
-  await page.goBack();
-  await page.getByRole("list", { name: "What needs you" }).getByRole("link", { name: /Place them/ }).click();
+  // Back to Overview by its tab, never `goBack`: a history step drops
+  // `rack=open` by itself, and a tab pick has to drop it too.
+  const overviewTab = page.getByRole("tab", { name: "Overview" });
+  const placeThem = page.getByRole("list", { name: "What needs you" }).getByRole("link", { name: /Place them/ });
+  const rackToggle = page.getByTestId("unscheduled-rack").getByRole("button", { name: /^Unscheduled/ });
+  await overviewTab.click();
+  await placeThem.click();
   await expect(page).toHaveURL(new RegExp(`/trips/${tripId}\\?view=Plan&rack=open$`));
-  await expect(page.getByTestId("unscheduled-rack").getByRole("button", { name: /^Unscheduled/ })).toHaveAttribute("aria-expanded", "true");
+  await expect(rackToggle).toHaveAttribute("aria-expanded", "true");
+  // **And again, after shutting it** (PR 660 review): a `rack=open` left in
+  // the URL by the tab change kept the arrival looking applied, so the second
+  // tap landed shut.
+  await rackToggle.click();
+  await expect(rackToggle).toHaveAttribute("aria-expanded", "false");
+  await overviewTab.click();
+  await placeThem.click();
+  await expect(rackToggle).toHaveAttribute("aria-expanded", "true");
 });
 
 test("a long value does not squeeze a repeat table's lead column to nothing", async ({ page }) => {
