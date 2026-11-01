@@ -665,6 +665,27 @@ describe("grade, the persona path", () => {
     expect(failing(grade(asked, { neverAsksToSwitch: true }))).toEqual(["never asks to switch"]);
   });
 
+  it.each([
+    "I can switch to Discover if you'd like.",
+    "You'll need to switch to Discover for that.",
+  ])("catches the phrasings that ask without a question mark: %s", (reply) => {
+    expect(asksToSwitch(reply)).not.toBeNull();
+  });
+
+  it("lets the plain verb switch and the noun mode stand when no persona is named", () => {
+    expect(asksToSwitch("Should I switch lunch and the museum?")).toBeNull();
+    expect(asksToSwitch("Want me to add a walking mode?")).toBeNull();
+  });
+
+  // A turn that ran no agent step (admission, off-topic, error) has no path to
+  // grade; a persona expectation must fail on it, not skip.
+  it("fails a persona expectation on a build with personas when no step ran", () => {
+    const none = personaTurn([], [], "");
+    expect(failing(grade(none, { switchesTo: "discover", switchesBefore: ["search_places"] }))).toContain("ran an agent step");
+    expect(failing(grade(none, { switchesTo: null }))).toContain("ran an agent step");
+    expect(failing(grade(none, {})).includes("ran an agent step")).toBe(false);
+  });
+
   it("lets an ordinary question about the plan stand", () => {
     expect(asksToSwitch("Want me to put it after lunch? I scheduled it for 1 pm.")).toBeNull();
     expect(asksToSwitch("Added Hinode Ramen near Trunk Hotel.")).toBeNull();
