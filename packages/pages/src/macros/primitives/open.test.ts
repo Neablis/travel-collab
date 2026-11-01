@@ -316,4 +316,28 @@ describe("`open` filters by class and by days (M43 decision 5)", () => {
     const rows = rendered.status === "ok" && rendered.rendered.kind === "items" ? rendered.rendered.items.map((item) => item.label) : [];
     expect(rows).toEqual(["Over budget", "Day 3 has nothing on it", "1 idea is parked"]);
   });
+
+  // Mitchell, 2026-11-01 (M43 part 5): the notebook's scope is not a filter the
+  // reader set, so a quiet scoped day is the good news, said for that day. The
+  // Overview turns into the Today notebook as the trip nears, and drawing the
+  // muted chip there made the same settled trip flip between two looks. A Days
+  // filter the author set keeps the muted line: the test two above.
+  describe("when only a scope hid the other days", () => {
+    const settled = tripWith({
+      days: [dayWith(DAY_1, ["a1"], "2026-08-01"), dayWith(DAY_2, ["a3"], "2026-08-02"), dayWith(DAY_3, ["a4"], "2026-08-03")],
+      activities: { a1: stop("Breakfast"), a3: stop("Shrine"), a4: stop("Temple") } as unknown as TripDetail["activities"],
+    });
+    const onDay2: WidgetContext = {
+      trip: settled, globals: null, user: null, today: null,
+      page: { tripId: TRIP_ID, dateScope: "today" }, now: { at: Date.parse("2026-08-02T12:00:00Z"), deviceZone: "UTC" },
+    };
+
+    it("says nothing needs you today on a Today notebook", () => {
+      expect(renderMacro(onDay2, "open", {})).toEqual({ status: "empty", because: "Nothing needs you today", good: true });
+    });
+
+    it("names the day when the scoped day is not today", () => {
+      expect(open.resolve(onDay2, {}, { kind: "day", index: 2 })).toEqual({ status: "empty", because: "Nothing needs you on Day 3", good: true });
+    });
+  });
 });

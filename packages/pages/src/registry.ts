@@ -126,7 +126,7 @@ export type RenderOutcome =
   // `because` rides through: a resolver that said WHY it is empty has said the
   // only useful thing it had, and dropping it here would have made
   // `MacroResult.because` unreachable from the one call site that renders.
-  | { status: "empty"; because?: string }
+  | { status: "empty"; because?: string; good?: true }
   // `shape` is always present here: the resolver's own, or `fallbackShape`.
   | { status: "unbound"; needs: UnboundNeeds; shape: readonly Seg[] }
   // No shape, and never one: ADR-052's `unavailable` is not a ghost.
