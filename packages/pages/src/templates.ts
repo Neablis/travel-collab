@@ -1,8 +1,9 @@
-import { newPageDoc } from "@tc/contracts";
+import { OVERVIEW_KIND, newPageDoc } from "@tc/contracts";
 import type {
   CreatePageInput,
   PageContext,
   PageDoc,
+  PageKind,
   PageHeadingNode,
   PageInlineNode,
   PageNode,
@@ -83,7 +84,7 @@ import type {
 // M52 added a fifth, **Today**, so a new trip now gets five.
 //
 // Two of the five are undeletable (`isUndeletablePage`): the Overview by its
-// `kind: "overview"`, and Today by its seed key. The other three delete like
+// `kind`, and Today by its seed key. The other three delete like
 // any notebook. `listPages` seeds only into a trip with zero pages, so an
 // existing trip keeps the notebooks it has, with one exception: a trip made
 // before Today gains it once, on its next notebook read (`tripPagesView`).
@@ -239,7 +240,7 @@ const overviewPage: TemplateSeed = {
   // §25's index line: *"titled 'Overview / Comes with the trip'"*.
   description: "Comes with the trip.",
   seedIntoNewTrips: true,
-  buildContext: (tripId) => ({ tripId, kind: "overview" }),
+  buildContext: (tripId) => ({ tripId }),
   content: overviewContent,
 };
 
@@ -546,8 +547,8 @@ const dinnerTracker: TemplateSeed = {
 export const TEMPLATE_LIBRARY: TemplateSeed[] = [
   // `overviewPage` is deliberately NOT here. The gallery is "Start from a
   // template", and a second copy of the page that comes with the trip is not a
-  // template anybody wants — there can only be one page marked
-  // `kind: "overview"`, and offering a button that makes another would be
+  // template anybody wants — a trip holds one Overview
+  // (`pages_overview_unique`), and offering a button that makes another would be
   // offering a broken outcome (rule 2: no purposeless UI). `todayPage` is
   // not here either, for the same reason: it cannot be deleted, so there is
   // never one to bring back, and a second would be a second Today.
@@ -577,20 +578,21 @@ export const DEFAULT_TEMPLATES: TemplateSeed[] = [
 /** The Overview's seed, for the callers that need to name it rather than list it. */
 export const OVERVIEW_TEMPLATE = overviewPage;
 
-/**
- * The stored marker that makes a page the trip's Overview (SPEC §25).
- *
- * Exported because it is now read in two languages: this predicate, and the
- * `WHERE` clause `deletePage` refuses on (`apps/web/src/server/pages.ts`). A
- * SQL string literal cannot import a type, so the one thing it can share is
- * this constant — and a hand-typed `'overview'` in a query is exactly how the
- * database's idea of the Overview and the code's would come apart.
- */
-export const OVERVIEW_KIND = "overview";
+/** Whether this page is the trip's undeletable Overview (SPEC §25): its `Page.kind`. */
+export function isOverviewPage(page: { kind?: PageKind | null | undefined }): boolean {
+  return page.kind === OVERVIEW_KIND;
+}
 
-/** Whether this page is the trip's undeletable Overview (SPEC §25). */
-export function isOverviewPage(context: PageContext): boolean {
-  return context.kind === OVERVIEW_KIND;
+/**
+ * The title an Overview is shown under: `Overview — <trip name>` while its
+ * stored title is its seed's (the Overview has been seeded "Overview" since it
+ * existed), so a renamed trip renames it too; the stored title when a person
+ * has named it. Derived on every read and never stored, because the log cannot
+ * tell a reset from a rename. Only for the Overview (`isOverviewPage`); any
+ * other page shows what it stores.
+ */
+export function overviewDisplayTitle(storedTitle: string, tripName: string): string {
+  return storedTitle === overviewPage.title ? `${overviewPage.title} — ${tripName}` : storedTitle;
 }
 
 /**
@@ -599,8 +601,8 @@ export function isOverviewPage(context: PageContext): boolean {
  * on, read here for the index's control so it offers no delete the server
  * would refuse.
  */
-export function isUndeletablePage(page: { context: PageContext; seedKey?: string | null | undefined }): boolean {
-  return isOverviewPage(page.context) || page.seedKey === TODAY_SEED_KEY;
+export function isUndeletablePage(page: { kind?: PageKind | null | undefined; seedKey?: string | null | undefined }): boolean {
+  return isOverviewPage(page) || page.seedKey === TODAY_SEED_KEY;
 }
 
 /**

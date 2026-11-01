@@ -303,28 +303,13 @@ export type DateScope = z.infer<typeof DateScope>;
 // actually belongs.
 export const PageContext = z.object({
   tripId: z.string().guid(),
-  /**
-   * Marks the trip's **Overview** page — SPEC §25's *"every trip is created
-   * with one notebook page it cannot delete"*, and the page the Overview tab
-   * renders. Absent on every ordinary page, which is what "ordinary" means.
-   *
-   * **Here, and not as a column, because `pages.context` is `jsonb`.** An
-   * optional field on a JSON document needs no migration and no backfill: a
-   * page written before this existed simply has no `kind`, and reads back as
-   * an ordinary page, which is exactly true of it.
-   *
-   * **A literal rather than a boolean.** `isOverview: true` would answer one
-   * question and close the door on the next one; a page that comes with the
-   * trip is a KIND of page, and §25 is explicit that Overview is "a real page"
-   * rather than a flag on a tab. If a second seeded kind ever exists, this
-   * union grows and nothing that reads it has to change shape.
-   */
-  kind: z.literal("overview").optional(),
+  // `kind` lived here until M43 and is now `Page.kind`, a column (decision 2).
+  // Not a field any more, so a create or a PATCH naming it has it stripped: a
+  // person cannot make a page the Overview by saying so.
   /**
    * The page's `DateScope`. **Absent is `"all"`**, rather than a schema
-   * default, for `kind`'s reason: every page and every `PageCreated` written
-   * before it reads back exactly as it was stored, so a replay still equals
-   * its projection.
+   * default: every page and every `PageCreated` written before it reads back
+   * exactly as it was stored, so a replay still equals its projection.
    */
   dateScope: DateScope.optional(),
 });
@@ -366,6 +351,32 @@ export type WidgetShape = z.infer<typeof WidgetShape>;
 export const SeedKey = z.string().min(1).max(100);
 export type SeedKey = z.infer<typeof SeedKey>;
 
+/**
+ * What kind of page this is beyond an ordinary notebook: `"overview"` is SPEC
+ * §25's *"one notebook page it cannot delete"*, the page the Overview tab
+ * renders. A literal rather than a boolean so a second seeded kind grows the
+ * union without changing any reader's shape.
+ *
+ * **A column, not a field of `PageContext`** (M43 decision 2), with a partial
+ * unique index holding one Overview per trip. No input carries it: a page's
+ * kind follows from its seed key (`pageKindOf`), and only the seeder writes a
+ * seed key, so only seeding makes an Overview.
+ */
+export const PageKind = z.literal("overview");
+export type PageKind = z.infer<typeof PageKind>;
+
+/** The Overview's `PageKind`, named once for every reader that compares against it. */
+export const OVERVIEW_KIND: PageKind = "overview";
+
+/**
+ * The kind a page with this seed key is: the Overview's seed is the Overview.
+ * The one rule, read by the `pages` projection, the lazy seeder and the page
+ * fold, so the column and the domain cannot disagree about which page it is.
+ */
+export function pageKindOf(seedKey: string | null | undefined): PageKind | null {
+  return seedKey === "overview" ? OVERVIEW_KIND : null;
+}
+
 export const Page = z.object({
   id: z.string().guid(),
   tripId: z.string().guid(),
@@ -380,6 +391,8 @@ export const Page = z.object({
    * every other page, and on a list from a server deployed before it.
    */
   seedKey: SeedKey.optional(),
+  /** Present on the trip's Overview (`PageKind`), absent on every other page. */
+  kind: PageKind.optional(),
 });
 export type Page = z.infer<typeof Page>;
 
@@ -405,7 +418,7 @@ export const SYSTEM_ACTOR_ID = "system";
  * `GET /v1/…/pages` paging on a field the rows are not sorted by, which cannot
  * be made correct from the caller's side however the cursor is compared.
  */
-export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, createdAt: true, updatedAt: true, actorId: true, seedKey: true });
+export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, createdAt: true, updatedAt: true, actorId: true, seedKey: true, kind: true });
 export type PageSummary = z.infer<typeof PageSummary>;
 
 /**

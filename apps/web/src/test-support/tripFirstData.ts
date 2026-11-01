@@ -1,5 +1,5 @@
 import { historyFixture, tripAccessFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
-import type { TripCover, TripDetail } from "@tc/contracts";
+import { OVERVIEW_KIND, type TripCover, type TripDetail } from "@tc/contracts";
 import type { TripFirstData } from "@/lib/tripFirstData";
 
 // Each fixture is a fresh answer, as each server render is: a provider adopts
@@ -25,7 +25,8 @@ export function tripFirstDataFixture({
     id: FIRST_DATA_OVERVIEW_ID,
     tripId,
     title: "Trip Overview",
-    context: { tripId, kind: "overview" as const },
+    context: { tripId },
+    kind: OVERVIEW_KIND,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     actorId: "system",

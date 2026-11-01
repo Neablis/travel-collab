@@ -1,3 +1,4 @@
+import { OVERVIEW_KIND } from "@tc/contracts";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tripDetailFactory, tripDetailFixture } from "@tc/factories";
@@ -79,7 +80,8 @@ const okPages = {
         id: OVERVIEW_PAGE_ID,
         tripId: TRIP_ID,
         title: "Trip Overview",
-        context: { tripId: TRIP_ID, kind: "overview" as const },
+        context: { tripId: TRIP_ID },
+        kind: OVERVIEW_KIND,
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
         actorId: "system",
@@ -95,7 +97,8 @@ const okPageDoc = (text: string) => ({
     id: OVERVIEW_PAGE_ID,
     tripId: TRIP_ID,
     title: "Trip Overview",
-    context: { tripId: TRIP_ID, kind: "overview" as const },
+    context: { tripId: TRIP_ID },
+    kind: OVERVIEW_KIND,
     content: { v: 1, type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -276,7 +279,7 @@ describe("OverviewLens — Today, around and during the trip", () => {
       ...okPages.value,
       pages: [
         { ...okPages.value.pages[0]!, tripId, seedKey: "overview" },
-        { ...okPages.value.pages[0]!, id: TODAY_ID, tripId, title: "Today", context: { tripId, dateScope: "today" as const }, seedKey: "today" },
+        { ...okPages.value.pages[0]!, id: TODAY_ID, tripId, title: "Today", context: { tripId, dateScope: "today" as const }, seedKey: "today", kind: undefined },
       ],
     },
   });

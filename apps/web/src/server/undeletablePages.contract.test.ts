@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { TODAY_UNDELETABLE, undeletableReason } from "@tc/domain";
-import { TEMPLATE_LIBRARY, TODAY_SEED_KEY, instantiateDefaults, isUndeletablePage } from "@tc/pages";
+import { pageKindOf } from "@tc/contracts";
+import { OVERVIEW_UNDELETABLE, TODAY_UNDELETABLE, undeletableReason } from "@tc/domain";
+import { TEMPLATE_LIBRARY, instantiateDefaults, isUndeletablePage } from "@tc/pages";
 
 // One rule, two copies (PR 540 review, finding 5). The server refuses a delete
 // on `undeletableReason` (`@tc/domain`); the index hides Delete and MSW answers
@@ -9,12 +10,13 @@ import { TEMPLATE_LIBRARY, TODAY_SEED_KEY, instantiateDefaults, isUndeletablePag
 // If they drift, the index offers a Delete that always gets a 409, or hides one
 // that works.
 describe("which notebooks cannot be deleted", () => {
-  const seeded = instantiateDefaults("t", () => "id");
+  // Each with the kind its row is written with (`pageKindOf`, M43).
+  const asRow = (seedKey: string | null) => ({ seedKey, kind: pageKindOf(seedKey) });
+  const seeded = instantiateDefaults("t", () => "id").map((seed) => asRow(seed.seedKey));
 
   it("is the same answer from the domain and from @tc/pages, for every seed and a notebook of your own", () => {
-    const yours = { context: { tripId: "t" }, seedKey: null };
-    const library = TEMPLATE_LIBRARY.map((t) => ({ context: t.buildContext("t"), seedKey: t.key }));
-    for (const page of [...seeded, ...library, yours]) {
+    const library = TEMPLATE_LIBRARY.map((t) => asRow(t.key));
+    for (const page of [...seeded, ...library, asRow(null)]) {
       expect({ seedKey: page.seedKey, domain: undeletableReason(page) !== null }).toEqual({
         seedKey: page.seedKey,
         domain: isUndeletablePage(page),
@@ -22,9 +24,9 @@ describe("which notebooks cannot be deleted", () => {
     }
   });
 
-  it("covers Today, so the comparison above is not vacuous", () => {
-    const today = seeded.find((page) => page.seedKey === TODAY_SEED_KEY);
-    expect(today).toBeDefined();
-    expect(undeletableReason(today!)).toBe(TODAY_UNDELETABLE);
+  it("covers the Overview and Today, so the comparison above is not vacuous", () => {
+    expect(seeded.map((page) => undeletableReason(page))).toEqual(
+      expect.arrayContaining([OVERVIEW_UNDELETABLE, TODAY_UNDELETABLE]),
+    );
   });
 });

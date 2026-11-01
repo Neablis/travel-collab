@@ -43,7 +43,7 @@ type OverviewState =
 // readable, which is the whole point of a read-only presentation.
 function stateFor(summary: PageSummary, page: Page, pages: readonly PageSummary[]): OverviewState {
   const inspected = inspectStoredPageDoc(page.content);
-  const wholeTripId = isOverviewPage(summary.context) ? null : (pages.find((p) => isOverviewPage(p.context))?.id ?? null);
+  const wholeTripId = isOverviewPage(summary) ? null : (pages.find((p) => isOverviewPage(p))?.id ?? null);
   return inspected.status === "unreadable"
     ? { status: "unreadable", page: summary, wholeTripId }
     : { status: "ready", page: summary, doc: inspected.doc, wholeTripId };
