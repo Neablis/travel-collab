@@ -82,7 +82,12 @@ export function toPage(row: typeof pages.$inferSelect): Page {
 // browser AFTER the download. That is the one field which makes a list
 // response unbounded, and the Notebooks menu re-reads this list on every open.
 // Projecting here makes the declared return type true (Copilot, PR #126).
+//
+// `kind` comes from the seed key, as the fold reads it, not from the column:
+// while the build before M43 is still live it seeds Overviews with no `kind`
+// after 0070's backfill has run. The column only backs the one-per-trip index.
 function toSummary(row: typeof pages.$inferSelect): PageSummary {
+  const kind = pageKindOf(row.seedKey);
   return {
     id: row.id,
     tripId: row.tripId,
@@ -92,7 +97,7 @@ function toSummary(row: typeof pages.$inferSelect): PageSummary {
     updatedAt: row.updatedAt,
     actorId: row.actorId,
     ...(row.seedKey === null ? {} : { seedKey: row.seedKey }),
-    ...(row.kind == null ? {} : { kind: row.kind }),
+    ...(kind === null ? {} : { kind }),
   };
 }
 
@@ -277,7 +282,7 @@ export async function getPage(id: string): Promise<Page | null> {
  * **What went with them, and why that is safe.** `deletePage` refused the
  * Overview in SQL (`coalesce(context->>'kind','') <> 'overview'`), a guard
  * against the state `updatePage` could produce by storing a caller's whole
- * `context` and dropping the marker. The marker is `pages.kind` now (M43),
+ * `context` and dropping the marker. The Overview is its seed key now (M43),
  * which no input carries and `EditPage` cannot reach, so no request can mark
  * or unmark a page in either direction — the property is structural instead
  * of defended, and `pages.int.test.ts` asserts both halves through the command.
