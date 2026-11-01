@@ -716,6 +716,29 @@ describe("acceptSuggestionChanges", () => {
     ]);
   });
 
+  // The per-change Accept button is the main UI path (PR 671 review), and it
+  // does not go through acceptSuggestionChanges.
+  it("records suggestion_accepted when changes are accepted one at a time, once per turn", async () => {
+    const turnId = randomUUID();
+    await db.insert(aiUsage).values({
+      id: turnId,
+      userId: EDITOR,
+      endpoint: "ask",
+      outcome: "completed",
+      taskClass: "plan",
+      turnModel: "test/model",
+      steps: 1,
+      createdAt: new Date(),
+    });
+    const created = await createSuggestion(tripId, EDITOR, draft([rename("One")], [rename("Two")]), undefined, { via: "assistant", turnId });
+    if (!created.ok) throw new Error(JSON.stringify(created.error));
+    const outcomes = () => db.select().from(aiTurnOutcomes).where(eq(aiTurnOutcomes.turnId, turnId));
+    expect(await resolveSuggestionChange(tripId, created.value[0]!.id, OWNER, "accept")).toMatchObject({ ok: true });
+    expect(await outcomes()).toMatchObject([{ kind: "suggestion_accepted", actor: OWNER }]);
+    expect(await resolveSuggestionChange(tripId, created.value[1]!.id, OWNER, "accept")).toMatchObject({ ok: true });
+    expect(await outcomes()).toHaveLength(1);
+  });
+
   it("accepts ten changes as one History entry, which one undo takes back whole, leaving them accepted", async () => {
     const newDay = randomUUID();
     // Sam's stops build on Sam's new day; Sue's go on the day the trip has.

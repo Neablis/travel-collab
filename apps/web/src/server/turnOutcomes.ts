@@ -15,6 +15,15 @@ import { aiTurnOutcomes, aiUsage } from "./db/schema";
  * account's turns with outcomes. `anyAsker` is the one exception, because
  * the member who may accept a suggestion is the turn's asker (`requestedBy`)
  * or, on a trip with none, any editor — so `anyAsker` joins on the turn alone.
+ *
+ * **One row per (turn, kind)**, by a unique index: a double press, a retried
+ * request or a second accept of the same turn's suggestion is still `true` and
+ * adds nothing, so a count of rows is a count of turns.
+ *
+ * **Accepted limit:** the `ai_usage` row is written in the ask route's
+ * `after()` task, while the turn id reaches the browser in the final chunk. A
+ * press that beats the ledger write finds no turn and is lost (`false`, and
+ * the client ignores it). Narrow for a human; not worth holding the stream for.
  */
 export async function recordTurnOutcome(
   turnId: string,
@@ -29,7 +38,10 @@ export async function recordTurnOutcome(
       .where(anyAsker ? eq(aiUsage.id, turnId) : and(eq(aiUsage.id, turnId), eq(aiUsage.userId, actor)))
       .limit(1);
     if (turn === undefined) return false;
-    await db.insert(aiTurnOutcomes).values({ id: randomUUID(), turnId, kind, at: now, actor });
+    await db
+      .insert(aiTurnOutcomes)
+      .values({ id: randomUUID(), turnId, kind, at: now, actor })
+      .onConflictDoNothing({ target: [aiTurnOutcomes.turnId, aiTurnOutcomes.kind] });
     return true;
   } catch (error) {
     console.error("ai: recording a turn outcome failed", { turnId, kind, error });

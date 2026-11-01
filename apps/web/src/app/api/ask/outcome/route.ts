@@ -11,7 +11,12 @@ import { readBody } from "@/server/readBody";
 
 const OutcomeInput = z.object({ turnId: z.string().guid(), kind: z.enum(CLIENT_OUTCOME_KINDS) });
 
-/** 204 once recorded; 404 for a turn that is not the caller's, which is not told apart from one that does not exist. */
+/**
+ * 204 once recorded (a repeat of the same press too); 404 for a turn that is
+ * not the caller's, which is not told apart from one that does not exist. That
+ * includes a press that beats the turn's `ai_usage` row, written after the
+ * stream ends: an accepted limit, the outcome is lost (`recordTurnOutcome`).
+ */
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) return Response.json({ error: "unauthenticated" }, { status: 401 });

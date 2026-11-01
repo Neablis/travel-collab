@@ -1658,8 +1658,8 @@ export const aiCapabilityGaps = pgTable(
   (t) => [index("ai_capability_gaps_turn").on(t.turnId), index("ai_capability_gaps_created").on(t.createdAt)],
 );
 
-// **What a person did with a turn's answer** (M57, ADR-085): one row per press
-// or approval, joined to the turn by `turn_id` (an `ai_usage.id`, no foreign
+// **What a person did with a turn's answer** (M57, ADR-085): one row per turn and
+// kind of press or approval, joined to the turn by `turn_id` (an `ai_usage.id`, no foreign
 // key — ADR-025). `kind` is a `TurnOutcomeKind` (turnOutcomes.ts); `actor` the
 // person who acted, who is the turn's asker for every kind but a suggestion
 // accepted by someone else. Never the text of anything.
@@ -1672,7 +1672,7 @@ export const aiTurnOutcomes = pgTable(
     at: timestamp("at", { withTimezone: true, mode: "date" }).notNull(),
     actor: text("actor").notNull(),
   },
-  (t) => [index("ai_turn_outcomes_turn").on(t.turnId), index("ai_turn_outcomes_at").on(t.at)],
+  (t) => [uniqueIndex("ai_turn_outcomes_turn_kind").on(t.turnId, t.kind), index("ai_turn_outcomes_at").on(t.at)],
 );
 
 // **One row per tool call** (M31 Phase 1, ADR-062 §5) — which tools work, and

@@ -67,9 +67,13 @@ test("Home's rail hands a trip to New trip prefilled, and its other ask is a chi
   await page.goto("/home");
 
   // What the presses reported (M57): a turn's outcomes join to it on the server.
+  // The status rides with each kind: a 404 (a turn id the server does not
+  // know) would leave the requests unchanged and the outcomes unwritten.
   const outcomes: string[] = [];
-  page.on("request", (r) => {
-    if (new URL(r.url()).pathname === "/api/ask/outcome") outcomes.push((r.postDataJSON() as { kind: string }).kind);
+  page.on("response", (r) => {
+    if (new URL(r.url()).pathname === "/api/ask/outcome") {
+      outcomes.push(`${(r.request().postDataJSON() as { kind: string }).kind} ${r.status()}`);
+    }
   });
 
   const mezcal = "add a mezcal tasting";
@@ -121,5 +125,5 @@ test("Home's rail hands a trip to New trip prefilled, and its other ask is a chi
   await expect(rail(page).getByRole("log", { name: "Conversation" })).toContainText(mezcal);
   await expect(chips).toBeHidden();
   // The turn id rode the hand-off, the new trip and the chip, across a reload.
-  await expect.poll(() => outcomes).toEqual(["hand_off_pressed", "trip_created_from_hand_off", "carried_ask_pressed"]);
+  await expect.poll(() => outcomes).toEqual(["hand_off_pressed 204", "trip_created_from_hand_off 204", "carried_ask_pressed 204"]);
 });

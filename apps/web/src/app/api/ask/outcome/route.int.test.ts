@@ -68,6 +68,20 @@ describe("POST /api/ask/outcome", () => {
     expect(await rowsOf(theirs)).toEqual([]);
   });
 
+  it("double press writes one row: a repeat of the same kind on a turn is still a 204 and adds nothing", async () => {
+    const turnId = await seedTurn(ASKER);
+    expect((await POST(post({ turnId, kind: "hand_off_pressed" }))).status).toBe(204);
+    expect((await POST(post({ turnId, kind: "hand_off_pressed" }))).status).toBe(204);
+    expect(await rowsOf(turnId)).toHaveLength(1);
+  });
+
+  it("refuses a turn id that is not a guid with a 400, and a body over a kilobyte with a 413, writing nothing", async () => {
+    const turnId = await seedTurn(ASKER);
+    expect((await POST(post({ turnId: "not-a-guid", kind: "hand_off_pressed" }))).status).toBe(400);
+    expect((await POST(post({ turnId, kind: "hand_off_pressed", padding: "x".repeat(2048) }))).status).toBe(413);
+    expect(await rowsOf(turnId)).toEqual([]);
+  });
+
   it("refuses a kind only the server may write, and a signed-out caller", async () => {
     const turnId = await seedTurn(ASKER);
     expect((await POST(post({ turnId, kind: "proposal_applied" }))).status).toBe(400);
@@ -80,7 +94,10 @@ describe("POST /api/ask/outcome", () => {
     process.env.TURN_OUTCOME_RATE_LIMIT_PER_USER_MINUTE = "2";
     const turnId = await seedTurn(ASKER);
     const statuses: number[] = [];
-    for (let i = 0; i < 3; i += 1) statuses.push((await POST(post({ turnId, kind: "carried_ask_pressed" }))).status);
+    // Distinct kinds, since a repeat of one kind is one row.
+    for (const kind of ["carried_ask_pressed", "hand_off_pressed", "trip_created_from_hand_off"] as const) {
+      statuses.push((await POST(post({ turnId, kind }))).status);
+    }
     expect(statuses).toEqual([204, 204, 429]);
     expect(await rowsOf(turnId)).toHaveLength(2);
   });
