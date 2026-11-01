@@ -135,13 +135,20 @@ function switchLines(persona: PersonaId): string[] {
 }
 
 /** The block, as rules: what this page changes, where the rest is done, and how a turn ends instead of refusing. */
-export function capabilityBlock(surface: SurfaceKind, limit: ChangeLimit = null, taskClass?: TaskClass): PromptBlock[] {
+export function capabilityBlock(
+  surface: SurfaceKind,
+  limit: ChangeLimit = null,
+  taskClass?: TaskClass,
+  // The persona the step is served as. Not the entry after the turn's one switch,
+  // which leaves it nothing to call: telling it to would cost a refused step.
+  persona: PersonaId = ENTRY[surface],
+): PromptBlock[] {
   const { changes, elsewhere } = capabilitiesOf(surface, limit);
   const aboutTrip = ABOUT_A_TRIP.has(surface);
   return [
     changes.length === 0 ? "From this page you can change nothing." : `From this page you can change ${changes.join("; ")}.`,
     // A limited turn is offered no `switch_persona` (a `steer` tool), so it is not told of one.
-    ...(limit === null ? switchLines(ENTRY[surface]) : []),
+    ...(limit === null && persona === ENTRY[surface] ? switchLines(persona) : []),
     ...elsewhere.map(({ change, to }) => `Not from here: ${change}. For that, ${to.map((route) => ROUTE_WORDS[route](aboutTrip)).join(", or ")}.`),
     // A viewer's change is not a task done somewhere else: no page in this app
     // lets them make it, so a hand-off would point at nothing true.

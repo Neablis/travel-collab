@@ -104,6 +104,22 @@ vi.mock("@/server/assistant/deps", async (importOriginal) => {
   };
 });
 
+// The persona the turn's latch starts in, and the caps every edge's guard is read
+// against (M57). A viewer's turn is never offered `switch_persona`, so no model
+// script can reach the server's re-check with caps that fail it; the wiring of
+// the admitted caps into the latch is read here instead.
+const latchStarts: { entry: string; caps: { role: string; plan: string; classifier: string } }[] = [];
+vi.mock("@/server/assistant/intents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/assistant/intents")>();
+  return {
+    ...actual,
+    newIntentLatch: (...args: Parameters<typeof actual.newIntentLatch>) => {
+      latchStarts.push(args[3]);
+      return actual.newIntentLatch(...args);
+    },
+  };
+});
+
 // M48's ledger count: retrieval needs an embedding provider and a corpus, so
 // the two seams are stubbed per test. Off by default, every other test sees
 // the real module with the flag as configured (off in this lane).
@@ -564,20 +580,36 @@ function escalatingModel() {
  * the swap of tool sets is read off the wire, and the classifier's verdict is
  * the caller's so one script serves an edit turn and a question turn.
  */
-function switchingModel(verdict: "edit" | "question") {
+function switchingModel(
+  verdict: "edit" | "question",
+  // What the step that calls `switch_persona` reports spending, for a turn that
+  // is wrapped up right after its switch.
+  switchStepInputTokens = 0,
+  // What the model does once it holds Discover: read the trip, or escalate (a
+  // question turn that looked something up and now has to change the trip).
+  thenCall: "read_trip" | "request_change_tools" = "read_trip",
+) {
   const offeredPerCall: string[][] = [];
+  const systemPerCall: string[] = [];
   const usage = {
     inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
     outputTokens: { total: 0, text: undefined, reasoning: undefined },
   };
-  function stepFor(options: { prompt?: { role?: string; content?: unknown }[] }): { content: Record<string, unknown>[]; finishReason: { unified: string; raw: undefined } } {
+  const usageFor = (content: Record<string, unknown>[]) =>
+    content.some((part) => part.toolName === "switch_persona")
+      ? { ...usage, inputTokens: { ...usage.inputTokens, total: switchStepInputTokens, noCache: switchStepInputTokens } }
+      : usage;
+  function stepFor(options: { prompt?: { role?: string; content?: unknown }[]; tools?: { name?: string }[] }): { content: Record<string, unknown>[]; finishReason: { unified: string; raw: undefined } } {
     const system = (options.prompt ?? [])
       .filter((m) => m.role === "system" && typeof m.content === "string")
       .map((m) => m.content as string)
       .join("\n");
+    systemPerCall.push(system);
     if (isAskIntentCall(system)) {
       return { content: [{ type: "text", text: askIntentVerdictText(verdict, "sure") }], finishReason: { unified: "stop", raw: undefined } };
     }
+    // A wrap-up step is offered nothing and must answer in prose.
+    if ((options.tools ?? []).length === 0) return { content: [{ type: "text", text: "Here is what I have." }], finishReason: { unified: "stop", raw: undefined } };
     const called = (options.prompt ?? []).flatMap((message) =>
       Array.isArray(message.content)
         ? (message.content as { type?: string; toolName?: string }[]).filter((part) => part.type === "tool-result").map((part) => part.toolName!)
@@ -588,7 +620,7 @@ function switchingModel(verdict: "edit" | "question") {
       finishReason: { unified: "tool-calls", raw: undefined },
     });
     if (!called.includes("switch_persona")) return call("switch_persona", { to: "discover", why: "they asked for a real place" });
-    if (!called.includes("read_trip")) return call("read_trip", {});
+    if (!called.includes(thenCall)) return call(thenCall, thenCall === "read_trip" ? {} : { reason: "they also want it added", intendedChange: "add the place to day 1" });
     return { content: [{ type: "text", text: "Here is what I found." }], finishReason: { unified: "stop", raw: undefined } };
   }
   const model = {
@@ -599,7 +631,7 @@ function switchingModel(verdict: "edit" | "question") {
     doGenerate: async (options: Parameters<typeof stepFor>[0] & { tools?: { name?: string }[] }) => {
       offeredPerCall.push((options.tools ?? []).map((tool) => tool.name ?? "?"));
       const { content, finishReason } = stepFor(options);
-      return { content, finishReason, usage, warnings: [] };
+      return { content, finishReason, usage: usageFor(content), warnings: [] };
     },
     doStream: async (options: Parameters<typeof stepFor>[0] & { tools?: { name?: string }[] }) => {
       offeredPerCall.push((options.tools ?? []).map((tool) => tool.name ?? "?"));
@@ -619,7 +651,7 @@ function switchingModel(verdict: "edit" | "question") {
               controller.enqueue({ type: "text-delta", id: textId, delta: part.text as string });
               controller.enqueue({ type: "text-end", id: textId });
             }
-            controller.enqueue({ type: "finish", finishReason, usage });
+            controller.enqueue({ type: "finish", finishReason, usage: usageFor(content) });
             controller.close();
           },
         }),
@@ -627,7 +659,7 @@ function switchingModel(verdict: "edit" | "question") {
     },
   } as unknown as Parameters<typeof handleAskRequest>[2];
   // The classifier call is the first, and the turn's own offers every call after it.
-  return { model, turnOffers: () => offeredPerCall.slice(1) };
+  return { model, turnOffers: () => offeredPerCall.slice(1), turnSystems: () => systemPerCall.slice(1) };
 }
 
 /**
@@ -1522,9 +1554,9 @@ describe("POST /api/trips/:id/ask", () => {
     // trip page enters Schedule, which holds no lookup tools; the model switches
     // to Discover and the NEXT step holds them, in the same conversation.
     describe("switch_persona", () => {
-      const runSwitching = async (verdict: "edit" | "question") => {
+      const runSwitching = async (verdict: "edit" | "question", ...rest: [number?, ("read_trip" | "request_change_tools")?]) => {
         const tripId = await seedTrip();
-        const { model, turnOffers } = switchingModel(verdict);
+        const { model, turnOffers, turnSystems } = switchingModel(verdict, ...rest);
         const ledgers: TurnLedger[] = [];
         const res = await handleAskRequest(
           req(tripId, { messages: [userMessage("find me a ramen place near day 1")], scope: { kind: "trip" } }),
@@ -1535,7 +1567,7 @@ describe("POST /api/trips/:id/ask", () => {
           },
         );
         await res.text();
-        return { offers: turnOffers(), steps: ledgers[0]!.stepSpend };
+        return { offers: turnOffers(), systems: turnSystems(), steps: ledgers[0]!.stepSpend };
       };
 
       it("swaps the tools the next step holds, and records the edge on the step that crossed it", async () => {
@@ -1552,6 +1584,56 @@ describe("POST /api/trips/:id/ask", () => {
           ["discover", "schedule", "switch"],
           ["discover", null, null],
         ]);
+      });
+
+      // The instruction follows the persona served: Schedule is told of the one
+      // switch, and the step after it is not, as it holds no tool to make it.
+      it("tells only the step that can switch to call switch_persona", async () => {
+        const { systems } = await runSwitching("edit");
+
+        expect(systems[0]).toContain("call switch_persona");
+        expect(systems[1]).not.toContain("switch_persona");
+        expect(systems[1]).toContain("You have switched to Discover");
+      });
+
+      // A switch made on the step that trips the input-token ceiling is still
+      // the turn's edge: the wrap-up step runs as the persona the latch holds
+      // and records where it came from, rather than reading as Schedule.
+      it("records the edge and the persona on a wrap-up step that follows the switch", async () => {
+        const { steps } = await runSwitching("edit", ASK_INPUT_TOKEN_CEILING + 1);
+
+        expect(steps.map((step) => [step.persona, step.fromPersona, step.edgeKind])).toEqual([
+          ["schedule", null, null],
+          ["discover", "schedule", "switch"],
+        ]);
+      });
+
+      // The server re-checks the edge's guard against the turn's own caps, so the
+      // latch must be built with the ones the turn was admitted under: a viewer's
+      // role, and a question's classifier.
+      it("reads an edge's guard against the caps the turn was admitted under", async () => {
+        latchStarts.length = 0;
+        await runSwitching("question");
+        expect(latchStarts.at(-1)).toEqual({ entry: "schedule", caps: { role: "propose", plan: "propose", classifier: "read" } });
+
+        const tripId = await seedTrip();
+        await grantViewer(tripId, VIEWER_ID);
+        currentUserId = VIEWER_ID;
+        await (await ask(tripId, { messages: [userMessage("what's on day 1?")], scope: { kind: "trip" } })).text();
+        expect(latchStarts.at(-1)).toMatchObject({ entry: "schedule", caps: { role: "read" } });
+      });
+
+      // A question turn that looked something up and now has to change the trip:
+      // Schedule, Discover, then Discover's own escalation. The change tools
+      // arrive in the persona the turn is in, and the switch stays spent.
+      it("lets a question turn escalate inside the persona it switched to", async () => {
+        const { offers } = await runSwitching("question", 0, "request_change_tools");
+
+        expect(offers[1]).toContain("request_change_tools");
+        expect(offers[1]).not.toContain("AddActivity");
+        expect(offers[2]).toContain("AddActivity");
+        expect(offers[2]).toContain("search_places");
+        expect(offers[2]).not.toContain("switch_persona");
       });
 
       // The same switch on a turn the classifier read as a question: Discover's

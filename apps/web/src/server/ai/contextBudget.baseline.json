@@ -25,10 +25,10 @@
         "request_change_tools",
         "switch_persona"
       ],
-      "toolChars": 9060,
+      "toolChars": 9049,
       "instructionChars": 3262,
-      "totalChars": 12322,
-      "approxTokens": 3723
+      "totalChars": 12311,
+      "approxTokens": 3719
     },
     "trip · question · under way": {
       "tools": [
@@ -42,10 +42,10 @@
         "request_change_tools",
         "switch_persona"
       ],
-      "toolChars": 9060,
+      "toolChars": 9049,
       "instructionChars": 3677,
-      "totalChars": 12737,
-      "approxTokens": 3848
+      "totalChars": 12726,
+      "approxTokens": 3845
     },
     "trip · edit": {
       "tools": [
@@ -70,10 +70,10 @@
         "hand_off",
         "switch_persona"
       ],
-      "toolChars": 24139,
-      "instructionChars": 4156,
-      "totalChars": 28295,
-      "approxTokens": 8548
+      "toolChars": 24128,
+      "instructionChars": 4500,
+      "totalChars": 28628,
+      "approxTokens": 8649
     },
     "trip · plan": {
       "tools": [
@@ -95,10 +95,10 @@
         "hand_off",
         "switch_persona"
       ],
-      "toolChars": 23080,
-      "instructionChars": 4463,
-      "totalChars": 27543,
-      "approxTokens": 8321
+      "toolChars": 23069,
+      "instructionChars": 4807,
+      "totalChars": 27876,
+      "approxTokens": 8422
     },
     "trip · unsure": {
       "tools": [
@@ -123,10 +123,10 @@
         "hand_off",
         "switch_persona"
       ],
-      "toolChars": 24139,
-      "instructionChars": 4156,
-      "totalChars": 28295,
-      "approxTokens": 8548
+      "toolChars": 24128,
+      "instructionChars": 4500,
+      "totalChars": 28628,
+      "approxTokens": 8649
     },
     "trip · question · switched to discover": {
       "tools": [
@@ -143,9 +143,9 @@
         "request_change_tools"
       ],
       "toolChars": 11082,
-      "instructionChars": 3747,
-      "totalChars": 14829,
-      "approxTokens": 4480
+      "instructionChars": 3544,
+      "totalChars": 14626,
+      "approxTokens": 4419
     },
     "trip · edit · switched to discover": {
       "tools": [
@@ -174,9 +174,9 @@
         "hand_off"
       ],
       "toolChars": 26747,
-      "instructionChars": 5261,
-      "totalChars": 32008,
-      "approxTokens": 9670
+      "instructionChars": 5058,
+      "totalChars": 31805,
+      "approxTokens": 9609
     },
     "trip · plan · switched to discover": {
       "tools": [
@@ -202,9 +202,9 @@
         "hand_off"
       ],
       "toolChars": 25688,
-      "instructionChars": 5568,
-      "totalChars": 31256,
-      "approxTokens": 9443
+      "instructionChars": 5365,
+      "totalChars": 31053,
+      "approxTokens": 9382
     },
     "page · compose": {
       "tools": [
@@ -368,13 +368,13 @@
       "chars": 601,
       "approxTokens": 182
     },
-    "switch_persona": {
-      "chars": 588,
-      "approxTokens": 178
-    },
     "insert_playbook_day": {
       "chars": 586,
       "approxTokens": 177
+    },
+    "switch_persona": {
+      "chars": 577,
+      "approxTokens": 174
     },
     "go_to": {
       "chars": 488,

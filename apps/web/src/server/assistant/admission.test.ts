@@ -43,6 +43,7 @@ import {
 } from "./admission";
 import { NO_CEILINGS, PERMITS_EVERYTHING, type EntitlementCeilings } from "./entitlements";
 import { turnNowOf } from "./context";
+import { EDGES, type Edge } from "./personas";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const PAGE_ID = "22222222-2222-4222-8222-222222222222";
@@ -363,8 +364,9 @@ describe("the ai.grant record", () => {
     // tool, which `defineTool`'s `postures` narrows further to the `withheld`
     // turn. A granted DOMAIN and an offered TOOL are different facts, and this
     // is the record of the first: `record.tools` below is the second.
-    // Schedule's row (M57 part 4): the lookup domains are Discover's, reached by a switch.
-    expect(record.grants).toEqual({ itinerary: "propose", system: "read", ui: "read" });
+    // What the turn may do over all of it (M57 part 4): Schedule's row, and the
+    // lookup domains a switch to Discover adds. `grant.grants` stays Schedule's.
+    expect(record.grants).toEqual({ itinerary: "propose", library: "propose", places: "read", system: "read", ui: "read" });
     expect(record.tools).not.toContain("request_change_tools");
     expect(record.tools).toContain("read_trip");
     expect(record.tools).toContain("AddActivity");
@@ -505,6 +507,31 @@ describe("the grant a turn holds", () => {
     // viewer's — see `ACCESS_LINE` in handleAskRequest.ts.
     expect(admission.grant.posture).toBe("withheld");
     expect(admission.grant.tools.map((tool) => tool.name)).not.toContain("AddActivity");
+  });
+
+  // `canSwitch` is the graph's answer, not a copy of the tool's own posture: the
+  // registry would offer `switch_persona` to this editor whether or not an edge
+  // leaves Schedule. Every real graph has the edge, so the test removes it.
+  it("offers switch_persona only where an edge leaves the entry persona under the turn's caps", async () => {
+    const offered = async () => {
+      const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports: spyPorts().ports });
+      if (!admission.ok) throw new Error("not admitted");
+      return admission.grant;
+    };
+    const withEdge = await offered();
+    expect(withEdge.tools.map((tool) => tool.name)).toContain("switch_persona");
+    expect(Object.keys(withEdge.switches)).toEqual(["discover"]);
+
+    const edges = EDGES as Edge[];
+    const all = [...edges];
+    edges.splice(0, edges.length, ...all.filter((edge) => edge.via !== "switch_persona"));
+    try {
+      const without = await offered();
+      expect(without.tools.map((tool) => tool.name)).not.toContain("switch_persona");
+      expect(without.switches).toEqual({});
+    } finally {
+      edges.splice(0, edges.length, ...all);
+    }
   });
 
   // A page turn reads the trip and writes the page: `itinerary` capped at
