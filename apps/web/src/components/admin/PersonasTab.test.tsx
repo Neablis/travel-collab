@@ -16,7 +16,7 @@ afterEach(() => {
   fetchTurnTrace.mockReset();
 });
 
-const zero = { turns: 0, costPerTurnMicroUsd: 0, costPerOutcomeMicroUsd: 0 };
+const zero = { turns: 0, costPerTurnMicroUsd: null, costPerOutcomeMicroUsd: null };
 const REPORT: PersonaReport = {
   windowDays: 30,
   turns: 3,
@@ -57,8 +57,15 @@ describe("the Personas tab", () => {
     expect(screen.queryByText(/NaN/)).toBeNull();
   });
 
+  it("reads n/a, not a free $0.0000, for turns with no priced turn or no outcome", () => {
+    render(<PersonasTab report={{ ...REPORT, costPerTurnMicroUsd: null, costPerOutcomeMicroUsd: null, nodes: [{ ...REPORT.nodes[0]!, costPerTurnMicroUsd: null, costPerOutcomeMicroUsd: null }, REPORT.nodes[1]!] }} />);
+    expect(within(screen.getByTestId("persona-schedule")).getAllByText("n/a")).toHaveLength(2);
+    expect(screen.getByTestId("personas-window").textContent).toContain("Cost per turn n/a, per successful outcome n/a.");
+    expect(screen.queryByText(/\$0\.0000/)).toBeNull();
+  });
+
   it("opens a recent turn's breakdown with the same TurnBreakdown the Ask panel uses", async () => {
-    fetchTurnTrace.mockResolvedValue({ ok: false });
+    fetchTurnTrace.mockResolvedValue({ ok: false, error: { status: 500 } });
     render(<PersonasTab report={REPORT} />);
     const row = within(screen.getByTestId("recent-11111111-1111-4111-8111-111111111111"));
     expect(row.getByText(/Schedule then Discover, \$0\.0020, completed, proposal_applied/)).toBeTruthy();

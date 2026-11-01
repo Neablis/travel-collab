@@ -7,7 +7,7 @@ import { TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
 import { TabStrip } from "@/components/ui/tab-strip";
 import { Text } from "@/components/ui/text";
 import { TurnBreakdown } from "@/components/assistant/TurnBreakdown";
-import type { PersonaEdge, PersonaNode, PersonaReport } from "@/lib/adminPersonas";
+import type { PersonaEdge, PersonaNode, PersonaReport, TurnStats } from "@/lib/adminPersonas";
 import { cn } from "@/lib/cn";
 import { PERSONA_WINDOWS, personaWindowHref, type PersonaWindow } from "./consoleTab";
 import { microUsdCost } from "./microUsd";
@@ -94,12 +94,15 @@ function Graph({ nodes, edges }: { nodes: PersonaNode[]; edges: PersonaEdge[] })
 const HEAD = "whitespace-nowrap border-b border-border-strong bg-moss font-mono";
 const NUM = "text-right";
 
-function StatCells({ turns, costPerTurnMicroUsd, costPerOutcomeMicroUsd }: { turns: number; costPerTurnMicroUsd: number; costPerOutcomeMicroUsd: number }) {
+/** A null figure has nothing to divide by: say so rather than print a free-looking $0.0000. */
+const cost = (microUsd: number | null) => (microUsd === null ? "n/a" : microUsdCost(microUsd));
+
+function StatCells({ turns, costPerTurnMicroUsd, costPerOutcomeMicroUsd }: TurnStats) {
   return (
     <>
       <TD className={NUM}>{turns}</TD>
-      <TD className={NUM}>{turns === 0 ? "—" : microUsdCost(costPerTurnMicroUsd)}</TD>
-      <TD className={NUM}>{costPerOutcomeMicroUsd === 0 ? "—" : microUsdCost(costPerOutcomeMicroUsd)}</TD>
+      <TD className={NUM}>{cost(costPerTurnMicroUsd)}</TD>
+      <TD className={NUM}>{cost(costPerOutcomeMicroUsd)}</TD>
     </>
   );
 }
@@ -172,7 +175,7 @@ export function PersonasTab({ report }: { report: PersonaReport }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Text variant="secondary" className="text-sm" data-testid="personas-window">
-          {`Last ${report.windowDays} days: ${plural(report.turns, "turn")}, ${plural(report.switches, "persona switch")}, ${plural(report.outcomeTurns, "turn")} someone acted on. Cost per turn ${microUsdCost(report.costPerTurnMicroUsd)}, per successful outcome ${report.costPerOutcomeMicroUsd === 0 ? "n/a" : microUsdCost(report.costPerOutcomeMicroUsd)}.`}
+          {`Last ${report.windowDays} days: ${plural(report.turns, "turn")}, ${plural(report.switches, "persona switch")}, ${plural(report.outcomeTurns, "turn")} someone acted on. Cost per turn ${cost(report.costPerTurnMicroUsd)}, per successful outcome ${cost(report.costPerOutcomeMicroUsd)}.`}
         </Text>
         <TabStrip
           value={String(report.windowDays)}
@@ -187,7 +190,7 @@ export function PersonasTab({ report }: { report: PersonaReport }) {
           <PersonaTable nodes={report.nodes} />
           <EdgeTable edges={report.edges} label={label} />
           <Text variant="secondary" className="text-xs">
-            A turn counts at the persona it entered and in full at every edge it took, so edge figures do not add up to a persona&apos;s. A self-loop changes a mode, not a persona, and the ledger does not see it. A hand-off is counted only when it declined a task.
+            A turn counts at the persona it entered and in full at every edge it took, so edge figures do not add up to a persona&apos;s. A self-loop is read from the step flags it sets; a hand-off from a declined task or a navigation call.
           </Text>
         </div>
       </Panel>
@@ -207,7 +210,8 @@ export function PersonasTab({ report }: { report: PersonaReport }) {
                 <Text variant="secondary" className="text-xs">
                   {new Date(turn.at).toUTCString()}
                 </Text>
-                <TurnBreakdown turnId={turn.turnId} ordinal={index + 1} />
+                {/* Newest first, so the ordinal counts back from the list's length: "answer N" is the Nth oldest shown, as in a thread. */}
+                <TurnBreakdown turnId={turn.turnId} ordinal={report.recent.length - index} />
               </li>
             ))}
           </ul>

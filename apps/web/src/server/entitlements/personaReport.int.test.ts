@@ -26,6 +26,8 @@ interface StepSpec {
   persona: string | null;
   from?: string;
   calls?: string[];
+  escalated?: boolean;
+  pivoted?: boolean;
 }
 
 /** One turn: its ledger row, one priced step per spec, the calls each step made, and what people did with it. */
@@ -69,8 +71,8 @@ async function turn(
       cacheWriteTokens: null,
       tokensOut: 50,
       finishReason: "stop",
-      escalated: false,
-      pivoted: false,
+      escalated: step.escalated ?? false,
+      pivoted: step.pivoted ?? false,
       durationMs: 10,
       provider: null,
       gatewayGenerationId: null,
@@ -113,6 +115,9 @@ const MAP: PersonaMapDef = {
   edges: [
     { from: "schedule", to: "discover", kind: "switch", via: "switch_persona", guard: ["role=propose"] },
     { from: "schedule", to: "schedule", kind: "switch", via: "request_change_tools", guard: [] },
+    { from: "schedule", to: "schedule", kind: "switch", via: "switch_intent", guard: [] },
+    { from: "schedule", to: null, kind: "hand-off", via: "go_to", guard: [] },
+    { from: "schedule", to: null, kind: "hand-off", via: "open_trip", guard: [] },
     { from: "explorer", to: null, kind: "hand-off", via: "nowhere", guard: [] },
   ],
 };
@@ -157,25 +162,48 @@ describe("personaReport", () => {
     // `search_places` was called, but by Discover's step, not Schedule's.
     expect(node("schedule").unusedTools).toEqual(["move_stop", "search_places"]);
     expect(node("discover")).toMatchObject({ turns: 0, unusedTools: ["read_trip"] });
-    expect(node("explorer")).toMatchObject({ turns: 1, costPerTurnMicroUsd: price, costPerOutcomeMicroUsd: 0, unusedTools: ["browse"] });
+    expect(node("explorer")).toMatchObject({ turns: 1, costPerTurnMicroUsd: price, costPerOutcomeMicroUsd: null, unusedTools: ["browse"] });
 
     const edge = (via: string) => report.edges.find((e) => e.via === via)!;
     expect(edge("switch_persona")).toMatchObject({ count: 1, turns: 1, costPerTurnMicroUsd: 2 * price, costPerOutcomeMicroUsd: 2 * price });
-    // A self-loop is a mode change inside one persona: the ledger cannot see it.
+    // Nothing in this window escalated, pivoted or navigated.
     expect(edge("request_change_tools")).toMatchObject({ count: 0, turns: 0 });
-    expect(edge("nowhere")).toMatchObject({ count: 1, turns: 1, costPerTurnMicroUsd: price, costPerOutcomeMicroUsd: 0 });
+    expect(edge("nowhere")).toMatchObject({ count: 1, turns: 1, costPerTurnMicroUsd: price, costPerOutcomeMicroUsd: null });
 
     expect(report.recent.map((r) => r.personaPath)).toEqual([["schedule", "discover"], ["schedule"], ["explorer"]]);
     expect(report.recent[0]).toMatchObject({ outcomeKinds: ["proposal_applied"], outcome: "completed", costMicroUsd: 2 * price });
   });
 
-  it("returns zeros, not NaN, for a window with no turns", async () => {
+  it("counts self-loops from the step flags and navigation hand-offs from the tool calls", async () => {
+    const now = freshNow();
+    const price = microUsdFor(MODEL, 1000, 50, daysBefore(now, 1))!;
+    // Escalated, then pivoted, then navigated: both flags and a go_to call on Schedule's steps.
+    await turn(daysBefore(now, 1), {
+      entry: "schedule",
+      steps: [{ persona: "schedule", escalated: true }, { persona: "schedule", pivoted: true, calls: ["go_to"] }],
+    });
+    // open_trip and go_to on Schedule; a go_to by Discover's step belongs to no Schedule edge.
+    await turn(daysBefore(now, 2), {
+      entry: "schedule",
+      steps: [{ persona: "schedule", calls: ["open_trip", "go_to"] }, { persona: "discover", from: "schedule", calls: ["go_to"] }],
+    });
+
+    const report = await personaReport(MAP, 30, now);
+
+    const edge = (via: string) => report.edges.find((e) => e.via === via)!;
+    expect(edge("request_change_tools")).toMatchObject({ count: 1, turns: 1, costPerTurnMicroUsd: 2 * price });
+    expect(edge("switch_intent")).toMatchObject({ count: 1, turns: 1, costPerTurnMicroUsd: 2 * price });
+    expect(edge("go_to")).toMatchObject({ count: 2, turns: 2, costPerTurnMicroUsd: 2 * price });
+    expect(edge("open_trip")).toMatchObject({ count: 1, turns: 1 });
+  });
+
+  it("returns nulls, not NaN or zero,, for a window with no turns", async () => {
     const report = await personaReport(MAP, 7, freshNow());
 
-    expect(report).toMatchObject({ turns: 0, outcomeTurns: 0, switches: 0, costPerTurnMicroUsd: 0, costPerOutcomeMicroUsd: 0, recent: [] });
+    expect(report).toMatchObject({ turns: 0, outcomeTurns: 0, switches: 0, costPerTurnMicroUsd: null, costPerOutcomeMicroUsd: null, recent: [] });
     expect(report.nodes).toHaveLength(3);
     for (const stats of [...report.nodes, ...report.edges]) {
-      expect(stats).toMatchObject({ turns: 0, costPerTurnMicroUsd: 0, costPerOutcomeMicroUsd: 0 });
+      expect(stats).toMatchObject({ turns: 0, costPerTurnMicroUsd: null, costPerOutcomeMicroUsd: null });
     }
     expect(report.nodes.find((n) => n.id === "explorer")!.unusedTools).toEqual(["browse"]);
   });

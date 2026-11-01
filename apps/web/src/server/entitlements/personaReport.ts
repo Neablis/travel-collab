@@ -23,14 +23,14 @@ import { microUsdForRow } from "./usage";
 //
 // **A successful outcome is a turn someone acted on** — any `ai_turn_outcomes`
 // row, whatever its kind. An empty window, or a set with no priced turn or no
-// outcome, reports zero rather than a division by it.
+// outcome, reports null rather than a division by it or a free-looking zero.
 //
-// **What the ledger cannot see**: a self-loop (`request_change_tools`,
-// `switch_intent`) changes a mode, not a persona, and writes no step with a
-// `from_persona`, so its edge reports no crossings. Hand-offs that end the turn
-// on a button (`go_to`, `open_trip`, `plan_page`) leave no gap row either; only
-// a declined task (`ai_capability_gaps`) does, matched to the edge by its
-// `persona` and `target`.
+// **How each edge is read**: a switch between personas is a step with a
+// `from_persona`; a self-loop changes a mode, not a persona, so it is the step
+// flag it sets (`escalated` is written only once `request_change_tools` has
+// latched the turn's escalation, `pivoted` by `switch_intent`). A hand-off is a
+// declined task (`ai_capability_gaps`, by `persona` and `target`) or a
+// navigation tool call (`go_to`, `open_trip`) made at one of the persona's steps.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -45,7 +45,7 @@ export async function personaReport(map: PersonaMapDef, days: number, now: Date 
     db.select().from(aiUsage).where(inWindow).orderBy(desc(aiUsage.createdAt)),
     db.select({ step: aiUsageSteps }).from(aiUsageSteps).innerJoin(aiUsage, eq(aiUsage.id, aiUsageSteps.turnId)).where(inWindow),
     db
-      .select({ turnId: aiUsageToolCalls.turnId, stepIndex: aiUsageToolCalls.stepIndex, tool: aiUsageToolCalls.tool })
+      .select({ turnId: aiUsageToolCalls.turnId, stepIndex: aiUsageToolCalls.stepIndex, tool: aiUsageToolCalls.tool, outcome: aiUsageToolCalls.outcome })
       .from(aiUsageToolCalls)
       .innerJoin(aiUsage, eq(aiUsage.id, aiUsageToolCalls.turnId))
       .where(inWindow),
@@ -85,18 +85,20 @@ export async function personaReport(map: PersonaMapDef, days: number, now: Date 
     }
     return {
       turns: turnIds.size,
-      costPerTurnMicroUsd: priced === 0 ? 0 : Math.round(total / priced),
-      costPerOutcomeMicroUsd: acted === 0 ? 0 : Math.round(total / acted),
+      costPerTurnMicroUsd: priced === 0 ? null : Math.round(total / priced),
+      costPerOutcomeMicroUsd: acted === 0 ? null : Math.round(total / acted),
     };
   };
 
   // Step personas, to attribute a tool call to the persona whose step made it.
   const personaAt = new Map(steps.map((step) => [`${step.turnId}:${step.stepIndex}`, step.persona]));
   const toolsCalledAs = new Map<string, Set<string>>();
+  const calls: { turnId: string; persona: string; tool: string; outcome: string }[] = [];
   for (const call of callRows) {
     const persona = call.stepIndex === null ? null : personaAt.get(`${call.turnId}:${call.stepIndex}`);
     if (persona === null || persona === undefined) continue;
     toolsCalledAs.set(persona, (toolsCalledAs.get(persona) ?? new Set()).add(call.tool));
+    calls.push({ turnId: call.turnId, persona, tool: call.tool, outcome: call.outcome });
   }
 
   const crossings = steps.filter((step) => step.edgeKind === "switch" && step.fromPersona !== null && step.persona !== null);
@@ -116,9 +118,14 @@ export async function personaReport(map: PersonaMapDef, days: number, now: Date 
     const taken =
       edge.kind === "switch"
         ? edge.from === edge.to
-          ? []
+          ? steps
+              .filter((step) => step.persona === edge.from && (edge.via === "request_change_tools" ? step.escalated : edge.via === "switch_intent" && step.pivoted))
+              .map((step) => step.turnId)
           : crossings.filter((step) => step.fromPersona === edge.from && step.persona === edge.to).map((step) => step.turnId)
-        : gapRows.filter((gap) => gap.persona === edge.from && gap.target === edge.via).map((gap) => gap.turnId);
+        : [
+            ...gapRows.filter((gap) => gap.persona === edge.from && gap.target === edge.via).map((gap) => gap.turnId),
+            ...calls.filter((call) => call.persona === edge.from && call.tool === edge.via && call.outcome === "ok").map((call) => call.turnId),
+          ];
     return { ...edge, ...statsOf(new Set(taken)), count: taken.length };
   });
 

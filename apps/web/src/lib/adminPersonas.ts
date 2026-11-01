@@ -28,13 +28,16 @@ export interface EdgeDef {
   guard: string[];
 }
 
-/** What a set of turns cost, and what they were worth. Zeros, never NaN, when the set is empty. */
+/**
+ * What a set of turns cost, and what they were worth. Null, never NaN or a
+ * free-looking 0, when there is nothing to divide by.
+ */
 export interface TurnStats {
   turns: number;
-  /** Micro-dollars over the set's priced turns; 0 when none is priced. */
-  costPerTurnMicroUsd: number;
-  /** Cost of the set over its turns a person acted on; 0 when none was. */
-  costPerOutcomeMicroUsd: number;
+  /** Micro-dollars over the set's priced turns; null when none is priced. */
+  costPerTurnMicroUsd: number | null;
+  /** Cost of the set over its turns a person acted on; null when none was. */
+  costPerOutcomeMicroUsd: number | null;
 }
 
 export interface PersonaNode extends PersonaDef, TurnStats {
@@ -45,7 +48,7 @@ export interface PersonaNode extends PersonaDef, TurnStats {
 }
 
 export interface PersonaEdge extends EdgeDef, TurnStats {
-  /** Times taken: steps that crossed a switch, or gap rows for a hand-off. */
+  /** Times taken: steps that crossed or flagged a switch, or gap rows and navigation calls for a hand-off. */
   count: number;
 }
 
