@@ -35,6 +35,15 @@ export type LinkTarget = z.infer<typeof LinkTarget>;
 export type ResolvedLinkTarget = Exclude<LinkTarget, { kind: "seed" }>;
 
 /**
+ * Where a widget's row may send someone (M43 decision 4): anywhere a link card
+ * goes, or the unscheduled rack opened on the Plan — the design's parked row is
+ * `blOpen: true`, and Plan alone lands with the ideas shut away. The rack is no
+ * `LinkTarget` because no stored card points at it: only a widget emits it,
+ * fresh on every render, so the stored schema stays as it was.
+ */
+export type ActTarget = ResolvedLinkTarget | { kind: "rack" };
+
+/**
  * What an internal link card shows. Display-ready, like every block payload.
  *
  * `to` rides along for the renderer to build the href from. `eyebrow` is what

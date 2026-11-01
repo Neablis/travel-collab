@@ -720,7 +720,7 @@ describe("open", () => {
     const dayOne = baseDetail.days[0]!.dayId;
     expect(within(list).getByRole("link", { name: /Overlap on Day 1/ }).getAttribute("href")).toBe(`?view=Plan&day=${dayOne}`);
     expect(within(list).getByRole("link", { name: /Day 2 has nothing on it/ }).getAttribute("href")).toBe(`?view=Plan&day=${DAY_2}`);
-    expect(within(list).getByRole("link", { name: /1 idea is parked/ }).getAttribute("href")).toBe("?view=Plan");
+    expect(within(list).getByRole("link", { name: /1 idea is parked/ }).getAttribute("href")).toBe("?view=Plan&rack=open");
   });
 
   it("does not navigate away from a page being edited", () => {

@@ -1082,15 +1082,16 @@ html[data-look="ledger"] .shadow-raised {
   /* **On a phone the table stacks: the label above its value, one pair per
      row.** Mitchell, on the preview, pointing at `open` on a 411px Overview:
      *"I think this is a widget, it should be, but it looks really bad on
-     mobile, the text is all wrapped"*.
+     mobile, the text is all wrapped"*. `open` draws rows of its own now (M43
+     decision 4); every widget still in this table has the same squeeze.
 
      Two columns in a 411px page do not fit, and which of them collapses is
-     decided by the track sizes rather than by what is worth reading: the lead
-     is `minmax(0, 1fr)` and every value column is `auto`, so a row whose value
-     is PROSE — an overlap's description, a parked idea's title — takes the
-     width it wants and squeezes "Empty day" down to one word per line. Naming
-     one of them the loser would fix `open` and break `cost.rows`, whose value
-     is a number and whose label is the prose.
+     decided by the track sizes rather than by what is worth reading: every
+     value column is `auto`, so a row whose value is PROSE — a `stop.rows`
+     Notes column, say — takes the width it wants and squeezes the stop's name
+     toward one word per line. Naming one of them the loser would fix
+     `stop.rows` and break `cost.rows`, whose value is a number and whose label
+     is the prose.
 
      So neither loses. The container drops to one column and each cell takes the
      full width of it, which is the ordinary answer for a two-column table on a

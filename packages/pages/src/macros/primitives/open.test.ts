@@ -70,7 +70,9 @@ describe("`open` — what needs you (SPEC §25, M43 decision 4)", () => {
       },
       {
         label: "1 idea is parked", sub: "Ghibli Museum", right: "Place them", tone: "plain",
-        act: { kind: "view", view: "Plan" },
+        // The rack, not plain Plan: the design's act is `blOpen: true`, and
+        // Plan alone lands with the rack shut and the ideas off screen.
+        act: { kind: "rack" },
       },
     ]);
   });
@@ -108,6 +110,24 @@ describe("`open` — what needs you (SPEC §25, M43 decision 4)", () => {
       }),
     );
     expect(labels(result)).toEqual(["Overlap on Day 1", "Too far on Day 1", "Anchor on Day 1", "Over budget"]);
+  });
+
+  it("puts a conflict on the day that holds its stops, not on the first day", () => {
+    // Every other fixture here is on Day 1, so index 0 hard-coded passed them
+    // all while a Day 2 overlap read "on Day 1" and linked there.
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1"]), dayWith(DAY_2, ["a2", "a3"], "2026-08-02")],
+        conflicts: [conflictOf("time-overlap", "c1", ["a2", "a3"])],
+        activities: { a2: stop("Market", "Osaka"), a3: stop("Castle", "Osaka") } as unknown as TripDetail["activities"],
+      }),
+    );
+    expect(items(result)).toEqual([
+      {
+        label: "Overlap on Day 2", sub: "Aug 2 · Osaka", right: "Fix in Plan", tone: "warning",
+        act: { kind: "day", day: { kind: "dayId", dayId: DAY_2 } },
+      },
+    ]);
   });
 
   it("sends a conflict on no day to the Plan, saying what happened", () => {
