@@ -168,7 +168,11 @@ export function MacroView({ detail, context, user = null, globals = null, extern
     // tint. In the muted chip it read as a placeholder, and at phone width its
     // sentence wrapped into a stadium-shaped pill.
     if (def?.emptyIsGood && outcome.because === undefined) {
-      return <span className="my-1 block rounded-md bg-success-tint px-3.5 py-3 text-sm text-success-ink">{def.emptyText}</span>;
+      return (
+        <span data-testid="macro-empty-good" className="my-1 block rounded-md bg-success-tint px-3.5 py-3 text-sm text-success-ink">
+          {def.emptyText}
+        </span>
+      );
     }
     return <EmptyChip tone="muted" label={outcome.because ?? def?.emptyText ?? "—"} />;
   }

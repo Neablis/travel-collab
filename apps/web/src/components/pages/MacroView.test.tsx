@@ -730,4 +730,11 @@ describe("open", () => {
     expect(within(screen.getByRole("list", { name: "What needs you" })).getAllByRole("listitem")).toHaveLength(3);
     expect(screen.queryByRole("link")).toBeNull();
   });
+
+  it("says a settled trip is settled on the success line, not in the muted chip", () => {
+    // `costedDetail`: its one day has a stop, nothing collides, nothing is parked.
+    // The chip prints the same sentence, so the text alone cannot tell them apart.
+    render(<MacroView detail={costedDetail} context={ctx} name="open" params={{}} />);
+    expect(screen.getByTestId("macro-empty-good").textContent).toMatch(/^Nothing is waiting on you/);
+  });
 });

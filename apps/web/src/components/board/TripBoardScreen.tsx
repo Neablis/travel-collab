@@ -747,12 +747,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
    * **A link card to a day** (M30, ADR-056) arrives as `?view=Plan&day=<dayId>`:
    * the day is focused once the trip is here, and Plan's own day-sync scrolls
    * to it. By id, so a link made before days were reordered still lands on its
-   * day. Once per value, so clearing the focus afterwards is not undone.
+   * day. Once per arrival, as `rack=open` is: clearing the focus afterwards is
+   * not undone, and the ref forgets the day once the param goes (a tab pick
+   * drops it), so a second tap on the same link focuses its day again.
    */
   const linkedDay = searchParams.get("day");
   const appliedDayLink = useRef<string | null>(null);
   useEffect(() => {
-    if (linkedDay === null || activeTrip === null || appliedDayLink.current === linkedDay) return;
+    if (linkedDay === null) {
+      appliedDayLink.current = null;
+      return;
+    }
+    if (activeTrip === null || appliedDayLink.current === linkedDay) return;
     appliedDayLink.current = linkedDay;
     const index = activeTrip.days.findIndex((day) => day.dayId === linkedDay);
     if (index !== -1) setFocusedDay(index);
@@ -765,7 +771,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const linkedStop = searchParams.get("stop");
   const appliedStopLink = useRef<string | null>(null);
   useEffect(() => {
-    if (linkedStop === null || activeTrip === null || appliedStopLink.current === linkedStop) return;
+    if (linkedStop === null) {
+      appliedStopLink.current = null;
+      return;
+    }
+    if (activeTrip === null || appliedStopLink.current === linkedStop) return;
     appliedStopLink.current = linkedStop;
     const index = activeTrip.days.findIndex((day) => day.activityIds.includes(linkedStop));
     if (index === -1) return;
