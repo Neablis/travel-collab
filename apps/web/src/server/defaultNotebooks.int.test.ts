@@ -380,15 +380,25 @@ describe("the seed-key backfill (migration 0032)", () => {
       .where(and(eq(events.streamId, tripId), eq(events.type, "PageCreated")));
     // And the second "Money" the old "Add missing" planted beside "Budget".
     const copyId = randomUUID();
+    // Two more pages carrying the old marker that 0032 never keyed: one a
+    // person made through the hole decision 2 closes, and a second `system`
+    // Overview, later in the log, that lost 0032's ranking. Neither is the
+    // Overview, in the backfill as on a rebuild.
+    const personMarkedId = randomUUID();
+    const losingOverviewId = randomUUID();
+    const marked = { tripId, kind: "overview" };
+    const created = (pageId: string, title: string, context: object, actorId: string) => ({
+      type: "PageCreated" as const,
+      version: 1,
+      payload: { tripId, pageId, title, context, content: newPageDoc(), actorId },
+    });
     const appended = await appendToStream(db, {
       streamId: tripId,
       expectedSeq: (await readStream(db, tripId)).length,
       events: [
-        {
-          type: "PageCreated",
-          version: 1,
-          payload: { tripId, pageId: copyId, title: "Money", context: { tripId }, content: newPageDoc(), actorId: SYSTEM_ACTOR_ID },
-        },
+        created(copyId, "Money", { tripId }, SYSTEM_ACTOR_ID),
+        created(personMarkedId, "My overview", marked, ownerId),
+        created(losingOverviewId, "Overview", marked, SYSTEM_ACTOR_ID),
       ],
       actorId: ownerId,
       occurredAt: new Date().toISOString(),
@@ -403,14 +413,22 @@ describe("the seed-key backfill (migration 0032)", () => {
 
     const trips = [tripId, untouched];
     await asBeforeKind(trips);
+    await db.update(pages).set({ context: marked }).where(inArray(pages.id, [personMarkedId, losingOverviewId]));
     await db.update(pages).set({ seedKey: null }).where(inArray(pages.tripId, trips));
     await db.execute(sql.raw(backfill));
     await db.execute(sql.raw(kindBackfill));
 
+    const unkeyed = await db
+      .select({ id: pages.id, kind: pages.kind, context: pages.context })
+      .from(pages)
+      .where(inArray(pages.id, [personMarkedId, losingOverviewId]));
+    expect(unkeyed).toHaveLength(2);
+    for (const row of unkeyed) expect(row).toEqual({ id: row.id, kind: null, context: { tripId } });
+
     const keysOf = async (trip: string) =>
       Object.fromEntries((await listPages(trip)).map((p) => [p.id, p.seedKey ?? null]));
     const expected = Object.fromEntries(seeded.map((p) => [p.id, p.seedKey!]));
-    expect(await keysOf(tripId)).toEqual({ ...expected, [copyId]: null });
+    expect(await keysOf(tripId)).toEqual({ ...expected, [copyId]: null, [personMarkedId]: null, [losingOverviewId]: null });
     expect(Object.values(await keysOf(untouched)).sort()).toEqual(seeded.map((p) => p.seedKey).sort());
 
     const backfilled = await db.select().from(pages).where(inArray(pages.tripId, trips)).orderBy(asc(pages.id));

@@ -36,7 +36,10 @@ Format:
   regenerated. Page responses carry `kind` on the Overview and no longer carry `context.kind`; a
   field removed from a response is a major bump by `openapi.ts`'s rule.
 - Breaking? yes for a reader of `context.kind`, which now never appears. Migration `0070` must run
-  before this build serves.
+  before this build serves. **Rolling production back past this deploy is unsafe once 0070 has
+  run:** the previous build decides undeletability from `context.kind`, which 0070 strips, so it
+  would offer Delete on the Overview, and an unedited lazily seeded Overview would be deleted.
+  Roll forward instead.
 
 ## 2026-10-30 — `AssistantAsk.options` at most `MAX_OPTION_CARDS` (4) (M56 part 15)
 - **Changed** (`packages/contracts/src/assistant.ts`): `AssistantAsk.options` is 2 to

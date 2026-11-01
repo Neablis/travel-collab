@@ -78,7 +78,7 @@ describe("executePageCommand", () => {
       tripId,
       title: "Overview",
       context: { tripId },
-    kind: OVERVIEW_KIND,
+      kind: OVERVIEW_KIND,
       content: { v: 1, type: "doc", content: [], fromANewerBuild: true } as never,
       createdAt: now,
       updatedAt: now,
