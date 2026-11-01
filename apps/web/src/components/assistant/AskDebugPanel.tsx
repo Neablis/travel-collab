@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchPersonaGraph } from "@/lib/apiClient";
 import type { DebugEdge, DebugPersona, PersonaGraphResponse, PersonaReach } from "@/lib/askDebug";
@@ -7,7 +8,8 @@ import { cn } from "@/lib/cn";
 
 // **The Ask panel's Debug strip** (M57 part 5, ADR-085): the persona graph for
 // the page the panel is on, and the tools each persona holds, both read from
-// the operator endpoint and so both under the caller's own caps. The panel
+// the operator endpoint: under the caller's own role on the trip, and a plan
+// and question class the endpoint assumes (and the panel says so). The panel
 // mounts it only for an operator with Debug on; the endpoint 404s to anyone
 // else regardless.
 //
@@ -96,8 +98,12 @@ function ToolList({ persona }: { persona: DebugPersona }) {
   );
 }
 
+/** The Debug strip for the page kind `surface`: the persona graph and each persona's tools, read from the operator endpoint. */
 export function AskDebugPanel({ surface }: { surface: string }) {
   const [graph, setGraph] = useState<PersonaGraphResponse | "loading" | "failed">("loading");
+  // Read from the router, not `window`, so a move to another trip of the same
+  // page kind re-draws the graph under that trip's role.
+  const pathname = usePathname();
 
   useEffect(() => {
     let live = true;
@@ -106,12 +112,12 @@ export function AskDebugPanel({ surface }: { surface: string }) {
     // scope and no id, and the caps the graph is drawn under are the caller's
     // on THIS trip. Off a trip page there is none, and the graph is drawn for
     // a read-only caller.
-    const onTrip = /^\/trips\/([0-9a-f-]{36})(?:\/|$)/i.exec(window.location.pathname)?.[1];
+    const onTrip = /^\/trips\/([0-9a-f-]{36})(?:\/|$)/i.exec(pathname ?? "")?.[1];
     void fetchPersonaGraph(surface, onTrip).then((got) => live && setGraph(got.ok ? got.value : "failed"));
     return () => {
       live = false;
     };
-  }, [surface]);
+  }, [surface, pathname]);
 
   if (graph === "loading") return <p className="text-xs text-slate">Reading the persona graph…</p>;
   if (graph === "failed") return <p className="text-xs text-slate">The persona graph could not be read.</p>;
@@ -124,7 +130,7 @@ export function AskDebugPanel({ surface }: { surface: string }) {
       <details open>
         <summary className="cursor-pointer font-semibold">Graph</summary>
         <p className="mt-1 text-slate">
-          {graph.surface} page enters {label(graph.entry)}. Caps: role {graph.caps.role}, plan {graph.caps.plan}.
+          {graph.surface} page enters {label(graph.entry)}. Your role here: {graph.caps.role}. Plan and question class are assumed {graph.caps.plan}, so a real turn may offer less.
         </p>
         <Diagram graph={graph} />
         <ul aria-label="Personas" className="mt-1">

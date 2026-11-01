@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { fetchTurnTrace } from "@/lib/apiClient";
 import type { TraceToolCall, TurnTrace } from "@/lib/askDebug";
@@ -12,13 +12,19 @@ import type { TraceToolCall, TurnTrace } from "@/lib/askDebug";
 // `renderTurnFooter`, and the endpoint behind it 404s to anyone else.
 //
 // Fetched on first expand, because a turn's ledger row is written after its
-// last chunk and an operator opening it a moment later sees the settled rows.
-// A turn with no ledger row says so rather than showing an empty timeline.
+// last chunk. An operator who is quick can open it before the row lands, so a
+// 404 is retried briefly; one that still finds nothing says so, and opening it
+// again asks again. Any other failure says the breakdown could not be read,
+// which is not the same claim as "this turn has no row".
 
 /** `0.0123` dollars, from micro-dollars: a turn costs hundredths of a cent, so whole cents would show zero. */
 function dollars(micro: number | null): string {
   return micro === null ? "unpriced" : `$${(micro / 1_000_000).toFixed(4)}`;
 }
+
+/** The ledger write trails the stream's last chunk by well under a second; a few tries cover it. */
+const ROW_RETRIES = 3;
+const ROW_RETRY_MS = 600;
 
 const ms = (value: number | null) => (value === null ? "n/a" : `${value} ms`);
 const count = (value: number | null) => (value === null ? "n/a" : String(value));
@@ -81,8 +87,9 @@ function Timeline({ trace }: { trace: TurnTrace }) {
         <div>
           <p className="font-semibold">Handed off</p>
           <ul aria-label="Handed off">
-            {trace.gaps.map((gap) => (
-              <li key={`${gap.persona}-${gap.task}`}>
+            {trace.gaps.map((gap, index) => (
+              // By position: one turn can hand the same task off twice.
+              <li key={index}>
                 {gap.persona} to {gap.target}: {gap.task}
               </li>
             ))}
@@ -93,26 +100,53 @@ function Timeline({ trace }: { trace: TurnTrace }) {
   );
 }
 
-export function TurnBreakdown({ turnId }: { turnId: string }) {
+type Loaded = "idle" | "loading" | "missing" | "failed" | { trace: TurnTrace };
+
+/**
+ * The breakdown under one answer. `ordinal` is which answer it is in the
+ * thread (from 1), so the button's name tells a screen reader which turn;
+ * `touch` sizes it for the phone sheet.
+ */
+export function TurnBreakdown({ turnId, ordinal, touch = false }: { turnId: string; ordinal: number; touch?: boolean }) {
   const panelId = useId();
   const [open, setOpen] = useState(false);
-  const [state, setState] = useState<"idle" | "loading" | "missing" | { trace: TurnTrace }>("idle");
+  const [state, setState] = useState<Loaded>("idle");
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const load = async () => {
+    setState("loading");
+    for (let attempt = 0; ; attempt++) {
+      const got = await fetchTurnTrace(turnId);
+      if (!mounted.current) return;
+      if (got.ok) return setState({ trace: got.value });
+      if (got.error.status !== 404) return setState("failed");
+      if (attempt >= ROW_RETRIES) return setState("missing");
+      await new Promise((resolve) => setTimeout(resolve, ROW_RETRY_MS));
+      if (!mounted.current) return;
+    }
+  };
 
   const toggle = () => {
     setOpen(!open);
-    if (open || state !== "idle") return;
-    setState("loading");
-    void fetchTurnTrace(turnId).then((got) => setState(got.ok ? { trace: got.value } : "missing"));
+    // Opening asks again after a miss or a failure; it never re-asks a trace it has.
+    if (!open && (state === "idle" || state === "missing" || state === "failed")) void load();
   };
 
   return (
     <div className="mt-1">
-      <Button variant="ghost" size="sm" aria-expanded={open} aria-controls={panelId} onClick={toggle}>
+      <Button variant="ghost" size={touch ? "touch" : "sm"} aria-label={`Breakdown of answer ${ordinal}`} aria-expanded={open} aria-controls={panelId} onClick={toggle}>
         Breakdown
       </Button>
       <div id={panelId} hidden={!open} className="mt-1">
         {state === "loading" && <p className="text-xs text-slate">Reading the ledger…</p>}
         {state === "missing" && <p className="text-xs text-slate">No ledger row for this turn.</p>}
+        {state === "failed" && <p className="text-xs text-slate">The breakdown could not be read.</p>}
         {typeof state === "object" && <Timeline trace={state.trace} />}
       </div>
     </div>

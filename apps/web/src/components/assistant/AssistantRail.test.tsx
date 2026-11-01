@@ -32,7 +32,16 @@ vi.mock("@/components/account/useSessionUser", async (orig) => ({
   useKnownSessionUser: () => session.user,
 }));
 
+// Who is an operator: the Debug toggle is theirs alone (M57 part 5).
+const operator = vi.hoisted(() => ({ value: false }));
+vi.mock("@/components/account/PreferencesProvider", async (orig) => ({
+  ...(await orig<typeof import("@/components/account/PreferencesProvider")>()),
+  useIsAdmin: () => operator.value,
+}));
+
 afterEach(() => {
+  operator.value = false;
+  vi.restoreAllMocks();
   fetchedEntitlement.value = null;
   session.user = { id: "user-a" };
   cleanup();
@@ -1345,5 +1354,38 @@ describe("asks carried into a new trip", () => {
     expect(await screen.findByRole("button", { name: MARKET.said })).toBeTruthy();
     expect(screen.queryByRole("button", { name: MEZCAL.said })).toBeNull();
     expect(screen.getByRole("textbox", { name: "Question for the assistant" }).matches(":focus")).toBe(true);
+  });
+});
+
+// Safari's private mode and a blocked-storage setting throw on `localStorage`
+// itself (the rule `lib/installPrompt.ts` documents). The Debug memory is an
+// operator's convenience, so it must cost an ordinary user nothing and an
+// operator no more than the memory.
+describe("AssistantRail Debug memory when storage throws", () => {
+  const blockStorage = () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+  };
+
+  it("renders for a member without touching storage at all", () => {
+    blockStorage();
+    renderRail();
+    expect(screen.getByText("Looking at Day 2 · Kyoto")).not.toBeNull();
+  });
+
+  it("still switches Debug on for an operator whose storage refuses the write", async () => {
+    operator.value = true;
+    blockStorage();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 404 })));
+    renderRail();
+    const toggle = screen.getByRole("button", { name: "Debug" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    await userEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Debug" }).getAttribute("aria-pressed")).toBe("true");
+    vi.unstubAllGlobals();
   });
 });

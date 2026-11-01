@@ -59,6 +59,15 @@ describe("GET /api/admin/assistant/personas", () => {
 
   it("rejects a surface that is not a page kind", async () => {
     currentUserId = ADMIN;
-    expect((await get("surface=admin")).status).toBe(400);
+    const res = await get("surface=admin");
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid-surface" });
+  });
+
+  it("names the trip id, not the surface, when the trip id is malformed", async () => {
+    currentUserId = ADMIN;
+    const res = await get("surface=day&tripId=not-a-guid");
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid-trip-id" });
   });
 });

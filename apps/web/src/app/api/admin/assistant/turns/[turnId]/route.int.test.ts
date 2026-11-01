@@ -27,6 +27,9 @@ await upsertUser({ id: MEMBER, email: `${MEMBER}@example.test`, name: null, imag
 await db.update(users).set({ isAdmin: true }).where(eq(users.id, ADMIN));
 
 const MODEL = "deepseek/deepseek-v4-flash-0731";
+// A second model on the later step, as an escalated or switched turn has: the
+// turn is priced step by step at the model each ran on, not at `turn_model`.
+const OTHER_MODEL = "zai/glm-4.7-flashx";
 const ledger: TurnLedger = {
   cost: {
     userId: MEMBER,
@@ -49,8 +52,8 @@ const ledger: TurnLedger = {
     { callId: "c2", name: "search_places", ms: 300, ok: true, outcome: "ok", stepIndex: 1, inputBytes: 5, outputBytes: 50, reachedProposal: null },
   ],
   stepSpend: [
-    { index: 0, model: MODEL, tier: "low", tokensIn: 60, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 5, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: 800, provider: null, gatewayGenerationId: null, persona: "schedule" },
-    { index: 1, model: MODEL, tier: "low", tokensIn: 40, cacheReadTokens: 30, cacheWriteTokens: 0, tokensOut: 15, finishReason: "stop", escalated: false, pivoted: false, durationMs: 700, provider: null, gatewayGenerationId: null, persona: "discover", fromPersona: "schedule", edgeKind: "switch" },
+    { index: 0, model: MODEL, tier: "low", tokensIn: 1_000_000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 1_000_000, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: 800, provider: null, gatewayGenerationId: null, persona: "schedule" },
+    { index: 1, model: OTHER_MODEL, tier: "low", tokensIn: 1_000_000, cacheReadTokens: 500_000, cacheWriteTokens: 0, tokensOut: 1_000_000, finishReason: "stop", escalated: false, pivoted: false, durationMs: 700, provider: null, gatewayGenerationId: null, persona: "discover", fromPersona: "schedule", edgeKind: "switch" },
   ],
 };
 await recordTurnLedger(ledger);
@@ -71,8 +74,11 @@ describe("GET /api/admin/assistant/turns/[turnId]", () => {
     expect(res.status).toBe(200);
     const { trace } = (await res.json()) as { trace: TurnTrace };
     expect(trace.entryPersona).toBe("schedule");
-    // Priced per step from the ledger, not left null.
-    expect(trace.costMicroUsd).toBeGreaterThan(0);
+    // Priced per step at each step's own model (modelRates.ts): step 0 is 1M in
+    // at 130000 plus 1M out at 260000 = 390000; step 1 is 500k fresh in at 60000,
+    // 500k cached at 10000 and 1M out at 400000 = 435000. Pricing both at
+    // `turn_model`, or dropping the cached rate, gives a different figure.
+    expect(trace.costMicroUsd).toBe(825_000);
     expect(trace.steps.map((s) => [s.persona, s.crossed?.kind ?? null, s.calls.map((c) => c.tool)])).toEqual([
       ["schedule", null, ["switch_persona"]],
       ["discover", "switch", ["search_places"]],

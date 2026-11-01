@@ -539,15 +539,26 @@ export function AssistantRail({
   // above the transcript and a breakdown under each answer. Advisory like
   // `useIsAdmin`: the endpoints behind it 404 to anyone else. Remembered per
   // browser, read after mount so the server render and the first client one
-  // agree.
+  // agree. Only an operator reads it, and storage can throw (Safari's private
+  // mode, a blocked-storage setting): a failed read is "off" and a failed write
+  // costs only the memory, never the panel.
   const isAdmin = useIsAdmin();
   const [debug, setDebug] = useState(false);
   useEffect(() => {
-    setDebug(window.localStorage.getItem(DEBUG_KEY) === "on");
-  }, []);
+    if (!isAdmin) return;
+    try {
+      setDebug(window.localStorage.getItem(DEBUG_KEY) === "on");
+    } catch {
+      // Reads as off.
+    }
+  }, [isAdmin]);
   const debugOn = isAdmin && debug && !onChat;
   const toggleDebug = () => {
-    window.localStorage.setItem(DEBUG_KEY, debug ? "off" : "on");
+    try {
+      window.localStorage.setItem(DEBUG_KEY, debug ? "off" : "on");
+    } catch {
+      // The choice holds for this visit; it is not remembered.
+    }
     setDebug(!debug);
   };
 
@@ -1195,7 +1206,9 @@ export function AssistantRail({
               {...(debugOn
                 ? {
                     renderTurnFooter: (turn: AssistantTurn) =>
-                      turn.role === "assistant" && !turn.pending && turn.serverTurnId !== undefined ? <TurnBreakdown turnId={turn.serverTurnId} /> : null,
+                      turn.role === "assistant" && !turn.pending && turn.serverTurnId !== undefined ? (
+                        <TurnBreakdown turnId={turn.serverTurnId} ordinal={turns.filter((t) => t.role === "assistant").indexOf(turn) + 1} touch={isSheet} />
+                      ) : null,
                   }
                 : {})}
               {...(onUndoProposal === undefined ? {} : { onUndoProposal })}

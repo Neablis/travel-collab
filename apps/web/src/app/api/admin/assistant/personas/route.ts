@@ -5,7 +5,7 @@ import { requireAdminApi } from "@/server/entitlements/requireAdmin";
 import { grantForPersona, toolsFor, type SurfaceKind } from "@/server/assistant/grants";
 import { EDGES, ENTRY, PERSONAS, reachable, type PersonaId, type TurnCaps } from "@/server/assistant/personas";
 
-// The persona graph for one page, under the caller's caps (M57 part 5,
+// The persona graph for one page, under the caller's role (M57 part 5,
 // ADR-085): which persona the page enters, what leaves it, who is reachable
 // and what each persona holds. The Ask panel's Debug strip draws it.
 //
@@ -15,11 +15,14 @@ import { EDGES, ENTRY, PERSONAS, reachable, type PersonaId, type TurnCaps } from
 // cannot say a persona holds a tool the turn would not offer it.
 //
 //   * 400 `invalid-surface` — `surface` is not one of the nine page kinds.
+//   * 400 `invalid-trip-id` — `tripId` is present and is not a trip id.
 //
-// **The caps are the caller's own on the trip named by `tripId`**: `propose`
+// **The role is the caller's own on the trip named by `tripId`**: `propose`
 // for an editor or owner, `read` otherwise (a viewer, or a trip they cannot
-// read). The plan cap is `propose`; resolving the plan's entitlements is a
-// per-account read the strip does not need to answer "what can this page do".
+// read). **The plan and the question class are assumed `propose`**, and the
+// response says so (`caps.plan`): resolving the plan's entitlements and
+// classifying a question are per-turn reads the strip does not need to answer
+// "what can this page do". A lapsed plan or a question turn would offer less.
 const SURFACES = Object.keys(ENTRY) as [SurfaceKind, ...SurfaceKind[]];
 const Query = z.object({ surface: z.enum(SURFACES), tripId: z.string().guid().optional() });
 
@@ -33,7 +36,10 @@ export async function GET(request: Request) {
     surface: url.searchParams.get("surface"),
     tripId: url.searchParams.get("tripId") ?? undefined,
   });
-  if (!query.success) return Response.json({ error: "invalid-surface" }, { status: 400 });
+  if (!query.success) {
+    const field = query.error.issues[0]?.path[0];
+    return Response.json({ error: field === "tripId" ? "invalid-trip-id" : "invalid-surface" }, { status: 400 });
+  }
   const { surface, tripId } = query.data;
 
   const access = tripId === undefined ? null : await tripAccessFor(guard.userId, tripId, "editor");
