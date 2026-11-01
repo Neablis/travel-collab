@@ -25,9 +25,14 @@
 //
 // This module is the table that ties them together: which intents each surface
 // allows, which it starts in, what an intent needs granted, and the per-turn
-// latch a pivot goes through.
+// latch a pivot goes through. Since M57 part 4 the same latch holds the turn's
+// persona, because a persona switch is the same kind of move (a charged step
+// that changes what the next one holds); `switch_intent` and
+// `request_change_tools` are the graph's self-loop edges, and `switch_persona`
+// the one that changes persona (`personas.ts`).
 import type { TaskClass } from "./taskClass";
 import type { DomainCap, GrantedEffects, SurfaceKind } from "./grants";
+import { EDGES, MAX_PERSONA_SWITCHES, guardHolds, switchTargetsOf, type PersonaId, type TurnCaps } from "./personas";
 
 /** What a surface starts a turn in, what it may move to, and the tool that moves it. */
 export interface SurfaceIntents {
@@ -121,17 +126,45 @@ export interface IntentLatch {
   /** Move to `to`, or say why not. Never throws: a refused pivot is something the model can act on. */
   request(to: TaskClass, reason: string): { ok: true } | { ok: false; refused: string };
   pivots(): AskPivot[];
+  /** The persona the turn is in now (M57). The entry persona until a switch. */
+  persona(): PersonaId;
+  /**
+   * Cross a `switch_persona` edge to `to`, or say why not. The server's own
+   * check, whatever the tool's schema allowed: the edge must leave the current
+   * persona, its guard must hold under the turn's caps, and the turn's switches
+   * must not be spent. Never throws, for the reason `request` does not.
+   */
+  switchPersona(to: PersonaId, why: string): { ok: true } | { ok: false; refused: string };
+  switches(): PersonaSwitch[];
 }
 
-/** One turn's intent latch, starting in `start` and able to reach only `reachable`, at most `max` times. */
+/** One mid-turn change of persona (M57): where from, where to, why, and after which step. */
+export interface PersonaSwitch {
+  from: PersonaId;
+  to: PersonaId;
+  why: string;
+  /** How many steps had finished when the switch was asked for. */
+  step: number;
+}
+
+/** Where a turn's persona starts and the caps its edges' guards are read against. */
+export interface PersonaStart {
+  entry: PersonaId;
+  caps: TurnCaps;
+}
+
+/** One turn's latch: an intent starting in `start` able to reach only `reachable`, at most `max` times, and a persona starting at `persona.entry`. */
 export function newIntentLatch(
   start: TaskClass,
   reachable: readonly TaskClass[],
   stepsTaken: () => number,
+  persona: PersonaStart,
   max: number = MAX_PIVOTS,
 ): IntentLatch {
   let current = start;
+  let inPersona = persona.entry;
   const pivots: AskPivot[] = [];
+  const switches: PersonaSwitch[] = [];
   return {
     current: () => current,
     reachable: () => reachable,
@@ -151,5 +184,23 @@ export function newIntentLatch(
       return { ok: true };
     },
     pivots: () => [...pivots],
+    persona: () => inPersona,
+    switchPersona: (to, why) => {
+      if (switches.length >= MAX_PERSONA_SWITCHES) {
+        return { ok: false, refused: `This turn has already switched persona ${MAX_PERSONA_SWITCHES} time${MAX_PERSONA_SWITCHES === 1 ? "" : "s"}. Finish with the tools you have.` };
+      }
+      const targets = switchTargetsOf(inPersona);
+      const edge = EDGES.find((e) => e.kind === "switch" && e.via === "switch_persona" && e.from === inPersona && e.to === to);
+      if (edge === undefined) {
+        return { ok: false, refused: `${to} is not open from ${inPersona}. It can be: ${targets.join(", ") || "nothing"}.` };
+      }
+      if (!guardHolds(edge.guard, persona.caps)) {
+        return { ok: false, refused: `This turn's permissions do not allow switching to ${to}.` };
+      }
+      switches.push({ from: inPersona, to, why, step: stepsTaken() });
+      inPersona = to;
+      return { ok: true };
+    },
+    switches: () => [...switches],
   };
 }

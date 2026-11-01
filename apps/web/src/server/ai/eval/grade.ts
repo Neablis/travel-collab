@@ -12,6 +12,7 @@
 // model's prose is not reproducible; asserting it would make the eval fail on
 // a rephrase and teach everyone to ignore it.
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
+import type { PersonaId } from "@/server/assistant/personas";
 import { ASK_RETRACT_CHUNK, AskRetractData, AskStreamMetadata, type HandOffTo } from "@tc/contracts";
 
 /** One turn, as the runner observed it. */
@@ -41,6 +42,20 @@ export interface EvalTurn {
   navigations?: readonly string[];
   /** The widget the turn ended in (ADR-084), or null for none (`endedIn`). Absent fails a widget expectation. */
   widget?: EvalWidget | null;
+  /**
+   * The persona each agent step ran as, from the turn's ledger (M57). Absent
+   * on a build with no personas, which is how the persona checks know to say
+   * nothing there: main and part 4 grade the same prompts. Empty on a build
+   * with personas where no step ran, which fails a persona expectation.
+   */
+  personaPath?: readonly EvalPersonaStep[];
+}
+
+/** One agent step's persona, and the edge it crossed to get there (`StepSpend`). */
+export interface EvalPersonaStep {
+  persona: PersonaId;
+  fromPersona?: PersonaId | null;
+  edgeKind?: string | null;
 }
 
 /** Which widget a turn ended in, and where a hand-off sent the person. */
@@ -210,6 +225,37 @@ export interface EvalExpectation {
   endsInWidget?: boolean;
   /** The turn declined by handing off, to this target. */
   handsOffTo?: HandOffTo;
+  /**
+   * The persona path (M57 part 4), checked only where the turn carries one.
+   * A persona id: exactly one switch, from the persona the turn entered to
+   * that one, by one `switch_persona` call. `null`: no switch, and none tried.
+   */
+  switchesTo?: PersonaId | null;
+  /** The `switch_persona` call comes ahead of the first call of each of these (Schedule's guarantee: no place is searched or written before it). */
+  switchesBefore?: readonly string[];
+  /** The reply never asks the person to switch, or offers a choice of persona or mode (the part 4 voice rule). */
+  neverAsksToSwitch?: boolean;
+}
+
+const SWITCH_TOOL = "switch_persona";
+
+// What the voice rule forbids is the question and the instruction, never the
+// plain word: "I scheduled it for 1 pm" and "Switched to Discover" (a note, not
+// an ask) both stand.
+// A switch word alone is not an ask: "Should I switch lunch and the museum?"
+// swaps two activities. It counts only with a persona or mode named: "switch
+// to Discover", "the Schedule persona", or the word persona itself.
+const SWITCH_NAMED = /\bswitch(?:ing)?\s+(?:\w+\s+){0,3}?(?:to|into)\s+(?:the\s+|a\s+)?(?:Discover|Schedule|persona|mode)\b|\b(?:Discover|Schedule)\s+(?:mode|persona)\b|\bpersona\b/i;
+const ASKS = /\b(?:would you like|do you want|want me to|shall i|should i|if you'd like|let me know if you'd like|you(?:'ll| will) need to|you (?:need|have) to|please (?:switch|choose|pick|select)|you (?:can|could|may) (?:switch|choose|pick))\b/i;
+const PERSONA_CHOICE = /\b(?:Discover|Schedule)\s+(?:or|\/)\s+(?:Discover|Schedule)\b/;
+
+/** The first sentence of `text` that asks the person to switch or pick a persona or mode, or null. */
+export function asksToSwitch(text: string): string | null {
+  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+    if (PERSONA_CHOICE.test(sentence)) return sentence;
+    if (SWITCH_NAMED.test(sentence) && (sentence.trimEnd().endsWith("?") || ASKS.test(sentence))) return sentence;
+  }
+  return null;
 }
 
 export interface EvalCheck {
@@ -394,6 +440,39 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
       pass: widget?.kind === "handOff" && widget.to === expect.handsOffTo,
       detail: widget === undefined ? "not read" : widget === null ? "none" : widget.kind === "handOff" ? `handOff to ${widget.to}` : widget.kind,
     });
+  }
+  // Only where the build has personas: on main nothing here is checked, rather
+  // than failed for a field the ledger does not have.
+  const path = turn.personaPath;
+  const hasPersonaExpectation = expect.switchesTo !== undefined || (expect.switchesBefore?.length ?? 0) > 0;
+  if (path?.length === 0 && hasPersonaExpectation) {
+    // A build with personas, but no agent step ran (admission, off-topic, error):
+    // there is no path to grade, which is a failure here, not a pass.
+    checks.push({ name: "ran an agent step", pass: false, detail: `no step in the ledger; calls: ${trace}` });
+  } else if (path !== undefined) {
+    const calls = record.toolCalls.map((call) => call.name);
+    const switchCalls = calls.filter((name) => name === SWITCH_TOOL).length;
+    const crossings = path.filter((step) => step.fromPersona != null && step.fromPersona !== step.persona);
+    const walked = `${path.map((step) => step.persona).join(", ") || "no steps"}; calls: ${trace}`;
+    if (expect.switchesTo === null) {
+      checks.push({ name: "stays in its persona", pass: crossings.length === 0 && switchCalls === 0, detail: walked });
+    } else if (expect.switchesTo !== undefined) {
+      const entry = path[0]?.persona;
+      checks.push({
+        name: `switches once to ${expect.switchesTo}`,
+        pass: crossings.length === 1 && crossings[0]!.persona === expect.switchesTo && crossings[0]!.fromPersona === entry && switchCalls === 1,
+        detail: `${crossings.length} switch(es), ${switchCalls} ${SWITCH_TOOL} call(s); ${walked}`,
+      });
+    }
+    for (const tool of expect.switchesBefore ?? []) {
+      const at = calls.indexOf(SWITCH_TOOL);
+      const used = calls.indexOf(tool);
+      checks.push({ name: `switches before ${tool}`, pass: at !== -1 && (used === -1 || at < used), detail: walked });
+    }
+    if (expect.neverAsksToSwitch) {
+      const asked = asksToSwitch(turn.text);
+      checks.push({ name: "never asks to switch", pass: asked === null, detail: asked ?? "none" });
+    }
   }
   if (expect.namesOneOfAmounts !== undefined) {
     checks.push({

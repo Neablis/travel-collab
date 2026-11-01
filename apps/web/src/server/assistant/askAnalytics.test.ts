@@ -16,7 +16,7 @@ function recorderWith(overrides: Partial<Parameters<typeof createAskRecorder>[0]
   const ledgers: TurnLedger[] = [];
   let clock = 1_000;
   const recorder = createAskRecorder({
-    entryPersona: "trip-planner",
+    entryPersona: "schedule",
     tripId: "11111111-1111-4111-8111-111111111111",
     userId: "user-1",
     scope: { kind: "trip" },
@@ -831,7 +831,7 @@ describe("the per-step and per-tool ledger", () => {
         durationMs: 40,
         provider: null,
         gatewayGenerationId: null,
-        persona: "trip-planner",
+        persona: "schedule",
         fromPersona: null,
         edgeKind: null,
       },
@@ -842,16 +842,16 @@ describe("the per-step and per-tool ledger", () => {
   // crossed an edge, and then the row says from where and by what kind.
   it("records each step's persona, the entry's unless its plan crossed an edge", () => {
     const plans = new Map([
-      [1, { model: "m", tier: null, escalated: false, pivoted: false, persona: "page-writer" as const, fromPersona: "trip-planner" as const, edgeKind: "switch" as const }],
+      [1, { model: "m", tier: null, escalated: false, pivoted: false, persona: "page-writer" as const, fromPersona: "schedule" as const, edgeKind: "switch" as const }],
     ]);
     const { recorder, ledgers } = recorderWith({ stepPlan: (index) => plans.get(index) });
     recorder.observeStep({ usage: { inputTokens: 1 } });
     recorder.observeStep({ usage: { inputTokens: 1 } });
     recorder.finish({ finishReason: "stop" });
-    expect(ledgers[0]!.cost.entryPersona).toBe("trip-planner");
+    expect(ledgers[0]!.cost.entryPersona).toBe("schedule");
     expect(ledgers[0]!.stepSpend.map(({ persona, fromPersona, edgeKind }) => ({ persona, fromPersona, edgeKind }))).toEqual([
-      { persona: "trip-planner", fromPersona: null, edgeKind: null },
-      { persona: "page-writer", fromPersona: "trip-planner", edgeKind: "switch" },
+      { persona: "schedule", fromPersona: null, edgeKind: null },
+      { persona: "page-writer", fromPersona: "schedule", edgeKind: "switch" },
     ]);
   });
 

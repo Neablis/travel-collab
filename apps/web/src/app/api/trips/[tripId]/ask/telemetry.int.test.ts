@@ -261,12 +261,12 @@ describe("POST /api/trips/:id/ask — AI telemetry", () => {
       expect(streamedTurnId).toBeDefined();
       const row = await rowFor(streamedTurnId!);
       // A trip page enters at the trip planner (personas.ts `ENTRY`).
-      expect(row.entryPersona).toBe("trip-planner");
+      expect(row.entryPersona).toBe("schedule");
       const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, streamedTurnId!));
       expect(steps.length).toBeGreaterThan(0);
       // Until a step can switch, every step runs as the entry persona and crosses no edge.
       for (const step of steps) {
-        expect(step.persona).toBe("trip-planner");
+        expect(step.persona).toBe("schedule");
         expect(step.fromPersona).toBeNull();
         expect(step.edgeKind).toBeNull();
       }

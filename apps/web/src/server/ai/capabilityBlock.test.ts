@@ -7,6 +7,7 @@ import { accountInstructionBlocks, instructionsFor, playbookInstructionBlocks } 
 import { CHANGE_IN, capabilitiesOf, capabilityBlock, changeDomains, type ChangeLimit } from "@/server/assistant/capabilities";
 import { SURFACES, grantFor, postureFor, toolsFor, type SurfaceKind } from "@/server/assistant/grants";
 import { renderPrompt } from "@/server/assistant/prompt";
+import type { PersonaId } from "@/server/assistant/personas";
 
 const PAGE_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -95,5 +96,38 @@ describe("the capability block", () => {
 
   it("replaces Home's refusal line", () => {
     expect(INSTRUCTION.account(null)).not.toContain("changes are made inside a trip");
+  });
+});
+
+// **The persona a step is served as decides what its instruction may say**
+// (M57 part 4 review). An instruction naming a tool the step was not handed
+// costs a charged step on a call the SDK refuses, and one that drops a rule the
+// split moved loses the behaviour the rule bought.
+describe("the instruction of a step served as a trip persona", () => {
+  const asPersona = (persona?: PersonaId) =>
+    instructionsFor({ kind: "trip" }, 3, "propose", null, false, undefined, "12h", [], [], null, persona);
+
+  // Schedule holds no search, so the citation rule it lost ("call search_places
+  // first for a named place") is replaced by the only route to one: a switch.
+  it("tells Schedule to switch to Discover for a stop that names a real place", () => {
+    const rule = asPersona("schedule")
+      .split("\n")
+      .find((line) => line.includes("stop names a real place"));
+    expect(rule, "Schedule's instruction has the named-place rule").toBeDefined();
+    expect(rule).toContain('switch_persona with to: "discover"');
+    expect(rule).not.toContain("search_places");
+    expect(asPersona("discover")).toContain("call search_places first");
+  });
+
+  // Discover is the persona a switch lands in, where the one switch is spent
+  // and the tool is no longer in the set.
+  it("does not tell a step served as Discover to call switch_persona", () => {
+    expect(asPersona("schedule")).toContain("call switch_persona");
+    expect(asPersona("discover")).not.toContain("switch_persona");
+    expect(renderPrompt(capabilityBlock("trip", null, undefined, "discover"))).not.toContain("switch_persona");
+  });
+
+  it("defaults to the persona a trip turn enters as", () => {
+    expect(asPersona(undefined)).toBe(asPersona("schedule"));
   });
 });

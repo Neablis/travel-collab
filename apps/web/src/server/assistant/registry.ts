@@ -47,6 +47,7 @@ import { PAGE_TOOLS } from "./tools/page";
 import { PLACE_TOOLS } from "./tools/places";
 import { ESCALATION_TOOLS } from "./tools/escalate";
 import { INTENT_TOOLS } from "./tools/intent";
+import { PERSONA_TOOLS } from "./tools/switchPersona";
 import { ACROSS_TRIP_TOOLS } from "./tools/acrossTrips";
 import { NAVIGATION_TOOLS } from "./tools/navigate";
 import { PLAYBOOK_TOOLS } from "./tools/playbook";
@@ -94,6 +95,9 @@ export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   // offered on its own in the only posture that holds it, so its neighbours are
   // moot in practice.
   ...ESCALATION_TOOLS,
+  // After the escalation, for the same reason: it is what a turn reaches for
+  // when the persona it holds was not enough (M57).
+  ...PERSONA_TOOLS,
 ];
 
 /**

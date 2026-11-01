@@ -13,6 +13,7 @@ import { handOffTool } from "./tools/ui";
 import {
   SURFACES,
   grantFor,
+  grantForPersona,
   minimumRoleFor,
   permitsPropose,
   postureFor,
@@ -21,14 +22,17 @@ import {
   type EffectCaps,
 } from "./grants";
 import { TASK_CLASSES } from "./taskClass";
+import { PERSONAS, type PersonaId } from "./personas";
 
 // **The table as it stood before it was derived from the persona graph** (M57
 // part 1), copied as literals and never read from `personas.ts`. Deriving
 // `SURFACES` was meant to change no grant; this is the one place that says so
-// in terms the derivation cannot agree with by construction.
+// in terms the derivation cannot agree with by construction. Part 4 splits the
+// trip planner: `trip` and `day` hold Schedule's rows, and the rows they lost
+// (`library`, `places`) are `DISCOVER_GRANTS` below, whose union is the old row.
 const SURFACES_BEFORE_PERSONAS = {
-  trip: [["itinerary", "propose"], ["library", "propose"], ["places", "read"], ["system", "read"], ["ui", "read"]],
-  day: [["itinerary", "propose"], ["library", "propose"], ["places", "read"], ["system", "read"], ["ui", "read"]],
+  trip: [["itinerary", "propose"], ["system", "read"], ["ui", "read"]],
+  day: [["itinerary", "propose"], ["system", "read"], ["ui", "read"]],
   page: [["itinerary", "read"], ["library", "read"], ["pages", "propose"], ["ui", "read"]],
   account: [["account", "read"], ["ui", "read"]],
   "playbook-day": [["playbook", "propose"], ["ui", "read"]],
@@ -38,11 +42,19 @@ const SURFACES_BEFORE_PERSONAS = {
   tag: [["playbookList", "read"], ["ui", "read"]],
 };
 
+const DISCOVER_GRANTS = [["itinerary", "propose"], ["library", "propose"], ["places", "read"], ["system", "read"], ["ui", "read"]];
+
 describe("SURFACES derived from the persona graph", () => {
-  it("holds exactly the grants, in the order, it held as a hand-written table", () => {
+  it("holds exactly the grants, in the order, it held as a hand-written table, less the trip planner's split", () => {
     const now = Object.fromEntries(Object.entries(SURFACES).map(([kind, grant]) => [kind, grant.map(({ domain, max }) => [domain, max])]));
     expect(now).toEqual(SURFACES_BEFORE_PERSONAS);
     expect(Object.keys(SURFACES)).toEqual(Object.keys(SURFACES_BEFORE_PERSONAS));
+  });
+
+  // The split moves tools; it removes none. Discover holds what the whole trip
+  // planner held before part 4, so a turn that switches to it is not poorer.
+  it("keeps the old trip planner's row whole in Discover", () => {
+    expect(PERSONAS.discover.grants.map(({ domain, max }) => [domain, max])).toEqual(DISCOVER_GRANTS);
   });
 });
 
@@ -72,6 +84,15 @@ function namesFor(caps: EffectCaps): string[] {
   return toolsFor(grantFor(caps)).map((tool) => tool.name);
 }
 
+/** The set of a persona the turn switched to, under the turn's three non-surface caps. */
+function namesForPersona(persona: PersonaId, caps: Omit<EffectCaps, "surface">): string[] {
+  return toolsFor(grantForPersona(persona, caps)).map((tool) => tool.name);
+}
+
+// Schedule holds the reads of the trip itself and no lookup (M57 part 4):
+// `search_playbooks` is the one read tool in `READ_TOOLS` that is Discover's.
+const SCHEDULE_READS = READ_TOOLS.filter((name) => name !== "search_playbooks");
+
 /** An editor, on a plan that permits everything, whose turn was read as a write. */
 const EDITOR: Omit<EffectCaps, "surface"> = { role: "propose", plan: "propose", classifier: "propose" };
 
@@ -79,14 +100,14 @@ describe("the three tool sets a turn can be offered", () => {
   // Today's `READ_TOOL_NAMES`. Every domain capped at `read`, whichever surface
   // asks — which is what makes a viewer's trip turn and an editor's withheld
   // turn the same set without either being a special case.
-  it("is the five read tools, search_places and go_to when every cap is `read`", () => {
+  it("is the five read tools, search_places and go_to when every cap is `read`, in Discover", () => {
     // **`search_places` survives every `read` cap, and that is correct rather
     // than an oversight.** It IS a read — it reads a public gazetteer and
     // writes nothing — so a viewer may search and an editor whose turn was read
     // as a question may too. What neither can do is CITE the result, because
     // neither holds a write tool; the grant arithmetic already says so, and a
     // second rule here would be a second place to keep it true.
-    expect(namesFor({ surface: "trip", role: "read", plan: "read", classifier: "read" })).toEqual([
+    expect(namesForPersona("discover", { role: "read", plan: "read", classifier: "read" })).toEqual([
       ...READ_TOOLS,
       ...PLACE_TOOLS,
       ...GO_TO,
@@ -94,14 +115,25 @@ describe("the three tool sets a turn can be offered", () => {
     ]);
   });
 
+  // What a trip page enters. The lookups and the cards they feed are one
+  // `switch_persona` away, so a turn that never needs them never pays for them.
+  it("is the four trip reads and go_to on a trip, with every cap `read`", () => {
+    expect(namesFor({ surface: "trip", role: "read", plan: "read", classifier: "read" })).toEqual([
+      ...SCHEDULE_READS,
+      ...GO_TO,
+      ...UI_NO_CARDS,
+    ]);
+  });
+
   // Today's `READ_TOOL_NAMES + WRITE_TOOL_NAMES`. The command half is derived
   // from the contract rather than listed, so a thirteenth `BatchableCommand`
   // joins the set — and `minimumRoleFor`'s editor answer — with no edit here
   // (ADR-015 invariant 5).
-  it("is the read tools plus every command plus insert_playbook_day on a trip or day surface", () => {
-    const expected = [...READ_TOOLS, ...PLACE_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day", ...GO_TO, ...UI];
-    expect(namesFor({ ...EDITOR, surface: "trip" })).toEqual(expected);
-    expect(namesFor({ ...EDITOR, surface: "day" })).toEqual(expected);
+  it("is the trip reads plus every command on a trip or day surface, and the whole old set in Discover", () => {
+    const schedule = [...SCHEDULE_READS, ...COMMAND_TOOLS, ...GO_TO, ...UI_NO_CARDS];
+    expect(namesFor({ ...EDITOR, surface: "trip" })).toEqual(schedule);
+    expect(namesFor({ ...EDITOR, surface: "day" })).toEqual(schedule);
+    expect(namesForPersona("discover", EDITOR)).toEqual([...READ_TOOLS, ...PLACE_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day", ...GO_TO, ...UI]);
   });
 
   // Today's `READ_TOOL_NAMES + PAGE_TOOL_NAMES`, and ADR-033 Decision 4's
@@ -185,7 +217,8 @@ describe("a grant is a minimum over four independent caps", () => {
     ["plan", { plan: "read" }],
     ["classifier", { classifier: "read" }],
   ] as const)("narrows a trip turn to the read tools when %s says read", (_label, override) => {
-    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual([...READ_TOOLS, ...PLACE_TOOLS, ...GO_TO, ...UI]);
+    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual([...SCHEDULE_READS, ...GO_TO, ...UI_NO_CARDS]);
+    expect(namesForPersona("discover", { ...EDITOR, ...override })).toEqual([...READ_TOOLS, ...PLACE_TOOLS, ...GO_TO, ...UI]);
   });
 
   // The fourth cap, and the one that is not a scalar: the page surface caps
@@ -334,15 +367,16 @@ describe("a task class narrows the tool set, and only ever subtracts", () => {
   // dead end and the remedy — one deleted entry — and this is it.
   const WITHHELD_FROM_PLAN = ["SetTripCurrency", "SetTripBudget", "DismissConflict"];
   const editorTrip: EffectCaps = { ...EDITOR, surface: "trip" };
-  const unnarrowed = toolsFor(grantFor(editorTrip)).map((t) => t.name);
+  // Discover: the persona that holds the whole old trip set, which is what a class narrows.
+  const unnarrowed = toolsFor(grantForPersona("discover", editorTrip)).map((t) => t.name);
 
   it("does not narrow when no class is passed — a caller that has not classified gets everything", () => {
     expect(unnarrowed).toEqual(expect.arrayContaining([...READ_TOOLS, ...COMMAND_TOOLS]));
-    expect(toolsFor(grantFor(editorTrip), undefined).map((t) => t.name)).toEqual(unnarrowed);
+    expect(toolsFor(grantForPersona("discover", editorTrip), undefined).map((t) => t.name)).toEqual(unnarrowed);
   });
 
   it("withholds the three trip-settings commands from a plan turn and keeps the rest", () => {
-    const planning = toolsFor(grantFor(editorTrip), "plan").map((t) => t.name);
+    const planning = toolsFor(grantForPersona("discover", editorTrip), "plan").map((t) => t.name);
     for (const name of WITHHELD_FROM_PLAN) expect(planning).not.toContain(name);
     // The ones a plan genuinely needs, including BOTH date commands — "plan me
     // six days from March 3" is a planning turn that has to set dates — and,
@@ -359,7 +393,7 @@ describe("a task class narrows the tool set, and only ever subtracts", () => {
   });
 
   it("offers an edit turn everything, because a bounded change can be any command", () => {
-    expect(toolsFor(grantFor(editorTrip), "edit").map((t) => t.name)).toEqual(unnarrowed);
+    expect(toolsFor(grantForPersona("discover", editorTrip), "edit").map((t) => t.name)).toEqual(unnarrowed);
   });
 
   // The invariant that matters more than any single policy entry: a tag may
@@ -579,17 +613,19 @@ describe("a read-only turn", () => {
   it("offers show_options only beside a tool that can feed it", () => {
     const feeders = ["search_places", "search_playbooks"];
     const withCards: string[] = [];
-    for (const surface of Object.keys(SURFACES) as (keyof typeof SURFACES)[]) {
+    for (const persona of Object.keys(PERSONAS) as PersonaId[]) {
       for (const role of ["read", "propose"] as const) {
         for (const taskClass of [undefined, ...TASK_CLASSES]) {
-          const caps = { surface, role, plan: "propose" as const, classifier: "propose" as const };
-          const names = toolsFor(grantFor(caps), taskClass, postureFor(caps)).map((tool) => tool.name);
-          expect(names.includes("show_options"), `${surface}, ${role}, ${taskClass ?? "none"}`).toBe(names.some((name) => feeders.includes(name)));
-          if (names.includes("show_options")) withCards.push(surface);
+          const caps = { role, plan: "propose" as const, classifier: "propose" as const };
+          const names = toolsFor(grantForPersona(persona, caps), taskClass, postureFor(caps)).map((tool) => tool.name);
+          expect(names.includes("show_options"), `${persona}, ${role}, ${taskClass ?? "none"}`).toBe(names.some((name) => feeders.includes(name)));
+          if (names.includes("show_options")) withCards.push(persona);
         }
       }
     }
-    expect([...new Set(withCards)].sort()).toEqual(["day", "page", "trip"]);
+    // Per persona rather than per surface since part 4: a trip page enters
+    // Schedule, which has no search to feed a card.
+    expect([...new Set(withCards)].sort()).toEqual(["discover", "page-writer"]);
   });
 
   // The exception is keyed on what the tool does, not on its domain alone: a

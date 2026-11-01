@@ -9,10 +9,12 @@
 // DOMAIN added fails `capabilityBlock.test.ts` until it is described here.
 import { HAND_OFF_TARGETS, type HandOffTo } from "@tc/contracts";
 import { EFFECT_LEVEL, type ToolDomain } from "./defineTool";
-import { SURFACES, grantFor, postureFor, toolsFor, type SurfaceKind } from "./grants";
+import { grantForPersona, postureFor, toolsFor, type SurfaceKind } from "./grants";
+import { ENTRY, PERSONAS, reachable, switchTargetsOf, type PersonaId } from "./personas";
 import { rule, type PromptBlock } from "./prompt";
 import type { TaskClass } from "./taskClass";
 import { ASSISTANT_TOOLS } from "./registry";
+import { SWITCH_PERSONA_TOOL_NAME } from "./tools/switchPersona";
 import { GO_TO_TOOL_NAME } from "./tools/navigate";
 import { HAND_OFF_TOOL_NAME, ASK_USER_TOOL_NAME, SHOW_OPTIONS_TOOL_NAME } from "./tools/ui";
 
@@ -76,7 +78,14 @@ export type ChangeLimit = "role" | "plan" | null;
  * is a target (ADR-084 §2).
  */
 export function capabilitiesOf(surface: SurfaceKind, limit: ChangeLimit = null): Capabilities {
-  const granted = new Map<ToolDomain, string>(SURFACES[surface].map(({ domain, max }) => [domain, max]));
+  // What the page's turn can reach, not only what it enters with: a change the
+  // entry persona hands to another by `switch_persona` is made from this page.
+  // The widest each domain gets across the personas a switch can reach.
+  const granted = new Map<ToolDomain, string>();
+  const open = { role: "propose", plan: "propose", classifier: "propose" } as const;
+  for (const id of reachable(ENTRY[surface], open, false)) {
+    for (const { domain, max } of PERSONAS[id].grants) if (granted.get(domain) !== "propose") granted.set(domain, max);
+  }
   const changes: string[] = [];
   const elsewhere: Capabilities["elsewhere"] = [];
   for (const domain of changeDomains()) {
@@ -100,14 +109,14 @@ export function capabilitiesOf(surface: SurfaceKind, limit: ChangeLimit = null):
 }
 
 /**
- * Whether a turn on this surface, so limited and of this class, is offered
+ * Whether a turn in this persona, so limited and of this class, is offered
  * `show_options`: only beside a search that feeds it. The class narrows the
  * set as the turn's own grant does (a notebook compose turn holds no search),
  * and no class means a set nobody narrowed.
  */
-function showsOptions(surface: SurfaceKind, limit: ChangeLimit, taskClass: TaskClass | undefined): boolean {
-  const caps = { surface, role: limit === "role" ? "read" : "propose", plan: limit === "plan" ? "read" : "propose", classifier: "propose" } as const;
-  return toolsFor(grantFor(caps), taskClass, postureFor(caps)).some((tool) => tool.name === SHOW_OPTIONS_TOOL_NAME);
+function showsOptions(persona: PersonaId, limit: ChangeLimit, taskClass: TaskClass | undefined): boolean {
+  const caps = { role: limit === "role" ? "read" : "propose", plan: limit === "plan" ? "read" : "propose", classifier: "propose" } as const;
+  return toolsFor(grantForPersona(persona, caps), taskClass, postureFor(caps)).some((tool) => tool.name === SHOW_OPTIONS_TOOL_NAME);
 }
 
 const ROUTE_WORDS: Readonly<Record<CapabilityRoute, (aboutTrip: boolean) => string>> = {
@@ -118,12 +127,28 @@ const ROUTE_WORDS: Readonly<Record<CapabilityRoute, (aboutTrip: boolean) => stri
   [GO_TO_TOOL_NAME]: () => `${GO_TO_TOOL_NAME} with the notebook, and they ask there`,
 };
 
+/** The `switch_persona` line for each persona the entry one hands work to, which is the edge list as the model reads it. */
+function switchLines(persona: PersonaId): string[] {
+  return switchTargetsOf(persona).map(
+    (to) => `If the message needs ${PERSONAS[to].does}, call ${SWITCH_PERSONA_TOOL_NAME} with to: "${to}": your next step holds its tools, and you can switch once a turn.`,
+  );
+}
+
 /** The block, as rules: what this page changes, where the rest is done, and how a turn ends instead of refusing. */
-export function capabilityBlock(surface: SurfaceKind, limit: ChangeLimit = null, taskClass?: TaskClass): PromptBlock[] {
+export function capabilityBlock(
+  surface: SurfaceKind,
+  limit: ChangeLimit = null,
+  taskClass?: TaskClass,
+  // The persona the step is served as. Not the entry after the turn's one switch,
+  // which leaves it nothing to call: telling it to would cost a refused step.
+  persona: PersonaId = ENTRY[surface],
+): PromptBlock[] {
   const { changes, elsewhere } = capabilitiesOf(surface, limit);
   const aboutTrip = ABOUT_A_TRIP.has(surface);
   return [
     changes.length === 0 ? "From this page you can change nothing." : `From this page you can change ${changes.join("; ")}.`,
+    // A limited turn is offered no `switch_persona` (a `steer` tool), so it is not told of one.
+    ...(limit === null && persona === ENTRY[surface] ? switchLines(persona) : []),
     ...elsewhere.map(({ change, to }) => `Not from here: ${change}. For that, ${to.map((route) => ROUTE_WORDS[route](aboutTrip)).join(", or ")}.`),
     // A viewer's change is not a task done somewhere else: no page in this app
     // lets them make it, so a hand-off would point at nothing true.
@@ -135,9 +160,24 @@ export function capabilityBlock(surface: SurfaceKind, limit: ChangeLimit = null,
     `When a few answers would settle what they want, call ${ASK_USER_TOOL_NAME} instead of guessing or asking in prose.${
       // "Once you have its results": a day card is filled from what the search
       // returned when its step ends, so one called beside the search is refused.
-      showsOptions(surface, limit, taskClass)
+      showsOptions(ENTRY[surface], limit, taskClass)
         ? ` To offer places or published days a search returned this turn, call ${SHOW_OPTIONS_TOOL_NAME} once you have its results.`
         : ""
     }`,
+  ].map(rule);
+}
+
+/**
+ * What a turn that switched to `persona` is told beside its entry instruction:
+ * who it is now, that the one switch is spent, and `show_options` where its
+ * set holds a search that feeds it. The entry instruction is kept whole, so
+ * the thread reads as one conversation (ADR-085 D6).
+ */
+export function switchedBlock(persona: PersonaId, limit: ChangeLimit = null, taskClass?: TaskClass): PromptBlock[] {
+  return [
+    `You have switched to ${PERSONAS[persona].label}, for ${PERSONAS[persona].does}. You hold its tools now, and you cannot switch again this turn.`,
+    ...(showsOptions(persona, limit, taskClass)
+      ? [`To offer places or published days a search returned this turn, call ${SHOW_OPTIONS_TOOL_NAME} once you have its results.`]
+      : []),
   ].map(rule);
 }

@@ -30,7 +30,7 @@ function ledger(overrides: Partial<TurnLedger["cost"]> = {}): TurnLedger {
       turnId: null,
       latencyMs: null,
       planExamples: null,
-      entryPersona: "trip-planner",
+      entryPersona: "schedule",
       ...overrides,
     },
     capacity: [],
@@ -62,7 +62,7 @@ describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
         durationMs: index === 0 ? 161_000 : 1_200,
         provider: index === 0 ? "zai" : "deepinfra",
         gatewayGenerationId: `gen_step_${index}`,
-        persona: "trip-planner" as const,
+        persona: "schedule" as const,
       })),
       toolCalls: [
         {
@@ -129,29 +129,29 @@ describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
     const turnId = randomUUID();
     const first = withRows(turnId);
     await recordTurnLedger({
-      cost: { ...first.cost, entryPersona: "trip-planner" },
+      cost: { ...first.cost, entryPersona: "schedule" },
       capacity: [],
       toolCalls: [],
-      stepSpend: first.stepSpend.map((step) => ({ ...step, persona: "trip-planner" })),
+      stepSpend: first.stepSpend.map((step) => ({ ...step, persona: "schedule" })),
     });
     const replay = withRows(turnId);
     await recordTurnLedger({
-      cost: { ...replay.cost, entryPersona: "trip-planner" },
+      cost: { ...replay.cost, entryPersona: "schedule" },
       capacity: [],
       toolCalls: [],
       stepSpend: replay.stepSpend.map((step) =>
         step.index === 0
-          ? { ...step, persona: "trip-planner" as const }
-          : { ...step, persona: "page-writer" as const, fromPersona: "trip-planner" as const, edgeKind: "switch" as const },
+          ? { ...step, persona: "schedule" as const }
+          : { ...step, persona: "page-writer" as const, fromPersona: "schedule" as const, edgeKind: "switch" as const },
       ),
     });
 
     const [row] = await db.select().from(aiUsage).where(eq(aiUsage.id, turnId));
-    expect(row!.entryPersona).toBe("trip-planner");
+    expect(row!.entryPersona).toBe("schedule");
     const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, turnId));
     expect(steps.map((step) => [step.stepIndex, step.persona, step.fromPersona, step.edgeKind]).sort()).toEqual([
-      [0, "trip-planner", null, null],
-      [1, "page-writer", "trip-planner", "switch"],
+      [0, "schedule", null, null],
+      [1, "page-writer", "schedule", "switch"],
     ]);
   });
 
@@ -223,7 +223,7 @@ describe("the billing row is independent of the step and tool-call rows", () => 
       // the child write is made to fail on a step index no integer column
       // can hold.
       stepSpend: [
-        { index: 2 ** 40, model: TURN_MODEL, tier: null, tokensIn: 1, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 1, finishReason: "stop", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "trip-planner" },
+        { index: 2 ** 40, model: TURN_MODEL, tier: null, tokensIn: 1, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 1, finishReason: "stop", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
       ],
     };
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -248,8 +248,8 @@ describe("an escalated turn is priced at the models that ran it", () => {
     const entry: TurnLedger = {
       ...ledger({ userId, turnId, classifier: null, steps: 2, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
       stepSpend: [
-        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "trip-planner" },
-        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "trip-planner" },
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
+        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
       ],
     };
     await recordTurnLedger(entry, at);
@@ -270,8 +270,8 @@ describe("an escalated turn is priced at the models that ran it", () => {
     const entry: TurnLedger = {
       ...ledger({ userId, turnId: randomUUID(), classifier: null, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
       stepSpend: [
-        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 2000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 200, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "trip-planner" },
-        { index: 1, model: TURN_MODEL, tier: "low", tokensIn: null, cacheReadTokens: null, cacheWriteTokens: null, tokensOut: null, finishReason: "stop", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "trip-planner" },
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 2000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 200, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
+        { index: 1, model: TURN_MODEL, tier: "low", tokensIn: null, cacheReadTokens: null, cacheWriteTokens: null, tokensOut: null, finishReason: "stop", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
       ],
     };
     await recordTurnLedger(entry, at);
@@ -601,8 +601,8 @@ describe("what the console reads", () => {
     const escalated = (userId: string): TurnLedger => ({
       ...ledger({ userId, turnId: randomUUID(), classifier: null, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
       stepSpend: [
-        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "trip-planner" },
-        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "trip-planner" },
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
+        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null, persona: "schedule" },
       ],
     });
     const [mine, theirs] = [`dev-${randomUUID()}`, `dev-${randomUUID()}`];

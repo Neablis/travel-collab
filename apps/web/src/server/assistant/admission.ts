@@ -58,10 +58,12 @@ import type { AnyAssistantTool, EffectLevel, TurnOrigin } from "./defineTool";
 import { PERMITS_EVERYTHING, type EntitlementCeilings, type ResolvedEntitlements } from "./entitlements";
 import { capTier, tierFor, type ModelTier, type TaskClass, type TierModels } from "./taskClass";
 import { reachableIntents } from "./intents";
-import { ENTRY, type PersonaId } from "./personas";
+import { ENTRY, reachable as reachablePersonas, type PersonaId, type TurnCaps } from "./personas";
 import { SWITCH_INTENT_TOOL_NAME } from "./tools/intent";
+import { SWITCH_PERSONA_TOOL_NAME } from "./tools/switchPersona";
 import {
   grantFor,
+  grantForPersona,
   minimumRoleFor,
   permitsPropose,
   postureFor,
@@ -331,6 +333,19 @@ export interface AiRefusal {
  * that map `GrantedEffects`. The verdict kept the name because it is what the
  * `ai.grant` audit record is a record *of*.
  */
+/** What the turn holds from the step after it switches to a persona. */
+export interface PersonaServing {
+  tools: readonly AnyAssistantTool[];
+  /** The (domain, effect) pairs the switched turn holds, as `AiGrant.grants` is for the entry's. */
+  grants: GrantedEffects;
+  /** Whether the class filter took a tool from this persona's set, as `AiGrant.classWithheld` is for the entry's. */
+  classWithheld: boolean;
+  tier: ModelTier;
+  model: LanguageModel;
+  /** The set once the model escalates inside this persona; null unless the turn is `withheld`. */
+  escalation: { tools: readonly AnyAssistantTool[]; grants: GrantedEffects; tier: ModelTier; model: LanguageModel } | null;
+}
+
 export interface AiGrant {
   /** Null on an account turn (M45), which is about no one trip. */
   tripId: string | null;
@@ -341,6 +356,8 @@ export interface AiGrant {
   surface: SurfaceKind;
   /** The persona the turn enters at: where `ENTRY` puts this surface (M57, ADR-085). */
   persona: PersonaId;
+  /** The caps a persona edge's guard is read against: the three that are not the page's. */
+  turnCaps: TurnCaps;
   scope: AskScope;
   /** The page row `resolveSurface` verified, or null on any other surface. */
   page: Page | null;
@@ -367,6 +384,14 @@ export interface AiGrant {
     reachable: readonly TaskClass[];
     byIntent: Partial<Record<TaskClass, { tools: readonly AnyAssistantTool[]; tier: ModelTier; model: LanguageModel }>>;
   } | null;
+  /**
+   * **What a `switch_persona` buys, per persona the turn can reach** (M57),
+   * empty on a turn with no such edge. Resolved here for the reason `intents`
+   * and `escalation` are: each is `toolsFor` over this turn's caps, so a switch
+   * can only choose among sets this pipeline admitted and the `minimumRoleFor`
+   * check below saw.
+   */
+  switches: Partial<Record<PersonaId, PersonaServing>>;
   /**
    * **What a successful escalation unlocks** — null on every turn that cannot
    * escalate (M9 design §1b).
@@ -1325,8 +1350,14 @@ const grantTools: AdmissionStage = {
     const canPivot = page !== null && reachable.length > 1;
     const setFor = (intent: TaskClass) =>
       toolsFor(grants, intent, posture, origin, phase).filter((tool) => canPivot || tool.name !== SWITCH_INTENT_TOOL_NAME);
-    const tools = narrowBy === undefined ? offerable : setFor(narrowBy);
-    const classWithheld = page === null && tools.length < offerable.length;
+    // `switch_persona` is in a set only where an edge leaves the persona under
+    // this turn's caps, as the page's pivot is only where there is an intent.
+    const personaCaps = { role: caps.role, plan: caps.plan, classifier: caps.classifier };
+    const switchable = reachablePersonas(ENTRY[surface], personaCaps, false).filter((id) => id !== ENTRY[surface]);
+    const canSwitch = switchable.length > 0;
+    const personaTools = (set: readonly AnyAssistantTool[]) => set.filter((tool) => canSwitch || tool.name !== SWITCH_PERSONA_TOOL_NAME);
+    const tools = personaTools(narrowBy === undefined ? offerable : setFor(narrowBy));
+    const classWithheld = page === null && tools.length < personaTools(offerable).length;
     const intents = canPivot
       ? {
           reachable,
@@ -1360,13 +1391,44 @@ const grantTools: AdmissionStage = {
             const escalatedGrants = grantFor(lifted);
             const escalatedTier = capTier(tierFor("edit"), selected.entitlements.ceilings.maxTier);
             return {
-              tools: toolsFor(escalatedGrants, "edit", postureFor(lifted), origin, phase),
+              tools: personaTools(toolsFor(escalatedGrants, "edit", postureFor(lifted), origin, phase)),
               grants: escalatedGrants,
               tier: escalatedTier,
               model: selected.models[escalatedTier],
             };
           })()
         : null;
+
+    // **Each persona a switch can reach, served under this turn's own caps.**
+    // The class that narrowed the entry's set narrows theirs, and the tier is
+    // the turn's: a switch changes which tools the next step holds, not how
+    // much the turn is allowed to spend on a model.
+    const switches = Object.fromEntries(
+      switchable.map((id) => {
+        const theirGrants = grantForPersona(id, personaCaps);
+        // Without `switch_persona`: the turn's one switch is spent by getting here.
+        const spent = (set: readonly AnyAssistantTool[]) => set.filter((tool) => tool.name !== SWITCH_PERSONA_TOOL_NAME);
+        const theirOfferable = spent(toolsFor(theirGrants, undefined, posture, origin, phase));
+        const theirTools = narrowBy === undefined ? theirOfferable : spent(toolsFor(theirGrants, narrowBy, posture, origin, phase));
+        const lifted = { ...personaCaps, classifier: "propose" as const };
+        const liftedGrants = grantForPersona(id, lifted);
+        const liftedTier = capTier(tierFor("edit"), selected.entitlements.ceilings.maxTier);
+        return [
+          id,
+          {
+            tools: theirTools,
+            grants: theirGrants,
+            classWithheld: page === null && theirTools.length < theirOfferable.length,
+            tier,
+            model,
+            escalation:
+              escalation === null
+                ? null
+                : { tools: spent(toolsFor(liftedGrants, "edit", postureFor(lifted), origin, phase)), grants: liftedGrants, tier: liftedTier, model: selected.models[liftedTier] },
+          } satisfies PersonaServing,
+        ];
+      }),
+    ) as Partial<Record<PersonaId, PersonaServing>>;
 
     // The rule is enforced rather than commented: `minimumRoleFor` is asked what
     // the set about to be handed to the agent requires — the maximum
@@ -1385,6 +1447,7 @@ const grantTools: AdmissionStage = {
       ...tools,
       ...(escalation?.tools ?? []),
       ...Object.values(intents?.byIntent ?? {}).flatMap((entry) => entry.tools),
+      ...Object.values(switches).flatMap((entry) => [...entry.tools, ...(entry.escalation?.tools ?? [])]),
     ]);
     // An account turn has no members to hold the set against. It holds pure
     // reads of the trips the asker can already open (`AccountTrips`), which is
@@ -1403,6 +1466,7 @@ const grantTools: AdmissionStage = {
       detail,
       surface,
       persona: ENTRY[surface],
+      turnCaps: personaCaps,
       scope,
       page,
       now,
@@ -1410,6 +1474,7 @@ const grantTools: AdmissionStage = {
       tools,
       posture,
       escalation,
+      switches,
       intents,
       classWithheld,
       model,
@@ -1513,7 +1578,7 @@ export interface AiGrantRecord {
   userId: string | null;
   outcome: "granted" | "refused";
   surface: SurfaceKind | null;
-  /** The granted (domain, effect) pairs — the whole of what this turn may do. */
+  /** The granted (domain, effect) pairs — the whole of what this turn may do, including what a persona switch adds. */
   grants: Partial<Record<string, EffectLevel>> | null;
   /** The tools actually offered, in registry order. */
   tools: string[] | null;
@@ -1568,6 +1633,22 @@ export async function evaluateAiGrant(input: AdmissionInput): Promise<AiAdmissio
 
 
 /**
+ * What the turn may do at any step: the entry persona's pairs, each raised to
+ * the level a persona it can switch to holds. A switch to Discover adds the
+ * library and the vendor-spending lookup, and a record that left them out would
+ * understate what the turn could spend.
+ */
+function grantsOverTheTurn(grant: AiGrant): Partial<Record<string, EffectLevel>> {
+  const over: Partial<Record<string, EffectLevel>> = { ...grant.grants };
+  for (const serving of Object.values(grant.switches)) {
+    for (const [domain, level] of Object.entries(serving.grants)) {
+      if (over[domain] !== "propose") over[domain] = level;
+    }
+  }
+  return over;
+}
+
+/**
  * The `ai.grant` record for a turn that was let through.
  *
  * Paired with `refusedRecord`: the two fill the same field set, each nulling
@@ -1581,7 +1662,7 @@ function grantedRecord(grant: AiGrant): AiGrantRecord {
     userId: grant.userId,
     outcome: "granted",
     surface: grant.surface,
-    grants: grant.grants,
+    grants: grantsOverTheTurn(grant),
     tools: grant.tools.map((tool) => tool.name),
     model: grant.modelId,
     simulated: grant.simulated,

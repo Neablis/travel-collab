@@ -77,7 +77,6 @@ import { OFF_TOPIC } from "@/server/ai/askIntent";
 import { clockTimesLine, nowBlocks, turnNowOf, type AskScope } from "@/server/assistant/context";
 import { buildTripGlobals } from "@/server/tripGlobals";
 import type { SurfaceKind } from "@/server/assistant/grants";
-import type { PersonaId } from "@/server/assistant/personas";
 import { readPreferences } from "@/server/users";
 import { MAX_DAYS_READ_PER_TURN, MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
 import { MAX_READ_DAYS, OVERVIEW_ABOVE_DAYS, PlaybookSearchReadoutSchema } from "@/server/assistant/tools/read";
@@ -117,7 +116,8 @@ import {
   savedDayLibrary,
 } from "@/server/ai/assistantPorts";
 import { typedAddressesIn } from "@/server/assistant/typedAddresses";
-import { capabilitiesOf, capabilityBlock, type ChangeLimit } from "@/server/assistant/capabilities";
+import { capabilitiesOf, capabilityBlock, switchedBlock, type ChangeLimit } from "@/server/assistant/capabilities";
+import { PERSONAS, type PersonaId } from "@/server/assistant/personas";
 import { hasAtLeast } from "@/server/accessPolicy";
 import {
   newAccountTrips,
@@ -199,6 +199,7 @@ import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetr
 import { repairToolInput } from "@/server/assistant/repairToolInput";
 import { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
 import { ESCALATE_TOOL_NAME } from "@/server/assistant/tools/escalate";
+import { SWITCH_PERSONA_TOOL_NAME } from "@/server/assistant/tools/switchPersona";
 import { ASK_HARD_DEADLINE_MS, ASK_STEP_DEADLINE_MS, AskDeadlineError, type AskDeadlines } from "@/server/ai/askDeadline";
 import { citiesOfDay } from "@tc/domain";
 import { newIntentLatch, type AskPivot } from "@/server/assistant/intents";
@@ -392,9 +393,7 @@ export async function handleAskRequest(
   // reads the grant that was actually in force rather than the one the turn
   // started with. A boolean captured here would drop the proposal an escalated
   // turn just built.
-  const proposesPlan = () =>
-    (escalation.escalated() !== null && grant.escalation !== null ? grant.escalation.grants : grant.grants)
-      .itinerary === "propose";
+  const proposesPlan = () => servingNow().grants.itinerary === "propose";
   const proposesPage = grant.grants.pages === "propose";
   // **This turn's numbered search results, and the reason a `placeRef` means
   // anything** (M9 grounding). Minted per turn beside the two collectors and
@@ -450,7 +449,31 @@ export async function handleAskRequest(
   // holds a latch with nowhere to go — its pivot is the escalation above — so
   // `switch_intent` is never offered there and the latch is never asked.
   let stepsTaken = 0;
-  const intent = newIntentLatch(grant.taskClass, grant.intents?.reachable ?? [grant.taskClass], () => stepsTaken);
+  // It also holds the turn's persona (M57): the entry one until `switch_persona`
+  // crosses an edge, which the latch re-checks against the turn's own caps.
+  const intent = newIntentLatch(grant.taskClass, grant.intents?.reachable ?? [grant.taskClass], () => stepsTaken, {
+    entry: grant.persona,
+    caps: grant.turnCaps,
+  });
+
+  // **What the step about to run holds** (M57): the entry persona's set, the
+  // escalated one once the model escalates, or either of a persona the turn
+  // switched to. One lookup, read by `prepareStep` and by whatever asks what
+  // the turn may do now, so the two cannot disagree about which persona it is.
+  const servingNow = () => {
+    const persona = intent.persona();
+    const switched = persona === grant.persona ? undefined : grant.switches[persona];
+    const base = switched ?? {
+      tools: grant.tools,
+      grants: grant.grants,
+      classWithheld: grant.classWithheld,
+      tier: grant.tier,
+      model: grant.model,
+      escalation: grant.escalation,
+    };
+    const escalated = escalation.escalated() !== null && base.escalation !== null;
+    return { ...(escalated ? base.escalation! : base), classWithheld: base.classWithheld, escalated, persona };
+  };
 
   // The turn's meter: one object, handed to the tool set that fills it and to
   // the recorder that reads it. It is minted here rather than inside either,
@@ -465,6 +488,8 @@ export async function handleAskRequest(
   // per-step row. The admitted model and tier unless a step says otherwise.
   const admittedPlan: AskStepPlan = { model: grant.modelId, tier: grant.tier, escalated: false, pivoted: false };
   const stepPlans = new Map<number, AskStepPlan>();
+  // The persona the last step ran as, so the step that first runs as another can say it crossed an edge.
+  let servedPersona: PersonaId = grant.persona;
   // The positions in `proposalBuffer.collected()` that the dry run dropped,
   // written in `onEnd` and read by the recorder at the latch it fires there.
   let droppedIndices: ReadonlySet<number> = new Set();
@@ -487,6 +512,8 @@ export async function handleAskRequest(
     // Every intent a page turn can pivot to, built now for the reason the
     // escalated set is: `prepareStep` only chooses among tools that exist.
     ...Object.values(grant.intents?.byIntent ?? {}).flatMap((entry) => entry.tools),
+    // And every persona a switch can reach, with its escalated set, for the same reason.
+    ...Object.values(grant.switches).flatMap((entry) => [...entry.tools, ...(entry.escalation?.tools ?? [])]),
   ]);
   const tools = aiToolsFor(
     buildable,
@@ -852,6 +879,7 @@ export async function handleAskRequest(
       promptExamples,
       nowBlocks(grant.now, detail),
       limit,
+      grant.persona,
     ),
     tools,
     // The narrow set is what step 1 sends. `prepareStep` below is the only
@@ -877,10 +905,19 @@ export async function handleAskRequest(
      * call would reimplement it, one frame later and with a second answer.
      */
     prepareStep: ({ stepNumber, steps }) => {
+      // **The persona the latch holds now, and the edge into it if this step is
+      // the first to run as it** (M57). Read before the wrap-up below, so a switch
+      // made on the step that tripped a limit still reaches the ledger and the
+      // wrap-up row names the persona the thread is in, not the one it entered.
+      const persona = intent.persona();
+      const from = servedPersona;
+      const asPersona = (plan: AskStepPlan): AskStepPlan =>
+        persona === grant.persona ? plan : { ...plan, persona, ...(persona !== from ? { fromPersona: from, edgeKind: "switch" as const } : {}) };
+      servedPersona = persona;
       // Recorded as the admitted plan first, and overwritten below by a pivot
       // or an escalation — so every step has an entry and the wrap-up step,
       // which sets no model and so runs on the admitted one, says so truly.
-      stepPlans.set(stepNumber, admittedPlan);
+      stepPlans.set(stepNumber, asPersona(admittedPlan));
       // **Past the step deadline, or past the input-token ceiling, one last
       // step with no tools** — so the model says what it has rather than the
       // turn ending mid-thought, and `stopWhen` below ends the run after it.
@@ -892,6 +929,38 @@ export async function handleAskRequest(
         if (wrapUpReason !== null) wrapUpStep = stepNumber;
       }
       if (wrapUpStep !== null) return { activeTools: [], toolChoice: "none" as const };
+      // **A persona switch** (M57): the persona the latch holds now serves the
+      // step, with its own tools and instruction. Escalating inside it is the
+      // same lookup, so a switched persona is not a third special case.
+      if (persona !== grant.persona) {
+        const serving = servingNow();
+        stepPlans.set(
+          stepNumber,
+          asPersona({ model: modelIdOf(serving.model), tier: serving.tier, escalated: serving.escalated, pivoted: false }),
+        );
+        return {
+          activeTools: serving.tools.map((tool) => tool.name),
+          model: serving.model,
+          instructions: renderPrompt([
+            ...instructionBlocks(
+              scope,
+              detail.days.length,
+              // Re-rendered on every step, so an escalation inside the persona is
+              // told the truth too: it holds the change tools, and nothing is withheld.
+              serving.escalated ? "propose" : grant.posture,
+              briefFor(page, grant.taskClass, detail),
+              serving.classWithheld && !serving.escalated,
+              standingOf(detail),
+              clock,
+              promptExamples,
+              nowBlocks(grant.now, detail),
+              limit,
+              persona,
+            ),
+            ...switchedBlock(persona, limit),
+          ]),
+        };
+      }
       // **A page pivot** (ADR-058): the intent the latch holds now, with its
       // own tools, model and instruction. Unchanged intent returns nothing, so
       // a turn that never pivots sends exactly what it was admitted with.
@@ -2155,8 +2224,12 @@ export function instructionsFor(
   // M52: the under-way trip's *now* (`nowBlocks`), and nothing on any other.
   now: PromptBlock[] = [],
   limit: ChangeLimit = posture === "read-only" ? "role" : null,
+  // The persona the step runs as (M57). Defaulted to the one a trip turn enters
+  // as, so a caller that names none renders the first step's instruction, the
+  // one sent most often.
+  persona: PersonaId = "schedule",
 ): string {
-  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock, examples, now, limit));
+  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock, examples, now, limit, persona));
 }
 
 /**
@@ -2277,7 +2350,13 @@ export function instructionBlocks(
   // capability block. A read-only turn that names no cause gets the role's,
   // the narrower: it offers no `upgrade` that might not help.
   limit: ChangeLimit = posture === "read-only" ? "role" : null,
+  persona: PersonaId = "schedule",
 ): PromptBlock[] {
+  // Whether this persona holds the lookup tools the next rules name. An
+  // instruction naming a tool the step was not handed is the defect the page
+  // branch was written to avoid, so Schedule is not told of them: it is told
+  // `switch_persona` by the capability block instead.
+  const discovers = PERSONAS[persona].grants.some(({ domain }) => domain === "places");
   // A page turn is a different job, not a variant of this one: it composes a
   // document rather than answering, and every planning rule below (activityRef,
   // dayRef, MoveActivity positions, conflict refs) describes tools it was not
@@ -2354,7 +2433,7 @@ export function instructionBlocks(
     // model that calls this once per place is the failure mode that turns one
     // cheap turn into an expensive one, and the tool's own description says the
     // same thing — twice, deliberately.
-    ...(posture === "read-only" ? [] : [`Call search_places to look up a real place — a restaurant, a museum, a park, a station, a hotel. Put every place the turn needs into ONE call's \`queries\` array (up to ${MAX_PLACE_QUERIES}); do not call it once per place.`]),
+    ...(posture === "read-only" || !discovers ? [] : [`Call search_places to look up a real place — a restaurant, a museum, a park, a station, a hotel. Put every place the turn needs into ONE call's \`queries\` array (up to ${MAX_PLACE_QUERIES}); do not call it once per place.`]),
     ...(canWrite
       ? [
           "Read before you propose. A change that names a day or a stop you have not read is a guess.",
@@ -2369,23 +2448,40 @@ export function instructionBlocks(
           // ADR-060: the trip multiplies a stop's price by who is going, so a
           // whole-group figure typed as `cost` would be counted once per person.
           "`cost` is the price for ONE person. The trip multiplies it by the people picked for the stop, or by every traveller when nobody is picked, so never enter a whole group's bill as a stop's cost.",
-          // **The citation rule** — the same shape as the `savedDayId` rule two
-          // lines below, and for the same reason: the server resolves what the
-          // model cites, so a number it did not read resolves to nothing.
-          //
-          // It is worded as craft rather than as a safety property, like those
-          // two, because it IS craft here: `groundCitedPlaces` refuses an
-          // uncited coordinate whatever the prompt says, so ignoring this line
-          // costs the user a pinned stop and cannot cost them a wrong one. What
-          // the line buys is that the model searches BEFORE it decides, which
-          // is the half no server-side check can add after the fact.
-          "When a stop names a real place, call search_places first and put the candidate's number on the stop as `placeRef`. Do NOT write coordinates yourself — cite the number and the server fills in the place. A stop with no placeRef is one nobody has checked exists, which is fine for something vague (\"lunch somewhere near the station\") and wrong for something named.",
-          // Neither line is a safety property — the card is still the only door
-          // (ADR-042's Context) — so they are worded as craft, not as a rule
-          // the model could break something by ignoring. The first stops it
-          // guessing a savedDayId; the second keeps the card to one decision.
-          "To add a ready-made day from the playbook library, call search_playbooks FIRST and then insert_playbook_day with a savedDayId it returned. Never write a savedDayId yourself.",
-          "Propose at most ONE playbook day per turn, so the user has one thing to say yes to.",
+          // Schedule has no search, so the rule it lost is replaced by the route to
+          // one. Worded as the citation rule is: craft, since `groundCitedPlaces`
+          // refuses an uncited coordinate whatever the prompt says, so ignoring
+          // it costs a pinned stop and never a wrong one. It names the switch
+          // and not the tools behind it, which the step does not hold. Only a
+          // turn offered `switch_persona` (`limit` null) is told to call it.
+          ...(!discovers && limit === null
+            ? [
+                `When a stop names a real place, call ${SWITCH_PERSONA_TOOL_NAME} with to: "discover" BEFORE you write it: only there can the place be looked up and pinned to the stop, and you cannot do that from here. A stop with no pin is one nobody has checked exists, which is fine for something vague ("lunch somewhere near the station") and wrong for something named.`,
+              ]
+            : []),
+          // Only a persona that searches: the rules below name `search_places` and
+          // `search_playbooks`, which Schedule does not hold.
+          ...(discovers
+            ? [
+            // **The citation rule** — the same shape as the `savedDayId` rule two
+            // lines below, and for the same reason: the server resolves what the
+            // model cites, so a number it did not read resolves to nothing.
+            //
+            // It is worded as craft rather than as a safety property, like those
+            // two, because it IS craft here: `groundCitedPlaces` refuses an
+            // uncited coordinate whatever the prompt says, so ignoring this line
+            // costs the user a pinned stop and cannot cost them a wrong one. What
+            // the line buys is that the model searches BEFORE it decides, which
+            // is the half no server-side check can add after the fact.
+            "When a stop names a real place, call search_places first and put the candidate's number on the stop as `placeRef`. Do NOT write coordinates yourself — cite the number and the server fills in the place. A stop with no placeRef is one nobody has checked exists, which is fine for something vague (\"lunch somewhere near the station\") and wrong for something named.",
+            // Neither line is a safety property — the card is still the only door
+            // (ADR-042's Context) — so they are worded as craft, not as a rule
+            // the model could break something by ignoring. The first stops it
+            // guessing a savedDayId; the second keeps the card to one decision.
+            "To add a ready-made day from the playbook library, call search_playbooks FIRST and then insert_playbook_day with a savedDayId it returned. Never write a savedDayId yourself.",
+            "Propose at most ONE playbook day per turn, so the user has one thing to say yes to.",
+          ]
+            : []),
           // **KI-12 — the AI cannot leave a trip half-planned.** See
           // `TripStanding` for why the condition is emptiness rather than the
           // name, and for why there is a condition at all.
@@ -2440,8 +2536,9 @@ export function instructionBlocks(
   const style = standing.style === undefined ? [] : [data("Trip pace and tags", standing.style)];
   return [
     ...rules.map(rule),
-    ...capabilityBlock(scope.kind === "day" ? "day" : "trip", limit),
+    ...capabilityBlock(scope.kind === "day" ? "day" : "trip", limit, undefined, persona),
     rule(VOICE_RULE),
+    rule(INTERNALS_RULE),
     ...now,
     ...style,
     scopeBlock(scope),
@@ -2455,6 +2552,11 @@ export function instructionBlocks(
  * varying it between steps.
  */
 const VOICE_RULE = "Talk like a friend who has been there, plain, specific, no filler.";
+
+// Personas, modes and tool switches are internal (Mitchell, 2026-11-01): the
+// person asked for a trip, not for how the assistant is built.
+const INTERNALS_RULE =
+  "Never ask the person whether to switch, never offer them a choice of persona or mode, and never ask which one to use: switch yourself when the task needs it.";
 
 /**
  * **The account turn's instruction** (M45): every trip, read through four
@@ -2474,7 +2576,7 @@ export function accountInstructionBlocks(scope: AskScope, clock: TimeFormat = "1
     clockTimesLine(clock),
     "Answer in prose, briefly — a sentence or three. No headings, no bullet lists unless the user asks for a list.",
   ];
-  return [...rules.map(rule), ...capabilityBlock("account", limit), rule(VOICE_RULE), scopeBlock(scope)];
+  return [...rules.map(rule), ...capabilityBlock("account", limit), rule(VOICE_RULE), rule(INTERNALS_RULE), scopeBlock(scope)];
 }
 
 /** What each playbook page is, said to the model in a sentence (M45 D9). */
@@ -2512,7 +2614,7 @@ export function playbookInstructionBlocks(scope: AskScope, surface: SurfaceKind,
     clockTimesLine(clock),
     "Answer in prose, briefly — a sentence or three. No headings, no bullet lists unless the user asks for a list.",
   ];
-  return [...rules.map(rule), ...capabilityBlock(surface, limit), rule(VOICE_RULE), scopeBlock(scope)];
+  return [...rules.map(rule), ...capabilityBlock(surface, limit), rule(VOICE_RULE), rule(INTERNALS_RULE), scopeBlock(scope)];
 }
 
 /**
