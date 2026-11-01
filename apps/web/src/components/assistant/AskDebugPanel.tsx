@@ -64,8 +64,8 @@ function Diagram({ graph }: { graph: PersonaGraphResponse }) {
         const { x, y } = at.get(persona.id)!;
         return (
           <g key={persona.id} className={cn(persona.reach === "never" && "opacity-40")}>
-            <rect x={x - 38} y={y - 11} width={76} height={22} rx={6} className={cn("stroke-current", persona.reach === "entry" ? "fill-brand-tint text-brand" : "fill-surface text-hairline")} />
-            <text x={x} y={y + 4} textAnchor="middle" fontSize={10} className="fill-current">
+            <rect x={x - 42} y={y - 12} width={84} height={24} rx={6} className={cn("stroke-current", persona.reach === "entry" ? "fill-brand-tint text-brand" : "fill-surface text-hairline")} />
+            <text x={x} y={y + 4} textAnchor="middle" className="fill-current text-xs">
               {persona.label}
             </text>
           </g>
