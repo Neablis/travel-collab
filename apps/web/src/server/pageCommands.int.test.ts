@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { asc, eq, inArray } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
-import { executePageCommand } from "./pageCommands";
+import { addMissingDefaultPages, executePageCommand } from "./pageCommands";
 import { readStream } from "./eventStore";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
@@ -69,6 +69,9 @@ describe("executePageCommand", () => {
   });
 
   // The rescue must not become a way around SPEC §25's undeletable Overview.
+  // The row is keyed `overview` with no `kind`, as the build before M43 seeds
+  // it while both builds are live: the Overview is its seed key, as the fold
+  // reads it, and the column only backs the one-per-trip index.
   it("still refuses to delete the Overview when its document will not parse", async () => {
     const tripId = await seedTrip();
     const pageId = randomUUID();
@@ -78,7 +81,8 @@ describe("executePageCommand", () => {
       tripId,
       title: "Overview",
       context: { tripId },
-      kind: OVERVIEW_KIND,
+      seedKey: "overview",
+      kind: null,
       content: { v: 1, type: "doc", content: [], fromANewerBuild: true } as never,
       createdAt: now,
       updatedAt: now,
@@ -92,6 +96,30 @@ describe("executePageCommand", () => {
 
     const rows = await db.select().from(pages).where(eq(pages.id, pageId));
     expect(rows).toHaveLength(1);
+  });
+
+  // KI-6's lost race, met at the other index: an Overview insert can break
+  // `pages_seed_key_unique` and `pages_overview_unique` at once, and Postgres
+  // names whichever it checks first. A marked row the fold cannot see (its
+  // document is unreadable) stands in for the lazy seeder's, so only the
+  // Overview index fires when "add missing" plants the seed.
+  it("answers a seed refused by the one-Overview index as a race lost", async () => {
+    const tripId = await seedTrip();
+    const now = new Date().toISOString();
+    await db.insert(pages).values({
+      id: randomUUID(),
+      tripId,
+      title: "Overview",
+      context: { tripId },
+      kind: OVERVIEW_KIND,
+      content: { v: 1, type: "doc", content: [], fromANewerBuild: true } as never,
+      createdAt: now,
+      updatedAt: now,
+      actorId: OWNER,
+    });
+
+    const result = await addMissingDefaultPages(tripId, OWNER);
+    expect(result.ok || result.error.code).toBe("concurrency-conflict");
   });
 
   it("writes the row and the event in one transaction", async () => {

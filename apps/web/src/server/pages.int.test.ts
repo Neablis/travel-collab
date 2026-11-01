@@ -295,6 +295,20 @@ describe("pages repository", () => {
     expect(cause?.constraint).toBe("pages_overview_unique");
   });
 
+  // While both builds are live, the one before M43 seeds a trip's Overview with
+  // its key and no `kind`, after 0070's backfill has run. The Overview is the
+  // row keyed `overview`, as the fold says, whatever the column holds.
+  it("finds an Overview keyed by the build before M43 as the trip's Overview", async () => {
+    const { tripId } = await seedTrip();
+    const pageId = randomUUID();
+    await db.execute(sql`
+      insert into pages (id, trip_id, title, context, content, created_at, updated_at, actor_id, seed_key, kind)
+      values (${pageId}, ${tripId}, 'Overview', ${JSON.stringify({ tripId })}::jsonb,
+              '{"type":"doc","content":[]}'::jsonb, now(), now(), 'system', 'overview', null)`);
+    const overview = (await listPages(tripId)).find((p) => p.kind === OVERVIEW_KIND);
+    expect(overview?.id).toBe(pageId);
+  });
+
   // The hole decision 2 closed: the old `kind` marker in a create's context made a
   // second, undeletable Overview. Only seeding sets a page's kind now, so the
   // marker is dropped and the page is an ordinary, deletable notebook.
