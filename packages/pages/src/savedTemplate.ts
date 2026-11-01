@@ -50,11 +50,10 @@ export type TemplateInstance =
  *    date ranges are values rather than ids and are carried as written: a city
  *    the new trip does not touch matches nothing, and a range is shown in its
  *    control, where it can be changed. Nothing is guessed.
- * 3. **The context is the target trip and the template's date scope.**
- *    `kind: "overview"` is dropped: a trip has exactly one Overview (SPEC §25),
- *    and a template saved FROM one must instantiate as an ordinary notebook,
- *    not a second undeletable page. The scope is kept, because a copy of a
- *    page keeps it (ADR-080 §4).
+ * 3. **The context is the target trip and the template's date scope.** A
+ *    template saved FROM the Overview instantiates as an ordinary notebook:
+ *    a page's kind is not in its context (`Page.kind`, M43), and only seeding
+ *    sets it. The scope is kept, because a copy of a page keeps it (ADR-080 §4).
  *
  * Pure (Invariant 4): the caller mints the page id and runs the command.
  */

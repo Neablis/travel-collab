@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { SYSTEM_ACTOR_ID, migratePageDoc } from "@tc/contracts";
+import { SYSTEM_ACTOR_ID, migratePageDoc, pageKindOf } from "@tc/contracts";
 import type { Page, PageDoc, PageListEntry, PageSummary, CreatePageInput } from "@tc/contracts";
 import { findWidgetError, instantiateDefaults, notebookPreviewOf, type SeededPage } from "@tc/pages";
 import { db } from "./db/client";
@@ -69,7 +69,7 @@ export function checkPageDocForWrite(
   return { ok: true, doc: migrated };
 }
 
-/** A page as the contract reads it: `seedKey` only on a seed, absent otherwise. */
+/** A page as the contract reads it: `seedKey` only on a seed, `kind` only on the Overview. */
 export function toPage(row: typeof pages.$inferSelect): Page {
   return { ...toSummary(row), content: row.content };
 }
@@ -81,7 +81,12 @@ export function toPage(row: typeof pages.$inferSelect): Page {
 // browser AFTER the download. That is the one field which makes a list
 // response unbounded, and the Notebooks menu re-reads this list on every open.
 // Projecting here makes the declared return type true (Copilot, PR #126).
+//
+// `kind` comes from the seed key, as the fold reads it, not from the column:
+// while the build before M43 is still live it seeds Overviews with no `kind`
+// after 0070's backfill has run. The column only backs the one-per-trip index.
 function toSummary(row: typeof pages.$inferSelect): PageSummary {
+  const kind = pageKindOf(row.seedKey);
   return {
     id: row.id,
     tripId: row.tripId,
@@ -91,6 +96,7 @@ function toSummary(row: typeof pages.$inferSelect): PageSummary {
     updatedAt: row.updatedAt,
     actorId: row.actorId,
     ...(row.seedKey === null ? {} : { seedKey: row.seedKey }),
+    ...(kind === null ? {} : { kind }),
   };
 }
 
@@ -103,9 +109,9 @@ function newRow(tripId: string, input: CreatePageInput, actorId: string, now: st
   return { id: randomUUID(), tripId, title: input.title, context: input.context, content: input.content, createdAt: now, updatedAt: now, actorId };
 }
 
-/** A seed's row, under the id `instantiateDefaults` gave it (the id the Overview's links already name), with its key. */
+/** A seed's row, under the id `instantiateDefaults` gave it (the id the Overview's links already name), with its key and kind. */
 function seededRow(tripId: string, seed: SeededPage, now: string): typeof pages.$inferInsert {
-  return { ...newRow(tripId, seed, SYSTEM_ACTOR_ID, now), id: seed.id, seedKey: seed.seedKey };
+  return { ...newRow(tripId, seed, SYSTEM_ACTOR_ID, now), id: seed.id, seedKey: seed.seedKey, kind: pageKindOf(seed.seedKey) };
 }
 
 // Ordered by `createdAt`, and the ordering is load-bearing rather than tidy.
@@ -240,16 +246,6 @@ export async function getPage(id: string): Promise<Page | null> {
 }
 
 /**
- * Updates a stored page, and **cannot move the Overview marker in either
- * direction** — the stored `context.kind` is carried across and the caller's is
- * discarded. A PATCH carrying `{ tripId }`, which is exactly what the one route
- * that PATCHes a page sends, used to strip the marker and leave the page every
- * trip is supposed to keep one DELETE away from gone.
- *
- * `null` for an id that is not a uuid, or names no page.
- */
-
-/**
  * `createPage`, `updatePage` and `deletePage` used to live here, and they are
  * gone rather than kept "just in case".
  *
@@ -264,10 +260,10 @@ export async function getPage(id: string): Promise<Page | null> {
  * **What went with them, and why that is safe.** `deletePage` refused the
  * Overview in SQL (`coalesce(context->>'kind','') <> 'overview'`), a guard
  * against the state `updatePage` could produce by storing a caller's whole
- * `context` and dropping the marker. `EditPage` carries no `context` at all,
- * so no request can mark or unmark a page in either direction — the property
- * is structural now instead of defended, and `pages.int.test.ts` asserts both
- * halves through the command.
+ * `context` and dropping the marker. The Overview is its seed key now (M43),
+ * which no input carries and `EditPage` cannot reach, so no request can mark
+ * or unmark a page in either direction — the property is structural instead
+ * of defended, and `pages.int.test.ts` asserts both halves through the command.
  *
  * `listPages` KEEPS its lazy seeding, deliberately. It runs on a READ, and a
  * read must not append events; the lazy genesis in `pageCommands.ts` is what

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MacroNode, PageContext, Page, CreatePageInput, DateRangeRef, DatesRef, FILTER_VALUE_SCHEMAS, PAGE_TITLE_MAX, PageCommand, PageEditedV1, UpdatePageInput } from "../src";
+import { MacroNode, OVERVIEW_KIND, PageContext, Page, CreatePageInput, DateRangeRef, DatesRef, FILTER_VALUE_SCHEMAS, PAGE_TITLE_MAX, PageCommand, PageEditedV1, UpdatePageInput } from "../src";
 
 describe("page contracts", () => {
   it("accepts a valid inline macro node", () => {
@@ -24,6 +24,18 @@ describe("page contracts", () => {
   it("drops a pre-§18 page's day binding instead of rejecting the row", () => {
     const tripId = crypto.randomUUID();
     expect(PageContext.parse({ tripId, dayRef: { kind: "index", index: 0 } })).toEqual({ tripId });
+  });
+
+  // M43 decision 2: only seeding makes an Overview, so no write names a kind,
+  // in the context where it used to live or beside it.
+  it("drops a page kind from every write", () => {
+    const tripId = crypto.randomUUID();
+    const content = { type: "doc", content: [] };
+    const created = CreatePageInput.parse({ title: "Mine", context: { tripId, kind: OVERVIEW_KIND }, content, kind: OVERVIEW_KIND });
+    expect(created.context).toEqual({ tripId });
+    expect(created).not.toHaveProperty("kind");
+    const updated = UpdatePageInput.parse({ context: { tripId, kind: OVERVIEW_KIND }, kind: OVERVIEW_KIND });
+    expect(updated).toEqual({ context: { tripId } });
   });
 
   // M52 decision 10 (ADR-080 §4): a notebook setting every widget reads through

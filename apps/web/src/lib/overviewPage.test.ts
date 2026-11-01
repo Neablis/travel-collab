@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PageSummary } from "@tc/contracts";
+import { pageKindOf, type PageSummary } from "@tc/contracts";
 import { instantiateDefaults } from "@tc/pages";
 import { pickOverviewPage } from "./overviewPage";
 
@@ -11,7 +11,7 @@ const TRIP = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 let n = 0;
 // A new trip's notebooks, as the seeder makes them.
 const seeded: PageSummary[] = instantiateDefaults(TRIP, () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`).map((p) => ({
-  id: p.id, tripId: TRIP, title: p.title, context: p.context, seedKey: p.seedKey,
+  id: p.id, tripId: TRIP, title: p.title, context: p.context, seedKey: p.seedKey, ...(pageKindOf(p.seedKey) === null ? {} : { kind: pageKindOf(p.seedKey)! }),
   createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z", actorId: "system",
 }));
 const keyOf = (pick: ReturnType<typeof pickOverviewPage>) => (pick.ok ? pick.page.seedKey : pick.message);

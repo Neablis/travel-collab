@@ -302,10 +302,8 @@ describe("the scopes actually separate", () => {
     const added = await ADD_PAGE(
       req(
         notebook,
-        // Two things this fixture got wrong first, both of which the contract
-        // correctly 400s: `content` is required (a page with no document is not
-        // a page), and `PageContext.kind` is the literal `"overview"` or absent
-        // — it is not a discriminator anyone gets to invent a value for.
+        // `content` is required, and the contract 400s a create without it: a
+        // page with no document is not a page.
         { title: "Ideas", context: { tripId }, content: { type: "doc", content: [] } },
         "POST",
       ),

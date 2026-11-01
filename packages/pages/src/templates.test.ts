@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CreatePageInput, PageDoc } from "@tc/contracts";
+import { CreatePageInput, PageDoc, pageKindOf } from "@tc/contracts";
 import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY, getTemplate, instantiateDefaults, isUndeletablePage } from "./templates";
 import { dayTrip, wallAt } from "./test-support/dayTrip";
 import { notebookPreviewOf } from "./linkTarget";
@@ -30,9 +30,11 @@ describe("templates", () => {
   // cannot delete (Mitchell, 2026-10-23).
   it("seeds five notebooks into a new trip; only the Overview is marked, and only Today is scoped to today", () => {
     expect(DEFAULT_TEMPLATES.map((t) => t.title)).toEqual(["Overview", "Today", "Before you go", "Bookings", "Money"]);
-    expect(DEFAULT_TEMPLATES.map((t) => t.buildContext("t").kind)).toEqual(["overview", undefined, undefined, undefined, undefined]);
+    expect(DEFAULT_TEMPLATES.map((t) => pageKindOf(t.key))).toEqual(["overview", null, null, null, null]);
     expect(DEFAULT_TEMPLATES.map((t) => t.buildContext("t").dateScope)).toEqual([undefined, "today", undefined, undefined, undefined]);
-    const undeletable = instantiateDefaults("t", () => "id").filter(isUndeletablePage).map((p) => p.seedKey);
+    // A seed's kind is its key's, as the row the seeder writes gets it.
+    const seeded = instantiateDefaults("t", () => "id").map((p) => ({ ...p, kind: pageKindOf(p.seedKey) }));
+    const undeletable = seeded.filter(isUndeletablePage).map((p) => p.seedKey);
     expect(undeletable).toEqual(["overview", "today"]);
   });
 
@@ -73,12 +75,11 @@ describe("templates", () => {
     expect(inputs).toHaveLength(DEFAULT_TEMPLATES.length);
     expect(inputs.map((i) => i.id)).toEqual(minted);
     for (const input of inputs) expect(CreatePageInput.safeParse(input).success).toBe(true);
-    // A page is trip-bound and carries no scope (SPEC §18) — `kind` is not a
-    // scope, it is which page this is (§25), and only the Overview has one.
-    // Today's `dateScope` is a page setting, not a scope in §18's sense: it
+    // A page is trip-bound and carries no scope (SPEC §18), nor which page it
+    // is: the Overview's `kind` is a column (M43), not context. Today's `dateScope` is a page setting, not a scope in §18's sense: it
     // names no day, and hands each widget the one it is read on.
     expect(inputs.map((i) => i.context)).toEqual([
-      { tripId, kind: "overview" }, { tripId, dateScope: "today" }, { tripId }, { tripId }, { tripId },
+      { tripId }, { tripId, dateScope: "today" }, { tripId }, { tripId }, { tripId },
     ]);
   });
 

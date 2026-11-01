@@ -1,4 +1,4 @@
-import { newPageDoc } from "@tc/contracts";
+import { OVERVIEW_KIND, newPageDoc } from "@tc/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
@@ -7,6 +7,13 @@ import { db } from "./db/client";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { listPageEntries, listPages, getPage } from "./pages";
 import { executePageCommand } from "./pageCommands";
+import { grantMembership } from "./access/members";
+import { entitleAccounts } from "./test-support/entitledAccount";
+
+let currentUserId = "user-1";
+vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => ({ user: { id: currentUserId } })) }));
+// After the mock, so the route picks up the mocked `auth`.
+const { POST } = await import("@/app/api/trips/[tripId]/pages/route");
 
 // The seeded titles, read from the templates rather than typed here.
 //
@@ -98,15 +105,16 @@ describe("pages repository", () => {
   // **The refusal used to be removable through the front door, and now it
   // cannot be reached at all.**
   //
-  // `updatePage` stored `input.context` whole, and `PageContext.kind` is what
-  // marks the Overview — so a PATCH carrying `{ tripId }` and nothing else
+  // `updatePage` stored `input.context` whole, and `PageContext.kind` was what
+  // marked the Overview — so a PATCH carrying `{ tripId }` and nothing else
   // stripped the marker, and the next DELETE removed the page every trip is
   // supposed to keep (CodeRabbit, PR 170). That was fixed by carrying the
   // stored `kind` across.
   //
   // `EditPage` has no `context` field AT ALL, so the abuse is now structural
   // rather than guarded: there is no request that can carry a marker, in
-  // either direction. This asserts the property survives the move — both
+  // either direction; since M43 the marker is `pages.kind`, which no input
+  // carries at all. This asserts the property survives the move — both
   // halves, the same two abuses the old pair of tests covered.
   it("an edit cannot strip the Overview's marker, nor grant it", async () => {
     const { tripId } = await seedTrip();
@@ -117,7 +125,7 @@ describe("pages repository", () => {
       "user-1",
     );
     expect(edited.ok).toBe(true);
-    expect(edited.ok && edited.page?.context.kind, "the marker is identity").toBe("overview");
+    expect(edited.ok && edited.page?.kind, "the marker is identity").toBe("overview");
     const stillRefused = await executePageCommand(
       { type: "DeletePage", tripId, pageId: overview!.id },
       "user-1",
@@ -135,7 +143,7 @@ describe("pages repository", () => {
       { type: "EditPage", tripId, pageId: mineId, title: "Mine, renamed" },
       "user-1",
     );
-    expect(promoted.ok && promoted.page?.context.kind, "a page cannot promote itself").toBeUndefined();
+    expect(promoted.ok && promoted.page?.kind, "a page cannot promote itself").toBeUndefined();
     expect((await executePageCommand({ type: "DeletePage", tripId, pageId: mineId }, "user-1")).ok).toBe(true);
   });
 
@@ -267,5 +275,63 @@ describe("pages repository", () => {
     expect((updated.ok && updated.page!.updatedAt) >= fetched!.updatedAt).toBe(true);
     expect((await executePageCommand({ type: "DeletePage", tripId, pageId }, "user-1")).ok).toBe(true);
     expect(await getPage(pageId)).toBeNull();
+  });
+
+  // M43 decision 2: the Overview is a column, and the database holds one per
+  // trip. Raw, under the command pipeline, because the index is the guard that
+  // still holds when a code path gets the rule wrong.
+  it("refuses a second Overview on one trip at the database", async () => {
+    const { tripId } = await seedTrip();
+    await listPages(tripId);
+    let cause: { code?: string; constraint?: string } | undefined;
+    try {
+      await db.execute(sql`
+        insert into pages (id, trip_id, title, context, content, created_at, updated_at, actor_id, kind)
+        values (${randomUUID()}, ${tripId}, 'Overview', ${JSON.stringify({ tripId })}::jsonb,
+                '{"type":"doc","content":[]}'::jsonb, now(), now(), 'system', 'overview')`);
+    } catch (error) {
+      cause = (error as { cause?: { code?: string; constraint?: string } }).cause;
+    }
+    expect(cause?.constraint).toBe("pages_overview_unique");
+  });
+
+  // While both builds are live, the one before M43 seeds a trip's Overview with
+  // its key and no `kind`, after 0070's backfill has run. The Overview is the
+  // row keyed `overview`, as the fold says, whatever the column holds.
+  it("finds an Overview keyed by the build before M43 as the trip's Overview", async () => {
+    const { tripId } = await seedTrip();
+    const pageId = randomUUID();
+    await db.execute(sql`
+      insert into pages (id, trip_id, title, context, content, created_at, updated_at, actor_id, seed_key, kind)
+      values (${pageId}, ${tripId}, 'Overview', ${JSON.stringify({ tripId })}::jsonb,
+              '{"type":"doc","content":[]}'::jsonb, now(), now(), 'system', 'overview', null)`);
+    const overview = (await listPages(tripId)).find((p) => p.kind === OVERVIEW_KIND);
+    expect(overview?.id).toBe(pageId);
+  });
+
+  // The hole decision 2 closed: the old `kind` marker in a create's context made a
+  // second, undeletable Overview. Only seeding sets a page's kind now, so the
+  // marker is dropped and the page is an ordinary, deletable notebook.
+  it("an editor's create naming the Overview's old marker makes an ordinary page", async () => {
+    const { tripId } = await seedTrip();
+    await entitleAccounts(["user-1"]); // so the granted editor keeps their role (M20)
+    await grantMembership(db, { tripId, userId: "user-2", role: "editor", invitedBy: "user-1", now: new Date().toISOString() });
+    currentUserId = "user-2";
+    try {
+      const res = await POST(
+        new Request(`http://test/api/trips/${tripId}/pages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "Overview", context: { tripId, kind: OVERVIEW_KIND }, content: { type: "doc", content: [] } }),
+        }),
+        { params: Promise.resolve({ tripId }) },
+      );
+      expect(res.status).toBe(201);
+      const { page } = await res.json();
+      const deleted = await executePageCommand({ type: "DeletePage", tripId, pageId: page.id }, "user-2");
+      expect(deleted.ok || deleted.error.message, "it deletes like any page").toBe(true);
+    } finally {
+      currentUserId = "user-1";
+    }
   });
 });

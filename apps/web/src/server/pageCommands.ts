@@ -2,11 +2,11 @@ import {
   CURRENT_PAGE_DOC_VERSION,
   PAGE_CHANGED_CODE,
   PageCommand,
-  PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
   PageEvent as PageEventSchema,
   SYSTEM_ACTOR_ID,
   migratePageDoc,
+  pageKindOf,
   seedKeyOf,
   serializePageDoc,
   type EventEnvelope,
@@ -20,7 +20,6 @@ import {
   evolvePages,
   foldEnvelopes,
   foldPages,
-  OVERVIEW_UNDELETABLE,
   undeletableReason,
   type PageDecision,
   type PagesState,
@@ -269,12 +268,14 @@ async function commitPageStep(
     // outside the stream, landing between this transaction's read and its
     // write: "add missing" then plants a key the table has just been given.
     // That is a race lost, which a retry resolves, not a server fault.
-    if (uniqueViolation(error)?.constraint !== SEED_KEY_INDEX) throw error;
+    // An Overview breaks `pages_overview_unique` too, and Postgres names
+    // whichever index it checks first (OID order, which a restore can change).
+    if (!SEED_RACE_INDEXES.has(uniqueViolation(error)?.constraint)) throw error;
     return RACE_LOST;
   }
 }
 
-const SEED_KEY_INDEX = "pages_seed_key_unique";
+const SEED_RACE_INDEXES = new Set<string | undefined>(["pages_seed_key_unique", "pages_overview_unique"]);
 
 // Read from the `pages` row, the only place a page's `updatedAt` lives (the
 // fold carries no timestamps, and a lazily seeded page has no event to carry
@@ -330,14 +331,10 @@ async function deleteSkippedRow(
   // else and is not this function's to overturn.
   if (PageDocSchema.safeParse(row.content).success) return null;
 
-  // The Overview and Today stay undeletable (SPEC §25, M52), and an
-  // unreadable `context` is refused rather than guessed: not being able to
-  // prove a page is ordinary is not the same as proving it is.
-  const context = PageContextSchema.safeParse(row.context);
-  if (!context.success) {
-    return { ok: false, rejection: { code: "page-undeletable", message: OVERVIEW_UNDELETABLE } };
-  }
-  const undeletable = undeletableReason({ context: context.data, seedKey: row.seedKey });
+  // The Overview and Today stay undeletable (SPEC §25, M52), read off the
+  // row's seed key, which an unreadable document does not touch. The key, as
+  // the fold reads it, not `pages.kind`: see `toSummary` in `pages.ts`.
+  const undeletable = undeletableReason({ kind: pageKindOf(row.seedKey), seedKey: row.seedKey });
   if (undeletable !== null) return { ok: false, rejection: { code: "page-undeletable", message: undeletable } };
   return {
     ok: true,

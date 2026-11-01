@@ -200,14 +200,14 @@ describe("POST /api/trips/:tripId/saved-notebooks/:id — instantiate", () => {
   // an ordinary notebook, which is what makes it deletable in the next trip.
   it("instantiates a template saved from the Overview as an ordinary notebook", async () => {
     const a = await trip("Source");
-    const overview = (await listPages(a.tripId)).find((p) => p.context.kind === "overview")!;
+    const overview = (await listPages(a.tripId)).find((p) => p.kind === "overview")!;
     const saved = await save({ tripId: a.tripId, pageId: overview.id });
     const b = await trip("Target");
     await listPages(b.tripId); // seed B's own Overview first
 
     const { page } = (await (await instantiate(b.tripId, saved.savedNotebookId)).json()) as { page: Page };
     expect(page.context).toEqual({ tripId: b.tripId });
-    expect((await listPages(b.tripId)).filter((p) => p.context.kind === "overview")).toHaveLength(1);
+    expect((await listPages(b.tripId)).filter((p) => p.kind === "overview")).toHaveLength(1);
   });
 
   // ADR-080: a copy of a page keeps its date scope, and a template is the copy

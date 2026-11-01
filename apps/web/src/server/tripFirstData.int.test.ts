@@ -1,3 +1,4 @@
+import { OVERVIEW_KIND } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -107,7 +108,7 @@ describe("tripFirstData", () => {
     expect(sent?.overview?.page).toMatchObject({ seedKey: "today", context: { dateScope: "today" } });
 
     const planning = await tripFirstData(await seedTrip());
-    expect(planning?.overview?.page).toMatchObject({ seedKey: "overview", context: { kind: "overview" } });
+    expect(planning?.overview?.page).toMatchObject({ seedKey: "overview", kind: OVERVIEW_KIND });
   });
 
   // Mitchell's walk: Home, then a trip made before Today, under way. The page's
@@ -157,7 +158,7 @@ describe("tripFirstData", () => {
     expect(first.globals).toEqual(await body(await GET_GLOBALS(req(`${base}/globals`), ctx(tripId))));
 
     // The Overview the lens would pick, as the page route answers it.
-    const overview = first.pages.pages.find((p) => p.context.kind === "overview");
+    const overview = first.pages.pages.find((p) => p.kind === "overview");
     if (overview === undefined || first.overview === null) throw new Error("expected the trip's Overview");
     expect(first.overview.page.id).toBe(overview.id);
     const pageRes = await GET_PAGE(req(`${base}/pages/${overview.id}`), {
