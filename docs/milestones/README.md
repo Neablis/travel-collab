@@ -137,6 +137,7 @@ for collaboration later landing on a product people already want to join.
 | M54 | The motion pass: press, pending, enter and exit, everywhere | **Closed 2026-10-27, gate 13 of 13** (part 0 PR 593). Scoped 2026-10-26 with Mitchell, placed ahead of M43. From the motion pass design (`docs/specs/2026-10-25-motion-pass-design.md`, approved 2026-10-25); see *2026-10-26 — minted and placed: M54, the motion pass*. Motion tokens, button press and a width-keeping `pending` with the dots, overlay enter and exit, sliding tab indicators, skeleton routes and view-transition cross-fades, the welcome moment after sign-in and on PWA launch, one avatar stack, chat and Ask motion, and the small moments. ADR-082; eight parts, run as an unattended stack: `M54-the-motion-pass.md` |
 | M55 | Claude connects to Caesura as you, and can publish what it plans | **Closed 2026-10-28, gate 17 of 17** (part 0 PR 613). A remote MCP server at `/api/mcp` behind our own OAuth 2.1 server, every API secret on HMAC-SHA256, Connected apps (ADR-083): `M55-claude-connects-as-you.md` |
 | M56 | New trip is a picker, and the assistant never strands you | **Closed 2026-10-30, gate 17 of 17.** New trip as five picker pages and Review, world place search, and the assistant's `ask_user`, `show_options` and `hand_off` (ADR-084): `M56-new-trip-is-a-picker.md` |
+| M57 | The assistant is a graph of personas, and you can watch it work | **Minted, scoped and placed ahead of M44 2026-11-01 by Mitchell; current.** From the candidate and its design (`docs/specs/2026-10-30-assistant-personas-design.md`); see *2026-11-01 — minted and placed: M57*. Six personas in a typed graph with a reachability baseline, persona and outcome columns in the ledger, `switch_persona` once a turn, the trip planner split, and an operator Debug mode in the Ask panel plus a Personas tab in the console (ADR-085): `M57-assistant-personas.md` |
 
 *A closed milestone's row is its gate, one line and its file. The longer rows
 they carried until 2026-11-01 are verbatim in `decisions-archive.md`, under
@@ -206,7 +207,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M44 — A stop knows what was booked, and what it sits inside
+Current milestone: M57 — The assistant is a graph of personas, and you can watch it work
 
 ### Archived decision notes
 
@@ -249,6 +250,15 @@ of this file.
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
 - **Table rows for closed milestones**, as they stood before the 2026-11-01 pass: *Moved out of README.md on 2026-11-01*, at the end
+
+### 2026-11-01 — minted and placed: M57, assistant personas
+
+**Asked 2026-11-01.** Shown the open milestones and the candidates, Mitchell: *"Let's take on #3,
+'Strategic for the assistant: personas'. Remember that as part of this I want to be able to
+visualize how the agent performed through its personas in like a debug mode so I can see how well
+it's working. It should be possible to see the state tree from a page and the tools available,
+then break down after agent run how it did."* **M57 is minted, scoped the same session (D1–D8,
+ADR-085) and placed ahead of M44, so it is current.** Order: M57 → M44 → M53, with M48 parked.
 
 ### 2026-10-25 — minted: M53, the SEO audit's findings
 

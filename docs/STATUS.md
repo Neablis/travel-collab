@@ -21,6 +21,12 @@ general setup.
 
 ## Where the work is right now
 
+**M57 is current: minted, scoped and placed ahead of M44 2026-11-01** (*The assistant is a graph of
+personas, and you can watch it work*). Decisions D1–D8 are answered and recorded in
+`docs/milestones/M57-assistant-personas.md`, the mechanisms are ADR-085, and the plan (six parts,
+at most two building at once, part 4 the riskiest) is `docs/plans/2026-11-01-M57-assistant-personas.md`.
+Part 0 is prose only on `ccr-295c38f8-0l82gi` (draft PR) and merges last. No code part has started.
+
 **M43 closed 2026-11-01, gate 6 of 6**, by `pnpm milestone close M43 --confirm` on part 0
 (PR 659, `ccr-96adddf8-iksgbh`, prose only), which **waits on Mitchell's merge**. All five code
 parts are on `main` in `c3452b7`: PR 661 (the Overview's identity is the `pages.kind` column,

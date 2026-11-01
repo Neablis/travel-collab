@@ -27,6 +27,7 @@ here two days later.
   Langfuse trial on previews at most): `docs/specs/2026-10-30-assistant-personas-design.md`.
   Open: the persona set, whether a trip-starting persona reopens M56's D1, switches per turn, and
   what history crosses an edge.
+  *Placed 2026-11-01 → `docs/milestones/M57-assistant-personas.md` (scoped). M57's gate deletes this entry at close.*
 
 - **Writes made through an API token or a connected app say so (asked 2026-10-27).**
   Moved out of M55 at scoping (decision 10): Mitchell widened D10 to build these labels, then
