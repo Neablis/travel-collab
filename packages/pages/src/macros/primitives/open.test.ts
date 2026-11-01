@@ -170,15 +170,42 @@ describe("`open` — what needs you (SPEC §25, M43 decision 4)", () => {
     expect(labels(result)).toEqual(["Overlap on Day 1", "Too far on Day 1", "Overlap on Day 2"]);
   });
 
-  it("folds conflicts on no day by kind alone", () => {
+  it("folds conflicts on no day by kind alone, and says the sentence under it is only the first", () => {
+    // Two parked stops whose time windows break their anchors: `anchorViolated`
+    // checks the window alone, so a stop in the rack still raises one, on no
+    // day. The row counts two, so a sub that kept only Museum's sentence read
+    // as a row about Museum alone (PR 660 review).
+    const anchor = (id: string, subject: string, title: string) => ({
+      ...conflictOf("anchor-violation", id, [subject]),
+      description: `"${title}" has an anchor its current placement (an unscheduled slot) does not satisfy.`,
+    });
     const result = resolve(
       tripWith({
         days: [dayWith(DAY_1, ["a1"])],
-        conflicts: [conflictOf("over-budget", "c4", [TRIP_ID]), conflictOf("over-budget", "c5", [TRIP_ID])],
+        conflicts: [anchor("c1", "p1", "Museum"), anchor("c2", "p2", "Night market")],
       }),
     );
-    expect(items(result).map(({ label, act }) => ({ label, act }))).toEqual([
-      { label: "2 over budget", act: { kind: "view", view: "Plan" } },
+    expect(items(result)).toEqual([
+      {
+        label: "2 anchors broken",
+        sub: 'First of 2: "Museum" has an anchor its current placement (an unscheduled slot) does not satisfy.',
+        right: "Fix in Plan", tone: "warning", act: { kind: "view", view: "Plan" },
+      },
+    ]);
+  });
+
+  it("has a plural for every kind it has a label for", () => {
+    // A kind with a label but no plural folds to "2 conflicts": true, but a
+    // step back from what the same kind says when there is one of it.
+    const kinds = ["time-overlap", "impossible-geography", "anchor-violation", "over-budget"];
+    const result = resolve(
+      tripWith({
+        days: [dayWith(DAY_1, ["a1", "a2"])],
+        conflicts: kinds.flatMap((kind) => [conflictOf(kind, `${kind}-1`, ["a1"]), conflictOf(kind, `${kind}-2`, ["a2"])]),
+      }),
+    );
+    expect(labels(result)).toEqual([
+      "2 overlaps on Day 1", "2 journeys too far on Day 1", "2 anchors broken on Day 1", "2 over budget on Day 1",
     ]);
   });
 

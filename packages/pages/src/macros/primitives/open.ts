@@ -146,7 +146,9 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
     //    takes the line a date and city would.
     //
     //    One row per day and kind, in the order each first appears. Conflicts
-    //    on no day fold by kind alone and keep the first one's sentence.
+    //    on no day fold by kind alone and show the first one's sentence, which
+    //    names one stop: "First of N" stops a row that counts two from reading
+    //    as a row about that stop alone (PR 660 review).
     const dismissed = new Set(trip.dismissedConflictIds);
     const folded = new Map<string, { kind: string; index: number; description: string; count: number }>();
     for (const conflict of shows.has("conflict") ? trip.conflicts : []) {
@@ -165,7 +167,7 @@ export const open: MacroDef<OpenParams, ItemsPayload> = {
         : `${count} ${CONFLICT_PLURAL[kind] ?? FALLBACK_CONFLICT_PLURAL}`;
       items.push(
         day === undefined
-          ? { label, sub: description, right: "Fix in Plan", tone: "warning", act: PLAN }
+          ? { label, sub: count === 1 ? description : `First of ${count}: ${description}`, right: "Fix in Plan", tone: "warning", act: PLAN }
           : { label: `${label} on ${dayLabel(index)}`, sub: whereAndWhen(day, trip.activities), right: "Fix in Plan", tone: "warning", act: toDay(day) },
       );
     }
