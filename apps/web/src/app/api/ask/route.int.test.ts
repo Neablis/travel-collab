@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
-import { aiUsage, rateLimitCounters, tripMemberships } from "@/server/db/schema";
+import { aiCapabilityGaps, aiUsage, rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
@@ -30,6 +30,7 @@ vi.mock("@/server/auth", () => ({
 const { handleBeyondTripAskRequest } = await import("@/server/ai/handleAskRequest");
 const { POST } = await import("./route");
 const { upsertUser } = await import("@/server/users");
+const usage = await import("@/server/entitlements/usage");
 const { POST: SAVE_DAY } = await import("../saved-days/route");
 const { POST: PUBLISH_DAY } = await import("../saved-days/[savedDayId]/publish/route");
 const { POST: INSERT_DAY } = await import("../trips/[tripId]/saved-days/[savedDayId]/route");
@@ -198,8 +199,13 @@ describe("POST /api/ask", () => {
     expect(records[0]).toMatchObject({ tripId: null, scope: { kind: "account" }, outcome: "completed" });
     expect(records[0]!.toolCalls.map((call) => call.name)).toEqual(["visit_counts"]);
     expect(ledgers[0]!.cost.endpoint).toBe("ask.account");
-    const [row] = await db.select({ endpoint: aiUsage.endpoint }).from(aiUsage).where(eq(aiUsage.id, ledgers[0]!.cost.turnId!));
+    const [row] = await db
+      .select({ endpoint: aiUsage.endpoint, entryPersona: aiUsage.entryPersona })
+      .from(aiUsage)
+      .where(eq(aiUsage.id, ledgers[0]!.cost.turnId!));
     expect(row?.endpoint).toBe("ask.account");
+    // M57: the beyond-trip door's row says who ran it, not only the trip door's.
+    expect(row?.entryPersona).toBe("account");
   });
 
   // M45 D6's walk: "open my Kyoto trip on the map" from Home lands on that
@@ -249,11 +255,60 @@ describe("POST /api/ask", () => {
     const fresh = await handleBeyondTripAskRequest(ask("help me plan a foodie trip somewhere new"), handingOff({ task: "plan a foodie trip", to: "new_trip" }), () => {});
     expect(handOffIn(await fresh.text())).toEqual({ task: "plan a foodie trip", to: "new_trip" });
     const gaps = logged.mock.calls.filter(([line]) => line === "ai.capability_gap").map(([, json]) => JSON.parse(json as string));
-    expect(gaps).toEqual([expect.objectContaining({ surface: "account", task: "plan a foodie trip", to: "new_trip" })]);
+    expect(gaps).toEqual([expect.objectContaining({ surface: "account", persona: "account", task: "plan a foodie trip", to: "new_trip" })]);
+    // M57: the same gap is a row, keyed by the turn id the log line carries.
+    const [{ turnId: gapTurnId }] = gaps as [{ turnId: string }];
+    const rows = await vi.waitFor(async () => {
+      const found = await db.select().from(aiCapabilityGaps).where(eq(aiCapabilityGaps.turnId, gapTurnId));
+      expect(found).toHaveLength(1);
+      return found;
+    });
+    expect(rows[0]).toMatchObject({ persona: "account", target: "new_trip", task: "plan a foodie trip" });
 
     const existing = await handleBeyondTripAskRequest(ask("add a ramen dinner to my Kyoto trip"), handingOff({ task: "add a dinner", to: "plan_page", trip: "Kyoto" }), () => {});
     expect(handOffIn(await existing.text())).toEqual({ task: "add a dinner", to: "plan_page", command: `go:trip:${kyoto}:view:Plan` });
     logged.mockRestore();
+  });
+
+  // The gap row is started from the final chunk's metadata, which is
+  // synchronous, so nothing awaits it unless the turn's settlement does. On
+  // Vercel a write nobody holds can be lost once the response closes (PR 670
+  // review). The settlement is read the way `after()` reads it: through the
+  // task handed to `afterResponse`.
+  it("holds the capability gap write on the turn's settlement", async () => {
+    const original = usage.recordCapabilityGap;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let written = false;
+    const slow = vi.spyOn(usage, "recordCapabilityGap").mockImplementation(async (...args) => {
+      await gate;
+      const result = await original(...args);
+      written = true;
+      return result;
+    });
+    const tasks: (() => Promise<void>)[] = [];
+    const res = await handleBeyondTripAskRequest(
+      ask("help me plan a foodie trip somewhere new"),
+      scriptedStepsModel([
+        [{ type: "tool-call", toolCallId: "off", toolName: "hand_off", input: JSON.stringify({ task: "plan a foodie trip", to: "new_trip" }) }],
+        ["That is done from there."],
+      ]),
+      () => {},
+      undefined,
+      (task) => void tasks.push(task),
+    );
+    // `onEnd` awaits `settled`, so the stream itself stays open while the
+    // gap write is pending; the afterResponse task is the same promise.
+    let settledEarly = false;
+    const body = res.text();
+    const settling = body.then(() => Promise.all(tasks.map((task) => task()))).then(() => (settledEarly = true));
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(slow).toHaveBeenCalledTimes(1);
+    expect(settledEarly, "settlement resolved while the gap write was still pending").toBe(false);
+    release();
+    await settling;
+    expect(written).toBe(true);
+    slow.mockRestore();
   });
 
   // ADR-084 §2: what the person picked arrives as data on their message, and

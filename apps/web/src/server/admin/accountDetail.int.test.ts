@@ -48,6 +48,7 @@ function turn(
       turnId: null,
       latencyMs: 2400,
       planExamples: null,
+      entryPersona: "trip-planner",
     },
     capacity: [],
     toolCalls: (options.tools ?? []).map((name, index) => ({
@@ -75,6 +76,7 @@ function turn(
       durationMs: 800,
       provider: null,
       gatewayGenerationId: null,
+      persona: "trip-planner" as const,
     })),
   };
 }

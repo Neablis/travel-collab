@@ -23,6 +23,8 @@ const PROPOSAL = {
   skipped: [],
 };
 
+const TURN_ID = "66666666-6666-4666-8666-666666666666";
+
 const PAGE_DOC = { v: 1, type: "doc", content: [{ type: "paragraph", content: [] }] };
 
 // ADR-067: a planning turn of more than one change, stored on the board.
@@ -46,10 +48,19 @@ describe("the /ask stream envelope — the seven shapes the final chunk may take
     [{ composeError: 'Macro "cost.day" params failed validation.' }, "a compose refusal"],
     [{ proposalFailed: { message: ASK_PROPOSAL_FAILED_MESSAGE } }, "a proposal that could not be built (KI-2026-09-24-w)"],
     [{}, "a page turn that inserted nothing"],
+    // M57: the server's turn id rides beside any outcome, and alone on a turn with none.
+    [{ proposal: PROPOSAL, turnId: TURN_ID }, "a proposal beside the turn's id"],
+    [{ turnId: TURN_ID }, "a turn with no outcome, carrying only its id"],
   ];
 
   it.each(ACCEPTED)("accepts %j (%s)", (metadata) => {
     expect(AskStreamMetadata.safeParse(metadata).success).toBe(true);
+  });
+
+  it("keeps the turn id it was sent, and refuses one that is not an id", () => {
+    expect(AskStreamMetadata.parse({ proposal: PROPOSAL, turnId: TURN_ID })).toMatchObject({ turnId: TURN_ID });
+    expect(AskStreamMetadata.parse({ turnId: TURN_ID })).toEqual({ turnId: TURN_ID });
+    expect(AskStreamMetadata.safeParse({ turnId: "not-an-id" }).success).toBe(false);
   });
 
   // The trap a permissive empty branch sets. `z.object({})` matches ANY object,

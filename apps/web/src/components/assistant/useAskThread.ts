@@ -428,6 +428,8 @@ export function useAskThread({
           // which the prose sniff could not do, because the sentence it matched
           // is the LAST one.
           setSimulated(event.simulated);
+        } else if (event.type === "turn") {
+          patchAnswer((turn) => ({ ...turn, serverTurnId: event.turnId }));
         } else if (event.type === "page-inserts") {
           delivered = true;
         } else if (event.type === "stopped") {

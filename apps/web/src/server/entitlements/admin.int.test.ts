@@ -61,6 +61,7 @@ function usage(userId: string): TurnLedger {
       turnId: null,
       latencyMs: null,
       planExamples: null,
+      entryPersona: "trip-planner",
     },
     capacity: [],
     toolCalls: [],

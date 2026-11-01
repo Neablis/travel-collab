@@ -1791,6 +1791,8 @@ export type AskEvent =
    * model's own prose.
    */
   | { type: "meta"; simulated: boolean }
+  /** The server's id for this turn (M57), on the final chunk beside whatever outcome it has. */
+  | { type: "turn"; turnId: string }
   /** The turn's proposal, carried on the stream's final chunk. At most one. */
   | { type: "proposal"; proposal: AssistantProposal }
   /**
@@ -1983,7 +1985,11 @@ export function askEventsFromFrame(frame: string): (AskEvent | AskRetractFrame)[
     if (!metadata.success) return [];
     const commands = metadata.data.paletteCommands ?? [];
     const outcome = outcomeEvent(metadata.data);
-    return [...(outcome === null ? [] : [outcome]), ...(commands.length === 0 ? [] : [{ type: "palette" as const, commands }])];
+    return [
+      ...(metadata.data.turnId === undefined ? [] : [{ type: "turn" as const, turnId: metadata.data.turnId }]),
+      ...(outcome === null ? [] : [outcome]),
+      ...(commands.length === 0 ? [] : [{ type: "palette" as const, commands }]),
+    ];
   }
   return [];
 }

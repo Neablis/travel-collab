@@ -58,6 +58,7 @@ import type { AnyAssistantTool, EffectLevel, TurnOrigin } from "./defineTool";
 import { PERMITS_EVERYTHING, type EntitlementCeilings, type ResolvedEntitlements } from "./entitlements";
 import { capTier, tierFor, type ModelTier, type TaskClass, type TierModels } from "./taskClass";
 import { reachableIntents } from "./intents";
+import { ENTRY, type PersonaId } from "./personas";
 import { SWITCH_INTENT_TOOL_NAME } from "./tools/intent";
 import {
   grantFor,
@@ -338,6 +339,8 @@ export interface AiGrant {
   detail: TripDetail | null;
   /** What the user is looking at — `scope.kind`, or which playbook page (`surfaceOf`), VERIFIED, never claimed. */
   surface: SurfaceKind;
+  /** The persona the turn enters at: where `ENTRY` puts this surface (M57, ADR-085). */
+  persona: PersonaId;
   scope: AskScope;
   /** The page row `resolveSurface` verified, or null on any other surface. */
   page: Page | null;
@@ -1399,6 +1402,7 @@ const grantTools: AdmissionStage = {
       userId,
       detail,
       surface,
+      persona: ENTRY[surface],
       scope,
       page,
       now,
