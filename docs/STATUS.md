@@ -21,11 +21,16 @@ general setup.
 
 ## Where the work is right now
 
-**M57 is current: minted, scoped and placed ahead of M44 2026-11-01** (*The assistant is a graph of
-personas, and you can watch it work*). Decisions D1–D8 are answered and recorded in
-`docs/milestones/M57-assistant-personas.md`, the mechanisms are ADR-085, and the plan (six parts,
-at most two building at once, part 4 the riskiest) is `docs/plans/2026-11-01-M57-assistant-personas.md`.
-Part 0 is prose only on `ccr-295c38f8-0l82gi` (draft PR) and merges last. No code part has started.
+**M57 is built, with one gate box open (9 of 10)** (*The assistant is a graph of personas, and you
+can watch it work*; decisions in `docs/milestones/M57-assistant-personas.md`, mechanisms in
+ADR-085). Parts 1 to 5 are on `main` (PRs 668, 670, 671, 672, 673; last merge `f5bbd18`;
+migrations `0071` and `0072` applied by `migrate-production` run 41351040591). Part 6 is PR 674
+(`bfacb7d`, `ci-ok` green, run 41357541647) and waits on Mitchell's merge. Part 0 (PR 667,
+`ccr-295c38f8-0l82gi`, prose only) carries the retro, ADR-085 decisions 7 to 9 and five known
+issues (KI-2026-11-01-w to -aa); the plan is deleted. **Open box:** *The split pays* (Discover's
+edit step is 31,963 chars, 333 over the 31,630 it should beat, and no before/after grade
+comparison was run; the evidence is in the milestone file). `pnpm milestone close M57 --confirm`
+has not run, because it refuses with a box unticked.
 
 **M43 closed 2026-11-01, gate 6 of 6**, by `pnpm milestone close M43 --confirm` on part 0
 (PR 659, `ccr-96adddf8-iksgbh`, prose only), which **waits on Mitchell's merge**. All five code
@@ -83,8 +88,15 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** Mitchell merges M43's part 0 (PR 659), then removes the orchestrator's
-`tc-orchestrator` guard file from that session's git dir. Then scope M44 with him
+**Next action:** Mitchell (1) rules on the open M57 box (*The split pays*: accept that Discover's
+edit step is 333 chars over 31,630 and that grades were four passing cases rather than a baseline
+comparison, or amend the gate) and on KI-2026-11-01-x (the edited `s-ramen-near-hotel` prompt);
+(2) merges PR 674 with a merge commit; (3) dispatches `migrate-production` only if a migration is
+not yet applied (re-read the runs first: `0071` and `0072` were applied by run 41351040591, and
+PR 674 adds none, so none is expected); (4) merges PR 667 after `pnpm milestone close M57 --confirm`
+has been run on it. Then remove the orchestrator's `tc-orchestrator` guard file from the build
+session's git dir. Earlier next action, still open: Mitchell merges M43's part 0 (PR 659) if it is
+not merged yet. Then scope M44 with him
 (`plan-a-milestone`; `docs/milestones/M44-a-stop-knows-what-was-booked.md`, not scoped; since
 2026-10-22 it keeps containment only, `booking` having moved to M52). Open follow-ups from M43:
 KI-2026-11-01-s, -t, -u and -v; PR 660's hand-listed plural test (kept, his decision); part 5's

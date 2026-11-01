@@ -43,6 +43,19 @@ cannot be joined to the turn that produced them, and nothing draws the system or
    Debug toggle in the Ask panel (the graph from this page, tools per persona, each turn's
    breakdown) and a Personas tab in the operator console (the map with aggregates and recent
    turns). Personas are never shown to people (D4).
+7. **`ai_capability_gaps.task` is kept forever** (Mitchell, 2026-11-01, choosing option B over
+   expiring or hashing it: "easy to clean up later"). It is free text a person typed. The
+   deferred account-deletion decision in ADR-062 §6 now names it, so that milestone deletes it with
+   the rest.
+8. **AI and assistant endpoints never get a public API**, because of abuse risk (Mitchell,
+   2026-11-01). All eight routes in
+   `apps/web/src/server/public-api/exposure.ts` that reach `@/server/ai` or `@/server/assistant`
+   are `never`, the two Debug endpoints (decision 6) among them.
+9. **Personas are internal** (D4, sharpened 2026-11-01). A persona is a development tool that
+   maps tools to pages. People never choose, confirm or control one; the model switches itself.
+   Seeing "Used switch persona" in the steps drop-down is fine. The voice rule `INTERNALS_RULE`
+   (`apps/web/src/server/ai/handleAskRequest.ts`) forbids the model asking a person to switch
+   or pick a persona.
 
 ## Consequences
 

@@ -269,6 +269,10 @@ starts with two decisions this ADR deliberately does not take:
 
 1. whether conversation text is stored in our Postgres at all, with what retention and what
    account-deletion path;
+   Whatever that milestone decides, `ai_capability_gaps.task` (the free text of what a person
+   asked for that the assistant could not do, a table from M57, ADR-085 decision 7) is part of
+   it: it is kept forever by Mitchell's decision and must be added to the account-deletion path
+   with the conversation text;
 2. how memory behaves on a shared trip. One traveller's remembered preferences must never
    surface in a co-traveller's session, and recalled memory enters the prompt as untrusted
    user-role text that `untrusted()` fencing has to cover.
