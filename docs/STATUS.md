@@ -21,6 +21,18 @@ general setup.
 
 ## Where the work is right now
 
+**M57 closed 2026-11-01, gate 10 of 10** (*The assistant is a graph of personas, and you can watch
+it work*; decisions in `docs/milestones/M57-assistant-personas.md`, mechanisms in ADR-085), by
+`pnpm milestone close M57 --confirm` on part 0 (PR 667, `ccr-295c38f8-0l82gi`, prose only), which
+**waits on Mitchell's merge**. Parts 1 to 5 are on `main` (PRs 668, 670, 671, 672, 673; last merge
+`f5bbd18`; migrations `0071` and `0072` applied by `migrate-production` run 41351040591). Part 6
+is PR 674 (`a40c632`, `ci-ok` green, `ci` run 41359705691, `ci-ok` check run 125009047622) and
+waits on Mitchell's merge; `a40c632` is prompt text only (the Discover trim: edit step 31,963 to
+31,609 chars, under the 31,630 the last gate box asked for). Mitchell ruled on KI-20261101-x:
+keep the edited `s-ramen-near-hotel` prompt (resolved). Part 0 carries the retro, ADR-085
+decisions 7 to 9 and five known issues (KI-2026-11-01-w, -y, -z, -aa and the earlier -s to -v);
+the plan is deleted.
+
 **M43 closed 2026-11-01, gate 6 of 6**, by `pnpm milestone close M43 --confirm` on part 0
 (PR 659, `ccr-96adddf8-iksgbh`, prose only), which **waits on Mitchell's merge**. All five code
 parts are on `main` in `c3452b7`: PR 661 (the Overview's identity is the `pages.kind` column,
@@ -77,8 +89,15 @@ earlier confirmations (Today undeletable on production; part 10's API; part 11 *
 confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
-**Next action:** Mitchell merges M43's part 0 (PR 659), then removes the orchestrator's
-`tc-orchestrator` guard file from that session's git dir. Then scope M44 with him
+**Next action:**
+1. Mitchell merges PR 674 (merge commit).
+2. No `migrate-production` is needed: `0070` to `0072` are applied (`pnpm state` shows all 73
+   applied, with `0072_ai_turn_outcomes`), and PR 674 adds none.
+3. Mitchell merges PR 667.
+4. Close no lower drafts: parts 1 to 5 are already merged.
+Then remove the orchestrator's `tc-orchestrator` guard file from the build session's git dir.
+Earlier next action, still open: Mitchell merges M43's part 0 (PR 659) if it is
+not merged yet. Then scope M44 with him
 (`plan-a-milestone`; `docs/milestones/M44-a-stop-knows-what-was-booked.md`, not scoped; since
 2026-10-22 it keeps containment only, `booking` having moved to M52). Open follow-ups from M43:
 KI-2026-11-01-s, -t, -u and -v; PR 660's hand-listed plural test (kept, his decision); part 5's
