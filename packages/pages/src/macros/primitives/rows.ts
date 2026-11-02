@@ -8,6 +8,7 @@ import { cityDayOrdinals, costOfStops, narrow, stopsInCity, type SelectedStop } 
 import { dayLabel, formatMoney, formatDate } from "../../format";
 import { readerClock, toClockRange } from "../../clockLabel";
 import { needsBooking } from "../../needsBooking";
+import { isBooked } from "../../booked";
 import { fieldAt, formatStopField } from "../../fields";
 
 // The `repeat` primitives (ADR-039 decision 1): a shape that **lists** its
@@ -159,7 +160,7 @@ const STOP_ROWS_FILTERS = ["day", "city", "tag", "kind", "dates"] as const satis
 // the preset, no control of its own, and listed to the assistant by
 // `primitiveCatalog` straight off this enum. It narrows AFTER `narrow`, so it
 // composes with every filter rather than replacing one.
-const StopRowsOnly = z.enum(["needsBooking"]);
+const StopRowsOnly = z.enum(["needsBooking", "booked"]);
 // **Field columns** (M14 field widget, build step 6; Mitchell's answer 4). Paths,
 // in the order the reader chose, each checked at resolve time like any `field`
 // param — so a stale one drops out of the table rather than blocking the save.
@@ -234,7 +235,7 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
   params: StopRowsParams, inputs: STOP_ROWS_INPUTS,
   selection: { entity: "stop", filters: STOP_ROWS_FILTERS },
   description:
-    "One line per selected stop: when it is, and what it cost. Filter it to a day, a tag, or a kind — booked, for instance, gives a line for every booking. `only: needsBooking` keeps just the stops still to book. `columns` adds a column per chosen field, in order.",
+    "One line per selected stop: when it is, and what it cost. Filter it to a day, a tag, or a kind — booked, for instance, gives a line for every booking. `only: needsBooking` keeps just the stops still to book; `only: booked` keeps just the booked ones, with their provider. `columns` adds a column per chosen field, in order.",
   // True whether the selection held no stops at all or the filters matched none
   // of them. `emptyText` is a fixed string on the definition and cannot see the
   // params, so "no stops on this day" would be a claim the widget cannot keep.
@@ -252,11 +253,14 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
     if (selection.status !== "ok") return selection;
     const stops = params.only === "needsBooking"
       ? selection.value.stops.filter(({ activity }) => needsBooking(activity))
-      : selection.value.stops;
+      : params.only === "booked"
+        ? selection.value.stops.filter(({ activity }) => isBooked(activity))
+        : selection.value.stops;
     if (stops.length === 0) {
       // The rule outranks a kind filter for the words: under "Still to book"
       // an empty list is the good news, whatever else narrowed it.
       if (params.only === "needsBooking") return empty("nothing left to book");
+      if (params.only === "booked") return empty("nothing booked yet");
       return empty(params.kind === undefined ? undefined : NOTHING_MATCHED[params.kind]);
     }
 
@@ -267,7 +271,14 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
     const columns = [...new Set(params.columns ?? [])]
       .filter((path) => !BUILT_IN_COLUMNS.has(path))
       .flatMap((path) => fieldAt("stop", path) ?? []);
-    const headings = columns.length === 0 ? undefined : ["Stop", "Time", "Cost", ...columns.map((c) => c.label)];
+    // The booked list adds what was booked: the provider, and the code only
+    // when some stop arrived with one. The server strips the code below editor
+    // (M44 part 3), so this shows what it was sent and never invents it.
+    const booked = params.only === "booked";
+    const showCode = booked && stops.some(({ activity }) => activity.booking?.confirmation);
+    const bookingHeadings = booked ? ["Booked with", ...(showCode ? ["Confirmation"] : [])] : [];
+    const headings =
+      columns.length === 0 && !booked ? undefined : ["Stop", "Time", "Cost", ...bookingHeadings, ...columns.map((c) => c.label)];
     const kindCtx = { currency: trip.currency };
 
     // Two columns: when it is, and what it cost. A stop with no time still
@@ -279,6 +290,8 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
       cells: [
         activity.timeWindow ? [rowValue(toClockRange(activity.timeWindow.start, activity.timeWindow.end, format))] : [],
         activity.cost ? [rowValue(formatMoney(activity.cost.amountMinor, activity.cost.currency))] : [],
+        ...(booked ? [[rowValue(activity.booking?.provider ?? "Booked")]] : []),
+        ...(showCode ? [activity.booking?.confirmation ? [rowValue(activity.booking.confirmation)] : []] : []),
         ...columns.map((choice) => {
           const value = formatStopField(choice, [activity], kindCtx);
           return value === null ? [] : [rowValue(value)];

@@ -328,6 +328,41 @@
             "content": [
               {
                 "type": "text",
+                "text": "Booked"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "What is already booked, and with whom."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "only": "booked"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
                 "text": "Where you sleep"
               }
             ]
@@ -1176,6 +1211,33 @@
                   "params": {
                     "tag": "meal",
                     "kind": "pending"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Booked"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "tag": "meal",
+                    "only": "booked"
                   }
                 }
               }
