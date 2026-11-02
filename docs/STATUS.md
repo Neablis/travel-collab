@@ -21,6 +21,11 @@ general setup.
 
 ## Where the work is right now
 
+**M44 is current, scoped 2026-11-02** (*A stop knows what was booked, and what it sits inside*;
+decisions D1–D5 in `docs/milestones/M44-a-stop-knows-what-was-booked.md`, mechanisms in ADR-086,
+plan `docs/plans/2026-11-02-M44-booking-and-containment.md`). Part 0 is `claude/next-milestone-5o3kip`;
+parts 1 to 5 are one stack of drafts, `claude/m44-part<K>-…`.
+
 **M57 closed 2026-11-01, gate 10 of 10** (*The assistant is a graph of personas, and you can watch
 it work*; decisions in `docs/milestones/M57-assistant-personas.md`, mechanisms in ADR-085), by
 `pnpm milestone close M57 --confirm` on part 0 (PR 667, `ccr-295c38f8-0l82gi`, prose only), which

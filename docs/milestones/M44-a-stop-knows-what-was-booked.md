@@ -1,11 +1,12 @@
 # M44 — A stop knows what was booked, and what it sits inside
 
-**Status:** **Proposed 2026-10-06; moved last 2026-10-12, after M43, by Mitchell (nothing it fixes is hurting today). Not scoped yet**: the decisions below are
-recommendations and none has been answered. Minted from `docs/candidates.md` (see
-`docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
+**Status:** **Scoped 2026-11-02 by Mitchell; current.** All four decisions answered as
+recommended, plus a fifth (where the booked list lives), below. Mechanisms in ADR-086; the plan is
+`docs/plans/2026-11-02-M44-booking-and-containment.md` (deleted at gate close). Part 0 is
+`claude/next-milestone-5o3kip`.
 
-*2026-10-22:* **`booking` (decisions 1–2 here) moved to M52** for flight details, on Mitchell's
-answer (M52 decision 5; confirm at scoping). M44 keeps containment only.
+*2026-10-22:* `booking` was moved to M52 for flight details, then **handed back on 2026-10-23**
+(M52 decision 5, as amended: M52 built only `flightNumber`). M44 owns `booking` and containment.
 
 ## Why this exists
 
@@ -26,19 +27,28 @@ Candidates absorbed (each deleted by this gate):
 - *Structured booking fields on a stop: confirmation number, provider, link* (2026-09-30)
 - *Contained activities: a meal inside a day-long activity is not a conflict* (2026-08-02)
 
-## Decisions it needs (recommendations; none answered)
+## Decisions (answered 2026-11-02 by Mitchell, each as recommended)
 
-1. **`booking` is an optional object on the activity**, set and cleared through the existing
-   update command. It is additive, and the public API gets a minor version.
-2. **Who can see a confirmation number.** *Recommended:* members with at least editor access, and
-   never through share links (`/s/**`) or published playbook days. A viewer sees that a stop is
-   booked, not the code.
+1. **`booking` is an optional object on any stop**: `booking: { confirmation?, provider?, url? }`,
+   set and cleared through the existing `UpdateActivity` command (clearing all three clears it,
+   stored as `null`). Additive: old events carry no `booking` and replay as `null`; no migration
+   (activities live in event payloads and the `trip_details` projection). The public API takes a
+   minor version. **Interaction:** the stop editor has a collapsed *Booking* section with
+   Confirmation, Provider and Link fields; the river card shows a *Booked · Provider* chip, and an
+   editor's tap on it copies the code or opens the link.
+2. **A confirmation code and link are for editors and owners.** Viewers and suggesters see that a
+   stop is booked and its provider, not the code or link. The code is stripped from share links
+   (`/s/**`), saved and published playbook days, and trip export unless the caller is at least an
+   editor. The assistant sees only *booked: yes/no* and the provider. This is the first field-level
+   role rule on a trip read (ADR-086).
 3. **Check-in and check-out times stay in the time window**, not in `booking`.
-4. **Containment is rule (c), not new structure.** *Recommended:* in `conflicts.ts`, suppress
-   `time-overlap` when one window fully contains the other and the inner stop is at most a set
-   length (say 2 hours) or is a `meal`-tagged stop. Nested activities, option (a), stay out until
-   containment needs to mean more than silencing a warning. The entry names (c) as the cheapest
-   option, and nothing so far has asked for more.
+4. **Containment is rule (c)**: in `conflicts.ts`, `time-overlap` is suppressed when one window
+   fully contains the other and the inner stop is at most 2 hours long or tagged `meal`. A partial
+   overlap still warns. Nested activities stay out.
+5. **The booked list is a new `stop.rows` filter, `only: "booked"`**, a *Booked* list under
+   *Still to book* in the notebook templates that already carry it. Each row shows the provider,
+   and the code for editors and owners. Existing notebooks pick it up through M43's template sync.
+   (Scope named "the Money notebook's booked list", which never existed; Mitchell, 2026-11-02.)
 
 ## Scope
 
@@ -53,7 +63,7 @@ Candidates absorbed (each deleted by this gate):
 
 ## Exit gate
 
-- [ ] **Decisions 1–4 are answered and recorded here**, with the contracts changelog entry.
+- [ ] **Decisions 1–5 are answered and recorded here**, with the contracts changelog entry.
 - [ ] **A trip replayed from a log written before the change equals its stored projection**, which
       a test shows, because old events carry no `booking`.
 - [ ] **A confirmation number never reaches a share link or a published day**: an integration test
