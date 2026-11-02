@@ -19,6 +19,10 @@ import { safeHttpUrl } from "@/lib/bookingLink";
  * from the trip rather than passed down through the board: an unknown role
  * (not loaded yet, or outside a trip) is inert too.
  *
+ * **No phone touch floor on the button** (`min-h-0`, M44 walk): the 44px floor
+ * would stand taller than a short card and take its edit target. The chip's
+ * own size is its target, and a tap beside it opens the editor.
+ *
  * The notice is portalled to the body: a block's content is
  * `pointer-events-none`, which a child inherits, and the block dims and drags
  * as a whole. Its pointer-downs are stopped at the portal so a tap on
@@ -51,7 +55,7 @@ export function BookingChip({ booking }: { booking: NonNullable<ActivityView["bo
   return (
     <>
       {acts ? (
-        <Button variant="ghost" aria-label={`${label}, copy confirmation`} onClick={() => void tap()} className="pointer-events-auto h-auto min-w-0 shrink-0 rounded-full p-0 hover:bg-transparent fine:min-h-0">
+        <Button variant="ghost" aria-label={`${label}, copy confirmation`} onClick={() => void tap()} className="pointer-events-auto h-auto min-h-0 min-w-0 shrink-0 rounded-full p-0 hover:bg-transparent">
           <Badge variant="success" className="px-1.5 py-0">{label}</Badge>
         </Button>
       ) : (

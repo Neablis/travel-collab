@@ -79,3 +79,42 @@ test("an owner books a stop, sees the chip on its card, and a share link shows n
     await readerContext.close();
   }
 });
+
+// A short card at phone width: the chip used to inherit the phone's 44px
+// touch floor, so on a card shorter than that it reached over the card's edit
+// target. The card body outside the chip must still open the editor.
+test("on a short phone card the Booked chip stays inside the card and the body opens the editor", async ({ page }) => {
+  test.slow();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const created = await page.request.post("/api/trips", { data: { name: e2eTripName("Booking phone") } });
+  expect(created.ok()).toBe(true);
+  const { tripId } = (await created.json()) as { tripId: string };
+  const command = async (body: object) => {
+    const response = await page.request.post(`/api/trips/${tripId}/commands`, { data: body });
+    expect(response.ok(), JSON.stringify(body)).toBe(true);
+  };
+  const dayId = randomUUID();
+  await command({ type: "AddDay", tripId, dayId });
+  await command({
+    type: "AddActivity",
+    tripId,
+    activityId: randomUUID(),
+    dayId,
+    title: "Quick check-in",
+    timeWindow: { start: "14:00", end: "14:30" },
+    booking: { confirmation: "ZX9QK7", provider: "Hotel Okura" },
+  });
+
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  const card = page.getByTestId(/^activity-card-/);
+  const chip = card.getByRole("button", { name: /^Booked · Hotel Okura/ });
+  await expect(chip).toBeVisible();
+  const cardBox = (await card.boundingBox())!;
+  const chipBox = (await chip.boundingBox())!;
+  expect(chipBox.y).toBeGreaterThanOrEqual(cardBox.y - 0.5);
+  expect(chipBox.y + chipBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 0.5);
+
+  // Just left of the chip, at the card's vertical middle: the editor's target.
+  await page.mouse.click(chipBox.x - 4, cardBox.y + cardBox.height / 2);
+  await expect(page.getByRole("heading", { name: "Edit activity" })).toBeVisible();
+});
