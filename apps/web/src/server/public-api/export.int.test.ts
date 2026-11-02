@@ -23,6 +23,7 @@ import { mintToken } from "@/server/api-tokens";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { events } from "@/server/db/schema";
+import { readStreamHeadSeq } from "@/server/eventStore";
 import { grantMembership } from "@/server/access/members";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -49,6 +50,7 @@ vi.mock("@/server/projections", async (importOriginal) => {
 
 const { POST: CREATE_TRIP, GET: LIST_TRIPS } = await import("@/app/api/v1/trips/route");
 const { GET: GET_TRIP } = await import("@/app/api/v1/trips/[tripId]/route");
+const { GET: GET_AT } = await import("@/app/api/v1/trips/[tripId]/history/[seq]/route");
 const { POST: ADD_DAY } = await import("@/app/api/v1/trips/[tripId]/days/route");
 const { POST: ADD_STOP } = await import("@/app/api/v1/trips/[tripId]/activities/route");
 const { GET: EXPORT } = await import("@/app/api/v1/trips/[tripId]/export/route");
@@ -209,6 +211,32 @@ describe("a booking in an export", () => {
     const asViewer = await bookingOf(viewer);
     expect(asViewer.booking).toEqual({ provider: "Opentable" });
     expect(JSON.stringify(asViewer.bundle)).not.toContain("XK29QP");
+  });
+});
+
+// The v1 reads other than export, as a viewer: the trip itself (`tripAccessFor`)
+// and the replay at a revision, which reads the log by another road.
+describe("a booking in a viewer's v1 reads", () => {
+  it("is the provider alone on the trip and on a past revision, the whole booking for the owner", async () => {
+    const owner = await entitled();
+    const ownerSecret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId, dayId } = await seedTrip(ownerSecret);
+    const booking = { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/r/1" };
+    expect((await ADD_STOP(req(ownerSecret, { title: "Dinner", dayId, booking }, "POST"), P({ tripId }))).status).toBe(201);
+    const seq = await readStreamHeadSeq(db, tripId);
+    const viewer = await entitled();
+    await grantMembership(db, { tripId, userId: viewer, role: "viewer", invitedBy: owner, now: new Date().toISOString() });
+    const viewerSecret = await tokenFor(viewer, ["trips:read"]);
+
+    const read = async (secret: string, at: boolean) =>
+      (await (at ? GET_AT(req(secret), P({ tripId, seq: String(seq) })) : GET_TRIP(req(secret), P({ tripId })))).text();
+
+    for (const at of [false, true]) {
+      const asViewer = await read(viewerSecret, at);
+      expect(asViewer).toContain("Opentable");
+      expect(asViewer).not.toContain("XK29QP");
+    }
+    expect(await read(await tokenFor(owner, ["trips:read"]), true)).toContain("XK29QP");
   });
 });
 

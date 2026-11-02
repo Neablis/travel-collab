@@ -311,11 +311,6 @@ describe("what a stranger is served", () => {
 // `src/app/api/shares/featured/route.test.ts` — neither of which needs Postgres,
 // which is the whole claim.
 
-// KI-53. `mode: "string"` columns echoed the write path's own ISO input and
-// rendered Postgres's format ("2026-01-01 00:00:00+00") on the read path, so
-// the same field had two shapes depending on which call you got it from.
-// `mode: "date"` plus one `.toISOString()` in `toDto` is what makes these
-// equal; asserting the ISO literal is what stops it silently coming back.
 // M44 gate box (ADR-086 decision 2): a confirmation number never reaches a
 // share link. The link is a bearer URL, so whoever holds it holds a credential
 // for the booking if the code rides along.
@@ -342,6 +337,11 @@ describe("a booking on a shared trip", () => {
   });
 });
 
+// KI-53. `mode: "string"` columns echoed the write path's own ISO input and
+// rendered Postgres's format ("2026-01-01 00:00:00+00") on the read path, so
+// the same field had two shapes depending on which call you got it from.
+// `mode: "date"` plus one `.toISOString()` in `toDto` is what makes these
+// equal; asserting the ISO literal is what stops it silently coming back.
 describe("share timestamps have one shape", () => {
   const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 

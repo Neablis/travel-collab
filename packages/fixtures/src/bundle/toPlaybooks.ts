@@ -59,7 +59,7 @@ export function toSavedStop(stop: BundleStop, dayIndex = 0): SavedStop {
     pendingReason: stop.pendingReason ?? null,
     flightNumber: stop.flightNumber ?? null,
     // A playbook is read by whoever it is published to, so only the provider survives (ADR-086 decision 2).
-    booking: stop.booking?.provider === undefined ? null : { provider: stop.booking.provider },
+    booking: stop.booking ? { provider: stop.booking.provider ?? null } : null,
     // Which day of the sequence this stop lands on. Defaulted to 0 so the
     // one-day `stops:` form needs no argument at all — a one-day playbook is a
     // sequence of length one, not a special case.

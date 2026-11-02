@@ -137,7 +137,7 @@ export const SavedStop = z.object({
   // published to, so it keeps who it was booked with and never the code or the
   // link. A plain object strips the other keys, so a row written with them is
   // cleaned on its way out as well as on its way in. Defaulted per the rule above.
-  booking: z.object({ provider: z.string() }).nullable().default(null),
+  booking: z.object({ provider: z.string().nullable() }).nullable().default(null),
 });
 export type SavedStop = z.infer<typeof SavedStop>;
 

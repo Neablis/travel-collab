@@ -6,6 +6,7 @@ import { tripDetailFixture } from "@tc/factories";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { getSavedDay, listSavedDays, saveDay } from "./savedDays";
+import { sharedDayRead } from "./sharedDayView";
 
 // KI-71. `saved_days.stops` is `jsonb("stops").$type<SavedStop[]>()`, and
 // `$type` is a compile-time cast on Drizzle's side — nothing checks the bytes.
@@ -268,6 +269,17 @@ describe("a saved day keeps a booking's provider and never its code (M44)", () =
     const read = await getSavedDay(savedDayId, ownerId);
 
     expect(read!.stops[0]!.booking).toEqual({ provider: "Opentable" });
+    expect(JSON.stringify(read)).not.toContain("XK29QP");
+  });
+
+  // The reader the published-day page serves: somebody else entirely, or nobody.
+  it("strips a code from a published day read by a stranger", async () => {
+    const savedDayId = await insertRawRow(freshOwner(), [{ ...wellFormedStop(), booking }]);
+    await db.update(savedDays).set({ visibility: "public", publishedAt: new Date() }).where(eq(savedDays.id, savedDayId));
+
+    const read = await sharedDayRead(savedDayId, null);
+
+    expect(read!.day.stops[0]!.booking).toEqual({ provider: "Opentable" });
     expect(JSON.stringify(read)).not.toContain("XK29QP");
   });
 });

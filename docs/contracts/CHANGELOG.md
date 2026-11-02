@@ -14,14 +14,18 @@ Format:
 ```
 
 ## 2026-11-02 — A booking's code is for editors (M44 part 3; public API 2.1.0)
+- **Changed** (`activity.ts`): `ActivitySnapshot.booking.provider` may be `null`, which only a read
+  below editor carries: a code-only booking is served as `{ provider: null }`, so a viewer still
+  sees the stop is booked. The log never holds one; clone and export drop it.
 - **Changed** (`saved.ts`): `SavedStop.booking` narrows from the whole booking to `{ provider }`
-  or `null`. A saved day is read by whoever it is published to, so it keeps who a stop was booked
+  (`provider` may be `null`) or `null`. A saved day is read by whoever it is published to, so it keeps who a stop was booked
   with and never the code or the link; a stored row that holds them is cleaned on read (the
   object strips the other keys). `stopsForDay` and the bundle importer keep the provider only.
 - **The rule** (`server/access/bookingRedaction.ts`, ADR-086 decision 2): editors and owners read
   the whole `booking`; viewers and suggesters read `{ provider }`; share links (`/s/**`), saved
   and published days carry at most `{ provider }`. The member trip read and every public API read
-  follow the caller's role (redacted once, in `tripAccessFor`); trip export and clone strip the
+  follow the caller's role (redacted in `tripAccessFor`, and again on the replays and the events
+  poll, which read the log by another road); trip export and clone strip the
   code and link unless the caller is editor or owner on the source. The assistant's read tools
   report `booked` (boolean) and `provider` (fenced as untrusted) only, whatever the role.
 - Public API `2.0.0` to `2.1.0`, minor: `booking` on a stop in a read is now role-shaped and the

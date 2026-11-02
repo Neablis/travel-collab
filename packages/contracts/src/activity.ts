@@ -689,7 +689,9 @@ export const ActivitySnapshot = z.object({
   booking: z
     .object({
       confirmation: z.string().optional(),
-      provider: z.string().optional(),
+      // null only on a read below editor: `{ provider: null }` says "booked"
+      // without the code (ADR-086 decision 2). The log never holds one.
+      provider: z.string().nullable().optional(),
       url: z.string().optional(),
     })
     .nullable()
