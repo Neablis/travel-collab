@@ -25,9 +25,16 @@ const widths = vi.hoisted(() => {
   const listeners = new Set<() => void>();
   return {
     isPhone: false,
+    // `undefined` is the real hook's answer before it is known (its server
+    // snapshot); a test resolves it where the browser would.
+    docks: false as boolean | undefined,
     listeners,
     set(isPhone: boolean) {
       this.isPhone = isPhone;
+      listeners.forEach((listener) => listener());
+    },
+    setDocks(docks: boolean | undefined) {
+      this.docks = docks;
       listeners.forEach((listener) => listener());
     },
   };
@@ -38,6 +45,15 @@ vi.mock("@/lib/useIsPhone", async (orig) => {
     ...actual,
     // A phone, known from the first client render, as `matchMedia` answers it.
     useIsPhoneKnown: () => true,
+    useDocksAssistant: () =>
+      useSyncExternalStore(
+        (onChange) => {
+          widths.listeners.add(onChange);
+          return () => widths.listeners.delete(onChange);
+        },
+        () => widths.docks,
+        () => undefined,
+      ),
     // `useIsPhone`'s state, which a test moves where its effect would.
     useIsPhone: () =>
       useSyncExternalStore(
@@ -81,6 +97,7 @@ import { TripProvider } from "@/components/trip/context/TripProvider";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { LensRouter } from "@/components/trip/context/LensRouter";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
 
 const first = tripFirstDataFixture({ trip: costedTripDetailFixture() });
 const tripId = first.trip.trip.tripId;
@@ -98,6 +115,7 @@ beforeEach(() => {
   // The focused day is remembered for the session; each test arrives fresh.
   sessionStorage.clear();
   widths.isPhone = false;
+  widths.docks = false;
   focus.held = false;
   focus.queued = [];
 });
@@ -173,5 +191,41 @@ describe("TripBoardScreen — a phone's Plan is first drawn in its right form", 
     expect(screen.getByTestId("trip-board-content").hasAttribute("inert")).toBe(false);
     act(() => focus.queued.forEach((apply) => apply()));
     expect(await screen.findByRole("group", { name: "Day columns" })).toBeTruthy();
+  });
+
+  // M57 part 6 CI (m16-mobile-assistant): the phone bar's Ask is drawn from the
+  // route, so a tap can land in the commit where hydration has run but
+  // `useIsPhone`'s effect has not. The rail opened docked and was replaced by
+  // the sheet a frame later, which detached the Hide button under the test's
+  // hand. The presentation must follow the width the media query already knows.
+  it("opens the assistant as a sheet at once, before the width hook has corrected", async () => {
+    let ask: ReturnType<typeof usePhoneAsk> = null;
+    function Opener() {
+      ask = usePhoneAsk();
+      return null;
+    }
+    render(
+      <TripProvider tripId={tripId} initial={tripFirstDataFixture({ trip: first.trip.trip })}>
+        <FocusProvider>
+          <EditorHost>
+            <LensRouter>
+              <TripBoardScreen tripId={tripId} />
+              <Opener />
+            </LensRouter>
+          </EditorHost>
+        </FocusProvider>
+      </TripProvider>,
+    );
+    // The width is not known yet: the rail waits rather than mount docked.
+    act(() => widths.setDocks(undefined));
+    act(() => ask?.onOpen());
+    // Let the lazy rail resolve, so an absent header means gated, not pending.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.queryByTestId("assistant-scrim")).toBeNull();
+    expect(screen.queryByTestId("assistant-header")).toBeNull();
+    act(() => widths.setDocks(false));
+    expect(await screen.findByTestId("assistant-scrim")).toBeTruthy();
   });
 });

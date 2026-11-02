@@ -142,10 +142,10 @@
         "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 11082,
-      "instructionChars": 3702,
-      "totalChars": 14784,
-      "approxTokens": 4466
+      "toolChars": 11014,
+      "instructionChars": 3500,
+      "totalChars": 14514,
+      "approxTokens": 4385
     },
     "trip · edit · switched to discover": {
       "tools": [
@@ -173,10 +173,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 26747,
-      "instructionChars": 5216,
-      "totalChars": 31963,
-      "approxTokens": 9656
+      "toolChars": 26679,
+      "instructionChars": 4930,
+      "totalChars": 31609,
+      "approxTokens": 9550
     },
     "trip · plan · switched to discover": {
       "tools": [
@@ -201,10 +201,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 25688,
-      "instructionChars": 5523,
-      "totalChars": 31211,
-      "approxTokens": 9429
+      "toolChars": 25620,
+      "instructionChars": 5237,
+      "totalChars": 30857,
+      "approxTokens": 9322
     },
     "page · compose": {
       "tools": [
@@ -324,13 +324,13 @@
       "chars": 983,
       "approxTokens": 297
     },
-    "search_places": {
-      "chars": 950,
-      "approxTokens": 287
-    },
     "spend_by_category": {
       "chars": 942,
       "approxTokens": 285
+    },
+    "search_places": {
+      "chars": 882,
+      "approxTokens": 266
     },
     "search_playbooks": {
       "chars": 877,

@@ -67,6 +67,9 @@ const CONSOLE_FILES = [
   // M36 link 5: the Library tab's notebook read and its mirror.
   path.join(WEB, "src/lib/adminNotebooks.ts"),
   path.join(WEB, "src/server/savedNotebooks.ts"),
+  // M57 part 6: the Personas tab's read and its wire shape, under the same rules.
+  path.join(WEB, "src/lib/adminPersonas.ts"),
+  path.join(WEB, "src/server/entitlements/personaReport.ts"),
   path.join(WEB, "src/server/billing/revenue.ts"),
   path.join(WEB, "src/app/api/admin/overview/route.ts"),
   path.join(WEB, "src/app/api/admin/grants/route.ts"),
@@ -180,6 +183,22 @@ describe("the report queue is read behind the gate", () => {
     expect(page.indexOf("adminUserId()")).toBeGreaterThan(-1);
     expect(page.indexOf("adminUserId()")).toBeLessThan(gate);
     expect(gate).toBeLessThan(read);
+  });
+});
+
+describe("the Personas tab is read behind the gate", () => {
+  // M57 part 6. The tab reads the ledger, the outcomes and the model-paraphrased
+  // gap text through the turn breakdown; a non-operator must reach `notFound()`
+  // before `personaReport` runs, and the tab must be a registered one, or
+  // `?tab=personas` would fall back to Financial for the operator as well.
+  it("registers the tab and calls personaReport only after the admin check", () => {
+    const page = codeOf(path.join(HERE, "page.tsx"));
+    const gate = page.indexOf("notFound()");
+    const read = page.indexOf("personaReport(");
+    expect(read, "page.tsx no longer reads the persona report").toBeGreaterThan(-1);
+    expect(page.indexOf("adminUserId()")).toBeLessThan(gate);
+    expect(gate).toBeLessThan(read);
+    expect(page).toMatch(/tab === "personas"/);
   });
 });
 

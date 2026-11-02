@@ -33,18 +33,6 @@ export function useIsPhone(): boolean {
 const DOCK_MIN_WIDTH_PX = 1100;
 
 /**
- * `true` from 768px up to 1099px — the band where the trip board keeps its
- * full width and the assistant comes up OVER it, whatever shape the reader
- * chose (M39 D3; Mitchell, 2026-10-09: "the band wins"). Same first-paint
- * rule as `useIsPhone`, for the same reason: starts `false`, corrects in an
- * effect, so only a mount point that cannot exist at first paint may branch
- * on it (`AssistantRail`'s `presentation` note).
- */
-export function useIsTabletWidth(): boolean {
-  return useMatches(TABLET_WIDTH);
-}
-
-/**
  * `true` under a finger (`pointer: coarse`) — the same line the CSS
  * `pointer-coarse:` variant draws, for a surface that has to put something in
  * a different PLACE rather than restyle it (the river block's tag chips: a
@@ -91,8 +79,9 @@ export function useIsPhoneKnown(): boolean | undefined {
 /**
  * Whether an assistant that docks where the trip board does (from 1100px) is
  * docked: `false` on a phone and from 768 to 1099px, `undefined` until known,
- * as `useIsAbovePhone`. Home's, read while its rail is open; nothing opens it
- * before hydration, by which time the answer is known.
+ * as `useIsAbovePhone`. Read where a surface's assistant can be opened in the
+ * hydration commit itself (the board, via the phone bar's Ask), so the rail
+ * waits for `undefined` to resolve rather than mount docked and be swapped.
  */
 export function useDocksAssistant(): boolean | undefined {
   const phone = useKnownMatches(PHONE);

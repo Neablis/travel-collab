@@ -1,4 +1,4 @@
-// **The console's tab is URL state** (M36 D1): `/admin?tab=financial|users|library|ai`.
+// **The console's tab is URL state** (M36 D1): `/admin?tab=financial|users|library|ai|personas`.
 //
 // One module, read by the server page (which decides the body) and by the
 // client strip (which navigates), so the set of tabs cannot differ between the
@@ -10,6 +10,7 @@ export const CONSOLE_TABS = [
   { value: "users", label: "Users" },
   { value: "library", label: "Library" },
   { value: "ai", label: "AI models" },
+  { value: "personas", label: "Personas" },
 ] as const;
 
 export type ConsoleTab = (typeof CONSOLE_TABS)[number]["value"];
@@ -33,4 +34,19 @@ export function resolveConsoleTab(raw: string | string[] | undefined): ConsoleTa
  */
 export function consoleTabHref(tab: ConsoleTab): string {
   return `/admin?tab=${tab}`;
+}
+
+/** The Personas tab's windows, in days (M57 part 6). `?days=`; the middle one is the AI models tab's fixed 30. */
+export const PERSONA_WINDOWS = [7, 30, 90] as const;
+export type PersonaWindow = (typeof PERSONA_WINDOWS)[number];
+
+/** `?days=` as the page receives it; anything not offered is the default 30, as an unknown tab is Financial. */
+export function resolvePersonaWindow(raw: string | string[] | undefined): PersonaWindow {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return PERSONA_WINDOWS.find((days) => String(days) === value) ?? 30;
+}
+
+/** Where a window pick goes: the Personas tab at that span. */
+export function personaWindowHref(days: PersonaWindow): string {
+  return `${consoleTabHref("personas")}&days=${days}`;
 }

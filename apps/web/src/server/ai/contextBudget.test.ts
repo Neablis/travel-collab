@@ -50,6 +50,13 @@ import { ASSISTANT_TOOLS, aiToolsFor } from "@/server/assistant/registry";
 import { SWITCH_INTENT_TOOL_NAME } from "@/server/assistant/tools/intent";
 import { SWITCH_PERSONA_TOOL_NAME } from "@/server/assistant/tools/switchPersona";
 
+/**
+ * What an `edit` step cost before the persona split (M57's gate, "The split
+ * pays"): the single assistant's 31,630 characters. No persona's edit step may
+ * carry more, so the split cannot be a net cost on the step that dominates.
+ */
+const PRE_SPLIT_EDIT_CHARS = 31_630;
+
 const BASELINE = new URL("./contextBudget.baseline.json", import.meta.url);
 
 /**
@@ -259,5 +266,14 @@ describe("the context budget", () => {
         "contextBudget.baseline.json (UPDATE_CONTEXT_BUDGET=1, see this file's header) and " +
         "let review see the numbers; if it is not, find what grew.",
     ).toEqual([]);
+  });
+
+  it("keeps every persona's edit step under the pre-split edit step", async () => {
+    const current = await measure();
+    const over = Object.entries(current.shapes)
+      .filter(([label]) => label.includes(" · edit"))
+      .filter(([, shape]) => shape.totalChars >= PRE_SPLIT_EDIT_CHARS)
+      .map(([label, shape]) => `${label}: ${shape.totalChars} chars, not under ${PRE_SPLIT_EDIT_CHARS}`);
+    expect(over, "A persona's edit step must carry fewer characters than the single assistant's did before the split.").toEqual([]);
   });
 });

@@ -139,7 +139,6 @@ import {
   type PlaceCache,
 } from "@/server/assistant/deps";
 import type { RawToolIntent } from "@/server/assistant/batchResolver";
-import { MAX_PLACE_QUERIES } from "@/server/assistant/tools/places";
 import {
   data,
   plain,
@@ -2421,19 +2420,14 @@ export function instructionBlocks(
     // 9), and an instruction naming a tool the turn was not handed is the
     // defect the page branch was once written for.
     ...(posture === "read-only" ? [] : ["Call find_free_time for open time — never work gaps out yourself from read_day's times."]),
-    // **M9's grounding, as the one sentence that makes the tool worth having.**
-    // The 2026-08-02 dogfood run produced a restaurant with no address, a
-    // restaurant that may not exist and a dinner persisted in Shropshire,
-    // because the model was asked to FIND places while unable to LOOK ANYTHING
-    // UP — so "find restaurants near the falls" was answered from parametric
-    // memory and was unverifiable by construction.
-    //
-    // The cost warning is not padding: the milestone says step count is the
-    // cost driver and that search-then-act should read 2-3 steps, not 18. A
-    // model that calls this once per place is the failure mode that turns one
-    // cheap turn into an expensive one, and the tool's own description says the
-    // same thing — twice, deliberately.
-    ...(posture === "read-only" || !discovers ? [] : [`Call search_places to look up a real place — a restaurant, a museum, a park, a station, a hotel. Put every place the turn needs into ONE call's \`queries\` array (up to ${MAX_PLACE_QUERIES}); do not call it once per place.`]),
+    // **M9's grounding.** The 2026-08-02 dogfood run produced a restaurant with
+    // no address, a restaurant that may not exist and a dinner persisted in
+    // Shropshire, because the model was asked to FIND places while unable to
+    // LOOK ANYTHING UP. The instruction that a lookup goes in ONE call lives in
+    // `search_places`'s own description (once it was here as well, and the edit
+    // step paid for both: PR 674), and the citation rule below says when to
+    // search; step count is the cost driver, so the one-call rule is the half
+    // that must not be dropped from the description.
     ...(canWrite
       ? [
           "Read before you propose. A change that names a day or a stop you have not read is a guess.",
@@ -2474,12 +2468,11 @@ export function instructionBlocks(
             // the line buys is that the model searches BEFORE it decides, which
             // is the half no server-side check can add after the fact.
             "When a stop names a real place, call search_places first and put the candidate's number on the stop as `placeRef`. Do NOT write coordinates yourself — cite the number and the server fills in the place. A stop with no placeRef is one nobody has checked exists, which is fine for something vague (\"lunch somewhere near the station\") and wrong for something named.",
-            // Neither line is a safety property — the card is still the only door
-            // (ADR-042's Context) — so they are worded as craft, not as a rule
-            // the model could break something by ignoring. The first stops it
-            // guessing a savedDayId; the second keeps the card to one decision.
+            // Not a safety property — the card is still the only door (ADR-042's
+            // Context) — so worded as craft. It stops the model guessing a
+            // savedDayId. "At most ONE day per turn" is in `insert_playbook_day`'s
+            // description and is not repeated here (PR 674).
             "To add a ready-made day from the playbook library, call search_playbooks FIRST and then insert_playbook_day with a savedDayId it returned. Never write a savedDayId yourself.",
-            "Propose at most ONE playbook day per turn, so the user has one thing to say yes to.",
           ]
             : []),
           // **KI-12 — the AI cannot leave a trip half-planned.** See

@@ -5,7 +5,7 @@ import { AccountsPanel } from "@/components/admin/AccountsPanel";
 import { AccountPage, NoSuchAccount } from "@/components/admin/AccountPage";
 import { accountsViewHref, resolveAccountsView } from "@/components/admin/accountsView";
 import { ConsoleTabs } from "@/components/admin/ConsoleTabs";
-import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTab";
+import { resolveConsoleTab, resolvePersonaWindow, type ConsoleTab } from "@/components/admin/consoleTab";
 import { TierPanel } from "@/components/admin/TierPanel";
 import { TierGrowthCharts } from "@/components/admin/TierGrowthCharts";
 import { SignupsByRefTable } from "@/components/admin/SignupsByRefTable";
@@ -14,11 +14,16 @@ import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { PriceCheckPanel, PriceCheckPending } from "@/components/admin/PriceCheckPanel";
 import { LibraryTab } from "@/components/admin/LibraryTab";
 import { AiModelsTab } from "@/components/admin/AiModelsTab";
+import { PersonasTab } from "@/components/admin/PersonasTab";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
 import { adminAccountDetail } from "@/server/admin/accountDetail";
 import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitlements/admin";
 import { aiModelsReport } from "@/server/entitlements/aiModels";
+import { personaReport } from "@/server/entitlements/personaReport";
+import { grantForPersona, toolsFor } from "@/server/assistant/grants";
+import { EDGES, ENTRY, PERSONAS, type PersonaId } from "@/server/assistant/personas";
+import type { PersonaMapDef } from "@/lib/adminPersonas";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 import { priceConsistencyReport } from "@/server/billing/prices";
@@ -129,6 +134,17 @@ export default async function AdminPage({
     );
   }
 
+  if (tab === "personas") {
+    // **The ledger by persona** (M57 part 6): the graph is `personas.ts`'s, the
+    // numbers the window's. Read after the gate like every tab, and on its own.
+    const report = await personaReport(personaMapDef(), resolvePersonaWindow(params.days));
+    return (
+      <ConsoleShell tab={tab}>
+        <PersonasTab report={report} />
+      </ConsoleShell>
+    );
+  }
+
   // **An open account replaces the table, in place** (D1, M36 link 3). Its own
   // read, not the overview's: the page needs one account, not every panel and
   // Stripe's price sweep. *← All accounts* is the table's URL with the view the
@@ -229,6 +245,31 @@ export default async function AdminPage({
       </Suspense>
     </ConsoleShell>
   );
+}
+
+/**
+ * The persona graph as the Personas tab draws it: `personas.ts`'s nodes and
+ * edges, and the tools each persona holds at full caps (an editor on a plan
+ * that allows edits), so *unused* is measured against everything the persona
+ * could have called.
+ */
+function personaMapDef(): PersonaMapDef {
+  const ids = Object.keys(PERSONAS) as PersonaId[];
+  return {
+    personas: ids.map((id) => ({
+      id,
+      label: PERSONAS[id].label,
+      tools: toolsFor(grantForPersona(id, { role: "propose", plan: "propose", classifier: "propose" }), undefined, "propose").map((tool) => tool.name),
+      entryPages: Object.entries(ENTRY).flatMap(([kind, entry]) => (entry === id ? [kind] : [])),
+    })),
+    edges: EDGES.map((edge) => ({
+      from: edge.from,
+      to: edge.to,
+      kind: edge.kind,
+      via: edge.via,
+      guard: Object.entries(edge.guard).map(([cap, value]) => `${cap}=${value}`),
+    })),
+  };
 }
 
 /** The price sweep, awaited inside its own Suspense boundary. */

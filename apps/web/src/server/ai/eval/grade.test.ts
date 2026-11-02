@@ -714,7 +714,7 @@ describe("grade, the persona path", () => {
 
   it("holds the persona cases of the live set to their paths", () => {
     const pathOf = (id: string) => expectationFor(id, demoTripDetail(DEMO_TRIP_ID))!;
-    expect(pathOf("s-ramen-near-hotel")).toMatchObject({ switchesTo: "discover", switchesBefore: ["search_places", "AddActivity"], neverAsksToSwitch: true });
+    expect(pathOf("s-ramen-near-hotel")).toMatchObject({ proposes: false, mustCall: ["search_places", "show_options"], switchesTo: "discover", switchesBefore: ["search_places"], neverAsksToSwitch: true });
     expect(pathOf("s-named-place")).toMatchObject({ switchesTo: "discover", switchesBefore: ["search_places", "AddActivity"] });
     expect(pathOf("s-move-museum")).toMatchObject({ switchesTo: null, mustNotCall: ["search_places", "find_places_near_now"] });
     expect(pathOf("d-coffee-near-now")).toMatchObject({ switchesTo: "discover", mustCall: ["find_places_near_now"] });
