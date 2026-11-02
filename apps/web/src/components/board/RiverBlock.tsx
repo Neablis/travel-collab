@@ -20,6 +20,7 @@ import { formatMoney } from "@/lib/formatMoney";
 import { displayPlace, legRoute } from "@/lib/place";
 import { useIsCoarsePointer } from "@/lib/useIsPhone";
 import { formatDuration, toClockRange, toMinutes } from "@/lib/time";
+import { BookingChip } from "./BookingChip";
 import { PENDING_REASON_DISPLAY } from "./PendingReasonPicker";
 import { minuteToPx, type RiverPlacement } from "./riverLayout";
 import { StopTagChips } from "./StopTagChips";
@@ -27,8 +28,8 @@ import { MODE_DISPLAY } from "./TravelModePicker";
 
 /**
  * How a block is drawn — SPEC §36.9b's table, where *how dark a block is says
- * how locked in it is*. `booked` is absent on purpose: there is no booking
- * fact to draw it from (M29, out of scope).
+ * how locked in it is*. `booked` is absent on purpose: a booking is a chip on
+ * any block (`BookingChip`, M44), not a tone of its own.
  */
 type RiverTone = "planned" | "book" | "maybe" | "pending" | "transit";
 
@@ -527,6 +528,7 @@ export function RiverBlock({
           )}
           {!narrow && provisionalPill}
           {!narrow && tagMark}
+          {activity.booking && <BookingChip booking={activity.booking} readOnly={readOnly} />}
           {tagsInTitleRow && (
             <span className="pointer-events-auto shrink-0">
               <StopTagChips activityId={activity.activityId} tags={activity.tags} focusedTag={focusedTag} onToggleTag={onToggleTag} />

@@ -344,6 +344,33 @@ describe("ActivityEditorSheet", () => {
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "UpdateActivity", participants: ["u1"] }));
   });
 
+  // M44: the phone sheet and the desktop editor are this one form. Owner and
+  // editor set a booking through UpdateActivity; anyone below never sees the
+  // section, and their save leaves the stored booking alone.
+  it("sets a booking through UpdateActivity for an owner", async () => {
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+    await userEvent.type(await screen.findByLabelText("Confirmation"), "ABC123");
+    await userEvent.type(screen.getByLabelText("Provider"), "Hotel Okura");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "UpdateActivity", booking: { confirmation: "ABC123", provider: "Hotel Okura" } }),
+    );
+  });
+
+  it("offers a suggester no Booking section, and their save sends no booking", async () => {
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: { tripId: TRIP_ID, myRole: "suggester", members: [], invites: [], guests: [] },
+    });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+    expect(await screen.findByRole("button", { name: "Save" })).toBeTruthy();
+    expect(screen.queryByText("Booking")).toBeNull();
+    expect(screen.queryByLabelText("Confirmation")).toBeNull();
+  });
+
   it("treats Half day as four hours", async () => {
     const dispatch = renderEditorSheet({ mode: "create" });
     await userEvent.type(screen.getByLabelText("What or where"), "Museum");
