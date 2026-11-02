@@ -67,7 +67,8 @@ Candidates absorbed (each deleted by this gate):
 
 ## Exit gate
 
-- [ ] **Decisions 1–5 are answered and recorded here**, with the contracts changelog entry.
+- [x] **Decisions 1–5 are answered and recorded here**, with the contracts changelog entry.
+      Evidence: D1–D5 above, D5 amended in 7317ffe; contracts changelog entries for M44 at `docs/contracts/CHANGELOG.md:16` (part 3) and :40 (part 2) on `claude/m44-part5-booked-list`.
 - [x] **A trip replayed from a log written before the change equals its stored projection**, which
       a test shows, because old events carry no `booking`.
       Evidence: `packages/domain/test/m44-booking.test.ts:37-49` (parses the pre-change doc, key deleted, and `toEqual`s the replay) at 66d216c; unit green in CI run 41437935254 (https://github.com/Neablis/travel-collab/actions/runs/41437935254) at 66d216c, `ci-ok` green.
