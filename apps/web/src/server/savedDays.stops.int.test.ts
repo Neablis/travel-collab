@@ -229,3 +229,45 @@ describe("saveDay refuses a day it could not read back (KI-71, write half)", () 
     ]);
   });
 });
+
+// M44 gate box (ADR-086 decision 2): a confirmation number never reaches a
+// published day. A saved day is readable by anyone it is published to, so what
+// it keeps of a booking is the provider and nothing else, at the write AND at
+// the read: a row written by any other path (an import, an older build) is
+// still stripped on its way out.
+describe("a saved day keeps a booking's provider and never its code (M44)", () => {
+  const booking = { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/r/1" };
+
+  it("saves the provider of a booked stop, and not the confirmation or the link", async () => {
+    const ownerId = freshOwner();
+    const activityId = randomUUID();
+    const dayId = randomUUID();
+    const detail: TripDetail = {
+      ...tripDetailFixture(),
+      days: [{ dayId, activityIds: [activityId], date: null, costSubtotal: 0 }],
+      activities: {
+        [activityId]: {
+          ...wellFormedStop(), activityId, booking,
+        } as unknown as TripDetail["activities"][string],
+      },
+    };
+
+    const result = await saveDay({ name: "Booked", dayIds: [dayId] }, detail, ownerId);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.value.stops[0]!.booking).toEqual({ provider: "Opentable" });
+    const [row] = await db.select().from(savedDays).where(eq(savedDays.id, result.value.savedDayId));
+    expect(JSON.stringify(row!.stops)).not.toContain("XK29QP");
+  });
+
+  it("strips a code from a row that already holds one, on the way out", async () => {
+    const ownerId = freshOwner();
+    const savedDayId = await insertRawRow(ownerId, [{ ...wellFormedStop(), booking }]);
+
+    const read = await getSavedDay(savedDayId, ownerId);
+
+    expect(read!.stops[0]!.booking).toEqual({ provider: "Opentable" });
+    expect(JSON.stringify(read)).not.toContain("XK29QP");
+  });
+});

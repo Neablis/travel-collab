@@ -13,6 +13,26 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-02 — A booking's code is for editors (M44 part 3; public API 2.1.0)
+- **Changed** (`saved.ts`): `SavedStop.booking` narrows from the whole booking to `{ provider }`
+  or `null`. A saved day is read by whoever it is published to, so it keeps who a stop was booked
+  with and never the code or the link; a stored row that holds them is cleaned on read (the
+  object strips the other keys). `stopsForDay` and the bundle importer keep the provider only.
+- **The rule** (`server/access/bookingRedaction.ts`, ADR-086 decision 2): editors and owners read
+  the whole `booking`; viewers and suggesters read `{ provider }`; share links (`/s/**`), saved
+  and published days carry at most `{ provider }`. The member trip read and every public API read
+  follow the caller's role (redacted once, in `tripAccessFor`); trip export and clone strip the
+  code and link unless the caller is editor or owner on the source. The assistant's read tools
+  report `booked` (boolean) and `provider` (fenced as untrusted) only, whatever the role.
+- Public API `2.0.0` to `2.1.0`, minor: `booking` on a stop in a read is now role-shaped and the
+  saved-stop schema in the library endpoints narrows. No field is removed from a response an
+  editor receives.
+- Why: M44 decision 2 and ADR-086; a confirmation number is a credential.
+- Consumers updated: `apps/web` (access, share view, saved days, clone, assistant read tools,
+  OpenAPI document), `@tc/fixtures` (importer).
+- Breaking? no for owners and editors; a viewer reading `confirmation` or `url` from a trip now
+  gets neither.
+
 ## 2026-11-02 — A stop's `booking` (M44 part 2; public API version bump is part 3's)
 - **Added** (`activity.ts`): `Booking` (`confirmation`, `provider`, each trimmed 1-100 characters;
   `url`, an http or https link up to 2000), every part optional. An optional `booking` on

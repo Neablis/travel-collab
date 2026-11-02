@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TripDetail, type TripRole } from "@tc/contracts";
 import { auth } from "../auth";
 import { hasAtLeast, memberRole } from "../accessPolicy";
+import { redactActivitiesFor } from "./bookingRedaction";
 import { db } from "../db/client";
 import { getStoredTripMembers, getTripDetail } from "../projections";
 import { effectiveMembers } from "./members";
@@ -197,7 +198,18 @@ export async function tripAccessFor(
 ): Promise<TripAccessOutcome> {
   const read = await readTrip(tripId, (members) => hasAtLeast(userId, members, minimum));
   if (!read.ok) return read;
-  return { ok: true, userId, role: memberRole(userId, read.detail.members)!, detail: read.detail };
+  const role = memberRole(userId, read.detail.members)!;
+  return { ok: true, userId, role, detail: redactDetailFor(role, read.detail) };
+}
+
+/**
+ * The trip as `role` may read it. The one place a member's read is redacted
+ * (ADR-086 decision 2), so the board, the events poll and the public API all
+ * answer a viewer the same way: a booking's provider, not its code.
+ */
+function redactDetailFor(role: TripRole, detail: TripDetail): TripDetail {
+  const activities = redactActivitiesFor(role, detail.activities);
+  return activities === detail.activities ? detail : { ...detail, activities };
 }
 
 /**

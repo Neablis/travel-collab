@@ -1,7 +1,6 @@
 import { z } from "zod";
 import {
   ActivityMode,
-  ActivitySnapshot,
   ActivityTag,
   Anchor,
   kindDetailFieldMessage,
@@ -134,8 +133,11 @@ export const SavedStop = z.object({
   pendingReason: PendingReason.nullable().default(null),
   // M52 decision 5, on the leg's terms: a flight number goes wherever its stop goes.
   flightNumber: z.string().nullable().default(null),
-  // M44 decision 1: a stop saved with its booking. Part 3 decides what a saved stop keeps.
-  booking: ActivitySnapshot.shape.booking,
+  // M44 decision 2 (ADR-086): a saved stop is read by whoever the day is
+  // published to, so it keeps who it was booked with and never the code or the
+  // link. A plain object strips the other keys, so a row written with them is
+  // cleaned on its way out as well as on its way in. Defaulted per the rule above.
+  booking: z.object({ provider: z.string() }).nullable().default(null),
 });
 export type SavedStop = z.infer<typeof SavedStop>;
 

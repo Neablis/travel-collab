@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { BatchableCommand, SetTripStyle, TripDetail, TripLineage } from "@tc/contracts";
+import type { BatchableCommand, SetTripStyle, TripDetail, TripLineage, TripRole } from "@tc/contracts";
 import { decideTripCommand, diffTripStates, evolveTrip, hydrate, type TripState } from "@tc/domain";
 import { executeTripCreation, type CommandResult } from "./commands";
+import { redactActivitiesFor } from "./access/bookingRedaction";
 import { tripAccessFor, type TripAccessDenial } from "./access/trip-access";
 import { readShareForClone } from "./access/shares";
 import { demoTripDetail, demoTripHeadSeq } from "./demoTrip";
@@ -56,6 +57,9 @@ async function cloneFrom(
   lineage: TripLineage,
   actorId: string,
   name: string,
+  // The cloner's role ON THE SOURCE, null when they hold no seat there (a share
+  // link, the demo). Below editor, a booking's code and link stay behind.
+  sourceRole: TripRole | null,
   // **M26 link 6c — SPEC §27: "Duplicate lands a real card named '(copy)' with
   // dates and travellers cleared — a copy is a starting point, not a
   // commitment."**
@@ -104,7 +108,7 @@ async function cloneFrom(
   if (!genesis.ok) return { ok: false, error: genesis.rejection };
   const empty = genesis.events.reduce<TripState | null>(evolveTrip, null)!;
   const target = {
-    ...remapIds(hydrate(source), tripId),
+    ...remapIds(hydrate({ ...source, activities: redactActivitiesFor(sourceRole, source.activities) }), tripId),
     name,
     forkedFrom: empty.forkedFrom,
     // The DAYS stay and only their anchor goes: the shape of the trip is what
@@ -178,6 +182,7 @@ export async function duplicateTrip(sourceTripId: string, actorId: string): Prom
     { tripId: sourceTripId, atSeq, name: source.name },
     actorId,
     `${source.name} (copy)`,
+    access.role,
     { clearDates: true },
   );
 }
@@ -197,7 +202,7 @@ export async function cloneSharedTrip(token: string, actorId: string): Promise<C
     return { ok: false, error: { code, message: shared.error.message } };
   }
   const { detail, tripId, atSeq, name } = shared.value;
-  return cloneFrom(detail, { tripId, atSeq, name }, actorId, `${name} (copy)`);
+  return cloneFrom(detail, { tripId, atSeq, name }, actorId, `${name} (copy)`, null);
 }
 
 /**
@@ -226,6 +231,7 @@ async function cloneDemoTrip(demoTripId: string, actorId: string): Promise<Comma
     { tripId: detail.tripId, atSeq: demoTripHeadSeq(demoTripId), name: detail.name },
     actorId,
     detail.name,
+    null,
   );
 }
 

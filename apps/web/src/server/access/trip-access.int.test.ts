@@ -604,3 +604,39 @@ describe("a trip's totals follow its members at read time", () => {
     expect(after.dismissedConflictIds).toEqual([conflictId]);
   });
 });
+
+// M44 (ADR-086 decision 2): a booking's code is for editors and owners. The
+// member read is where a viewer would otherwise get it.
+describe("a booking on a member's trip read", () => {
+  const booking = { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/r/1" };
+
+  async function bookedTrip(): Promise<string> {
+    const { tripId, dayId } = await seedDay();
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Dinner", booking },
+      OWNER,
+    );
+    return tripId;
+  }
+
+  async function bookingsSeenBy(userId: string, tripId: string): Promise<unknown[]> {
+    currentUserId = userId;
+    const res = await GET_TRIP(new Request("http://test/x"), { params: Promise.resolve({ tripId }) });
+    expect(res.status).toBe(200);
+    const trip = TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+    return Object.values(trip.activities).flatMap((a) => (a.booking ? [a.booking] : []));
+  }
+
+  it("is whole for the owner and an editor, and the provider alone for a viewer", async () => {
+    const tripId = await bookedTrip();
+    const viewer = `${GUEST}-booking-viewer`;
+    const editor = `${GUEST}-booking-editor`;
+    const now = new Date().toISOString();
+    await grantMembership(db, { tripId, userId: viewer, role: "viewer", invitedBy: OWNER, now });
+    await grantMembership(db, { tripId, userId: editor, role: "editor", invitedBy: OWNER, now });
+
+    expect(await bookingsSeenBy(OWNER, tripId)).toEqual([booking]);
+    expect(await bookingsSeenBy(editor, tripId)).toEqual([booking]);
+    expect(await bookingsSeenBy(viewer, tripId)).toEqual([{ provider: "Opentable" }]);
+  });
+});

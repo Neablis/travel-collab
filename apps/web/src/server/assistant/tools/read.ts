@@ -536,6 +536,14 @@ export interface StopReadout {
   pendingReason: PendingReason | null;
   /** A flight leg's flight number (M52), so "which flight are we on?" has an answer. */
   flightNumber: string | null;
+  /**
+   * Whether the stop has a booking, and with whom (M44, ADR-086 decision 2).
+   * **Never the confirmation code or the link, whatever the role of the person
+   * asking**: a code in a model's context can be repeated to anyone in the
+   * chat, and the assistant takes only the paths its user could.
+   */
+  booked: boolean;
+  provider: string | null;
 }
 
 type PlaceReadout = {
@@ -616,6 +624,9 @@ export const DayReadoutSchema: z.ZodType<DayReadout, unknown> = z.object({
       pendingReason: PendingReason.nullable().default(null),
       // And for one produced before M52.
       flightNumber: z.string().nullable().default(null),
+      // And for one produced before M44.
+      booked: z.boolean().default(false),
+      provider: z.string().nullable().default(null),
       // And for one produced before the travellers spec.
       headcount: z.number().nullable().default(null),
     }),
@@ -671,6 +682,8 @@ export function readDay(detail: TripDetail, day: number, guests: readonly Guest[
           endLocation: placeReadout(activity.endLocation),
           pendingReason: activity.pendingReason,
           flightNumber: activity.flightNumber,
+          booked: activity.booking != null,
+          provider: activity.booking?.provider ?? null,
         },
       ];
     }),
@@ -1257,6 +1270,8 @@ function fencedDay(readout: DayReadout): DayReadout {
       endLocation: fencedPlace(stop.endLocation),
       // M52: typed by a person, so fenced like the title.
       flightNumber: untrustedOrNull(stop.flightNumber),
+      // M44: typed by a person, so fenced like the title.
+      provider: untrustedOrNull(stop.provider),
     })),
     conflicts: fencedConflicts(readout.conflicts),
   };

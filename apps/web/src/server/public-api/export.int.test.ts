@@ -23,6 +23,7 @@ import { mintToken } from "@/server/api-tokens";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { events } from "@/server/db/schema";
+import { grantMembership } from "@/server/access/members";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
@@ -177,6 +178,37 @@ describe("GET /v1/trips/{tripId}/export", () => {
     expect((await EXPORT(req(theirs), P({ tripId }))).status).toBe(403);
     // An id nobody owns is the one case that 404s.
     expect((await EXPORT(req(theirs), P({ tripId: randomUUID() }))).status).toBe(404);
+  });
+});
+
+// M44 (ADR-086 decision 2): the file is a copy that leaves the product, so a
+// confirmation code goes in it only when the caller could edit the booking.
+describe("a booking in an export", () => {
+  const booking = { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/r/1" };
+
+  it("keeps its code for the owner and an editor, and gives a viewer the provider alone", async () => {
+    const owner = await entitled();
+    const ownerSecret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId, dayId } = await seedTrip(ownerSecret);
+    const added = await ADD_STOP(req(ownerSecret, { title: "Dinner", dayId, booking }, "POST"), P({ tripId }));
+    expect(added.status).toBe(201);
+
+    const now = new Date().toISOString();
+    const viewer = await entitled();
+    const editor = await entitled();
+    await grantMembership(db, { tripId, userId: viewer, role: "viewer", invitedBy: owner, now });
+    await grantMembership(db, { tripId, userId: editor, role: "editor", invitedBy: owner, now });
+    const bookingOf = async (userId: string) => {
+      const secret = await tokenFor(userId, ["trips:read"]);
+      const { bundle } = await exportTrip(secret, tripId);
+      return { bundle, booking: bundle.trips[0].days[0].stops.find((s: { title: string }) => s.title === "Dinner").booking };
+    };
+
+    expect((await bookingOf(owner)).booking).toEqual(booking);
+    expect((await bookingOf(editor)).booking).toEqual(booking);
+    const asViewer = await bookingOf(viewer);
+    expect(asViewer.booking).toEqual({ provider: "Opentable" });
+    expect(JSON.stringify(asViewer.bundle)).not.toContain("XK29QP");
   });
 });
 
