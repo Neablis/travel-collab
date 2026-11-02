@@ -53,7 +53,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8003-000000000016": {
         "activityId": "00000000-0000-4000-8003-000000000016",
@@ -84,7 +85,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8003-000000000017": {
         "activityId": "00000000-0000-4000-8003-000000000017",
@@ -115,7 +117,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8003-000000000018": {
         "activityId": "00000000-0000-4000-8003-000000000018",
@@ -146,7 +149,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8003-000000000019": {
         "activityId": "00000000-0000-4000-8003-000000000019",
@@ -177,7 +181,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8003-000000000020": {
         "activityId": "00000000-0000-4000-8003-000000000020",
@@ -208,7 +213,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8003-000000000021": {
         "activityId": "00000000-0000-4000-8003-000000000021",
@@ -237,7 +243,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       }
     },
     "people": {

@@ -1244,6 +1244,23 @@
                             "type": "string",
                             "nullable": true,
                             "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -1818,6 +1835,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -2448,6 +2482,23 @@
                                   "type": "string",
                                   "nullable": true,
                                   "default": null
+                                },
+                                "booking": {
+                                  "type": "object",
+                                  "properties": {
+                                    "confirmation": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "additionalProperties": false,
+                                  "nullable": true,
+                                  "default": null
                                 }
                               },
                               "required": [
@@ -3027,6 +3078,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -4554,6 +4622,27 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 20
+                                },
+                                "booking": {
+                                  "type": "object",
+                                  "properties": {
+                                    "confirmation": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 100
+                                    },
+                                    "provider": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 100
+                                    },
+                                    "url": {
+                                      "type": "string",
+                                      "maxLength": 2000,
+                                      "format": "uri"
+                                    }
+                                  },
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -4992,6 +5081,27 @@
                                         "type": "string",
                                         "minLength": 1,
                                         "maxLength": 20
+                                      },
+                                      "booking": {
+                                        "type": "object",
+                                        "properties": {
+                                          "confirmation": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 100
+                                          },
+                                          "provider": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 100
+                                          },
+                                          "url": {
+                                            "type": "string",
+                                            "maxLength": 2000,
+                                            "format": "uri"
+                                          }
+                                        },
+                                        "additionalProperties": false
                                       }
                                     },
                                     "required": [
@@ -5519,6 +5629,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -6100,6 +6227,23 @@
                                 "type": "string",
                                 "nullable": true,
                                 "default": null
+                              },
+                              "booking": {
+                                "type": "object",
+                                "properties": {
+                                  "confirmation": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "nullable": true,
+                                "default": null
                               }
                             },
                             "required": [
@@ -6587,6 +6731,23 @@
                               },
                               "flightNumber": {
                                 "type": "string",
+                                "nullable": true,
+                                "default": null
+                              },
+                              "booking": {
+                                "type": "object",
+                                "properties": {
+                                  "confirmation": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false,
                                 "nullable": true,
                                 "default": null
                               }
@@ -7369,6 +7530,27 @@
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 20
+                              },
+                              "booking": {
+                                "type": "object",
+                                "properties": {
+                                  "confirmation": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 100
+                                  },
+                                  "provider": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 100
+                                  },
+                                  "url": {
+                                    "type": "string",
+                                    "maxLength": 2000,
+                                    "format": "uri"
+                                  }
+                                },
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -7807,6 +7989,27 @@
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 20
+                                    },
+                                    "booking": {
+                                      "type": "object",
+                                      "properties": {
+                                        "confirmation": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 100
+                                        },
+                                        "provider": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 100
+                                        },
+                                        "url": {
+                                          "type": "string",
+                                          "maxLength": 2000,
+                                          "format": "uri"
+                                        }
+                                      },
+                                      "additionalProperties": false
                                     }
                                   },
                                   "required": [
@@ -8304,6 +8507,23 @@
                               },
                               "flightNumber": {
                                 "type": "string",
+                                "nullable": true,
+                                "default": null
+                              },
+                              "booking": {
+                                "type": "object",
+                                "properties": {
+                                  "confirmation": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false,
                                 "nullable": true,
                                 "default": null
                               }
@@ -8979,6 +9199,23 @@
                                   "type": "string",
                                   "nullable": true,
                                   "default": null
+                                },
+                                "booking": {
+                                  "type": "object",
+                                  "properties": {
+                                    "confirmation": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "additionalProperties": false,
+                                  "nullable": true,
+                                  "default": null
                                 }
                               },
                               "required": [
@@ -9629,6 +9866,23 @@
                                     "type": "string",
                                     "nullable": true,
                                     "default": null
+                                  },
+                                  "booking": {
+                                    "type": "object",
+                                    "properties": {
+                                      "confirmation": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "nullable": true,
+                                    "default": null
                                   }
                                 },
                                 "required": [
@@ -10125,6 +10379,23 @@
                               },
                               "flightNumber": {
                                 "type": "string",
+                                "nullable": true,
+                                "default": null
+                              },
+                              "booking": {
+                                "type": "object",
+                                "properties": {
+                                  "confirmation": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false,
                                 "nullable": true,
                                 "default": null
                               }
@@ -10739,6 +11010,29 @@
                     "maxLength": 20,
                     "nullable": true,
                     "description": "A flight leg's flight number. Omitted = unchanged, null = cleared. Only allowed while the stop is (or this patch makes it) `transit`; otherwise a 400. A patch that changes `kind` away from `transit` clears it for you."
+                  },
+                  "booking": {
+                    "type": "object",
+                    "properties": {
+                      "confirmation": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "provider": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "format": "uri"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "nullable": true,
+                    "description": "Omitted = unchanged, null = cleared. The whole booking is replaced, so send every part to keep. A booking with none of its three parts is stored as cleared. Any kind of stop."
                   },
                   "dayId": {
                     "type": "string",
@@ -11399,6 +11693,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -12169,6 +12480,23 @@
                             "type": "string",
                             "nullable": true,
                             "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -12741,6 +13069,28 @@
                     "minLength": 1,
                     "maxLength": 20,
                     "description": "A flight leg's flight number, such as `TP 1234`. Only allowed when `kind` is `transit`; otherwise a 400."
+                  },
+                  "booking": {
+                    "type": "object",
+                    "properties": {
+                      "confirmation": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "provider": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "format": "uri"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "description": "What was booked for this stop: `confirmation` code, `provider` and a manage-it `url` (http or https). Any kind of stop. Omitted = none."
                   }
                 },
                 "required": [
@@ -13395,6 +13745,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -14165,6 +14532,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -15748,6 +16132,23 @@
                             "type": "string",
                             "nullable": true,
                             "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -16510,6 +16911,23 @@
                             "type": "string",
                             "nullable": true,
                             "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -17187,6 +17605,27 @@
                                         "type": "string",
                                         "minLength": 1,
                                         "maxLength": 20
+                                      },
+                                      "booking": {
+                                        "type": "object",
+                                        "properties": {
+                                          "confirmation": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 100
+                                          },
+                                          "provider": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 100
+                                          },
+                                          "url": {
+                                            "type": "string",
+                                            "maxLength": 2000,
+                                            "format": "uri"
+                                          }
+                                        },
+                                        "additionalProperties": false
                                       }
                                     },
                                     "required": [
@@ -17621,6 +18060,27 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 20
+                                },
+                                "booking": {
+                                  "type": "object",
+                                  "properties": {
+                                    "confirmation": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 100
+                                    },
+                                    "provider": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 100
+                                    },
+                                    "url": {
+                                      "type": "string",
+                                      "maxLength": 2000,
+                                      "format": "uri"
+                                    }
+                                  },
+                                  "additionalProperties": false
                                 }
                               },
                               "required": [
@@ -19407,6 +19867,23 @@
                             "type": "string",
                             "nullable": true,
                             "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -20167,6 +20644,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -20950,6 +21444,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -21994,6 +22505,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -24364,6 +24892,23 @@
                             "type": "string",
                             "nullable": true,
                             "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -25124,6 +25669,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -25936,6 +26498,23 @@
                             "type": "string",
                             "nullable": true,
                             "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -26694,6 +27273,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -27589,6 +28185,23 @@
                             "type": "string",
                             "nullable": true,
                             "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -28184,6 +28797,27 @@
                                       "type": "string",
                                       "minLength": 1,
                                       "maxLength": 20
+                                    },
+                                    "booking": {
+                                      "type": "object",
+                                      "properties": {
+                                        "confirmation": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 100
+                                        },
+                                        "provider": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 100
+                                        },
+                                        "url": {
+                                          "type": "string",
+                                          "maxLength": 2000,
+                                          "format": "uri"
+                                        }
+                                      },
+                                      "additionalProperties": false
                                     }
                                   },
                                   "required": [
@@ -28618,6 +29252,27 @@
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 20
+                              },
+                              "booking": {
+                                "type": "object",
+                                "properties": {
+                                  "confirmation": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 100
+                                  },
+                                  "provider": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 100
+                                  },
+                                  "url": {
+                                    "type": "string",
+                                    "maxLength": 2000,
+                                    "format": "uri"
+                                  }
+                                },
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -29277,6 +29932,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }
@@ -30364,6 +31036,23 @@
                           },
                           "flightNumber": {
                             "type": "string",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "booking": {
+                            "type": "object",
+                            "properties": {
+                              "confirmation": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
                             "nullable": true,
                             "default": null
                           }

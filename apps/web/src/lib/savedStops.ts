@@ -53,6 +53,8 @@ export function stopsForDay(
         endLocation: activity.endLocation,
         pendingReason: activity.pendingReason,
         flightNumber: activity.flightNumber,
+        // A saved stop carries no booking yet: what a saved day keeps of one is part 3's decision (ADR-086).
+        booking: null,
         // Day ZERO: `stopsForDay` answers about ONE day, so the fragment it
         // returns is a sequence of length one. `stopsForDays` below re-stamps
         // this from the day's position in the selection — the index belongs to

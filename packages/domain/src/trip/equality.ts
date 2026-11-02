@@ -118,6 +118,11 @@ const FIELD_EQUAL: { [K in keyof ActivityState]: (a: ActivityState[K], b: Activi
   // ADR-055. One value or none, like `mode`.
   pendingReason: (a, b) => a === b,
   flightNumber: (a, b) => a === b,
+  // M44. Compared part by part: an edit to one part is an edit.
+  booking: (a, b) =>
+    a === null || b === null
+      ? a === b
+      : a.confirmation === b.confirmation && a.provider === b.provider && a.url === b.url,
 };
 
 const ACTIVITY_FIELDS = Object.keys(FIELD_EQUAL) as (keyof ActivityState)[];

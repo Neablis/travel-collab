@@ -61,7 +61,8 @@
           "countryCode": "JP"
         },
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8000-000000000045": {
         "activityId": "00000000-0000-4000-8000-000000000045",
@@ -91,7 +92,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8000-000000000046": {
         "activityId": "00000000-0000-4000-8000-000000000046",
@@ -122,7 +124,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8000-000000000047": {
         "activityId": "00000000-0000-4000-8000-000000000047",
@@ -152,7 +155,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": null,
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       },
       "00000000-0000-4000-8000-000000000048": {
         "activityId": "00000000-0000-4000-8000-000000000048",
@@ -182,7 +186,8 @@
         "mode": null,
         "endLocation": null,
         "pendingReason": "maybe",
-        "flightNumber": null
+        "flightNumber": null,
+        "booking": null
       }
     },
     "people": {

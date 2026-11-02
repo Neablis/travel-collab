@@ -232,7 +232,7 @@ async function livePlaybook(ownerId: string): Promise<string> {
     mode: null,
     endLocation: null,
     pendingReason: null,
-    flightNumber: null,
+    flightNumber: null, booking: null,
   };
   const saved = await storeSavedDay({
     ownerId,

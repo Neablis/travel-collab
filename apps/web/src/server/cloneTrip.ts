@@ -270,6 +270,7 @@ function eventToCommand(
         endLocation: event.payload.endLocation ?? undefined,
         pendingReason: event.payload.pendingReason ?? undefined,
         flightNumber: event.payload.flightNumber ?? undefined,
+        booking: event.payload.booking ?? undefined,
       };
     case "ActivityMoved":
       return {

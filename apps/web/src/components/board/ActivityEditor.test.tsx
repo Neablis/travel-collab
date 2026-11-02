@@ -37,7 +37,7 @@ describe("ActivityEditor", () => {
       mode: null,
       endLocation: null,
       pendingReason: null,
-      flightNumber: null,
+      flightNumber: null, booking: null,
     };
     const onSave = vi.fn();
     const props = { initial, mode: "edit" as const, days: [], onSave, onCancel: vi.fn() };
@@ -79,7 +79,7 @@ function existingStop(overrides: Partial<ActivityView> = {}): ActivityView {
     mode: null,
     endLocation: null,
     pendingReason: null,
-    flightNumber: null,
+    flightNumber: null, booking: null,
     ...overrides,
   };
 }
@@ -412,7 +412,7 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     mode: null,
     endLocation: null,
     pendingReason: null,
-    flightNumber: null,
+    flightNumber: null, booking: null,
     ...over,
   });
 

@@ -96,7 +96,7 @@ function fixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
-        flightNumber: null,
+        flightNumber: null, booking: null,
       },
       [UNSCHEDULED_ACTIVITY_ID]: {
         activityId: UNSCHEDULED_ACTIVITY_ID,
@@ -114,7 +114,7 @@ function fixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
-        flightNumber: null,
+        flightNumber: null, booking: null,
       },
     },
   });

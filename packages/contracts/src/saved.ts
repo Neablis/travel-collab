@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   ActivityMode,
+  ActivitySnapshot,
   ActivityTag,
   Anchor,
   kindDetailFieldMessage,
@@ -133,6 +134,8 @@ export const SavedStop = z.object({
   pendingReason: PendingReason.nullable().default(null),
   // M52 decision 5, on the leg's terms: a flight number goes wherever its stop goes.
   flightNumber: z.string().nullable().default(null),
+  // M44 decision 1: a stop saved with its booking. Part 3 decides what a saved stop keeps.
+  booking: ActivitySnapshot.shape.booking,
 });
 export type SavedStop = z.infer<typeof SavedStop>;
 

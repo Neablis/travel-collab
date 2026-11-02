@@ -57,6 +57,8 @@ export const ActivityView = z.object({
   pendingReason: PendingReason.nullable().default(null),
   // M52 decision 5, on M24's terms: defaulted, and not held to "transit only" on read.
   flightNumber: z.string().nullable().default(null),
+  // M44 decision 1: defaulted, and on any kind. Same shape as the event's.
+  booking: ActivitySnapshot.shape.booking,
 });
 export type ActivityView = z.infer<typeof ActivityView>;
 

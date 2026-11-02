@@ -53,6 +53,8 @@ export function hydrate(detail: TripDetail): TripState {
           endLocation: a.endLocation ?? null,
           pendingReason: a.pendingReason ?? null,
           flightNumber: a.flightNumber ?? null,
+          // M44, for the same unparsed-document reason.
+          booking: a.booking ?? null,
         },
       ]),
     ),

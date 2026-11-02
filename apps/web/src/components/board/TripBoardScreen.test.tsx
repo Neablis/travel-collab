@@ -433,7 +433,7 @@ describe("TripBoardScreen", () => {
     const pastFixture = tripDetailFixture({
       backlog: [ancientId],
       activities: {
-        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null, flightNumber: null},
+        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null, flightNumber: null, booking: null},
       },
     });
     const onCommand = vi.fn<(command: TripCommand) => void>();
@@ -593,7 +593,7 @@ describe("TripBoardScreen", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
       },
       conflicts: [
@@ -2376,7 +2376,7 @@ describe("TripBoardScreen — a day's untimed stops", () => {
     mode: null,
     endLocation: null,
     pendingReason: null,
-    flightNumber: null,
+    flightNumber: null, booking: null,
   });
   const trip = () =>
     tripDetailFixture({
@@ -2723,7 +2723,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
       },
     };
@@ -3067,8 +3067,8 @@ describe("TripBoardScreen — a viewer's Schedule lens", () => {
       startDate: "2027-06-01",
       days: [{ dayId: DAY, activityIds: [EARLIER, LATER], date: "2027-06-01", costSubtotal: 0 }],
       activities: {
-        [EARLIER]: { activityId: EARLIER, title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null, flightNumber: null},
-        [LATER]: { activityId: LATER, title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null, flightNumber: null},
+        [EARLIER]: { activityId: EARLIER, title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null, flightNumber: null, booking: null},
+        [LATER]: { activityId: LATER, title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], addedBy: null, mode: null, endLocation: null, pendingReason: null, flightNumber: null, booking: null},
       },
       conflicts: [
         {

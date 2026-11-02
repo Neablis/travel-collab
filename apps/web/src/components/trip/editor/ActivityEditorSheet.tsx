@@ -99,7 +99,7 @@ export function ActivityEditorSheet() {
           mode: state.prefill.mode ?? null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         }
       : null;
 

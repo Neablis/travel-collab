@@ -13,6 +13,26 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-02 — A stop's `booking` (M44 part 2; public API version bump is part 3's)
+- **Added** (`activity.ts`): `Booking` (`confirmation`, `provider`, each trimmed 1-100 characters;
+  `url`, an http or https link up to 2000), every part optional. An optional `booking` on
+  `AddActivity`, nullable-optional on `UpdateActivity` (omitted = unchanged, null = cleared, the
+  whole object replaced), defaulted `null` on `ActivitySnapshot` (so on `ActivityAddedV1` and
+  `ActivityUpdatedV1`), `ActivityView` (`detail.ts`) and `SavedStop` (`saved.ts`). Unlike
+  `flightNumber` it is on any kind, so it is not in `KIND_DETAIL_FIELDS`. The decider stores a
+  booking with none of its parts as `null`, never `{}`. `@tc/fixtures`' `BundleStop` gains it.
+- Why: M44 decision 1 and ADR-086. No redaction yet (part 3) and no UI (part 4): this part is
+  the shape and the replay.
+- Consumers updated: `@tc/domain` (decide, evolve, `FIELD_EQUAL`, diff, hydrate, detail),
+  `@tc/factories`, `@tc/fixtures` (bundle schema, export, import, playbooks), `apps/web` (clone,
+  MSW handlers, preview context, saved stops carry `booking: null` until part 3 decides, the
+  assistant's `AddActivity`/`UpdateActivity` tools hide the field from the model: its schema
+  alone took the edit step past the pre-split budget). `openapi.json` and the landing JSON
+  regenerated; `info.version` and its fingerprint are not bumped here (part 3).
+- Breaking? no: optional on request bodies, defaulted on responses. Every event and
+  `trip_details.doc` written before it reads as `null`
+  (`packages/domain/test/m44-booking.test.ts` replays a pre-M44 log against its stored projection).
+
 ## 2026-11-01 — `AskStreamMetadata` carries the server's turn id (M57 part 2)
 - **New** (`packages/contracts/src/assistant.ts`): an optional `turnId` (a GUID) beside `paletteCommands`
   on every branch of `AskStreamMetadata`. It is a sibling, not an outcome, so the one-outcome rule
