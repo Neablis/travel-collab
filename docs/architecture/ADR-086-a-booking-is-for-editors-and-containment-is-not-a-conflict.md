@@ -5,7 +5,7 @@ recommended.
 **Deciders:** Mitchell (product); Claude — drafted
 Related: M44 (`docs/milestones/M44-a-stop-knows-what-was-booked.md`), M52 decision 5 (the
 `flightNumber` precedent), ADR-027 (share views are an opt-in allowlist), M25 (trip export), M43
-(template sync).
+(default notebooks).
 
 ## Context
 
@@ -38,7 +38,8 @@ overlapping windows, so lunch inside a day-long museum visit warns, every day (t
    contains the other and the inner stop is at most 120 minutes or tagged `meal`. A `fast-check`
    property pins both halves: contained-and-short never warns, partial overlap always does.
 4. **The booked list is a `stop.rows` filter** (`only: "booked"`), beside `needsBooking`, added to
-   the templates that carry *Still to book*; M43's template sync delivers it to existing notebooks.
+   the templates that carry *Still to book*. No back-fill (Mitchell, 2026-11-02): new trips get it from
+   the template; an existing notebook gets it only through "Reset to default" or by hand.
 
 ## Consequences
 

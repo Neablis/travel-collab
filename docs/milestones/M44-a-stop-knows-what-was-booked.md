@@ -47,8 +47,12 @@ Candidates absorbed (each deleted by this gate):
    overlap still warns. Nested activities stay out.
 5. **The booked list is a new `stop.rows` filter, `only: "booked"`**, a *Booked* list under
    *Still to book* in the notebook templates that already carry it. Each row shows the provider,
-   and the code for editors and owners. Existing notebooks pick it up through M43's template sync.
-   (Scope named "the Money notebook's booked list", which never existed; Mitchell, 2026-11-02.)
+   and the code for editors and owners. **No back-fill**: new trips get the
+   Booked list from the template (the Bookings and Dinner tracker templates); an existing notebook
+   gets it only through "Reset to default" (which replaces the notebook with its seed, with Undo)
+   or by adding the list by hand. M43 built no template sync: "Add missing default notebooks"
+   skips an existing Bookings notebook. (Amended on part 0, "no back-fill": Mitchell, 2026-11-02.
+   Scope named "the Money notebook's booked list", which never existed; Mitchell, 2026-11-02.)
 
 ## Scope
 
