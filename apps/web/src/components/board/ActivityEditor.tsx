@@ -135,6 +135,11 @@ function nearbyStopsFor(stops: readonly NearbyStop[], typed: string): NearbyStop
     .slice(0, NEARBY_WHILE_TYPING);
 }
 
+// The one refusal that is about a field inside the closed Booking disclosure:
+// submit opens the section on it. Matched by identity, so rewording the text
+// cannot silently stop the section opening.
+const BOOKING_LINK_ERROR = "Link must start with http:// or https://";
+
 // Illustrative only (Preview id="add-stop-who", M13 — no field records who a
 // stop is for yet, so there is nothing real to list per-stop).
 // M13 link 5 replaced the `add-stop-who` Preview placeholder that stood here
@@ -482,7 +487,7 @@ export function ActivityEditor({
       const confirmation = bookingConfirmation.trim();
       const provider = bookingProvider.trim();
       const url = bookingUrl.trim();
-      if (url !== "" && safeHttpUrl(url) === null) return "Link must start with http:// or https://";
+      if (url !== "" && safeHttpUrl(url) === null) return BOOKING_LINK_ERROR;
       booking =
         confirmation === "" && provider === "" && url === ""
           ? null
@@ -528,7 +533,7 @@ export function ActivityEditor({
     e.preventDefault();
     const built = build();
     if (typeof built === "string") {
-      if (built.startsWith("Link ")) setBookingOpen(true);
+      if (built === BOOKING_LINK_ERROR) setBookingOpen(true);
       return setError(built);
     }
     void onSave(built);

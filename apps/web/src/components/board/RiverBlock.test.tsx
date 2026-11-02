@@ -64,6 +64,13 @@ describe("RiverBlock — the Booked chip", () => {
     expect(screen.queryByRole("button", { name: /Booked/ })).toBeNull();
   });
 
+  // No provider yet, or a role this client does not know: nothing to act on.
+  it("is inert while the trip's role is unknown", () => {
+    renderBlock({ confirmation: "ABC123", provider: "Hotel Okura" }, null);
+    expect(screen.getByText("Booked · Hotel Okura")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Booked/ })).toBeNull();
+  });
+
   it("reads just Booked with no provider", () => {
     renderBlock({ confirmation: "ABC123" });
     expect(screen.getByRole("button", { name: "Booked, copy confirmation" })).toBeTruthy();
