@@ -681,6 +681,22 @@ describe("a booking on a member's trip read", () => {
     expect(await poll(editor)).toContain("XK29QP");
   });
 
+  // ActivityUpdated carries the whole stop, booking included, so the poll
+  // redacts it as it does ActivityAdded.
+  it("is kept out of a viewer's events poll after an edit to the booked stop", async () => {
+    const { tripId, dayId } = await seedDay();
+    const activityId = randomUUID();
+    await executeTripCommand({ type: "AddActivity", tripId, activityId, dayId, title: "Dinner", booking }, OWNER);
+    const before = await readStreamHeadSeq(db, tripId);
+    await executeTripCommand({ type: "UpdateActivity", tripId, activityId, title: "Late dinner" }, OWNER);
+    currentUserId = await memberOf(tripId, "viewer");
+    const res = await GET_EVENTS(new Request(`http://test/x?after=${before}`), { params: Promise.resolve({ tripId }) });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Late dinner");
+    expect(body).not.toContain("XK29QP");
+  });
+
   it("is kept out of a viewer's replay of the trip at a revision", async () => {
     const tripId = await bookedTrip();
     const viewer = await memberOf(tripId, "viewer");

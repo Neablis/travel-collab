@@ -135,6 +135,11 @@ function nearbyStopsFor(stops: readonly NearbyStop[], typed: string): NearbyStop
     .slice(0, NEARBY_WHILE_TYPING);
 }
 
+// The one refusal that is about a field inside the closed Booking disclosure:
+// submit opens the section on it. Matched by identity, so rewording the text
+// cannot silently stop the section opening.
+const BOOKING_LINK_ERROR = "Link must start with http:// or https://";
+
 // Illustrative only (Preview id="add-stop-who", M13 — no field records who a
 // stop is for yet, so there is nothing real to list per-stop).
 // M13 link 5 replaced the `add-stop-who` Preview placeholder that stood here
@@ -380,10 +385,13 @@ export function ActivityEditor({
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
   const [endLocation, setEndLocation] = useState<Location | null>(initial?.endLocation ?? null);
   const [flightNumber, setFlightNumber] = useState(initial?.flightNumber ?? "");
-  // Whether the number has been on screen to edit; see `savedFlightNumber`.
   const [bookingConfirmation, setBookingConfirmation] = useState(initial?.booking?.confirmation ?? "");
   const [bookingProvider, setBookingProvider] = useState(initial?.booking?.provider ?? "");
   const [bookingUrl, setBookingUrl] = useState(initial?.booking?.url ?? "");
+  // Controlled so a rejected link can open the section it is in; a stop that
+  // already has a booking opens it, as there is something to read.
+  const [bookingOpen, setBookingOpen] = useState(initial?.booking != null);
+  // Whether the number has been on screen to edit; see `savedFlightNumber`.
   const [flightFieldShown, setFlightFieldShown] = useState(initial?.mode === "flight");
   // A stop being CREATED says "To book" until told otherwise — the handoff's
   // own default (`addWhy || 'book'`), and the same bet the `pending` default
@@ -479,7 +487,7 @@ export function ActivityEditor({
       const confirmation = bookingConfirmation.trim();
       const provider = bookingProvider.trim();
       const url = bookingUrl.trim();
-      if (url !== "" && safeHttpUrl(url) === null) return "Link must start with http:// or https://";
+      if (url !== "" && safeHttpUrl(url) === null) return BOOKING_LINK_ERROR;
       booking =
         confirmation === "" && provider === "" && url === ""
           ? null
@@ -524,7 +532,10 @@ export function ActivityEditor({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const built = build();
-    if (typeof built === "string") return setError(built);
+    if (typeof built === "string") {
+      if (built === BOOKING_LINK_ERROR) setBookingOpen(true);
+      return setError(built);
+    }
     void onSave(built);
   }
 
@@ -703,7 +714,7 @@ export function ActivityEditor({
         // Collapsed: most stops are not booked, and three more fields on every
         // form is the wrong price for the ones that are. A native disclosure,
         // so the keyboard and screen readers get it for free.
-        <details className="rounded-md border border-hairline px-3 py-2">
+        <details data-testid="activity-booking" open={bookingOpen} onToggle={(e) => setBookingOpen(e.currentTarget.open)} className="rounded-md border border-hairline px-3 py-2">
           <summary className="cursor-pointer text-sm font-medium text-ink">Booking</summary>
           <div className="mt-2 flex flex-col gap-3">
             <FormField id="activity-booking-confirmation" label="Confirmation">

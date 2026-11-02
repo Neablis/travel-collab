@@ -164,6 +164,44 @@ describe("createSuggestion", () => {
     expect(await storedChanges()).toBe(0);
   });
 
+  // A suggester's booking would be applied with the reviewer's rights, and it
+  // replaces the stored one whole (M44). A refusal before any dry run also
+  // keeps the endpoint from telling a right guess at the code from a wrong one.
+  it("refuses a suggester's booking, alike for a right and a wrong guess, and stores nothing", async () => {
+    await executeTripCommand(
+      { type: "UpdateActivity", tripId, activityId: stopId, booking: { confirmation: "XK29QP", provider: "Opentable" } },
+      OWNER,
+    );
+    const attempt = (booking: Extract<BatchableCommand, { type: "UpdateActivity" }>["booking"]) =>
+      createSuggestion(tripId, SUGGESTER, draft([{ type: "UpdateActivity", tripId, activityId: stopId, booking }]));
+
+    const right = await attempt({ confirmation: "XK29QP", provider: "Opentable" });
+    const wrong = await attempt({ confirmation: "NOPE", provider: "Opentable" });
+    expect(right).toMatchObject({ ok: false, error: { code: "invalid" } });
+    expect(right).toEqual(wrong);
+    expect(await attempt(null)).toMatchObject({ ok: false, error: { code: "invalid" } });
+    expect(
+      await createSuggestion(
+        tripId,
+        SUGGESTER,
+        draft([{ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Lunch", booking: { provider: "x" } }]),
+      ),
+    ).toMatchObject({ ok: false, error: { code: "invalid" } });
+    expect(await storedChanges()).toBe(0);
+  });
+
+  it("leaves a stored confirmation intact when an editor accepts a suggester's edit to another field", async () => {
+    await executeTripCommand(
+      { type: "UpdateActivity", tripId, activityId: stopId, booking: { confirmation: "XK29QP" } },
+      OWNER,
+    );
+    const [change] = await suggest(draft([{ type: "UpdateActivity", tripId, activityId: stopId, title: "Inari shrine" }]));
+    expect((await acceptSuggestionChanges(tripId, [change!.id], EDITOR)).ok).toBe(true);
+    const stop = (await getTripDetail(tripId))!.activities[stopId]!;
+    expect(stop.title).toBe("Inari shrine");
+    expect(stop.booking).toEqual({ confirmation: "XK29QP" });
+  });
+
   it("refuses a command aimed at another trip, which accepting would run with the reviewer's rights", async () => {
     const elsewhere = randomUUID();
     const result = await createSuggestion(tripId, SUGGESTER, draft([{ type: "SetTripName", tripId: elsewhere, name: "Mine" }]));

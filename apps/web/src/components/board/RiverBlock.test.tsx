@@ -7,6 +7,10 @@ import { RiverBlock } from "./RiverBlock";
 
 afterEach(cleanup);
 
+// The chip acts for editor and owner, by the trip's role (not by `readOnly`).
+const trip = vi.hoisted(() => ({ myRole: "owner" as string | null }));
+vi.mock("@/components/trip/context/TripProvider", () => ({ useOptionalTrip: () => ({ myRole: trip.myRole }) }));
+
 // jsdom has no clipboard.
 function stubClipboard() {
   const writeText = vi.fn().mockResolvedValue(undefined);
@@ -17,7 +21,8 @@ function stubClipboard() {
 // M44 decision 1: a booked stop says so on its card. The tap is the editor's
 // way to the code; below editor the server has already taken the code out
 // (part 3), so what is checked here is that nothing is offered without one.
-function renderBlock(booking: ActivityView["booking"], readOnly = false) {
+function renderBlock(booking: ActivityView["booking"], role: string | null = "owner") {
+  trip.myRole = role;
   const stop = activityFactory.build({ title: "Hotel", booking, timeWindow: { start: "14:00", end: "16:00" } });
   render(
     <ul>
@@ -33,7 +38,7 @@ function renderBlock(booking: ActivityView["booking"], readOnly = false) {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onDismissOverlap={vi.fn()}
-        readOnly={readOnly}
+        readOnly={false}
       />
     </ul>,
   );
@@ -48,19 +53,31 @@ describe("RiverBlock — the Booked chip", () => {
   it("copies the confirmation for an editor, says so, and offers the link", async () => {
     const writeText = stubClipboard();
     renderBlock({ confirmation: "ABC123", provider: "Hotel Okura", url: "https://okura.example/manage" });
-    await userEvent.click(screen.getByRole("button", { name: "Booked · Hotel Okura" }));
+    await userEvent.click(screen.getByRole("button", { name: "Booked · Hotel Okura, copy confirmation" }));
     expect(writeText).toHaveBeenCalledWith("ABC123");
     expect(await screen.findByText("Confirmation copied")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open link" })).toBeTruthy();
   });
 
+  it("is inert for a suggester, even on a stop that is not read-only", async () => {
+    renderBlock({ confirmation: "ABC123", provider: "Hotel Okura" }, "suggester");
+    expect(screen.queryByRole("button", { name: /Booked/ })).toBeNull();
+  });
+
+  // No provider yet, or a role this client does not know: nothing to act on.
+  it("is inert while the trip's role is unknown", () => {
+    renderBlock({ confirmation: "ABC123", provider: "Hotel Okura" }, null);
+    expect(screen.getByText("Booked · Hotel Okura")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Booked/ })).toBeNull();
+  });
+
   it("reads just Booked with no provider", () => {
     renderBlock({ confirmation: "ABC123" });
-    expect(screen.getByRole("button", { name: "Booked" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Booked, copy confirmation" })).toBeTruthy();
   });
 
   it("is inert for a reader, whose booking is only a provider", async () => {
-    renderBlock({ provider: "Hotel Okura" }, true);
+    renderBlock({ provider: "Hotel Okura" }, "viewer");
     expect(screen.getByText("Booked · Hotel Okura")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Booked/ })).toBeNull();
     await userEvent.click(screen.getByText("Booked · Hotel Okura"));
@@ -69,7 +86,7 @@ describe("RiverBlock — the Booked chip", () => {
 
   // Below editor a code-only booking arrives as { provider: null } (part 3).
   it("reads just Booked, inert, for a reader whose booking has no provider", () => {
-    renderBlock({ provider: null }, true);
+    renderBlock({ provider: null }, "viewer");
     expect(screen.getByText("Booked")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Booked/ })).toBeNull();
   });
@@ -79,7 +96,7 @@ describe("RiverBlock — the Booked chip", () => {
   it("never offers a javascript: link", async () => {
     stubClipboard();
     renderBlock({ confirmation: "ABC123", url: "javascript:alert(1)" });
-    await userEvent.click(screen.getByRole("button", { name: "Booked" }));
+    await userEvent.click(screen.getByRole("button", { name: "Booked, copy confirmation" }));
     expect(await screen.findByText("Confirmation copied")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Open link" })).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();

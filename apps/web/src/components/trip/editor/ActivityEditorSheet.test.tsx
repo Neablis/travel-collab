@@ -359,16 +359,40 @@ describe("ActivityEditorSheet", () => {
     );
   });
 
-  it("offers a suggester no Booking section, and their save sends no booking", async () => {
+  // A suggester holds the redacted booking (the provider alone). Their save
+  // must leave it alone: the draft's optimistic state is where a stray
+  // `booking: null` would show, as the stop turning unbooked.
+  it("offers a suggester no Booking section, and their save leaves the booking alone", async () => {
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
       value: { tripId: TRIP_ID, myRole: "suggester", members: [], invites: [], guests: [] },
     });
-    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    const booked = fixture();
+    booked.activities[SCHEDULED_ACTIVITY_ID]!.booking = { provider: "Hotel Okura" };
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: booked });
+    function Probe() {
+      const { activeTrip, draft } = useTrip();
+      return <p data-testid="probe">{`${draft?.count ?? 0} ${JSON.stringify(activeTrip?.activities[SCHEDULED_ACTIVITY_ID]?.booking)}`}</p>;
+    }
+    render(
+      <TripProvider tripId={TRIP_ID}>
+        <EditorHost>
+          <Opener mode="edit" activityId={SCHEDULED_ACTIVITY_ID} />
+          <PeopleProvider tripId={TRIP_ID}>
+            <ActivityEditorSheet />
+          </PeopleProvider>
+          <Probe />
+        </EditorHost>
+      </TripProvider>,
+    );
     await screen.findByDisplayValue("Existing stop");
-    expect(await screen.findByRole("button", { name: "Save" })).toBeTruthy();
     expect(screen.queryByText("Booking")).toBeNull();
     expect(screen.queryByLabelText("Confirmation")).toBeNull();
+    await userEvent.type(screen.getByLabelText("What or where"), " II");
+    await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() => expect(screen.getByTestId("probe").textContent).toMatch(/^1 /));
+    expect(screen.getByTestId("probe").textContent).toBe('1 {"provider":"Hotel Okura"}');
   });
 
   it("treats Half day as four hours", async () => {

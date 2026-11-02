@@ -528,7 +528,9 @@ export function RiverBlock({
           )}
           {!narrow && provisionalPill}
           {!narrow && tagMark}
-          {activity.booking && <BookingChip booking={activity.booking} readOnly={readOnly} />}
+          {/* Hidden in a narrow lane with the tag and the pill: the controls
+              overlay there leaves the title no room to give up. */}
+          {!narrow && activity.booking && <BookingChip booking={activity.booking} />}
           {tagsInTitleRow && (
             <span className="pointer-events-auto shrink-0">
               <StopTagChips activityId={activity.activityId} tags={activity.tags} focusedTag={focusedTag} onToggleTag={onToggleTag} />
