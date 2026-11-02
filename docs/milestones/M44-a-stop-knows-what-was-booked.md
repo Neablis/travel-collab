@@ -64,13 +64,18 @@ Candidates absorbed (each deleted by this gate):
 ## Exit gate
 
 - [ ] **Decisions 1–5 are answered and recorded here**, with the contracts changelog entry.
-- [ ] **A trip replayed from a log written before the change equals its stored projection**, which
+- [x] **A trip replayed from a log written before the change equals its stored projection**, which
       a test shows, because old events carry no `booking`.
-- [ ] **A confirmation number never reaches a share link or a published day**: an integration test
+      Evidence: `packages/domain/test/m44-booking.test.ts:37-49` (parses the pre-change doc, key deleted, and `toEqual`s the replay) at 66d216c; unit green in CI run 41437935254 (https://github.com/Neablis/travel-collab/actions/runs/41437935254) at 66d216c, `ci-ok` green.
+- [x] **A confirmation number never reaches a share link or a published day**: an integration test
       reads both.
-- [ ] **A short stop inside a long one raises no overlap**, and a partial overlap still does.
+      Evidence: `apps/web/src/server/access/shares.int.test.ts:317-338` (share link, via `readShare` and the public route) and `apps/web/src/server/savedDays.stops.int.test.ts:239-285`, published day read by a stranger at :276, at 66d216c; integration green in CI run 41437935254 (https://github.com/Neablis/travel-collab/actions/runs/41437935254) at 66d216c, `ci-ok` green.
+- [x] **A short stop inside a long one raises no overlap**, and a partial overlap still does.
       Shown by a `fast-check` property, seen red with the rule removed.
-- [ ] **The Rochester-shaped fixture produces no `time-overlap` warnings.**
-- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: add a booking, see it on the
+      Evidence: `packages/domain/test/conflicts.test.ts:530` (short or meal never warns), :548 (long non-meal still warns), :584 (partial overlap always warns) at 66d216c; unit green in CI run 41437935254 (https://github.com/Neablis/travel-collab/actions/runs/41437935254) at 66d216c, `ci-ok` green. Seen red with the rule absent: PR 680 body, `Property failed after 1 tests ... Counterexample: [{"os":0,"oe":2,"is":0,"ie":1},false]`.
+- [x] **The Rochester-shaped fixture produces no `time-overlap` warnings.**
+      Evidence: `packages/domain/test/m44-rochester-containment.test.ts:20-26` (folds `support/rochester.ts` commands, asserts three days and no `time-overlap`; PR 680 body records it red before the rule) at 66d216c; unit green in CI run 41437935254 (https://github.com/Neablis/travel-collab/actions/runs/41437935254) at 66d216c, `ci-ok` green.
+- [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: add a booking, see it on the
       card, open the share link, and see no code.
+      Evidence: `apps/web/e2e/m44-booking.spec.ts:11-80` (adds a booking, chip at :45, share link at :64-77 with no code in text or HTML) at 66d216c; e2e 1/2 and 2/2 green in CI run 41437935254 (https://github.com/Neablis/travel-collab/actions/runs/41437935254) at 66d216c, `ci-ok` green.
 - [ ] A retro is appended at gate close.
