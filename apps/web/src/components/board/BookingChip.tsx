@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Booking } from "@tc/contracts";
+import type { ActivityView } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toast } from "@/components/ui/toast";
@@ -19,7 +19,7 @@ import { safeHttpUrl } from "@/lib/bookingLink";
  * a snapshot read from the log is not re-validated, and `javascript:` is a
  * valid URL.
  */
-export function BookingChip({ booking, readOnly }: { booking: Pick<Booking, "confirmation" | "url"> & { provider?: string | null }; readOnly: boolean }) {
+export function BookingChip({ booking, readOnly }: { booking: NonNullable<ActivityView["booking"]>; readOnly: boolean }) {
   const [notice, setNotice] = useState<{ message: string; href: string | null } | null>(null);
   const label = booking.provider == null ? "Booked" : `Booked · ${booking.provider}`;
   const href = safeHttpUrl(booking.url);

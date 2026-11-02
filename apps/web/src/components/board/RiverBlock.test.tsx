@@ -67,6 +67,13 @@ describe("RiverBlock — the Booked chip", () => {
     expect(screen.queryByTestId("toast")).toBeNull();
   });
 
+  // Below editor a code-only booking arrives as { provider: null } (part 3).
+  it("reads just Booked, inert, for a reader whose booking has no provider", () => {
+    renderBlock({ provider: null }, true);
+    expect(screen.getByText("Booked")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Booked/ })).toBeNull();
+  });
+
   // A read-side snapshot is not re-validated (part 2 review), and
   // `javascript:` is a valid URL: it must never become something to follow.
   it("never offers a javascript: link", async () => {
