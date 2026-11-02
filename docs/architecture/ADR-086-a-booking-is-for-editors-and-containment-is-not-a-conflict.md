@@ -27,11 +27,13 @@ overlapping windows, so lunch inside a day-long museum visit warns, every day (t
    An event written before the change has no `booking`, and it reads as `null`, so a replayed old
    log equals its stored projection. No migration.
 2. **One redaction seam, `redactBookingFor(role)`**, applied wherever a trip leaves the server for
-   someone below editor: the member trip read, share views, saved and published playbook days, trip
-   export and the public API. Below editor, `booking` becomes `{ provider }` with `confirmation`
-   and `url` dropped; on share links and published days it is dropped entirely except for a
-   `booked` presence the card can show. The assistant's read tools get `booked` and `provider`
-   only, whatever the asker's role.
+   someone below editor: the member trip read, the events poll, history replays, share views, saved
+   and published playbook days, trip export, clone and the public API. Below editor, and on every
+   share link and published day, `booking` becomes `{ provider }` (provider may be `null`, so a
+   code-only booking still reads as booked) with `confirmation` and `url` dropped. The assistant's
+   read tools get `booked` and `provider` only, whatever the asker's role. *(Amended 2026-11-02 at
+   part 3's review: the events poll and history replays were found leaking and are named here;
+   shares and published days keep the provider.)*
 3. **Containment is a rule, not structure.** `time-overlap` is not raised when one window fully
    contains the other and the inner stop is at most 120 minutes or tagged `meal`. A `fast-check`
    property pins both halves: contained-and-short never warns, partial overlap always does.
