@@ -561,7 +561,8 @@ describe("every widget is legal where widgets actually go", () => {
         mode: null,
         endLocation: null,
         pendingReason: null,
-        flightNumber: null, booking: null,
+        // Booked, so the "Booked" list has the one stop `only: booked` keeps.
+        flightNumber: null, booking: { provider: "Ryokan Kyoto", confirmation: "K7Q2" },
       },
       parked: {
         activityId: "parked", title: "Ghibli Museum", timeWindow: null,
