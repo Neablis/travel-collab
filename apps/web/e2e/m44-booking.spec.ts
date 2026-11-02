@@ -42,7 +42,24 @@ test("an owner books a stop, sees the chip on its card, and a share link shows n
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("heading", { name: "Edit activity" })).toBeHidden();
 
-  await expect(page.getByRole("button", { name: "Booked · Hotel Okura" })).toBeVisible();
+  const chip = page.getByRole("button", { name: /^Booked · Hotel Okura/ });
+  await expect(chip).toBeVisible();
+
+  // The notice must take a real pointer: jsdom loads no CSS, so only a browser
+  // sees a block's `pointer-events-none` swallow a click on "Open link".
+  await chip.click();
+  const toast = page.getByTestId("toast");
+  await expect(toast).toBeVisible();
+  // The link is not a real host; answer it so the popup lands on its URL.
+  await page.context().route("https://okura.example/**", (route) => route.fulfill({ body: "ok", contentType: "text/html" }));
+  const popup = page.waitForEvent("popup");
+  await toast.getByRole("button", { name: "Open link" }).click();
+  const opened = await popup;
+  await opened.waitForLoadState();
+  expect(opened.url()).toContain("okura.example/manage");
+  await opened.close();
+  await toast.getByRole("button", { name: "Dismiss" }).click();
+  await expect(toast).toBeHidden();
 
   const shared = await page.request.post(`/api/trips/${tripId}/shares`);
   expect(shared.ok()).toBe(true);

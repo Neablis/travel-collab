@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NearbyStop, type ActivityView, type Anchor } from "@tc/contracts";
@@ -853,6 +853,20 @@ describe("ActivityEditor — the Booking section", () => {
     save();
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByRole("alert").textContent).toContain("http");
+  });
+
+  // The field is inside a disclosure; an error about it must not be about
+  // something the reader cannot see.
+  it("opens the section when a link is refused, and when a booking exists", () => {
+    mountBooking(existingStop(), true);
+    const section = () => screen.getByTestId("activity-booking") as HTMLDetailsElement;
+    expect(section().open).toBe(false);
+    fireEvent.change(screen.getByLabelText("Link"), { target: { value: "javascript:alert(1)" } });
+    save();
+    expect(section().open).toBe(true);
+    cleanup();
+    mountBooking(booked, true);
+    expect(section().open).toBe(true);
   });
 
   it("is absent below editor, and then leaves the booking out of the save so the stored one stands", () => {

@@ -65,6 +65,13 @@ describe("copyActivityCommand", () => {
     });
   });
 
+  // One reservation, one code (M44): a copy is a new stop, not a second seat.
+  it("starts a copy of a booked stop unbooked", () => {
+    const booked = activityFactory.build({ title: "Hotel", booking: { confirmation: "ABC123", provider: "Hotel Okura" } });
+    const own = tripDetailFixture({ activities: { [booked.activityId]: booked } });
+    expect(copyActivityCommand(own, booked.activityId, NEW_ID, { dayId: DAY })?.booking).toBeUndefined();
+  });
+
   it("takes the time the drop named, and none on the rack", () => {
     expect(copyActivityCommand(trip, stop.activityId, NEW_ID, { dayId: DAY, timeWindow: { start: "14:00", end: "15:00" } })?.timeWindow).toEqual({
       start: "14:00",

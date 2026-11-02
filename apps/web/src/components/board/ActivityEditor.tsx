@@ -380,10 +380,13 @@ export function ActivityEditor({
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
   const [endLocation, setEndLocation] = useState<Location | null>(initial?.endLocation ?? null);
   const [flightNumber, setFlightNumber] = useState(initial?.flightNumber ?? "");
-  // Whether the number has been on screen to edit; see `savedFlightNumber`.
   const [bookingConfirmation, setBookingConfirmation] = useState(initial?.booking?.confirmation ?? "");
   const [bookingProvider, setBookingProvider] = useState(initial?.booking?.provider ?? "");
   const [bookingUrl, setBookingUrl] = useState(initial?.booking?.url ?? "");
+  // Controlled so a rejected link can open the section it is in; a stop that
+  // already has a booking opens it, as there is something to read.
+  const [bookingOpen, setBookingOpen] = useState(initial?.booking != null);
+  // Whether the number has been on screen to edit; see `savedFlightNumber`.
   const [flightFieldShown, setFlightFieldShown] = useState(initial?.mode === "flight");
   // A stop being CREATED says "To book" until told otherwise — the handoff's
   // own default (`addWhy || 'book'`), and the same bet the `pending` default
@@ -524,7 +527,10 @@ export function ActivityEditor({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const built = build();
-    if (typeof built === "string") return setError(built);
+    if (typeof built === "string") {
+      if (built.startsWith("Link ")) setBookingOpen(true);
+      return setError(built);
+    }
     void onSave(built);
   }
 
@@ -703,7 +709,7 @@ export function ActivityEditor({
         // Collapsed: most stops are not booked, and three more fields on every
         // form is the wrong price for the ones that are. A native disclosure,
         // so the keyboard and screen readers get it for free.
-        <details className="rounded-md border border-hairline px-3 py-2">
+        <details data-testid="activity-booking" open={bookingOpen} onToggle={(e) => setBookingOpen(e.currentTarget.open)} className="rounded-md border border-hairline px-3 py-2">
           <summary className="cursor-pointer text-sm font-medium text-ink">Booking</summary>
           <div className="mt-2 flex flex-col gap-3">
             <FormField id="activity-booking-confirmation" label="Confirmation">
