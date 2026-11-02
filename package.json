@@ -37,10 +37,10 @@
     "og:verify": "pnpm --filter web og:verify"
   },
   "devDependencies": {
-    "@stryker-mutator/core": "^10.0.0",
-    "@stryker-mutator/vitest-runner": "^10.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.72.0",
-    "@typescript-eslint/parser": "^8.72.0",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "dependency-cruiser": "^18.7.0",
     "eslint": "^9.39.5",
     "eslint-plugin-testing-library": "^7.16.2",
