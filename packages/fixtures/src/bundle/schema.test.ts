@@ -68,6 +68,16 @@ describe("parseBundle", () => {
     expect(() => bundle(withStops(stop({ timeWindow: { start: "12:00", end: "09:00" } })))).toThrow();
     expect(() => bundle(withStops(stop({ cost: { amountMinor: 12.5, currency: "USD" } })))).toThrow();
   });
+
+  // M44: a booking's link is only ever opened, so a script scheme is refused at
+  // the door; the same Booking schema the command API uses decides.
+  it("refuses a booking whose url is not http(s)", () => {
+    const withBooking = (booking: unknown) => ({
+      playbooks: [{ key: "k", name: "N", ownerId: "dev-a", sourceTrip: { name: "T" }, stops: [stop({ booking })] }],
+    });
+    expect(() => bundle(withBooking({ url: "javascript:alert(1)" }))).toThrow();
+    expect(() => bundle(withBooking({ url: "https://example.com/r/1" }))).not.toThrow();
+  });
 });
 
 describe("bundleId", () => {

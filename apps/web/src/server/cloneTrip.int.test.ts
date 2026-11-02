@@ -351,7 +351,8 @@ describe("clone id remapping — referential integrity", () => {
     // has to remap across all three containers, not just the easy one.
     await executeTripCommand(
       { type: "AddActivity", tripId, activityId: activityIds[0]!, dayId: dayIds[0], title: "A",
-        timeWindow: { start: "09:00", end: "10:00" }, cost: { amountMinor: 500, currency: "USD" } },
+        timeWindow: { start: "09:00", end: "10:00" }, cost: { amountMinor: 500, currency: "USD" },
+        booking: { confirmation: "XK29QP", provider: "Opentable" } },
       actor,
     );
     await executeTripCommand(
@@ -421,6 +422,7 @@ describe("clone id remapping — referential integrity", () => {
     const first = result.detail.activities[result.detail.days[0]!.activityIds[0]!]!;
     expect(first.timeWindow).toEqual({ start: "09:00", end: "10:00" });
     expect(first.cost).toEqual({ amountMinor: 500, currency: "USD" });
+    expect(first.booking).toEqual({ confirmation: "XK29QP", provider: "Opentable" });
     const leg = result.detail.activities[result.detail.days[0]!.activityIds[1]!]!;
     expect(leg).toMatchObject({ mode: "train", endLocation: { name: "Osaka Station" } });
   });

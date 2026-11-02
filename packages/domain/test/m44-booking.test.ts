@@ -37,10 +37,13 @@ const legacyLog = (): EventEnvelope[] => [
 describe("a log written before booking", () => {
   it("replays to the trip its stored projection says, with booking null", () => {
     const [replayed] = projectTripDetails(legacyLog());
-    // The stored doc from then has no key either; it is read back through the contract.
-    const { booking: _dropped, ...legacyView } = replayed!.activities[ACT]!;
-    const stored = TripDetail.parse({ ...replayed, activities: { [ACT]: legacyView } });
-    expect(replayed).toEqual(stored);
+    // The doc stored before M44, as the real projector wrote it then: the same
+    // projection with the key absent, read back through the contract as a
+    // reader does. The guard proves the key really was absent before the parse.
+    const raw = JSON.parse(JSON.stringify(replayed));
+    delete raw.activities[ACT].booking;
+    expect(raw.activities[ACT]).not.toHaveProperty("booking");
+    expect(TripDetail.parse(raw)).toEqual(replayed);
     expect(replayed!.activities[ACT]!.booking).toBeNull();
   });
 });
@@ -88,7 +91,13 @@ describe("a booking", () => {
     const renamed = apply(state, { type: "UpdateActivity", tripId: TRIP_ID, activityId: ACT, title: "Late dinner" });
     expect(renamed.state.activities[ACT]!.booking).toEqual({ confirmation: "XK29QP" });
     const same = decide(state, { type: "UpdateActivity", tripId: TRIP_ID, activityId: ACT, booking: { confirmation: "XK29QP" } });
-    expect(same).toMatchObject({ ok: false });
+    expect(same).toMatchObject({ ok: false, rejection: { code: "no-op" } });
+  });
+
+  it("is replaced whole by an update: naming only a provider drops the confirmation", () => {
+    const { state } = dinner({ confirmation: "XK29QP" });
+    const next = apply(state, { type: "UpdateActivity", tripId: TRIP_ID, activityId: ACT, booking: { provider: "Opentable" } });
+    expect(next.state.activities[ACT]!.booking).toEqual({ provider: "Opentable" });
   });
 
   it("is diffed: a booking-only change between two states becomes an ActivityUpdated carrying it", () => {

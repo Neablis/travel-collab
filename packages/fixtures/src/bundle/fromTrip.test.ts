@@ -91,7 +91,13 @@ const source = (over: Record<string, unknown> = {}) =>
                 tags: ["outdoors"],
                 cost: { amountMinor: 0, currency: "JPY" },
               }),
-              stop({ title: "Lunch", timeWindow: { start: "12:00", end: "13:00" } }),
+              // M44's booking, for the same reason: a field added to a stop and not
+              // to the export or the importer fails here.
+              stop({
+                title: "Lunch",
+                timeWindow: { start: "12:00", end: "13:00" },
+                booking: { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/r/1" },
+              }),
               // M24's travel leg, so the thesis above holds for it too.
               stop({
                 title: "Train to Arashiyama",
@@ -138,6 +144,11 @@ describe("tripToBundle", () => {
     );
     expect(imported.trips[0]!.backlog).toEqual(original.backlog.map(planned));
     expect(imported.trips[0]!.startDate).toBe("2027-03-14");
+    expect(imported.trips[0]!.days[0]!.stops[1]!.booking).toEqual({
+      confirmation: "XK29QP",
+      provider: "Opentable",
+      url: "https://example.com/r/1",
+    });
 
     // **And it is a fixed point**, which is the property the gate box actually
     // wants: what a person downloads, re-uploads and downloads again is byte
