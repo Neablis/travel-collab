@@ -64,6 +64,10 @@ Candidates absorbed (each deleted by this gate):
 
 - Parsing confirmation emails.
 - Nested activities.
+- A Booked chip and provider on the share page (`/s/**`). The share API already returns
+  `booking: { provider }`, but the page renders none. Deferred by Mitchell on the PR 684 preview
+  pre-walk, 2026-11-02 ("share chip later"); recorded in `docs/candidates.md` as "The share page
+  shows a stop is booked".
 
 ## Exit gate
 

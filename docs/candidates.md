@@ -439,3 +439,11 @@ here two days later.
   - **Prefetch volume on `/playbooks`:** 20+ RSC prefetches on load, each card link twice. Left
     alone on purpose, because they are what makes opening a day feel instant. Revisit only if
     field data shows contention.
+
+- **The share page shows a stop is booked (found 2026-11-02, M44 pre-walk).** M44's share API
+  already returns `booking: { provider }` for a booked stop (no code, no link), but the share
+  page (`/s/**`) renders no Booked chip or provider: `BookingChip` is only rendered by the board's
+  `apps/web/src/components/board/RiverBlock.tsx`. Found on the PR 684 preview pre-walk; Mitchell
+  deferred it ("share chip later"). The idea: render the chip and provider on the share page's
+  stop rows from the field the API already sends, so no contract change. Never the code.
+  Recorded in `docs/milestones/M44-a-stop-knows-what-was-booked.md` under Out of scope.
