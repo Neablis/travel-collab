@@ -276,7 +276,8 @@ function eventToCommand(
         endLocation: event.payload.endLocation ?? undefined,
         pendingReason: event.payload.pendingReason ?? undefined,
         flightNumber: event.payload.flightNumber ?? undefined,
-        booking: event.payload.booking ?? undefined,
+        // A copy of a redacted read has no null provider to carry over.
+        booking: event.payload.booking ? { ...event.payload.booking, provider: event.payload.booking.provider ?? undefined } : undefined,
       };
     case "ActivityMoved":
       return {

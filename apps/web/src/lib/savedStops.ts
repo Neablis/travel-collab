@@ -54,7 +54,7 @@ export function stopsForDay(
         pendingReason: activity.pendingReason,
         flightNumber: activity.flightNumber,
         // The provider only: a saved day is read by whoever it is published to, so the code and link stay behind (ADR-086).
-        booking: activity.booking?.provider === undefined ? null : { provider: activity.booking.provider },
+        booking: activity.booking ? { provider: activity.booking.provider ?? null } : null,
         // Day ZERO: `stopsForDay` answers about ONE day, so the fragment it
         // returns is a sequence of length one. `stopsForDays` below re-stamps
         // this from the day's position in the selection — the index belongs to

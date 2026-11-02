@@ -15,8 +15,9 @@ describe("redactBookingFor", () => {
     expect(redactBookingFor(role)(full)).toEqual({ provider: "Opentable" });
   });
 
-  it("becomes null when the code was all there was", () => {
-    expect(redactBookingFor("viewer")({ confirmation: "XK29QP" })).toBeNull();
+  // A reader still learns the stop is booked, as the assistant's `booked` says.
+  it("keeps a code-only booking as booked, with no provider", () => {
+    expect(redactBookingFor("viewer")({ confirmation: "XK29QP" })).toEqual({ provider: null });
   });
 
   it("passes an absent booking through as it came", () => {

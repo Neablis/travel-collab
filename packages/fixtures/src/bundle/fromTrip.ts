@@ -150,7 +150,9 @@ export function toBundleStop(activity: StopFields): BundleStop {
     ...(activity.endLocation ? { endLocation: activity.endLocation } : {}),
     ...(activity.pendingReason ? { pendingReason: activity.pendingReason } : {}),
     ...(activity.flightNumber ? { flightNumber: activity.flightNumber } : {}),
-    ...(activity.booking ? { booking: activity.booking } : {}),
+    // A viewer's export holds `{ provider: null }` for a code-only booking;
+    // there is nothing in it to keep, and the bundle has no null provider.
+    ...(activity.booking ? { booking: { ...activity.booking, provider: activity.booking.provider ?? undefined } } : {}),
   };
 }
 

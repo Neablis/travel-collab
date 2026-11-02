@@ -1249,7 +1249,8 @@
                             "type": "object",
                             "properties": {
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               }
                             },
                             "required": [
@@ -1839,7 +1840,8 @@
                             "type": "object",
                             "properties": {
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               }
                             },
                             "required": [
@@ -2481,7 +2483,8 @@
                                   "type": "object",
                                   "properties": {
                                     "provider": {
-                                      "type": "string"
+                                      "type": "string",
+                                      "nullable": true
                                     }
                                   },
                                   "required": [
@@ -3076,7 +3079,8 @@
                             "type": "object",
                             "properties": {
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               }
                             },
                             "required": [
@@ -5624,7 +5628,8 @@
                             "type": "object",
                             "properties": {
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               }
                             },
                             "required": [
@@ -6217,7 +6222,8 @@
                                 "type": "object",
                                 "properties": {
                                   "provider": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "nullable": true
                                   }
                                 },
                                 "required": [
@@ -6720,7 +6726,8 @@
                                 "type": "object",
                                 "properties": {
                                   "provider": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "nullable": true
                                   }
                                 },
                                 "required": [
@@ -8493,7 +8500,8 @@
                                 "type": "object",
                                 "properties": {
                                   "provider": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "nullable": true
                                   }
                                 },
                                 "required": [
@@ -9180,7 +9188,8 @@
                                   "type": "object",
                                   "properties": {
                                     "provider": {
-                                      "type": "string"
+                                      "type": "string",
+                                      "nullable": true
                                     }
                                   },
                                   "required": [
@@ -9844,7 +9853,8 @@
                                     "type": "object",
                                     "properties": {
                                       "provider": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "nullable": true
                                       }
                                     },
                                     "required": [
@@ -10356,7 +10366,8 @@
                                 "type": "object",
                                 "properties": {
                                   "provider": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "nullable": true
                                   }
                                 },
                                 "required": [
@@ -11670,7 +11681,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -12455,7 +12467,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -13722,7 +13735,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -14509,7 +14523,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -16107,7 +16122,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -16886,7 +16902,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -19842,7 +19859,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -20621,7 +20639,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -21421,7 +21440,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -22482,7 +22502,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -24867,7 +24888,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -25646,7 +25668,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -26473,7 +26496,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -27250,7 +27274,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -28160,7 +28185,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -29909,7 +29935,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"
@@ -31013,7 +31040,8 @@
                                 "type": "string"
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "url": {
                                 "type": "string"

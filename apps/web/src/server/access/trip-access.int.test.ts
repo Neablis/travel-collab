@@ -627,16 +627,70 @@ describe("a booking on a member's trip read", () => {
     return Object.values(trip.activities).flatMap((a) => (a.booking ? [a.booking] : []));
   }
 
+  async function memberOf(tripId: string, role: "viewer" | "suggester" | "editor"): Promise<string> {
+    const userId = `${GUEST}-booking-${role}-${randomUUID().slice(0, 8)}`;
+    await grantMembership(db, { tripId, userId, role, invitedBy: OWNER, now: new Date().toISOString() });
+    return userId;
+  }
+
   it("is whole for the owner and an editor, and the provider alone for a viewer", async () => {
     const tripId = await bookedTrip();
-    const viewer = `${GUEST}-booking-viewer`;
-    const editor = `${GUEST}-booking-editor`;
-    const now = new Date().toISOString();
-    await grantMembership(db, { tripId, userId: viewer, role: "viewer", invitedBy: OWNER, now });
-    await grantMembership(db, { tripId, userId: editor, role: "editor", invitedBy: OWNER, now });
+    const viewer = await memberOf(tripId, "viewer");
+    const editor = await memberOf(tripId, "editor");
 
     expect(await bookingsSeenBy(OWNER, tripId)).toEqual([booking]);
     expect(await bookingsSeenBy(editor, tripId)).toEqual([booking]);
     expect(await bookingsSeenBy(viewer, tripId)).toEqual([{ provider: "Opentable" }]);
+  });
+
+  // A suggester ranks below an editor; the rule is by rank, but nothing else
+  // reads as one.
+  it("gives a suggester the provider alone", async () => {
+    const tripId = await bookedTrip();
+    expect(await bookingsSeenBy(await memberOf(tripId, "suggester"), tripId)).toEqual([{ provider: "Opentable" }]);
+  });
+
+  // A viewer must still see that the stop is booked, as the assistant says.
+  it("shows a viewer a code-only stop as booked, with no provider", async () => {
+    const { tripId, dayId } = await seedDay();
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Hotel", booking: { confirmation: "ZZ99" } },
+      OWNER,
+    );
+    const seen = await bookingsSeenBy(await memberOf(tripId, "viewer"), tripId);
+    expect(seen).toEqual([{ provider: null }]);
+  });
+
+  // The live read is not the only road to a stop: the events poll ships the
+  // raw ActivityAdded payload, and a viewer reads it too.
+  it("is kept out of a viewer's events poll, and left whole in an editor's", async () => {
+    const tripId = await bookedTrip();
+    const viewer = await memberOf(tripId, "viewer");
+    const editor = await memberOf(tripId, "editor");
+    const poll = async (userId: string) => {
+      currentUserId = userId;
+      const res = await GET_EVENTS(new Request("http://test/x?after=0"), { params: Promise.resolve({ tripId }) });
+      expect(res.status).toBe(200);
+      return res.text();
+    };
+
+    const asViewer = await poll(viewer);
+    expect(asViewer).toContain("Dinner");
+    expect(asViewer).not.toContain("XK29QP");
+    expect(asViewer).not.toContain("example.com/r/1");
+    expect(await poll(editor)).toContain("XK29QP");
+  });
+
+  it("is kept out of a viewer's replay of the trip at a revision", async () => {
+    const tripId = await bookedTrip();
+    const viewer = await memberOf(tripId, "viewer");
+    const seq = String(await readStreamHeadSeq(db, tripId));
+    currentUserId = viewer;
+    const res = await GET_HISTORY_AT(new Request("http://test/x"), { params: Promise.resolve({ tripId, seq }) });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Opentable");
+    expect(body).not.toContain("XK29QP");
+    expect(body).not.toContain("example.com/r/1");
   });
 });

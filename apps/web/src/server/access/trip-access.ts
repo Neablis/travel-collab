@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TripDetail, type TripRole } from "@tc/contracts";
 import { auth } from "../auth";
 import { hasAtLeast, memberRole } from "../accessPolicy";
-import { redactActivitiesFor } from "./bookingRedaction";
+import { redactDetailFor } from "./bookingRedaction";
 import { db } from "../db/client";
 import { getStoredTripMembers, getTripDetail } from "../projections";
 import { effectiveMembers } from "./members";
@@ -129,7 +129,9 @@ export async function requireTripAccess(
     if (RANK_VIEWER_IS_ENOUGH !== minimum) {
       return { error: Response.json({ error: "forbidden" }, { status: 403 }) };
     }
-    const detail = demoTripDetail(tripId);
+    // Through the same redaction as a member's read: no fixture carries a
+    // booking today, and the first one that does must not leak it to everyone.
+    const detail = redactDetailFor("viewer", demoTripDetail(tripId));
     return { userId: DEMO_VISITOR_ID, role: "viewer", detail };
   }
   const session = await auth();
@@ -200,16 +202,6 @@ export async function tripAccessFor(
   if (!read.ok) return read;
   const role = memberRole(userId, read.detail.members)!;
   return { ok: true, userId, role, detail: redactDetailFor(role, read.detail) };
-}
-
-/**
- * The trip as `role` may read it. The one place a member's read is redacted
- * (ADR-086 decision 2), so the board, the events poll and the public API all
- * answer a viewer the same way: a booking's provider, not its code.
- */
-function redactDetailFor(role: TripRole, detail: TripDetail): TripDetail {
-  const activities = redactActivitiesFor(role, detail.activities);
-  return activities === detail.activities ? detail : { ...detail, activities };
 }
 
 /**
