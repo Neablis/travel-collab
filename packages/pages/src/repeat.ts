@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { passesOnly } from "./booked";
 import {
   REPEAT_SCOPES, REPEAT_SCOPE_ORDER, SentenceTemplate, parseSentenceTemplate, repeatScopeOf, type PageRepeatNode, type RepeatScope,
 } from "@tc/contracts";
@@ -8,7 +9,6 @@ import { getMacro } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
 import { narrow } from "./select";
 import { pageScope, withoutSuperseded } from "./dateScope";
-import { needsBooking } from "./needsBooking";
 import { sentenceFieldAt } from "./sentence";
 
 // The authored repeat (ADR-035 decision 4, M14 link 6): one sentence the
@@ -126,7 +126,7 @@ export function resolveRepeat(ctx: WidgetContext, name: string, rawParams: unkno
       : over === "city"
         ? selection.value.cities.map((city) => ({ kind: "city", name: city.name }))
         : selection.value.stops
-            .filter(({ activity }) => params.only !== "needsBooking" || needsBooking(activity))
+            .filter(({ activity }) => passesOnly(params.only as "needsBooking" | "booked" | undefined, activity))
             .map(({ activityId, dayIndex }) => ({ kind: "stop", activityId, dayIndex }));
   return items.length === 0 ? { status: "empty", over, emptyText: def.emptyText } : { status: "ok", over, items };
 }

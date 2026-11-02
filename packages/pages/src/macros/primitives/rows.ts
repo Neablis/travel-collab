@@ -7,8 +7,7 @@ import { filterInputs, filterParams } from "../../filters";
 import { cityDayOrdinals, costOfStops, narrow, stopsInCity, type SelectedStop } from "../../select";
 import { dayLabel, formatMoney, formatDate } from "../../format";
 import { readerClock, toClockRange } from "../../clockLabel";
-import { needsBooking } from "../../needsBooking";
-import { isBooked } from "../../booked";
+import { passesOnly } from "../../booked";
 import { fieldAt, formatStopField } from "../../fields";
 
 // The `repeat` primitives (ADR-039 decision 1): a shape that **lists** its
@@ -251,11 +250,7 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
     const format = readerClock(user);
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
-    const stops = params.only === "needsBooking"
-      ? selection.value.stops.filter(({ activity }) => needsBooking(activity))
-      : params.only === "booked"
-        ? selection.value.stops.filter(({ activity }) => isBooked(activity))
-        : selection.value.stops;
+    const stops = selection.value.stops.filter(({ activity }) => passesOnly(params.only, activity));
     if (stops.length === 0) {
       // The rule outranks a kind filter for the words: under "Still to book"
       // an empty list is the good news, whatever else narrowed it.

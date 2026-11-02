@@ -1,4 +1,5 @@
 import type { ActivityView } from "@tc/contracts";
+import { needsBooking } from "./needsBooking";
 
 /** The one field the rule reads; a shape, like `BookableStop`, so a hand-built stop will do. */
 export type BookedStop = Pick<ActivityView, "booking">;
@@ -14,3 +15,10 @@ export type BookedStop = Pick<ActivityView, "booking">;
  * with a reference) or neither.
  */
 export const isBooked = ({ booking }: BookedStop): boolean => booking !== null;
+
+/**
+ * Whether a stop passes `stop.rows`' `only` filter. The table and a repeat over
+ * the same params both ask this, so they cannot disagree on which stops are in.
+ */
+export const passesOnly = (only: "needsBooking" | "booked" | undefined, activity: ActivityView): boolean =>
+  only === "needsBooking" ? needsBooking(activity) : only === "booked" ? isBooked(activity) : true;

@@ -56,6 +56,20 @@ describe("resolveRepeat — which items a repeat yields", () => {
     expect(toBook.length).toBeGreaterThan(0);
   });
 
+  it("keeps only the booked stops under `only: booked`, as the table does", () => {
+    const { trip, globals, ids } = selectionTrip();
+    trip.activities[ids.s1] = { ...trip.activities[ids.s1]!, booking: { provider: "Trenitalia", confirmation: undefined } };
+    const ctx: WidgetContext = { trip, globals, page: { tripId: trip.tripId }, user: null, today: null };
+    const booked = items(resolveRepeat(ctx, "stop.rows", { only: "booked" }));
+    const listed = renderMacro(ctx, "stop.rows", { only: "booked" });
+    const dataRows = listed.status === "ok" && listed.rendered.kind === "rows"
+      ? listed.rendered.rows.filter((row) => row.kind === undefined).length
+      : -1;
+    // Without the filter a repeat lists every stop while the table lists one.
+    expect(booked).toEqual([expect.objectContaining({ kind: "stop", activityId: ids.s1 })]);
+    expect(booked.length).toBe(dataRows);
+  });
+
   it("is empty — not unbound — when the selection holds nothing", () => {
     const { ctx } = ctxOf();
     expect(resolveRepeat(ctx, "day.rows", { dates: { from: "2031-01-01", through: "2031-01-02" } })).toMatchObject({

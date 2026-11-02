@@ -245,7 +245,7 @@ describe("stop.rows", () => {
     const rows = lines(ctx, "stop.rows", { only: "booked" });
     expect(rows.filter((r) => !r.startsWith("Day"))).toHaveLength(2);
     expect(rows.some((r) => r.includes("Trenitalia") && r.includes("ABC123"))).toBe(true);
-    const redacted = rows.find((r) => r.startsWith(act[s4]!.title.split(" ")[0]!));
+    const redacted = rows.find((r) => r.includes(act[s4]!.title));
     expect(redacted).toContain("Booked");
     expect(redacted).not.toContain("ABC123");
   });

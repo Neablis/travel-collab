@@ -1232,6 +1232,15 @@
             "type": "paragraph",
             "content": [
               {
+                "type": "text",
+                "text": "The tables that are settled, and who holds the reservation."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
                 "type": "macro",
                 "attrs": {
                   "name": "stop.rows",

@@ -537,6 +537,7 @@ const dinnerTracker: TemplateSeed = {
     para(text("The ones that need a phone call, and the places somebody mentioned. Move one onto a day when it earns a slot.")),
     block("stop.rows", { tag: "meal", kind: "pending" }),
     heading("Booked"),
+    para(text("The tables that are settled, and who holds the reservation.")),
     block("stop.rows", { tag: "meal", only: "booked" }),
     heading("What eating costs"),
     block("cost", { tag: "meal" }),
