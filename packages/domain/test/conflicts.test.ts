@@ -562,6 +562,25 @@ describe("containment is not a conflict (M44 D4)", () => {
     w.atLeast(27); // observed 55 under the pinned seed
   });
 
+  // Identical windows are a double booking, not a short stop inside a long one.
+  it("warns for two stops with identical windows, short or meal", () => {
+    expect(overlaps([
+      { id: "a", window: win(600, 630) },
+      { id: "b", window: win(600, 630) },
+    ])).toBe(1);
+    expect(overlaps([
+      { id: "a", window: win(720, 810), tags: ["meal"] },
+      { id: "b", window: win(720, 810), tags: ["meal"] },
+    ])).toBe(1);
+  });
+
+  // The 120-minute limit sits on a boundary random minutes rarely land on.
+  it("excuses a non-meal stop of exactly 120 minutes inside a longer one, not 121", () => {
+    const outer = { id: "outer", window: win(480, 1080) };
+    expect(overlaps([outer, { id: "inner", window: win(600, 720) }])).toBe(0);
+    expect(overlaps([outer, { id: "inner", window: win(600, 721) }])).toBe(1);
+  });
+
   it("always warns for a partial overlap, even when both are short or meals", () => {
     const w = witness("partial overlap");
     fc.assert(

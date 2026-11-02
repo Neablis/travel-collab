@@ -86,6 +86,8 @@ function isContainedAndSmall(
   const contained = outer.start <= inner.window.start && inner.window.end <= outer.end;
   if (!contained) return false;
   const minutes = minutesOf(inner.window.end) - minutesOf(inner.window.start);
+  // Strictly shorter: identical windows are a double booking, not containment.
+  if (minutes >= minutesOf(outer.end) - minutesOf(outer.start)) return false;
   return minutes <= CONTAINED_MAX_MINUTES || inner.tags.includes("meal");
 }
 

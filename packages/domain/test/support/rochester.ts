@@ -1,5 +1,7 @@
 // Lives in the domain tests, not @tc/factories: factories depends on domain, so
-// domain cannot import it back (and stays pure). A Rochester-shaped trip for the containment rule (M44 D4): three days, each
+// domain cannot import it back (and stays pure).
+//
+// A Rochester-shaped trip for the containment rule (M44 D4): three days, each
 // a meal inside a day-long stop, as apps/web/scripts/db-seed.ts's Rochester
 // trip is laid out. Every pair nests, none overlaps partially, so a correct
 // `time-overlap` rule raises nothing on it. Commands (not a TripDetail) so a
@@ -29,6 +31,6 @@ export function rochesterContainmentCommandsFor(tripId: string): TripCommand[] {
     stop(dayIds[1]!, "Letchworth State Park", "08:00", "18:00"),
     stop(dayIds[1]!, "Picnic lunch", "12:00", "14:00", ["meal"]),
     stop(dayIds[2]!, "Niagara Falls day trip", "08:00", "16:00"),
-    stop(dayIds[2]!, "Dinner at the falls", "12:00", "15:00", ["meal"]),
+    stop(dayIds[2]!, "Lunch at the falls", "12:00", "15:00", ["meal"]),
   ];
 }
