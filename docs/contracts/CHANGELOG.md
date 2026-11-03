@@ -13,6 +13,31 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-03 — `Location.verified`: a coordinate no geocoder confirmed (public API 2.1.0)
+- **New** (`packages/contracts/src/activity.ts`): `Location.verified`, optional, and only ever
+  `false`. It marks coordinates no vendor corroborated. Today that means an assistant's guess that
+  enrichment kept because its lookup found nothing, was refused, failed, or never ran. Absent means
+  unknown, as an absent `precision` does, so every stored location still parses. There is no `true`.
+  A refinement refuses it without `lat`/`lng` (`verified requires coordinates`).
+- Why: Mitchell, 2026-11-03, settling the gap `precision`'s comment left open. A model guess reached
+  the map looking exactly like a located venue. It is a field of its own rather than a fourth
+  `precision` value for two reasons. `precision` says what a coordinate describes, not how far it is
+  trusted. And `TripDetail` is parsed strictly on the client, so a new enum value would make a cached
+  bundle fail to load the whole trip, while an unknown key is dropped.
+- Consumers updated:
+  - `packages/domain`: `sameLocation` compares it, so confirming a guess at the same point is not a
+    no-op.
+  - `apps/web`, writer: `geocodeEnrichment.ts` writes it, the only writer, and clears it when a
+    vendor answer or a city pin replaces the coordinates. The assistant's planning tools hide it
+    from the model, as they hide `precision`.
+  - `apps/web`, map: `mapRailData.ts` carries it as `unconfirmed`. `MapLens.tsx` draws a hollow
+    teardrop for it and rebuilds markers when it changes. `MapLegend.tsx` has a "Not confirmed" key.
+  - `packages/fixtures`: one demo stop carries it (`UNCONFIRMED_STOP_IDS`, `expectations.unconfirmed: 1`).
+- Public API: every `Location` in `openapi.json` gains the optional `verified` property; same
+  `API_VERSION` 2.1.0 as the entry below, unreleased, with a new `API_FINGERPRINT`. A v1 write may
+  send `verified: false`; nothing accepts `true`.
+- Breaking? no. Optional on every shape that stores or reads it; an old client drops the key.
+
 ## 2026-11-03 — `LocationWrite`, and `GeocodeOutcome` gains `city` and `rejected` (KI-2026-11-03; public API 2.1.0)
 - **New** (`packages/contracts/src/activity.ts`): `LocationWrite`, `Location` with unknown keys refused,
   its own and its `address`'s, every refinement kept (`safeExtend`). The v1 stop writes

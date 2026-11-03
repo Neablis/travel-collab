@@ -119,6 +119,19 @@ export function buildNotes(note: string | null, who: "all" | readonly string[]):
   return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
+/**
+ * The stops the demo marks `verified: false` (Mitchell, 2026-11-03): a
+ * coordinate no geocoder confirmed, drawn on the Map lens as a hollow teardrop.
+ * One stop, so the preview shows the shape and the legend key beside the
+ * ordinary pins it is contrasted with.
+ *
+ * Walden Woods because its flag is true of it: the geocoder's answer for it sits
+ * 1.9 km from the hand-authored coordinate, and which is right is not established
+ * (./coordinateOverrides.ts). In the product only the assistant writes the flag;
+ * here it stands for a guess the assistant could not confirm.
+ */
+export const UNCONFIRMED_STOP_IDS: ReadonlySet<string> = new Set(["d9-s1-breakfast-at-walden-woods"]);
+
 /** A row's place as a stored `Location` — its own, or (M24) where another row's leg ends. */
 function placeOf(row: JapanStop | JapanBacklogItem): Location {
   return {
@@ -128,6 +141,7 @@ function placeOf(row: JapanStop | JapanBacklogItem): Location {
     lat: row.lat,
     lng: row.lng,
     countryCode: JAPAN_COUNTRY_CODE,
+    ...(UNCONFIRMED_STOP_IDS.has(row.id) ? { verified: false as const } : {}),
   };
 }
 

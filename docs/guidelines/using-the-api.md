@@ -337,6 +337,12 @@ and `lng`, or pick a candidate from `GET /v1/trips/{tripId}/geocode` and send it
 back as the `location`. Lookups count against your account's daily geocoding
 allowance.
 
+**A location can say its coordinates were not confirmed.** `"verified": false`
+on a location you read means no geocoder corroborated those coordinates: today,
+a guess the assistant kept because its lookup could not place the stop. The app
+draws it as a hollow pin. Absent means nothing is claimed either way, which is
+what every pin you set yourself carries. There is no `true`.
+
 **On these two stop writes, a location's keys are checked.** A key a location
 (or its `address`) does not know is a 400 that names it: `latitude`, `lon` or `zip` is refused, never
 dropped. Dropping one used to mean the server geocoded the name over the

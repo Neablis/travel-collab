@@ -761,7 +761,8 @@ describe("enrichCommandLocations", () => {
       expect(report.verified).toContain("Narita International Airport");
       expect(endOf(commands[0]!)).toMatchObject({ lat: 35.772, precision: "venue" });
       expect(report.unverified).toContain("Kyoto Station");
-      expect(endOf(commands[1]!)).toEqual({ name: "Kyoto Station", lat: 34.98, lng: 135.76 });
+      // The model's own coordinate survives, and says it is a guess (`verified: false`).
+      expect(endOf(commands[1]!)).toEqual({ name: "Kyoto Station", lat: 34.98, lng: 135.76, verified: false });
     });
 
     it("never anchors the region an ordinary stop is judged against", async () => {
@@ -1225,5 +1226,69 @@ describe("the venue's own name has to agree (KI-2026-09-20-a)", () => {
       lat: 36.7383,
       precision: "venue",
     });
+  });
+});
+
+// Mitchell, 2026-11-03: a model coordinate no vendor confirmed reaches the map
+// marked `verified: false` (a hollow pin), not looking like a located venue.
+describe("verified: false marks the model's own surviving guess", () => {
+  const noSleep = async () => {};
+  const locationOf = (command: BatchableCommand) => (command as { location: Location }).location;
+
+  it("marks a model coordinate the lookup refused", async () => {
+    const { geocoder } = fakeGeocoder({
+      "The Red Coach Inn": [{ lat: 52.907918, lng: -2.8901, canonicalName: "The Red Coach Inn, Shropshire, England", countryCode: "GB" }],
+    });
+    const { commands } = await enrichCommandLocations([addActivity("Dinner", { name: "The Red Coach Inn", ...NIAGARA })], () => geocoder);
+    expect(locationOf(commands[0]!)).toEqual({ name: "The Red Coach Inn", ...NIAGARA, verified: false });
+  });
+
+  it("marks a model coordinate the lookup could not run for", async () => {
+    const { geocoder } = fakeGeocoder({ "The Red Coach Inn": new Error("geocode failed: 429") });
+    const { commands } = await enrichCommandLocations([addActivity("Dinner", { name: "The Red Coach Inn", ...NIAGARA })], () => geocoder);
+    expect(locationOf(commands[0]!).verified).toBe(false);
+  });
+
+  it("marks a model coordinate that was never looked up (the quota refused it)", async () => {
+    const { geocoder, calls } = fakeGeocoder({});
+    const { commands, report } = await enrichCommandLocations(
+      [addActivity("Dinner", { name: "The Red Coach Inn", ...NIAGARA })],
+      () => geocoder,
+      null,
+      noSleep,
+      async () => false,
+    );
+    expect(calls).toEqual([]);
+    expect(report.skipped).toEqual(["The Red Coach Inn"]);
+    expect(locationOf(commands[0]!).verified).toBe(false);
+  });
+
+  it("clears it when a vendor answer replaces the coordinates", async () => {
+    const { geocoder } = fakeGeocoder({
+      "The Red Coach Inn": [{ lat: 43.0812, lng: -79.0665, canonicalName: "The Red Coach Inn, Niagara Falls, NY, USA", countryCode: "US" }],
+    });
+    const { commands } = await enrichCommandLocations(
+      [addActivity("Dinner", { name: "The Red Coach Inn", ...NIAGARA, verified: false })],
+      () => geocoder,
+    );
+    expect(locationOf(commands[0]!)).toMatchObject({ lat: 43.0812, precision: "venue" });
+    expect(locationOf(commands[0]!).verified).toBeUndefined();
+  });
+
+  it("does not mark a city pin, or a stop with no coordinates", async () => {
+    const JEONJU = { lat: 35.8242, lng: 127.148 };
+    const { geocoder } = fakeGeocoder({ "Jeonju-si, KR": [{ ...JEONJU, canonicalName: "Jeonju-si, South Korea", countryCode: "KR" }] });
+    const { commands } = await enrichCommandLocations(
+      [
+        addActivity("Drinks", { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR" }),
+        addActivity("Nowhere", { name: "Somewhere unfindable" }),
+      ],
+      () => geocoder,
+      null,
+      noSleep,
+    );
+    expect(locationOf(commands[0]!)).toMatchObject({ ...JEONJU, precision: "city" });
+    expect(locationOf(commands[0]!).verified).toBeUndefined();
+    expect(locationOf(commands[1]!)).toEqual({ name: "Somewhere unfindable" });
   });
 });

@@ -699,6 +699,13 @@
                             ],
                             "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                           },
+                          "verified": {
+                            "type": "boolean",
+                            "enum": [
+                              false
+                            ],
+                            "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                          },
                           "address": {
                             "type": "object",
                             "properties": {
@@ -882,6 +889,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -1172,6 +1186,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -1459,6 +1480,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -1748,6 +1776,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -2087,6 +2122,13 @@
                                       ],
                                       "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
+                                    "verified": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        false
+                                      ],
+                                      "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                    },
                                     "address": {
                                       "type": "object",
                                       "properties": {
@@ -2376,6 +2418,13 @@
                                         "city"
                                       ],
                                       "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                    },
+                                    "verified": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        false
+                                      ],
+                                      "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                     },
                                     "address": {
                                       "type": "object",
@@ -2668,6 +2717,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -2957,6 +3013,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -4206,6 +4269,13 @@
                                       ],
                                       "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
+                                    "verified": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        false
+                                      ],
+                                      "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                    },
                                     "address": {
                                       "type": "object",
                                       "properties": {
@@ -4487,6 +4557,13 @@
                                       ],
                                       "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
+                                    "verified": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        false
+                                      ],
+                                      "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                    },
                                     "address": {
                                       "type": "object",
                                       "properties": {
@@ -4643,6 +4720,13 @@
                                               "city"
                                             ],
                                             "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                          },
+                                          "verified": {
+                                            "type": "boolean",
+                                            "enum": [
+                                              false
+                                            ],
+                                            "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                           },
                                           "address": {
                                             "type": "object",
@@ -4925,6 +5009,13 @@
                                             ],
                                             "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                           },
+                                          "verified": {
+                                            "type": "boolean",
+                                            "enum": [
+                                              false
+                                            ],
+                                            "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                          },
                                           "address": {
                                             "type": "object",
                                             "properties": {
@@ -5159,6 +5250,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -5449,6 +5547,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -5743,6 +5848,13 @@
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                  },
                                   "address": {
                                     "type": "object",
                                     "properties": {
@@ -6029,6 +6141,13 @@
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                  },
                                   "address": {
                                     "type": "object",
                                     "properties": {
@@ -6227,6 +6346,13 @@
                                       "city"
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                  },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                   },
                                   "address": {
                                     "type": "object",
@@ -6517,6 +6643,13 @@
                                       "city"
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                  },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                   },
                                   "address": {
                                     "type": "object",
@@ -7021,6 +7154,13 @@
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                  },
                                   "address": {
                                     "type": "object",
                                     "properties": {
@@ -7302,6 +7442,13 @@
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                  },
                                   "address": {
                                     "type": "object",
                                     "properties": {
@@ -7458,6 +7605,13 @@
                                             "city"
                                           ],
                                           "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                        },
+                                        "verified": {
+                                          "type": "boolean",
+                                          "enum": [
+                                            false
+                                          ],
+                                          "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                         },
                                         "address": {
                                           "type": "object",
@@ -7740,6 +7894,13 @@
                                           ],
                                           "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                         },
+                                        "verified": {
+                                          "type": "boolean",
+                                          "enum": [
+                                            false
+                                          ],
+                                          "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                        },
                                         "address": {
                                           "type": "object",
                                           "properties": {
@@ -7944,6 +8105,13 @@
                                       "city"
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                  },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                   },
                                   "address": {
                                     "type": "object",
@@ -8234,6 +8402,13 @@
                                       "city"
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                  },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                   },
                                   "address": {
                                     "type": "object",
@@ -8618,6 +8793,13 @@
                                       ],
                                       "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
+                                    "verified": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        false
+                                      ],
+                                      "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                    },
                                     "address": {
                                       "type": "object",
                                       "properties": {
@@ -8907,6 +9089,13 @@
                                         "city"
                                       ],
                                       "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                    },
+                                    "verified": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        false
+                                      ],
+                                      "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                     },
                                     "address": {
                                       "type": "object",
@@ -9272,6 +9461,13 @@
                                         ],
                                         "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                       },
+                                      "verified": {
+                                        "type": "boolean",
+                                        "enum": [
+                                          false
+                                        ],
+                                        "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                      },
                                       "address": {
                                         "type": "object",
                                         "properties": {
@@ -9558,6 +9754,13 @@
                                         ],
                                         "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                       },
+                                      "verified": {
+                                        "type": "boolean",
+                                        "enum": [
+                                          false
+                                        ],
+                                        "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                      },
                                       "address": {
                                         "type": "object",
                                         "properties": {
@@ -9765,6 +9968,13 @@
                                       "city"
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                  },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                   },
                                   "address": {
                                     "type": "object",
@@ -10055,6 +10265,13 @@
                                       "city"
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                  },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                   },
                                   "address": {
                                     "type": "object",
@@ -10377,6 +10594,13 @@
                         ],
                         "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                       },
+                      "verified": {
+                        "type": "boolean",
+                        "enum": [
+                          false
+                        ],
+                        "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                      },
                       "address": {
                         "type": "object",
                         "properties": {
@@ -10665,6 +10889,13 @@
                           "city"
                         ],
                         "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                      },
+                      "verified": {
+                        "type": "boolean",
+                        "enum": [
+                          false
+                        ],
+                        "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                       },
                       "address": {
                         "type": "object",
@@ -11025,6 +11256,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -11329,6 +11567,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -11793,6 +12038,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -12098,6 +12350,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -12386,6 +12645,13 @@
                         ],
                         "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                       },
+                      "verified": {
+                        "type": "boolean",
+                        "enum": [
+                          false
+                        ],
+                        "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                      },
                       "address": {
                         "type": "object",
                         "properties": {
@@ -12670,6 +12936,13 @@
                           "city"
                         ],
                         "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                      },
+                      "verified": {
+                        "type": "boolean",
+                        "enum": [
+                          false
+                        ],
+                        "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                       },
                       "address": {
                         "type": "object",
@@ -13021,6 +13294,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -13325,6 +13605,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -13791,6 +14078,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -14095,6 +14389,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -15372,6 +15673,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -15676,6 +15984,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -16134,6 +16449,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -16438,6 +16760,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -16839,6 +17168,13 @@
                                             ],
                                             "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                           },
+                                          "verified": {
+                                            "type": "boolean",
+                                            "enum": [
+                                              false
+                                            ],
+                                            "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                          },
                                           "address": {
                                             "type": "object",
                                             "properties": {
@@ -17120,6 +17456,13 @@
                                             ],
                                             "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                           },
+                                          "verified": {
+                                            "type": "boolean",
+                                            "enum": [
+                                              false
+                                            ],
+                                            "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                          },
                                           "address": {
                                             "type": "object",
                                             "properties": {
@@ -17272,6 +17615,13 @@
                                         "city"
                                       ],
                                       "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                    },
+                                    "verified": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        false
+                                      ],
+                                      "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                     },
                                     "address": {
                                       "type": "object",
@@ -17554,6 +17904,13 @@
                                       ],
                                       "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
+                                    "verified": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        false
+                                      ],
+                                      "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                    },
                                     "address": {
                                       "type": "object",
                                       "properties": {
@@ -17777,6 +18134,13 @@
                               "city"
                             ],
                             "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                          },
+                          "verified": {
+                            "type": "boolean",
+                            "enum": [
+                              false
+                            ],
+                            "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                           },
                           "address": {
                             "type": "object",
@@ -19031,6 +19395,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -19335,6 +19706,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -19793,6 +20171,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -20097,6 +20482,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -20576,6 +20968,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -20880,6 +21279,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -21620,6 +22026,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -21924,6 +22337,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -23988,6 +24408,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -24292,6 +24719,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -24750,6 +25184,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -25054,6 +25495,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -25560,6 +26008,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -25864,6 +26319,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -26320,6 +26782,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -26624,6 +27093,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -27213,6 +27689,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -27517,6 +28000,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -27836,6 +28326,13 @@
                                           ],
                                           "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                         },
+                                        "verified": {
+                                          "type": "boolean",
+                                          "enum": [
+                                            false
+                                          ],
+                                          "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                        },
                                         "address": {
                                           "type": "object",
                                           "properties": {
@@ -28117,6 +28614,13 @@
                                           ],
                                           "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                         },
+                                        "verified": {
+                                          "type": "boolean",
+                                          "enum": [
+                                            false
+                                          ],
+                                          "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                                        },
                                         "address": {
                                           "type": "object",
                                           "properties": {
@@ -28269,6 +28773,13 @@
                                       "city"
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                  },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                   },
                                   "address": {
                                     "type": "object",
@@ -28550,6 +29061,13 @@
                                       "city"
                                     ],
                                     "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                                  },
+                                  "verified": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      false
+                                    ],
+                                    "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                                   },
                                   "address": {
                                     "type": "object",
@@ -28903,6 +29421,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -29207,6 +29732,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",
@@ -29990,6 +30522,13 @@
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
+                              },
                               "address": {
                                 "type": "object",
                                 "properties": {
@@ -30294,6 +30833,13 @@
                                   "city"
                                 ],
                                 "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ],
+                                "description": "`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."
                               },
                               "address": {
                                 "type": "object",

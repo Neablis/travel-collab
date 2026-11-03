@@ -16,6 +16,9 @@ import { MODE_LABEL } from "@/lib/travelMode";
 // before the field existed carries none, and that is not a claim of `venue`.
 // MapLens groups on it (markerGroups below); the rail, the strip and the focus
 // card ignore it.
+// `unconfirmed` is the location's `verified: false` (Mitchell, 2026-11-03): an
+// assistant's coordinate no geocoder corroborated. MapLens draws it as a hollow
+// teardrop. Present only when true, so an ordinary stop's shape is unchanged.
 // `end` is where a transit stop's leg arrives (M24's `endLocation`), set only
 // when the stop is `transit` and both ends are located, so routeLegs can draw
 // the leg itself. `mode` rides with it to style that leg. Neither gets a marker
@@ -28,6 +31,7 @@ export type MapStop = {
   lng: number;
   kind: ActivityKind;
   precision?: Location["precision"];
+  unconfirmed?: true;
   mode?: ActivityMode | null;
   end?: { lat: number; lng: number };
 };
@@ -98,6 +102,7 @@ function locatedStops(day: TripDetail["days"][number], activities: TripDetail["a
         lng: location.lng,
         kind: activity!.kind,
         precision: location.precision,
+        ...(location.verified === false ? { unconfirmed: true as const } : {}),
         mode: activity!.mode ?? null,
         ...(end?.lat !== undefined && end.lng !== undefined ? { end: { lat: end.lat, lng: end.lng } } : {}),
       });
@@ -475,6 +480,12 @@ export type MarkerGroup = {
   lng: number;
   /** City-level: MapLens draws a disc (an area claim), never a teardrop. */
   cityLevel: boolean;
+  /**
+   * One stop whose coordinate no geocoder confirmed (`verified: false`):
+   * MapLens draws a hollow teardrop. Never true for a city-level group, whose
+   * disc already makes the weaker claim.
+   */
+  unconfirmed: boolean;
   stops: MapStop[];
 };
 
@@ -483,7 +494,7 @@ export function markerGroups(day: MapDay): MarkerGroup[] {
   const byCoordinate = new Map<string, MarkerGroup>();
   for (const stop of day.stops) {
     if (stop.precision !== "city") {
-      groups.push({ lat: stop.lat, lng: stop.lng, cityLevel: false, stops: [stop] });
+      groups.push({ lat: stop.lat, lng: stop.lng, cityLevel: false, unconfirmed: stop.unconfirmed === true, stops: [stop] });
       continue;
     }
     // Exact equality, deliberately: this exists for stops that share ONE
@@ -495,7 +506,7 @@ export function markerGroups(day: MapDay): MarkerGroup[] {
       existing.stops.push(stop);
       continue;
     }
-    const group: MarkerGroup = { lat: stop.lat, lng: stop.lng, cityLevel: true, stops: [stop] };
+    const group: MarkerGroup = { lat: stop.lat, lng: stop.lng, cityLevel: true, unconfirmed: false, stops: [stop] };
     byCoordinate.set(key, group);
     groups.push(group);
   }

@@ -157,6 +157,19 @@ describe("KI-54 — every persisted Location field is part of equality", () => {
     expect(replayed).toEqual(target);
   });
 
+  // `verified` (2026-11-03) is invisible in the coordinates the same way: a
+  // geocoder confirming an assistant's guess at the very point it guessed
+  // removes the flag and nothing else, and the hollow pin has to turn solid.
+  it("a verified-only change is not equal, diffs, and replays", () => {
+    const current = withLocation({ lat: 43.0866, lng: -79.0628, verified: false });
+    const target = withLocation({ lat: 43.0866, lng: -79.0628 });
+    expect(tripStatesEqual(current, target)).toBe(false);
+    const events = diffTripStates(current, target);
+    expect(events).toHaveLength(1);
+    const replayed = events.reduce<TripState | null>((st, e) => evolveTrip(st, e), current);
+    expect(replayed).toEqual(target);
+  });
+
   it("replaying a city-only diff lands on the target", () => {
     const current = withLocation({ city: "Tokyo" });
     const target = withLocation({ city: "Kyoto" });

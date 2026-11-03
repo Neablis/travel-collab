@@ -67,6 +67,22 @@ export function MapLegend() {
         />
         Somewhere in this city
       </span>
+      {/* A hollow teardrop: a stop whose coordinate no geocoder confirmed
+          (`verified: false`, contracts/src/activity.ts; Mitchell, 2026-11-03).
+          The SHAPE still names one spot, because the guess is about one spot;
+          the empty body is the claim that nobody checked it. Slate for the
+          same reason as the disc key: a real one carries its day's accent. */}
+      <span className="flex items-center gap-1.5">
+        <svg aria-hidden width="10" height="13" viewBox="0 0 27 36" className="text-slate">
+          <path
+            d="M25.5,13.5 C25.5,18.8 19.3,26.3 14.2,33.3 C13.8,33.9 13.2,33.9 12.8,33.3 C7.7,26.3 1.5,18.9 1.5,13.5 C1.5,6.9 6.9,1.5 13.5,1.5 C20.1,1.5 25.5,6.9 25.5,13.5 Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+          />
+        </svg>
+        Not confirmed
+      </span>
     </div>
   );
 }

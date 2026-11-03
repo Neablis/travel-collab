@@ -25,6 +25,7 @@ export type JapanTripExpectations = {
   colorShifted: string[];
   untaggedCount: number;
   withCoordinates: number;
+  unconfirmed: number;
   withCost: number;
   cities: string[];
   budgetMinor: number;
@@ -87,6 +88,10 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // (KI-39) and which carry hand-authored coordinates instead. The Map and
   // Timeline lenses have nothing to draw for an activity without them.
   withCoordinates: 72,
+  // One hollow teardrop (`verified: false`, ./commands.ts UNCONFIRMED_STOP_IDS),
+  // so the preview's Map lens shows the shape and its legend key. Zero would
+  // mean the demo no longer shows it at all.
+  unconfirmed: 1,
   // The 4 backlog ideas carry no cost, and two scheduled "idea" stops (the
   // export's word; `pending` since M28) have no
   // estimate yet in the upstream export (`trip.budget.unpricedStops: 2`).
@@ -228,6 +233,7 @@ export function diffAgainstExpectations(
   scalar("colorShifted", report.colorShifted, expected.colorShifted);
   scalar("untaggedCount", report.untaggedCount, expected.untaggedCount);
   scalar("withCoordinates", report.withCoordinates, expected.withCoordinates);
+  scalar("unconfirmed", report.unconfirmed, expected.unconfirmed);
   scalar("withCost", report.withCost, expected.withCost);
   scalar("cities", report.cities, expected.cities);
   scalar("budgetMinor", report.budgetMinor, expected.budgetMinor);

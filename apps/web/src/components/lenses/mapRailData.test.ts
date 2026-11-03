@@ -383,7 +383,7 @@ describe("markerGroups", () => {
 
   it("gives a lone city-level stop its own group, still marked city-level", () => {
     const day = dayOf({ c1: atPrecision("c1", 43.2, -77.5, "city") });
-    expect(markerGroups(day)).toEqual([{ lat: 43.2, lng: -77.5, cityLevel: true, stops: day.stops }]);
+    expect(markerGroups(day)).toEqual([{ lat: 43.2, lng: -77.5, cityLevel: true, unconfirmed: false, stops: day.stops }]);
   });
 
   it("does not group two city-level stops at different centroids", () => {

@@ -231,6 +231,24 @@ function sanitizeCoords(location: Location): Location {
   return withoutCoords;
 }
 
+/** The location without a `verified` flag: for a pin a vendor has just answered. */
+function withoutVerified(location: Location): Location {
+  const copy = { ...location };
+  delete copy.verified;
+  return copy;
+}
+
+/**
+ * The location marked `verified: false` when it carries coordinates no vendor
+ * confirmed: a model's guess that enrichment kept because it found nothing
+ * better (Mitchell, 2026-11-03). The map draws it as a hollow pin rather than
+ * as a located venue. A location with no plausible coordinates is returned
+ * without the flag, which describes coordinates and cannot outlive them.
+ */
+function markUnconfirmed(location: Location): Location {
+  return plausibleCoords(location) ? { ...location, verified: false } : withoutVerified(location);
+}
+
 type Outcome = "verified" | "unverified" | "unchecked" | "failed";
 
 interface Resolution {
@@ -511,8 +529,18 @@ async function enrichLocationSlots(
 
   // AFTER the charge, and only if something survived it: `getGeocoder()` throws
   // without the key, and a batch the quota refused outright must not turn a
-  // ceiling into a 500.
-  if (attempted.length === 0) return { commands, report };
+  // ceiling into a 500. Every stop here was skipped, so every model coordinate
+  // is still a guess, marked as the final map below marks a skipped one.
+  if (attempted.length === 0) {
+    return {
+      commands: commands.map((command) =>
+        hasLocation(command) && !isServerLocated(command.location)
+          ? { ...command, location: markUnconfirmed(command.location) }
+          : command,
+      ),
+      report,
+    };
+  }
 
   const geocoder = getGeocoder();
 
@@ -696,7 +724,9 @@ async function enrichLocationSlots(
       // M9's grounding is supposed to guarantee.
       if (isServerLocated(command.location)) return command;
       const resolution = resolutionByKey.get(keyOf(command));
-      if (!resolution) return command;
+      // Never looked up (over the per-batch cap or the quota): whatever
+      // coordinates the model gave are still its own guess.
+      if (!resolution) return { ...command, location: markUnconfirmed(command.location) };
       // `verified`/`unchecked` both carry a real geocoder match (`found`,
       // stored as `resolution.location`) keyed only by name — reusing it
       // across every command sharing that name is the intended dedupe: one
@@ -722,10 +752,13 @@ async function enrichLocationSlots(
       // component used to cost the user a city they had asked for.
       const approved = sanitizeCoords(command.location);
       if (resolution.outcome === "verified" || resolution.outcome === "unchecked") {
+        // A vendor answer replaces the coordinates, so nothing the model said
+        // about trusting them survives. `withoutVerified` rather than relying on
+        // the spread: the match carries no `verified` key to overwrite one with.
         // The approved `name` is restored last: the shared match carries the
         // first command's spelling, and no command's name is ever the vendor's
         // (KI-2026-09-20-a).
-        return { ...command, location: { ...approved, ...resolution.location, name: approved.name } };
+        return { ...command, location: { ...withoutVerified(approved), ...resolution.location, name: approved.name } };
       }
       // A city centroid, and said to be one. Additive by construction: it only
       // ever reaches a location that had no usable coordinate of its own, every
@@ -735,7 +768,10 @@ async function enrichLocationSlots(
       // approved — ABSENT for a surviving model guess, which is the whole point
       // of absent meaning unknown (contracts/src/activity.ts).
       const pin = cityPins.get(command);
-      const location: Location = pin ? { ...approved, ...pin, precision: "city" } : approved;
+      // A city pin is a vendor's answer about the city, so it is confirmed for
+      // what it claims. Without one, a surviving model coordinate is a guess
+      // nothing corroborated, and says so (`verified: false`, 2026-11-03).
+      const location: Location = pin ? { ...withoutVerified(approved), ...pin, precision: "city" } : markUnconfirmed(approved);
       return { ...command, location };
     }),
     report,
