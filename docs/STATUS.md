@@ -21,10 +21,14 @@ general setup.
 
 ## Where the work is right now
 
-**M44 is current, scoped 2026-11-02** (*A stop knows what was booked, and what it sits inside*;
-decisions D1–D5 in `docs/milestones/M44-a-stop-knows-what-was-booked.md`, mechanisms in ADR-086,
-plan `docs/plans/2026-11-02-M44-booking-and-containment.md`). Part 0 is `claude/next-milestone-5o3kip`;
-parts 1 to 5 are one stack of drafts, `claude/m44-part<K>-…`.
+**M44 closed 2026-11-03, gate 7 of 7** (*A stop knows what was booked, and what it sits inside*;
+decisions in `docs/milestones/M44-a-stop-knows-what-was-booked.md`, mechanisms in ADR-086), by
+`pnpm milestone close M44 --confirm` on part 0 (PR 679, `claude/next-milestone-5o3kip`, prose
+only), which **waits on Mitchell's merge**. All five code parts are on `main`: PRs 680 to 683 in
+`1540f9e` and PR 684 in `4f75af0` (`ci` run 41561850267 green at its head `2696b5a`). No
+migration. Evidence, retro and spend (three sessions) are in the milestone file; the plan is
+deleted. One new known issue: KI-2026-11-03-a (the Booked chip is below the 44px phone touch
+floor). The share page's Booked chip is a candidate.
 
 **M57 closed 2026-11-01, gate 10 of 10** (*The assistant is a graph of personas, and you can watch
 it work*; decisions in `docs/milestones/M57-assistant-personas.md`, mechanisms in ADR-085), by
@@ -95,16 +99,16 @@ confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
 **Next action:**
-1. Mitchell merges PR 674 (merge commit).
-2. No `migrate-production` is needed: `0070` to `0072` are applied (`pnpm state` shows all 73
-   applied, with `0072_ai_turn_outcomes`), and PR 674 adds none.
-3. Mitchell merges PR 667.
-4. Close no lower drafts: parts 1 to 5 are already merged.
+1. Mitchell merges PR 679 (M44's part 0, prose only). Parts 1 to 5 are merged, so close no lower
+   drafts. `migrate-production` is not needed: M44 added no migration.
+2. Then the order in `TODO.md` is M53 (*A search engine reads every public page the way a person
+   does*), proposed 2026-10-25 and not scoped: scope it with Mitchell (`plan-a-milestone`;
+   `docs/milestones/M53-search-reads-every-public-page.md`, seven open decisions). M48 stays
+   parked.
+3. Open follow-ups from M44: KI-2026-11-03-a, KI-2026-11-02-a (the flaky `TripProvider.suggest`
+   test) and the candidate *The share page shows a stop is booked*.
 Then remove the orchestrator's `tc-orchestrator` guard file from the build session's git dir.
-Earlier next action, still open: Mitchell merges M43's part 0 (PR 659) if it is
-not merged yet. Then scope M44 with him
-(`plan-a-milestone`; `docs/milestones/M44-a-stop-knows-what-was-booked.md`, not scoped; since
-2026-10-22 it keeps containment only, `booking` having moved to M52). Open follow-ups from M43:
+Earlier next action, still open: Mitchell merges M43's part 0 (PR 659) and M57's (PR 667) if not merged yet. Open follow-ups from M43:
 KI-2026-11-01-s, -t, -u and -v; PR 660's hand-listed plural test (kept, his decision); part 5's
 untested undated trip (his call). Hand tasks for Mitchell from M56: delete the stray remote branch `claude/m56-part5-ask-show-hand-off`
 (`1449913`), and, in the old container only, the empty `/tc-orchestrator` at the filesystem root.
@@ -116,8 +120,7 @@ KI-20261026-x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M
 KI-20261025-w, and the candidate *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M44 (current) → M53 (minted 2026-10-25 from an SEO audit, not scoped),
-with M48 parked.
+3 moderate). The order is M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
