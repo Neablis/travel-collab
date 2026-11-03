@@ -1,4 +1,4 @@
-### KI-2026-11-03 — a v1 stop write geocodes a name to the vendor's top hit with nothing checking it, so Ria's Wines was pinned in Atlanta
+### KI-2026-11-03 — a v1 stop write geocodes a name to the vendor's top hit with nothing checking it, so Ria's Wines was pinned in Atlanta — RESOLVED
 
 - **Severity:** correctness. Silent: the write succeeds, `Geocode-Outcome: name` says it was geocoded,
   and the map shows a venue-shaped pin in the wrong place.
@@ -31,6 +31,23 @@
   name has to agree with the stop's (`placeNameVerdict`, KI-39). A rejected match is not stored.
   Fall back to the stop's city at city precision where it can be corroborated, otherwise save
   without coordinates and say so in `Geocode-Outcome`.
+- **Resolution (2026-11-03):** the fix path above, done in the same branch that filed this.
+  `placeAcceptance.ts` (`apps/web/src/server/ai/`) holds the rule, and both `resolveStopLocation` and
+  the assistant's `resolveOne` call `judgeMatch`. A v1 name lookup's answer must not carry a
+  different place's name, and must sit in the trip's region unless the caller named a country the
+  trip has no stop in yet (the first stop in a new country, which the API guide promises resolves by
+  name). A trip's own country does not lift the region: "US" on a Finger Lakes trip would admit
+  Atlanta. A refused answer falls back to the stop's `city` and `countryCode` at `precision: "city"`
+  (`Geocode-Outcome: city`), else no coordinates (`rejected`). A leg's `endLocation` is judged
+  without the region, as the assistant judges it. Tests: `locations.test.ts`, *a name lookup's answer
+  is judged before it is stored*, each seen red with its part of the fix removed.
+  - **What it costs, knowingly:** a stop named for an activity rather than a venue ("Dinner at
+    Ria's") no longer matches the venue's name, so it gets its city or no pin instead of the venue.
+    A second city in a country the trip is already in, sent by name with no `city`, is `rejected`
+    when it is more than 150 km from the trip's stops. The caller sends coordinates or a candidate
+    from `GET /v1/trips/{tripId}/geocode`.
+  - Same branch: a location key the schema does not know (`latitude`, `lon`, `zip`) is a 400 on both
+    v1 stop writes (`LocationWrite`) instead of being dropped and the name geocoded over it.
 - **Cross-reference:** KI-2026-09-20-a (the AI path's own missing name check), KI-15 (resolved, the
   AI path's region check and its history), KI-39 (the name check), ADR-007.
 - **First noted:** 2026-11-03, from an agent's review of the location API after a CLI session.

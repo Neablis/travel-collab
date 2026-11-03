@@ -13,6 +13,31 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-03 — `LocationWrite`, and `GeocodeOutcome` gains `city` and `rejected` (KI-2026-11-03; public API 2.1.0)
+- **New** (`packages/contracts/src/activity.ts`): `LocationWrite`, `Location` with unknown keys refused,
+  its own and its `address`'s, every refinement kept (`safeExtend`). The v1 stop writes
+  (`POST /v1/trips/{tripId}/activities`, `PATCH …/activities/{activityId}`) take it for `location` and
+  `endLocation`. `Location` itself, the stored and command shape, is unchanged and still strips.
+- **Added** (`packages/contracts/src/publicApi.ts`): two `GeocodeOutcome` values. `city`: the name
+  lookup's answer was refused and the stop is pinned at its `city`'s centre, `precision: "city"`.
+  `rejected`: the answer was refused and the stop is saved without coordinates.
+- Why: a v1 name lookup stored the vendor's top hit unchecked, and Ria's Wines was pinned in Atlanta
+  (KI-2026-11-03). It is now judged by the assistant's acceptance rule, moved into one shared module
+  (`apps/web/src/server/ai/placeAcceptance.ts`). And a location key the schema did not know
+  (`latitude`) was dropped without a word, so the server geocoded the name over coordinates the
+  client believed it had sent.
+- Consumers updated: `apps/web` (the two v1 stop routes, `public-api/locations.ts`, `openapi.json`,
+  `docs/guidelines/using-the-api.md`). The assistant's enrichment (`geocodeEnrichment.ts`) calls the
+  same rule, now with KI-39's name check (KI-2026-09-20-a), and keeps the approved name.
+- Public API: `API_VERSION` 2.0.0 → **2.1.0**, new `API_FINGERPRINT`. `openapi.json` changes only in
+  the `Geocode-Outcome` description: the generator does not emit `additionalProperties`, so the
+  strictness is in the guide, not the document.
+- Breaking? In principle, two ways, and minor by the 1.27.0 precedent (nothing that worked stops
+  working). A location with an unknown key is now a 400; the key never did anything, and dropping it
+  is the defect. A name lookup that used to store the vendor's top hit may now store the city or no
+  coordinates, with `Geocode-Outcome` saying which; that hit was the bug. A client switching
+  exhaustively on `Geocode-Outcome` meets two new values.
+
 ## 2026-11-01 — `AskStreamMetadata` carries the server's turn id (M57 part 2)
 - **New** (`packages/contracts/src/assistant.ts`): an optional `turnId` (a GUID) beside `paletteCommands`
   on every branch of `AskStreamMetadata`. It is a sibling, not an outcome, so the one-outcome rule

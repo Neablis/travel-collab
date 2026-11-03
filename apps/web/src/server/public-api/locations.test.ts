@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Location } from "@tc/contracts";
 import type { Geocoder } from "@/server/geocoding";
 import type { QuotaDecision } from "@/server/quota";
-import { resolveStopLocation, type ResolveDeps } from "./locations";
+import { resolveStopLocation, resolveStopPlaces, type ResolveDeps } from "./locations";
 
 const HIT = {
   lat: 49.41,
@@ -64,7 +64,7 @@ describe("resolveStopLocation", () => {
   });
 
   it("a name alone is geocoded, biased to the trip region and the caller's country", async () => {
-    const d = deps();
+    const d = deps({ forward: vi.fn(async () => [{ ...HIT, canonicalName: "Fushimi Inari Taisha, Fushimi Ward, Kyoto, Japan" }]) });
     const region = { minLat: 34, maxLat: 36, minLng: 135, maxLng: 136 };
     const r = await resolveStopLocation({ name: "Fushimi Inari", countryCode: "JP" }, { userId: "u1", region }, d);
     expect(r.outcome).toBe("name");
@@ -84,9 +84,9 @@ describe("resolveStopLocation", () => {
   });
 
   it("the vendor only fills the display fields the caller left empty", async () => {
-    const d = deps();
-    const r = await resolveStopLocation({ name: "Dinner", city: "Heidelberg-Handschuhsheim", area: "Neuenheim" }, ctx, d);
-    expect(r.location).toEqual({ name: "Dinner", city: "Heidelberg-Handschuhsheim", area: "Neuenheim", lat: 49.41, lng: 8.69, countryCode: "DE" });
+    const d = deps({ forward: vi.fn(async () => [{ ...HIT, canonicalName: "Zum Roten Ochsen, Hauptstraße 217, Heidelberg, Germany" }]) });
+    const r = await resolveStopLocation({ name: "Zum Roten Ochsen", city: "Heidelberg-Handschuhsheim", area: "Neuenheim" }, ctx, d);
+    expect(r.location).toEqual({ name: "Zum Roten Ochsen", city: "Heidelberg-Handschuhsheim", area: "Neuenheim", lat: 49.41, lng: 8.69, countryCode: "DE" });
   });
 
   it("charges the quota exactly once per lookup, to the token owner", async () => {
@@ -230,5 +230,83 @@ describe("resolveStopLocation: a stop's country is the country at its own pin", 
     expect(await resolveStopLocation(AT_SEA, trip, sea)).toEqual({ location: AT_SEA, outcome: "provided" });
     const refused = deps({ reverse: vi.fn(async () => ITHACA) }, { allowed: false, reason: "global", retryAfterSeconds: 60 });
     expect((await resolveStopLocation(AT_SEA, trip, refused)).location).toEqual(AT_SEA);
+  });
+});
+
+// KI-2026-11-03. A name lookup's answer used to be stored unchecked, and Ria's
+// Wines, on a Finger Lakes trip, was pinned in Atlanta. It is judged now by the
+// assistant's rule (`placeAcceptance.ts`): inside the trip's region unless the
+// caller named the country, and never under a different place's name.
+describe("a name lookup's answer is judged before it is stored (KI-2026-11-03)", () => {
+  const FINGER_LAKES = { minLat: 42, maxLat: 43.5, minLng: -79.5, maxLng: -76.5 };
+  const trip = { userId: "u1", region: FINGER_LAKES, countries: ["US"] };
+  const ATLANTA = { lat: 33.749, lng: -84.388, canonicalName: "Ria's Wines, Peachtree Street, Atlanta, Georgia, USA", countryCode: "US" };
+  const PENN_YAN = { lat: 42.6609, lng: -77.0539, canonicalName: "Penn Yan, Yates County, New York, USA", countryCode: "US" };
+
+  function lookups(answers: Record<string, object[]>) {
+    return deps({ forward: vi.fn(async (query: string) => answers[query] ?? []) as Geocoder["forward"] });
+  }
+
+  it("refuses the right name in the wrong state, and saves the stop without coordinates", async () => {
+    const d = lookups({ "Ria's Wines": [ATLANTA] });
+    const r = await resolveStopLocation({ name: "Ria's Wines" }, trip, d);
+    expect(r).toEqual({ location: { name: "Ria's Wines" }, outcome: "rejected" });
+  });
+
+  it("refuses a different venue inside the trip's region", async () => {
+    const d = lookups({ "Ria's Wines": [{ ...PENN_YAN, canonicalName: "Liquor Outlet, Main Street, Penn Yan, New York, USA" }] });
+    const r = await resolveStopLocation({ name: "Ria's Wines" }, trip, d);
+    expect(r.outcome).toBe("rejected");
+    expect(r.location.lat).toBeUndefined();
+  });
+
+  it("refuses the wrong state even when the caller named the trip's own country", async () => {
+    const d = lookups({ "Ria's Wines": [ATLANTA] });
+    const r = await resolveStopLocation({ name: "Ria's Wines", countryCode: "US" }, trip, d);
+    expect(r.outcome).toBe("rejected");
+  });
+
+  it("pins a refused stop at its city's centre when it names a city and a country", async () => {
+    const d = lookups({ "Ria's Wines": [ATLANTA], "Penn Yan, US": [PENN_YAN] });
+    const input = { name: "Ria's Wines", city: "Penn Yan", countryCode: "US" };
+    const r = await resolveStopLocation(input, trip, d);
+    expect(r).toEqual({
+      location: { ...input, lat: PENN_YAN.lat, lng: PENN_YAN.lng, precision: "city" },
+      outcome: "city",
+    });
+    expect(Location.safeParse(r.location).success).toBe(true);
+  });
+
+  it("charges the city lookup like the venue lookup", async () => {
+    const d = lookups({ "Ria's Wines": [ATLANTA], "Penn Yan, US": [PENN_YAN] });
+    await resolveStopLocation({ name: "Ria's Wines", city: "Penn Yan", countryCode: "US" }, trip, d);
+    expect(d.charge).toHaveBeenCalledTimes(2);
+  });
+
+  // The first stop in a new country still resolves by name when the caller
+  // says which country (docs/guidelines/using-the-api.md): the country filter is
+  // the geographic check, and it is never widened.
+  it("takes an answer outside the trip's region when the caller named its country and its name agrees", async () => {
+    const SEOUL = { lat: 37.5665, lng: 126.978, canonicalName: "Gwangjang Market, Jongno-gu, Seoul, South Korea", countryCode: "KR" };
+    const d = lookups({ "Gwangjang Market": [SEOUL] });
+    const r = await resolveStopLocation({ name: "Gwangjang Market", countryCode: "KR" }, trip, d);
+    expect(r.outcome).toBe("name");
+    expect(r.location).toMatchObject({ lat: SEOUL.lat, lng: SEOUL.lng });
+  });
+
+  it("judges a travel leg's destination without the trip's region", async () => {
+    const BUFFALO = { lat: 42.94, lng: -78.73, canonicalName: "Buffalo Niagara International Airport, Cheektowaga, New York, USA", countryCode: "US" };
+    const JFK = { lat: 40.6413, lng: -73.7781, canonicalName: "John F. Kennedy International Airport, Queens, New York, USA", countryCode: "US" };
+    const d = lookups({ "Buffalo Niagara International Airport": [BUFFALO], "John F. Kennedy International Airport": [JFK] });
+    const headers = new Headers();
+    const leg = await resolveStopPlaces(
+      { location: { name: "Buffalo Niagara International Airport" }, endLocation: { name: "John F. Kennedy International Airport" } },
+      trip,
+      headers,
+      d,
+    );
+    expect(headers.get("Geocode-Outcome")).toBe("name");
+    expect(headers.get("Geocode-Outcome-End")).toBe("name");
+    expect(leg.endLocation).toMatchObject({ lat: JFK.lat });
   });
 });

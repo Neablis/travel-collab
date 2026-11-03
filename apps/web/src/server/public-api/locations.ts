@@ -1,7 +1,8 @@
 import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, type GeocodeOutcome, type Location } from "@tc/contracts";
 import { getGeocoder, type BoundingBox, type Geocoder, type GeocodeResult, type LatLng } from "@/server/geocoding";
 import { countryAtPoint } from "@/server/geocoding/countryAt";
-import { countryFilterFor } from "@/server/geocoding/region";
+import { countryFilterFor, plausibleCoords } from "@/server/geocoding/region";
+import { judgeMatch, nameQueryOf } from "@/server/ai/placeAcceptance";
 import { consumeQuota, geocodeQuota, type QuotaDecision } from "@/server/quota";
 import { PublicApiError } from "./commands";
 
@@ -19,8 +20,20 @@ import { PublicApiError } from "./commands";
 //
 // **The caller's words win, except for the country.** `name` and `address`
 // are kept as sent; geocoding only adds lat/lng and fills city/area the caller
-// left empty. `precision` stays absent (= unknown): nothing here checks what
-// granularity the vendor's point describes.
+// left empty. `precision` stays absent (= unknown) on a venue answer: nothing
+// here checks what granularity the vendor's point describes.
+//
+// **A name lookup's answer is judged before it is stored** (KI-2026-11-03).
+// It used to be the vendor's top hit, unchecked, and Ria's Wines was pinned in
+// Atlanta. Now it goes through the same rule as the assistant's enrichment
+// (`placeAcceptance.ts`): the answer's own name must not be a different
+// place's, and it must sit inside the trip's region, unless the caller named
+// a country the trip has no stop in yet. A refused answer is never stored. The stop is pinned at its
+// city's centre (`precision: "city"`, outcome `city`) when it names a city and
+// a country, and is otherwise saved without coordinates (`rejected`). An
+// `address` lookup is not judged this way: the address is the caller's own
+// structured claim, its country already filters the lookup, and the vendor's
+// label for an address is not a venue name to compare.
 //
 // **A stop's country is where that stop is** (Mitchell, 2026-10-29: *"only
 // where every activities address is based in"*): its `address`'s country when
@@ -62,8 +75,12 @@ export const defaultResolveDeps: ResolveDeps = {
 /** The `Geocode-Outcome` header's description, shared by every endpoint that sets it. */
 export const GEOCODE_OUTCOME_DOC =
   "Present when the body carried a `location`. One of: provided (you sent lat/lng), address, name " +
-  "(coordinates were geocoded from that field), no-match, quota-exhausted, unavailable (the stop was " +
-  "saved without coordinates — send lat/lng, or look them up with GET /v1/trips/{tripId}/geocode).";
+  "(coordinates were geocoded from that field), city (the name lookup's answer was refused, and the stop " +
+  "is pinned at the centre of its `city` with `precision: \"city\"`), rejected, no-match, quota-exhausted, " +
+  "unavailable (the stop was saved without coordinates — send lat/lng, or look them up with " +
+  "GET /v1/trips/{tripId}/geocode). `rejected` means the lookup answered with a place whose name is a " +
+  "different place's, or one outside the area of the trip's other stops (unless you sent a `countryCode` the " +
+  "trip has no other stop in).";
 
 /**
  * `Geocode-Outcome-End`: the same answer for a transit stop's `endLocation`
@@ -94,15 +111,19 @@ export async function resolveStopPlaces<T extends { location?: Location | null; 
   responseHeaders: Headers,
   deps: ResolveDeps = defaultResolveDeps,
 ): Promise<T> {
-  const resolve = async (place: Location | null | undefined, header: string) => {
+  const resolve = async (place: Location | null | undefined, header: string, placeCtx: ResolveContext) => {
     if (place == null) return place;
-    const resolved = await resolveStopLocation(place, ctx, deps);
+    const resolved = await resolveStopLocation(place, placeCtx, deps);
     responseHeaders.set(header, resolved.outcome);
     return resolved.location;
   };
   const [location, endLocation] = await Promise.all([
-    resolve(stop.location, GEOCODE_OUTCOME_HEADER),
-    resolve(stop.endLocation, GEOCODE_OUTCOME_END_HEADER),
+    resolve(stop.location, GEOCODE_OUTCOME_HEADER, ctx),
+    // A travel leg's far end is judged without the trip's region, as the
+    // assistant judges it (KI-2026-09-25-m): Odawara → Kyoto is ~290 km, and a
+    // flight to a new country is a continent, so the box would refuse every
+    // real destination. The name check still applies.
+    resolve(stop.endLocation, GEOCODE_OUTCOME_END_HEADER, { ...ctx, region: null }),
   ]);
   return {
     ...stop,
@@ -143,6 +164,18 @@ export async function resolveStopLocation(
     return { location: input, outcome: "unavailable" };
   }
   if (!match) return { location: input, outcome: "no-match" };
+  if (!input.address) {
+    // The trip's region is the geographic check, with one exception: a
+    // country the caller named that the trip has no located stop in yet. That
+    // is a stop in a new country (a Seoul day on a Japan trip), the region
+    // cannot speak for it, and the named country already filtered the lookup
+    // and is never widened (`forward`). A country the trip IS in does not lift
+    // the region: "US" on a Finger Lakes trip would otherwise admit Atlanta.
+    const newCountry = input.countryCode !== undefined && !(ctx.countries ?? []).includes(input.countryCode);
+    const region = newCountry ? null : ctx.region;
+    const verdict = judgeMatch(nameQueryOf(input), match, { hint: null, region });
+    if (verdict === "wrong-place" || verdict === "wrong-name") return cityFallback(input, ctx, deps);
+  }
 
   // The address's country, else the matched point's. The caller's own field
   // is the last resort, for a match that came back with no country.
@@ -160,6 +193,39 @@ export async function resolveStopLocation(
     },
     outcome,
   };
+}
+
+/**
+ * A stop whose venue answer was refused, pinned at the centre of the city it
+ * names — the assistant's city fallback (KI-2026-08-30-f), for one write.
+ *
+ * Only for a location naming both a `city` and a `countryCode`: the query is
+ * `"<city>, <countryCode>"`, which a vendor can answer when it holds no venue
+ * of that name, and the country keeps it from answering about a same-named city
+ * elsewhere. It is a second lookup, charged like the first. The answer is the
+ * city's coordinates and nothing else: the stop keeps its own name, city and
+ * country, and says what the pin is (`precision: "city"`).
+ *
+ * Anything that stops it (no city or country, no quota, the vendor failing or
+ * finding nothing) leaves the stop without coordinates, reported `rejected`:
+ * the venue answer was refused, which is the fact a caller has to act on.
+ */
+async function cityFallback(input: Location, ctx: ResolveContext, deps: ResolveDeps): Promise<LocationResolution> {
+  const rejected: LocationResolution = { location: input, outcome: "rejected" };
+  if (!input.city || !input.countryCode) return rejected;
+  try {
+    if (!(await deps.charge(ctx.userId)).allowed) return rejected;
+    const [match] = await deps.geocoder().forward(`${input.city}, ${input.countryCode}`, {
+      limit: 1,
+      countryCode: input.countryCode,
+      ...(ctx.region ? { viewbox: ctx.region } : {}),
+    });
+    const point = match ? plausibleCoords(match) : null;
+    if (!point) return rejected;
+    return { location: { ...input, ...point, precision: "city" }, outcome: "city" };
+  } catch {
+    return rejected;
+  }
 }
 
 /**

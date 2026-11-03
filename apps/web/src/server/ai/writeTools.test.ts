@@ -882,7 +882,7 @@ describe("commitProposal", () => {
     const geocoder = {
       forward: vi.fn(async () => {
         order.push("geocode");
-        return [{ name: "Trevi Fountain, Rome, Italy", lat: 41.9009, lng: 12.4833, city: "Rome", countryCode: "IT" }];
+        return [{ canonicalName: "Trevi Fountain, Rome, Italy", lat: 41.9009, lng: 12.4833, city: "Rome", countryCode: "IT" }];
       }),
     };
     vi.mocked(executeTripCommandBatch).mockImplementation(async () => {

@@ -1,4 +1,4 @@
-### KI-2026-09-20-a — the trip/assistant geocode path accepts a wrong venue inside the right box, because `resolveOne` never consults KI-39's name check
+### KI-2026-09-20-a — the trip/assistant geocode path accepts a wrong venue inside the right box, because `resolveOne` never consults KI-39's name check — RESOLVED
 
 - **Severity:** correctness. The failure is silent and it has shipped. A wrong venue gets renamed,
   re-pinned and reported `verified`.
@@ -35,6 +35,21 @@
   already handles (§16 numbers it in the list and draws no pin). The other choice is keeping the
   hint or the city-level pin, as `savedDayPins.ts` does. The fix needs a test that fails when the
   call is removed, through the geocode path. Another unit test of the module won't do.
+- **Resolution (2026-11-03):** wired, through a module both resolvers now share
+  (`apps/web/src/server/ai/placeAcceptance.ts`, `judgeMatch`), so the v1 stop writes get the same
+  check (KI-2026-11-03). `resolveOne` consults `placeNameVerdict` after the geometry; a `"mismatch"`
+  is refused like a wrong place, so the stop keeps its fallback, is reported `unverified`, and the
+  city fallback can pin it at city level, as `savedDayPins.ts` does. `"not-comparable"` refuses
+  nothing. The stop's name is split at its first comma: the rest joins the stop's city and area as
+  context, so "Kegon Falls, Chūzenji, Nikkō" is matched as Kegon Falls. And `location.name` is never
+  the vendor's `canonicalName` any more: an accepted match keeps the approved name. Tests: the
+  *venue's own name has to agree* block in `geocodeEnrichment.test.ts`, red with the name check
+  removed and red with the comma split removed. Older tests changed two ways: assertions that the
+  vendor's name was written now assert the approved one, and stub answers that named a different
+  place than the one asked for (or, in `writeTools.test.ts`, had no `canonicalName`) now name it.
+  - **What it costs, knowingly:** the check refuses a correct venue the vendor names differently
+    enough ("Ria's Wines" against "Ria's Wine Bar"). That stop gets its city or keeps the model's own
+    coordinates, and is reported, rather than a wrong venue reported `verified`.
 - **Accepted residuals of the same enrichment path** (from KI-15's 2026-08-06 review). Each fails
   safe or announces itself. Each is worth knowing before it comes back as a support question:
   1. On the `verified` path, one command's hint drives a lookup shared by every command with the

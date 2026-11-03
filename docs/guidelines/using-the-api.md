@@ -303,15 +303,35 @@ fills them in when you leave them out, in this order:
    and in a country: `countryCode`, if you set it, restricts the lookup to that
    country. Otherwise the countries the trip's already-located stops are in (all
    of them, if it spans several) are **preferred**: the lookup searches inside
-   them first and, only if that finds nothing, searches everywhere — so the
-   first stop in a new country still resolves by name. A trip with nothing
-   located yet is not restricted at all. Sending `countryCode` is still the
-   surest way to place a name that exists in several countries.
+   them first and, only if that finds nothing, searches everywhere. A trip with
+   nothing located yet is not restricted at all. Sending `countryCode` is still
+   the surest way to place a name that exists in several countries.
 
-If the lookup finds nothing, the stop is **still created**, without coordinates.
-Every write whose body had a `location` answers with a `Geocode-Outcome` header:
-`provided`, `address`, `name`, `no-match`, `quota-exhausted` or `unavailable`.
-Lookups count against your account's daily geocoding allowance.
+   **The answer is checked before it is stored.** Its own name has to be the
+   place you named (a different venue in the right town is refused), and it has
+   to sit in the area of the trip's other stops, unless you sent a `countryCode`
+   the trip has no stop in yet: that is how the first stop in a new country
+   still resolves by name. A refused answer is never stored. If the location
+   names a `city` and a `countryCode`, the stop is pinned at that city's centre
+   instead, with `"precision": "city"` (one more lookup from your allowance);
+   otherwise it is saved without coordinates. Only the stop's part before the
+   first comma has to match the answer's name: "Kegon Falls, Nikkō" names Kegon
+   Falls, in Nikkō. An `address` lookup is not checked this way.
+
+If the lookup finds nothing, or its answer is refused, the stop is **still
+created**, without coordinates or at its city. Every write whose body had a
+`location` answers with a `Geocode-Outcome` header: `provided`, `address`, `name`,
+`city` (the answer was refused and the stop is pinned at its city), `rejected`
+(the answer was refused and the stop has no coordinates), `no-match`,
+`quota-exhausted` or `unavailable`. To place a refused stop exactly, send `lat`
+and `lng`, or pick a candidate from `GET /v1/trips/{tripId}/geocode` and send it
+back as the `location`. Lookups count against your account's daily geocoding
+allowance.
+
+**A location's keys are checked.** A key a location (or its `address`) does not
+know is a 400 that names it: `latitude`, `lon` or `zip` is refused, never
+dropped. Dropping one used to mean the server geocoded the name over the
+coordinates you thought you had sent.
 
 ```json
 {

@@ -3,6 +3,7 @@ import {
   clearDetailFieldsForKind,
   GEOCODE_OUTCOME_END_HEADER,
   GEOCODE_OUTCOME_HEADER,
+  LocationWrite,
   TripDetail,
   UpdateActivity,
 } from "@tc/contracts";
@@ -27,6 +28,11 @@ import { route } from "@/server/public-api/route";
 // promise.
 const PatchStopBody = UpdateActivity.omit({ type: true, tripId: true, activityId: true, placeRef: true })
   .extend({
+    // Strict places (`LocationWrite`): `.strict()` below reaches only this
+    // object's own keys, so a `{ location: { name, latitude, longitude } }`
+    // used to lose its coordinates without a word and be geocoded by name.
+    location: LocationWrite.nullable().optional(),
+    endLocation: LocationWrite.nullable().optional().describe(UpdateActivity.shape.endLocation.description ?? ""),
     // The move half, in the same flat object. `dayId: null` is the backlog.
     dayId: z.string().guid().nullable().optional(),
     position: z.number().int().nonnegative().optional(),

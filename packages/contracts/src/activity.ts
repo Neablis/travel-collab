@@ -176,6 +176,26 @@ export const Location = z
   });
 export type Location = z.infer<typeof Location>;
 
+/**
+ * `Location` as a public API write accepts it: a key it does not know is a 400,
+ * where `Location` drops it without a word.
+ *
+ * Dropping is right for a STORED location (`trip_details.doc` is raw jsonb
+ * parsed on read, and a key from a later field must not fail an old reader)
+ * and wrong for a write. A client that sends `latitude`/`longitude`, or `lon`,
+ * has its coordinates silently removed, and the server then geocodes the name
+ * as though none were sent: the pin lands wherever the name resolves, and the
+ * response says `Geocode-Outcome: name` about coordinates the client believes
+ * it set. An agent reported a coordinates-only PATCH that "did not stick" while
+ * a full location did; its request was not kept, and this is the one way the
+ * schema could produce that (2026-11-03).
+ *
+ * The nested `address` is strict for the same reason (`zip` for `postalCode`).
+ * Every refinement of `Location` is kept (`safeExtend`).
+ */
+export const LocationWrite = Location.safeExtend({ address: PostalAddress.strict().optional() }).strict();
+export type LocationWrite = z.infer<typeof LocationWrite>;
+
 // Where a stop sits in the planning workflow. Exactly one per activity, and
 // never absent: "planned" is the zero value, which is why the field defaults
 // rather than being nullable.

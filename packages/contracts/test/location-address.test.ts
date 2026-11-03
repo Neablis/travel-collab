@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Location, PostalAddress, TripDetail, GeocodeOutcome, GeocodeCandidates } from "../src";
+import { Location, LocationWrite, PostalAddress, TripDetail, GeocodeOutcome, GeocodeCandidates } from "../src";
 
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000c";
 const A1 = "7d9a1f8e-0000-4000-8000-0000000000c1";
@@ -90,12 +90,25 @@ describe("Location.address", () => {
 
 describe("public API geocode vocabulary", () => {
   it("names every outcome the Geocode-Outcome header can carry", () => {
-    expect(GeocodeOutcome.options).toEqual(["provided", "address", "name", "no-match", "quota-exhausted", "unavailable"]);
+    expect(GeocodeOutcome.options).toEqual(["provided", "address", "name", "no-match", "city", "rejected", "quota-exhausted", "unavailable"]);
   });
 
   it("geocode results are Locations, so a candidate is a valid stop location as-is", () => {
     const body = { results: [{ name: "Colosseum, Rome, Italy", lat: 41.89, lng: 12.49, countryCode: "IT", city: "Rome" }] };
     const parsed = GeocodeCandidates.parse(body);
     expect(Location.safeParse(parsed.results[0]).success).toBe(true);
+  });
+});
+
+// A write-side location refuses what `Location` would silently drop: a client
+// sending `latitude` had its coordinates removed and the name geocoded over
+// them (2026-11-03). The stored shape keeps stripping, so old documents parse.
+describe("LocationWrite", () => {
+  it("refuses an unknown key on the location and on its address, and keeps Location's refinements", () => {
+    expect(LocationWrite.safeParse({ name: "Ria's", latitude: 42.6 }).success).toBe(false);
+    expect(LocationWrite.safeParse({ name: "Ria's", address: { countryCode: "US", lines: ["1 Main St"], zip: "14527" } }).success).toBe(false);
+    expect(LocationWrite.safeParse({ name: "Ria's", lat: 42.6 }).success).toBe(false);
+    expect(LocationWrite.safeParse({ name: "Ria's", lat: 42.6, lng: -77, address: { countryCode: "US", lines: ["1 Main St"] } }).success).toBe(true);
+    expect(Location.safeParse({ name: "Ria's", latitude: 42.6 }).success).toBe(true);
   });
 });

@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { AddActivity, GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, TripDetail, type Location } from "@tc/contracts";
+import {
+  AddActivity,
+  GEOCODE_OUTCOME_END_HEADER,
+  GEOCODE_OUTCOME_HEADER,
+  LocationWrite,
+  TripDetail,
+  type Location,
+} from "@tc/contracts";
 import { tripCountriesOf, tripRegionOf } from "@/server/geocoding/region";
 import { orThrow, refuseUnparseable, runCommand, type CommandInput } from "@/server/public-api/commands";
 import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveStopPlaces } from "@/server/public-api/locations";
@@ -8,7 +15,14 @@ import { route } from "@/server/public-api/route";
 // Adding a stop. The body is `AddActivity` minus the two fields the server owns:
 // `type` (this endpoint IS the type) and `activityId` (minted here, for the
 // reason `POST /v1/trips` mints its own).
-const AddStopBody = AddActivity.omit({ type: true, tripId: true, activityId: true, placeRef: true });
+//
+// **Its places are strict** (`LocationWrite`): a key a location does not know is
+// a 400 naming it, never dropped. A dropped `latitude` meant the server
+// geocoded the name over coordinates the client believed it had sent.
+const AddStopBody = AddActivity.omit({ type: true, tripId: true, activityId: true, placeRef: true }).extend({
+  location: LocationWrite.optional(),
+  endLocation: LocationWrite.optional().describe(AddActivity.shape.endLocation.description ?? ""),
+});
 
 export const { POST } = route({
   POST: {
