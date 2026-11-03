@@ -72,6 +72,20 @@ export async function createSuggestion(
     if (role === null) return refuse("not-found", "This trip does not exist.");
     if (!roleAtLeast(role, "suggester")) return refuse("forbidden", "Only a member who can suggest may send a suggestion.");
 
+    // Accepting replays a change with the REVIEWER's rights, and a booking
+    // replaces the stored one whole, so a suggester's would wipe or rewrite a
+    // code they cannot see (M44, ADR-086). Refused before any dry run: the
+    // no-op check would otherwise tell a right guess at the code from a wrong
+    // one. Every unit gets the same answer, with no index.
+    if (
+      !roleAtLeast(role, "editor") &&
+      units.some((commands) =>
+        commands.some((c) => (c.type === "AddActivity" || c.type === "UpdateActivity") && c.booking !== undefined),
+      )
+    ) {
+      return refuse("invalid", "Only an editor can set a booking.");
+    }
+
     // Before the dry run, which is the expensive part (KI-20261003-e). Aged-out
     // changes are recorded expired first, in this transaction, so the count
     // and the table agree.

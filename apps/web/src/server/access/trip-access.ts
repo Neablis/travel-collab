@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TripDetail, type TripRole } from "@tc/contracts";
 import { auth } from "../auth";
 import { hasAtLeast, memberRole } from "../accessPolicy";
+import { redactDetailFor } from "./bookingRedaction";
 import { db } from "../db/client";
 import { getStoredTripMembers, getTripDetail } from "../projections";
 import { effectiveMembers } from "./members";
@@ -128,7 +129,9 @@ export async function requireTripAccess(
     if (RANK_VIEWER_IS_ENOUGH !== minimum) {
       return { error: Response.json({ error: "forbidden" }, { status: 403 }) };
     }
-    const detail = demoTripDetail(tripId);
+    // Through the same redaction as a member's read: no fixture carries a
+    // booking today, and the first one that does must not leak it to everyone.
+    const detail = redactDetailFor("viewer", demoTripDetail(tripId));
     return { userId: DEMO_VISITOR_ID, role: "viewer", detail };
   }
   const session = await auth();
@@ -197,7 +200,8 @@ export async function tripAccessFor(
 ): Promise<TripAccessOutcome> {
   const read = await readTrip(tripId, (members) => hasAtLeast(userId, members, minimum));
   if (!read.ok) return read;
-  return { ok: true, userId, role: memberRole(userId, read.detail.members)!, detail: read.detail };
+  const role = memberRole(userId, read.detail.members)!;
+  return { ok: true, userId, role, detail: redactDetailFor(role, read.detail) };
 }
 
 /**

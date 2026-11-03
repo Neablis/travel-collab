@@ -385,10 +385,20 @@ describe("templates", () => {
       // weather. *Reset to default* restores this too ("Today's default").
       Today: ["trip.now", "trip.flights", "day.detail", "day.weather", "day.sun", "chat.recent", "link.internal"],
       "Before you go": ["day.fromHome", "day.sun", "day.weather", "country.facts"],
-      Bookings: ["stop.rows", "stop.rows", "stop.rows", "open"],
+      Bookings: ["stop.rows", "stop.rows", "stop.rows", "stop.rows", "open"],
       // "Who owes what" last, before the notes (M19 part 2).
       Money: ["cost.chart", "cost.breakdown", "cost.breakdown", "cost.rows", "cost.balances"],
     });
+    // Every template with a "Still to book" heading has a "Booked" list: the
+    // same filter family, so a booking leaves one list and arrives in the other.
+    const headingsOf = (doc: unknown) =>
+      walk(doc).filter((n) => n.type === "heading").map((n) => JSON.stringify(n));
+    const withStillToBook = TEMPLATE_LIBRARY.filter((t) => headingsOf(t.content).some((h) => h.includes("Still to book")));
+    expect(withStillToBook.map((t) => t.key).sort()).toEqual(["bookings-and-confirmations", "dinner-tracker"].sort());
+    for (const t of withStillToBook) {
+      const booked = widgetsIn(t.content).filter((n) => JSON.stringify(n.attrs?.params ?? {}).includes('"only":"booked"'));
+      expect(booked.length, t.title).toBe(1);
+    }
     // The Overview's schedule is the printed itinerary, not the glance.
     expect(widgetsIn(DEFAULT_TEMPLATES[0]!.content).find((node) => node.attrs?.name === "day.detail")?.attrs?.params).toEqual({
       view: "schedule",

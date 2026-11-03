@@ -13,6 +13,51 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-02 — A booking's code is for editors (M44 part 3; public API 2.1.0)
+- **Changed** (`activity.ts`): `ActivitySnapshot.booking.provider` may be `null`, which only a read
+  below editor carries: a code-only booking is served as `{ provider: null }`, so a viewer still
+  sees the stop is booked. The log never holds one; clone and export drop it.
+- **Changed** (`saved.ts`): `SavedStop.booking` narrows from the whole booking to `{ provider }`
+  (`provider` may be `null`) or `null`. A saved day is read by whoever it is published to, so it keeps who a stop was booked
+  with and never the code or the link; a stored row that holds them is cleaned on read (the
+  object strips the other keys). `stopsForDay` and the bundle importer keep the provider only.
+- **The rule** (`server/access/bookingRedaction.ts`, ADR-086 decision 2): editors and owners read
+  the whole `booking`; viewers and suggesters read `{ provider }`; share links (`/s/**`), saved
+  and published days carry at most `{ provider }`. The member trip read and every public API read
+  follow the caller's role (redacted in `tripAccessFor`, and again on the replays and the events
+  poll, which read the log by another road); trip export and clone strip the
+  code and link unless the caller is editor or owner on the source. The assistant's read tools
+  report `booked` (boolean) and `provider` (fenced as untrusted) only, whatever the role.
+- Public API `2.0.0` to `2.1.0`, minor: `booking` on a stop in a read is now role-shaped and the
+  saved-stop schema in the library endpoints narrows. No field is removed from a response an
+  editor receives.
+- Why: M44 decision 2 and ADR-086; a confirmation number is a credential.
+- Consumers updated: `apps/web` (access, share view, saved days, clone, assistant read tools,
+  OpenAPI document), `@tc/fixtures` (importer).
+- Breaking? no for owners and editors; a viewer reading `confirmation` or `url` from a trip now
+  gets neither.
+
+## 2026-11-02 — A stop's `booking` (M44 part 2; public API 2.1.0)
+- **Added** (`activity.ts`): `Booking` (`confirmation`, `provider`, each trimmed 1-100 characters;
+  `url`, an http or https link up to 2000), every part optional. An optional `booking` on
+  `AddActivity`, nullable-optional on `UpdateActivity` (omitted = unchanged, null = cleared, the
+  whole object replaced), defaulted `null` on `ActivitySnapshot` (so on `ActivityAddedV1` and
+  `ActivityUpdatedV1`), `ActivityView` (`detail.ts`) and `SavedStop` (`saved.ts`). Unlike
+  `flightNumber` it is on any kind, so it is not in `KIND_DETAIL_FIELDS`. The decider stores a
+  booking with none of its parts as `null`, never `{}`. `@tc/fixtures`' `BundleStop` gains it.
+- Why: M44 decision 1 and ADR-086. No redaction yet (part 3) and no UI (part 4): this part is
+  the shape and the replay.
+- Consumers updated: `@tc/domain` (decide, evolve, `FIELD_EQUAL`, diff, hydrate, detail),
+  `@tc/factories`, `@tc/fixtures` (bundle schema, export, import, playbooks), `apps/web` (clone,
+  MSW handlers, preview context, saved stops carry `booking: null` until part 3 decides, the
+  assistant's `AddActivity`/`UpdateActivity` tools hide the field from the model: its schema
+  alone took the edit step past the pre-split budget). `openapi.json` and the landing JSON
+  regenerated; public API `2.0.0` to `2.1.0`, minor (an optional request field and a defaulted
+  response field), with the fingerprint of this part's document. Part 3 re-records both.
+- Breaking? no: optional on request bodies, defaulted on responses. Every event and
+  `trip_details.doc` written before it reads as `null`
+  (`packages/domain/test/m44-booking.test.ts` replays a pre-M44 log against its stored projection).
+
 ## 2026-11-01 — `AskStreamMetadata` carries the server's turn id (M57 part 2)
 - **New** (`packages/contracts/src/assistant.ts`): an optional `turnId` (a GUID) beside `paletteCommands`
   on every branch of `AskStreamMetadata`. It is a sibling, not an outcome, so the one-outcome rule

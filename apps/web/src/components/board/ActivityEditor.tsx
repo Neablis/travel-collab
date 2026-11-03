@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { travellerIds, type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type AvatarKey, type DistanceUnit, type Location, type Money, type NearbyStop, type PendingReason, type PersonColor, type TimeWindow } from "@tc/contracts";
+import { travellerIds, type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type AvatarKey, type Booking, type DistanceUnit, type Location, type Money, type NearbyStop, type PendingReason, type PersonColor, type TimeWindow } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PersonChip } from "@/components/ui/person-chip";
@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { stopTotalLine } from "@/lib/cost";
 import { formatDuration, toClockRange, toEndMinutes, toMinutes, toTimeString } from "@/lib/time";
 import { useDistanceUnit, useTimeFormat } from "@/components/account/PreferencesProvider";
+import { safeHttpUrl } from "@/lib/bookingLink";
 import { displayPlace } from "@/lib/place";
 import { kmLabel } from "@/lib/units";
 import type { Slot } from "@/components/trip/fitIntoDay";
@@ -56,6 +57,10 @@ export type ActivityFormValue = {
   pendingReason: PendingReason | null;
   // M52. Only ever non-null on a flight leg: the field is asked for there alone.
   flightNumber: string | null;
+  // M44. Absent, not null, when the form was not allowed to show the section
+  // (`canEditBooking`): a reader below editor holds a redacted booking, and
+  // sending null for it would clear the real one.
+  booking?: Booking | null;
 };
 
 // One option per trip day for the "Day" NativeSelect, plus that day's
@@ -130,6 +135,11 @@ function nearbyStopsFor(stops: readonly NearbyStop[], typed: string): NearbyStop
     .slice(0, NEARBY_WHILE_TYPING);
 }
 
+// The one refusal that is about a field inside the closed Booking disclosure:
+// submit opens the section on it. Matched by identity, so rewording the text
+// cannot silently stop the section opening.
+const BOOKING_LINK_ERROR = "Link must start with http:// or https://";
+
 // Illustrative only (Preview id="add-stop-who", M13 — no field records who a
 // stop is for yet, so there is nothing real to list per-stop).
 // M13 link 5 replaced the `add-stop-who` Preview placeholder that stood here
@@ -146,6 +156,7 @@ export function ActivityEditor({
   guestNames,
   guestsLoaded = true,
   nearbyStops = [],
+  canEditBooking = false,
   onSave,
   onCancel,
   onRemove,
@@ -201,6 +212,8 @@ export function ActivityEditor({
    * so a caller that fetches none sees the form exactly as it was.
    */
   nearbyStops?: readonly NearbyStop[];
+  /** Editor and owner only (M44): the Booking section is absent otherwise. */
+  canEditBooking?: boolean;
   /** `stay` is an autosave: persist, but leave the sheet open. */
   onSave: (value: ActivityFormValue, options?: { stay?: boolean }) => void | Promise<void>;
   onCancel: () => void;
@@ -372,6 +385,12 @@ export function ActivityEditor({
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
   const [endLocation, setEndLocation] = useState<Location | null>(initial?.endLocation ?? null);
   const [flightNumber, setFlightNumber] = useState(initial?.flightNumber ?? "");
+  const [bookingConfirmation, setBookingConfirmation] = useState(initial?.booking?.confirmation ?? "");
+  const [bookingProvider, setBookingProvider] = useState(initial?.booking?.provider ?? "");
+  const [bookingUrl, setBookingUrl] = useState(initial?.booking?.url ?? "");
+  // Controlled so a rejected link can open the section it is in; a stop that
+  // already has a booking opens it, as there is something to read.
+  const [bookingOpen, setBookingOpen] = useState(initial?.booking != null);
   // Whether the number has been on screen to edit; see `savedFlightNumber`.
   const [flightFieldShown, setFlightFieldShown] = useState(initial?.mode === "flight");
   // A stop being CREATED says "To book" until told otherwise — the handoff's
@@ -462,6 +481,19 @@ export function ActivityEditor({
       timeWindow = { start, end: computedEnd };
     }
 
+    // All three empty is no booking at all (`null`, which clears one on an update).
+    let booking: Booking | null | undefined;
+    if (canEditBooking) {
+      const confirmation = bookingConfirmation.trim();
+      const provider = bookingProvider.trim();
+      const url = bookingUrl.trim();
+      if (url !== "" && safeHttpUrl(url) === null) return BOOKING_LINK_ERROR;
+      booking =
+        confirmation === "" && provider === "" && url === ""
+          ? null
+          : { ...(confirmation !== "" && { confirmation }), ...(provider !== "" && { provider }), ...(url !== "" && { url }) };
+    }
+
     return {
       title: trimmedTitle,
       dayId: selectedDayId !== "" ? selectedDayId : null,
@@ -482,6 +514,7 @@ export function ActivityEditor({
       endLocation: kind === "transit" ? endLocation : null,
       pendingReason: kind === "pending" ? pendingReason : null,
       flightNumber: savedFlightNumber(),
+      ...(booking !== undefined && { booking }),
     };
   }
 
@@ -499,7 +532,10 @@ export function ActivityEditor({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const built = build();
-    if (typeof built === "string") return setError(built);
+    if (typeof built === "string") {
+      if (built === BOOKING_LINK_ERROR) setBookingOpen(true);
+      return setError(built);
+    }
     void onSave(built);
   }
 
@@ -672,6 +708,26 @@ export function ActivityEditor({
             onChange={(e) => setFlightNumber(e.target.value)}
           />
         </FormField>
+      )}
+
+      {canEditBooking && (
+        // Collapsed: most stops are not booked, and three more fields on every
+        // form is the wrong price for the ones that are. A native disclosure,
+        // so the keyboard and screen readers get it for free.
+        <details data-testid="activity-booking" open={bookingOpen} onToggle={(e) => setBookingOpen(e.currentTarget.open)} className="rounded-md border border-hairline px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-ink">Booking</summary>
+          <div className="mt-2 flex flex-col gap-3">
+            <FormField id="activity-booking-confirmation" label="Confirmation">
+              <Input id="activity-booking-confirmation" maxLength={100} value={bookingConfirmation} onChange={(e) => setBookingConfirmation(e.target.value)} />
+            </FormField>
+            <FormField id="activity-booking-provider" label="Provider">
+              <Input id="activity-booking-provider" placeholder="e.g. Hotel Okura" maxLength={100} value={bookingProvider} onChange={(e) => setBookingProvider(e.target.value)} />
+            </FormField>
+            <FormField id="activity-booking-url" label="Link" hint="Where to manage the booking.">
+              <Input id="activity-booking-url" inputMode="url" placeholder="https://" maxLength={2000} value={bookingUrl} onChange={(e) => setBookingUrl(e.target.value)} />
+            </FormField>
+          </div>
+        </details>
       )}
 
       {/* ADR-060: a typed price is for ONE person, and the trip multiplies it

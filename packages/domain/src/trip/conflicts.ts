@@ -72,6 +72,25 @@ export function windowsOverlap(a: TimeWindow, b: TimeWindow): boolean {
   return a.start < b.end && b.start < a.end;
 }
 
+const minutesOf = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+// A stop this short, or a meal, can sit inside a longer stop without clashing
+// with it (M44 D4, ADR-086 decision 3): lunch during a day at a museum is the
+// plan, not a double-booking.
+export const CONTAINED_MAX_MINUTES = 120;
+
+function isContainedAndSmall(
+  inner: { window: TimeWindow; tags: readonly string[] },
+  outer: TimeWindow,
+): boolean {
+  const contained = outer.start <= inner.window.start && inner.window.end <= outer.end;
+  if (!contained) return false;
+  const minutes = minutesOf(inner.window.end) - minutesOf(inner.window.start);
+  // Strictly shorter: identical windows are a double booking, not containment.
+  if (minutes >= minutesOf(outer.end) - minutesOf(outer.start)) return false;
+  return minutes <= CONTAINED_MAX_MINUTES || inner.tags.includes("meal");
+}
+
 export function haversineKm(
   a: { lat: number; lng: number },
   b: { lat: number; lng: number },
@@ -97,11 +116,11 @@ type Rule = (state: TripState, ctx: ConflictContext) => Conflict[];
 const timeOverlapRule: Rule = (state, _ctx) => {
   const conflicts: Conflict[] = [];
   for (const day of state.days) {
-    const timed: { id: string; title: string; window: TimeWindow }[] = [];
+    const timed: { id: string; title: string; window: TimeWindow; tags: readonly string[] }[] = [];
     for (const id of day.activityIds) {
       const activity = state.activities[id];
       if (activity && activity.timeWindow !== null && activity.kind !== "pending") {
-        timed.push({ id, title: activity.title, window: activity.timeWindow });
+        timed.push({ id, title: activity.title, window: activity.timeWindow, tags: activity.tags });
       }
     }
     for (let i = 0; i < timed.length; i++) {
@@ -109,6 +128,8 @@ const timeOverlapRule: Rule = (state, _ctx) => {
         const a = timed[i]!;
         const b = timed[j]!;
         if (!windowsOverlap(a.window, b.window)) continue;
+        // Only full containment is excused; a partial overlap still warns.
+        if (isContainedAndSmall(a, b.window) || isContainedAndSmall(b, a.window)) continue;
         const s1 = a.id < b.id ? a.id : b.id;
         const s2 = a.id < b.id ? b.id : a.id;
         conflicts.push({

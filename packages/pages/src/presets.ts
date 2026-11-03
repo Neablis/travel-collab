@@ -372,6 +372,19 @@ export const PRESETS: readonly WidgetPreset[] = [
     // Fixed, never computed (ADR-037 decision 5): no count, no names.
     preview: "one line per stop you still have to book",
   },
+  {
+    // M44 part 5. The other half of `only`: the stops already booked, each
+    // with its provider, so the list is reachable without the AI or a template.
+    id: "booked",
+    widget: "stop.rows",
+    params: { only: "booked" },
+    title: "Booked",
+    summary: "Lists every stop already booked, one per line, with who it was booked with.",
+    keywords: ["booked", "confirmed", "reservations", "reserved", "tickets", "provider", "confirmation"],
+    description: "One line per stop that is booked, with its provider.",
+    // Fixed, never computed (ADR-037 decision 5): no count, no names.
+    preview: "one line per stop already booked",
+  },
   // ---- a card per country -------------------------------------------------
   // M14 link 11. No params: the widget takes none and inserts immediately.
   {

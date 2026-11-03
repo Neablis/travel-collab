@@ -50,7 +50,7 @@ function view(overrides: Partial<SharedTripView> = {}): SharedTripView {
         mode: null,
         endLocation: null,
         pendingReason: null,
-        flightNumber: null,
+        flightNumber: null, booking: null,
       },
       [parked]: {
         activityId: parked,
@@ -68,7 +68,7 @@ function view(overrides: Partial<SharedTripView> = {}): SharedTripView {
         mode: null,
         endLocation: null,
         pendingReason: null,
-        flightNumber: null,
+        flightNumber: null, booking: null,
       },
     },
     unscheduledCostSubtotal: 0,

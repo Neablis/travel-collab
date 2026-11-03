@@ -1,4 +1,5 @@
 import { newPageDoc } from "@tc/contracts";
+import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -237,6 +238,34 @@ describe("who may clone", () => {
     expect((await executeTripCommand({ type: "AddDay", tripId: result.tripId, dayId: randomUUID() }, bob)).ok).toBe(true);
   });
 
+  // M44 (ADR-086 decision 2): a copy is a write the cloner owns, but the
+  // booking in it is somebody else's credential unless they could edit it.
+  it("copies a booking whole for an editor, and its provider alone for a viewer", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const booking = { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/r/1" };
+    // An editor under an owner on the free plan reads as a viewer (M20 link 6).
+    await entitleAccounts([actor]);
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, actor);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, actor);
+    await executeTripCommand({ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Dinner", booking }, actor);
+    await acceptInvite((await createInvite(tripId, actor, { email: null, role: "viewer" })).token, bob);
+    await acceptInvite((await createInvite(tripId, actor, { email: null, role: "editor" })).token, "clone-editor");
+    const bookingOfCopy = async (who: string) => {
+      const result = await duplicateTrip(tripId, who);
+      if (!result.ok) throw new Error("unreachable");
+      return Object.values(result.detail.activities)[0]!.booking;
+    };
+
+    expect(await bookingOfCopy("clone-editor")).toEqual(booking);
+    expect(await bookingOfCopy(bob)).toEqual({ provider: "Opentable" });
+    const share = await createShare(tripId, actor);
+    if (!share.ok) throw new Error("unreachable");
+    const fromLink = await cloneSharedTrip(share.value.token, "clone-stranger-3");
+    if (!fromLink.ok) throw new Error("unreachable");
+    expect(Object.values(fromLink.detail.activities)[0]!.booking).toEqual({ provider: "Opentable" });
+  });
+
   it("still refuses a stranger", async () => {
     const tripId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, actor);
@@ -351,7 +380,8 @@ describe("clone id remapping — referential integrity", () => {
     // has to remap across all three containers, not just the easy one.
     await executeTripCommand(
       { type: "AddActivity", tripId, activityId: activityIds[0]!, dayId: dayIds[0], title: "A",
-        timeWindow: { start: "09:00", end: "10:00" }, cost: { amountMinor: 500, currency: "USD" } },
+        timeWindow: { start: "09:00", end: "10:00" }, cost: { amountMinor: 500, currency: "USD" },
+        booking: { confirmation: "XK29QP", provider: "Opentable" } },
       actor,
     );
     await executeTripCommand(
@@ -421,6 +451,7 @@ describe("clone id remapping — referential integrity", () => {
     const first = result.detail.activities[result.detail.days[0]!.activityIds[0]!]!;
     expect(first.timeWindow).toEqual({ start: "09:00", end: "10:00" });
     expect(first.cost).toEqual({ amountMinor: 500, currency: "USD" });
+    expect(first.booking).toEqual({ confirmation: "XK29QP", provider: "Opentable" });
     const leg = result.detail.activities[result.detail.days[0]!.activityIds[1]!]!;
     expect(leg).toMatchObject({ mode: "train", endLocation: { name: "Osaka Station" } });
   });

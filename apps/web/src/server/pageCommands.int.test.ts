@@ -138,17 +138,17 @@ describe("executePageCommand", () => {
   // correctly told "nothing happened" while their Overview went stale.
   it("moves the trip's headSeq, which is what wakes the other device", async () => {
     const tripId = await seedTrip();
-    const before = (await getTripEventsAfter(tripId, 0)).headSeq;
+    const before = (await getTripEventsAfter(tripId, 0, "owner")).headSeq;
 
     const pageId = await createPageVia(tripId, "Packing", "socks");
-    const afterCreate = (await getTripEventsAfter(tripId, 0)).headSeq;
+    const afterCreate = (await getTripEventsAfter(tripId, 0, "owner")).headSeq;
     expect(afterCreate).toBeGreaterThan(before);
 
     await executePageCommand(
       { type: "EditPage", tripId, pageId, content: docWith("socks and shoes") },
       OWNER,
     );
-    expect((await getTripEventsAfter(tripId, 0)).headSeq).toBeGreaterThan(afterCreate);
+    expect((await getTripEventsAfter(tripId, 0, "owner")).headSeq).toBeGreaterThan(afterCreate);
   });
 
   // An edit session that ends where it began still commits. Appending there
@@ -157,14 +157,14 @@ describe("executePageCommand", () => {
   it("appends nothing when the content did not change", async () => {
     const tripId = await seedTrip();
     const pageId = await createPageVia(tripId, "Packing", "socks");
-    const head = (await getTripEventsAfter(tripId, 0)).headSeq;
+    const head = (await getTripEventsAfter(tripId, 0, "owner")).headSeq;
 
     const again = await executePageCommand(
       { type: "EditPage", tripId, pageId, content: docWith("socks") },
       OWNER,
     );
     expect(again.ok).toBe(true);
-    expect((await getTripEventsAfter(tripId, 0)).headSeq).toBe(head);
+    expect((await getTripEventsAfter(tripId, 0, "owner")).headSeq).toBe(head);
   });
 
   it("refuses a non-member", async () => {
@@ -512,7 +512,7 @@ describe("executePageCommand with expectedUpdatedAt", () => {
     const tripId = await seedTrip();
     const { pageId, revision } = await pageAt(tripId, "socks");
     expect((await edit(tripId, pageId, "socks, shoes")).ok).toBe(true);
-    const head = (await getTripEventsAfter(tripId, 0)).headSeq;
+    const head = (await getTripEventsAfter(tripId, 0, "owner")).headSeq;
 
     const stale = await edit(tripId, pageId, "socks, hat", revision);
 
@@ -520,7 +520,7 @@ describe("executePageCommand with expectedUpdatedAt", () => {
       ok: false,
       error: { code: "page-changed", message: "This page changed since you opened it." },
     });
-    expect((await getTripEventsAfter(tripId, 0)).headSeq).toBe(head);
+    expect((await getTripEventsAfter(tripId, 0, "owner")).headSeq).toBe(head);
     expect(await storedText(pageId)).toContain("socks, shoes");
   });
 
@@ -561,12 +561,12 @@ describe("executePageCommand with expectedUpdatedAt", () => {
     const tripId = await seedTrip();
     const { pageId, revision } = await pageAt(tripId, "socks");
     expect((await edit(tripId, pageId, "socks, shoes")).ok).toBe(true);
-    const head = (await getTripEventsAfter(tripId, 0)).headSeq;
+    const head = (await getTripEventsAfter(tripId, 0, "owner")).headSeq;
 
     const same = await edit(tripId, pageId, "socks, shoes", revision);
 
     expect(same.ok).toBe(true);
-    expect((await getTripEventsAfter(tripId, 0)).headSeq).toBe(head);
+    expect((await getTripEventsAfter(tripId, 0, "owner")).headSeq).toBe(head);
   });
 
   // A page the log has never heard of is a ROW (lazily seeded), and its

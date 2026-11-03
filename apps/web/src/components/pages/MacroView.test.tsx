@@ -65,7 +65,7 @@ const costedDetail: TripDetail = withCostRollups({
       mode: null,
       endLocation: null,
       pendingReason: null,
-      flightNumber: null,
+      flightNumber: null, booking: null,
     },
   },
 });
@@ -93,7 +93,7 @@ const backloggedDetail: TripDetail = withCostRollups({
       mode: null,
       endLocation: null,
       pendingReason: null,
-      flightNumber: null,
+      flightNumber: null, booking: null,
     },
   },
   backlog: ["u1"],
@@ -561,7 +561,8 @@ describe("every widget is legal where widgets actually go", () => {
         mode: null,
         endLocation: null,
         pendingReason: null,
-        flightNumber: null,
+        // Booked, so the "Booked" list has the one stop `only: booked` keeps.
+        flightNumber: null, booking: { provider: "Ryokan Kyoto", confirmation: "K7Q2" },
       },
       parked: {
         activityId: "parked", title: "Ghibli Museum", timeWindow: null,
@@ -572,7 +573,7 @@ addedBy: null,
 mode: null,
 endLocation: null,
 pendingReason: null,
-flightNumber: null,
+flightNumber: null, booking: null,
       },
     },
   };

@@ -604,3 +604,109 @@ describe("a trip's totals follow its members at read time", () => {
     expect(after.dismissedConflictIds).toEqual([conflictId]);
   });
 });
+
+// M44 (ADR-086 decision 2): a booking's code is for editors and owners. The
+// member read is where a viewer would otherwise get it.
+describe("a booking on a member's trip read", () => {
+  const booking = { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/r/1" };
+
+  async function bookedTrip(): Promise<string> {
+    const { tripId, dayId } = await seedDay();
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Dinner", booking },
+      OWNER,
+    );
+    return tripId;
+  }
+
+  async function bookingsSeenBy(userId: string, tripId: string): Promise<unknown[]> {
+    currentUserId = userId;
+    const res = await GET_TRIP(new Request("http://test/x"), { params: Promise.resolve({ tripId }) });
+    expect(res.status).toBe(200);
+    const trip = TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+    return Object.values(trip.activities).flatMap((a) => (a.booking ? [a.booking] : []));
+  }
+
+  async function memberOf(tripId: string, role: "viewer" | "suggester" | "editor"): Promise<string> {
+    const userId = `${GUEST}-booking-${role}-${randomUUID().slice(0, 8)}`;
+    await grantMembership(db, { tripId, userId, role, invitedBy: OWNER, now: new Date().toISOString() });
+    return userId;
+  }
+
+  it("is whole for the owner and an editor, and the provider alone for a viewer", async () => {
+    const tripId = await bookedTrip();
+    const viewer = await memberOf(tripId, "viewer");
+    const editor = await memberOf(tripId, "editor");
+
+    expect(await bookingsSeenBy(OWNER, tripId)).toEqual([booking]);
+    expect(await bookingsSeenBy(editor, tripId)).toEqual([booking]);
+    expect(await bookingsSeenBy(viewer, tripId)).toEqual([{ provider: "Opentable" }]);
+  });
+
+  // A suggester ranks below an editor; the rule is by rank, but nothing else
+  // reads as one.
+  it("gives a suggester the provider alone", async () => {
+    const tripId = await bookedTrip();
+    expect(await bookingsSeenBy(await memberOf(tripId, "suggester"), tripId)).toEqual([{ provider: "Opentable" }]);
+  });
+
+  // A viewer must still see that the stop is booked, as the assistant says.
+  it("shows a viewer a code-only stop as booked, with no provider", async () => {
+    const { tripId, dayId } = await seedDay();
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Hotel", booking: { confirmation: "ZZ99" } },
+      OWNER,
+    );
+    const seen = await bookingsSeenBy(await memberOf(tripId, "viewer"), tripId);
+    expect(seen).toEqual([{ provider: null }]);
+  });
+
+  // The live read is not the only road to a stop: the events poll ships the
+  // raw ActivityAdded payload, and a viewer reads it too.
+  it("is kept out of a viewer's events poll, and left whole in an editor's", async () => {
+    const tripId = await bookedTrip();
+    const viewer = await memberOf(tripId, "viewer");
+    const editor = await memberOf(tripId, "editor");
+    const poll = async (userId: string) => {
+      currentUserId = userId;
+      const res = await GET_EVENTS(new Request("http://test/x?after=0"), { params: Promise.resolve({ tripId }) });
+      expect(res.status).toBe(200);
+      return res.text();
+    };
+
+    const asViewer = await poll(viewer);
+    expect(asViewer).toContain("Dinner");
+    expect(asViewer).not.toContain("XK29QP");
+    expect(asViewer).not.toContain("example.com/r/1");
+    expect(await poll(editor)).toContain("XK29QP");
+  });
+
+  // ActivityUpdated carries the whole stop, booking included, so the poll
+  // redacts it as it does ActivityAdded.
+  it("is kept out of a viewer's events poll after an edit to the booked stop", async () => {
+    const { tripId, dayId } = await seedDay();
+    const activityId = randomUUID();
+    await executeTripCommand({ type: "AddActivity", tripId, activityId, dayId, title: "Dinner", booking }, OWNER);
+    const before = await readStreamHeadSeq(db, tripId);
+    await executeTripCommand({ type: "UpdateActivity", tripId, activityId, title: "Late dinner" }, OWNER);
+    currentUserId = await memberOf(tripId, "viewer");
+    const res = await GET_EVENTS(new Request(`http://test/x?after=${before}`), { params: Promise.resolve({ tripId }) });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Late dinner");
+    expect(body).not.toContain("XK29QP");
+  });
+
+  it("is kept out of a viewer's replay of the trip at a revision", async () => {
+    const tripId = await bookedTrip();
+    const viewer = await memberOf(tripId, "viewer");
+    const seq = String(await readStreamHeadSeq(db, tripId));
+    currentUserId = viewer;
+    const res = await GET_HISTORY_AT(new Request("http://test/x"), { params: Promise.resolve({ tripId, seq }) });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Opentable");
+    expect(body).not.toContain("XK29QP");
+    expect(body).not.toContain("example.com/r/1");
+  });
+});

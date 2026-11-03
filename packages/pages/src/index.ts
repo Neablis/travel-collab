@@ -19,6 +19,7 @@ export * from "./writeCheck";
 export * from "./repeat";
 export * from "./sentence";
 export * from "./needsBooking";
+export * from "./booked";
 export * from "./dayCity";
 export * from "./enumLabels";
 export * from "./kinds";

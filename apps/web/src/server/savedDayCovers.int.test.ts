@@ -57,7 +57,7 @@ async function seedDay(): Promise<string> {
         mode: null,
         endLocation: null,
         pendingReason: null,
-        flightNumber: null,
+        flightNumber: null, booking: null,
       },
     ],
     dayCount: 1,

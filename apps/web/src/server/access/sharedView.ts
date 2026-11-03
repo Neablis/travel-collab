@@ -1,4 +1,5 @@
 import type { SharedTripView } from "@tc/contracts";
+import { redactActivitiesFor } from "./bookingRedaction";
 
 /**
  * `TripDetail` → the public view, dropping `members`, `conflicts`,
@@ -44,8 +45,10 @@ export function toSharedView(
     budget: at.budget,
     days: at.days,
     backlog: at.backlog,
+    // A link holder has no seat on the trip, so a booking is redacted as for
+    // no role at all: the provider, never the code or the manage link (ADR-086).
     activities: Object.fromEntries(
-      Object.entries(at.activities).map(([id, activity]) => [
+      Object.entries(redactActivitiesFor(null, at.activities)).map(([id, activity]) => [
         id,
         { ...activity, addedBy: null, bookedBy: null, participants: [] },
       ]),
