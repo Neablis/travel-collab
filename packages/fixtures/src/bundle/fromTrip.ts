@@ -84,7 +84,7 @@ export type TripToBundleOptions = {
 /** What `toBundleStop` reads: the stop fields an activity and a `SavedStop` share. */
 export type StopFields = Pick<
   ActivityView,
-  "title" | "timeWindow" | "location" | "notes" | "anchors" | "kind" | "tags" | "cost" | "mode" | "endLocation" | "pendingReason" | "flightNumber"
+  "title" | "timeWindow" | "location" | "notes" | "anchors" | "kind" | "tags" | "cost" | "mode" | "endLocation" | "pendingReason" | "flightNumber" | "booking"
 >;
 
 /**
@@ -150,6 +150,9 @@ export function toBundleStop(activity: StopFields): BundleStop {
     ...(activity.endLocation ? { endLocation: activity.endLocation } : {}),
     ...(activity.pendingReason ? { pendingReason: activity.pendingReason } : {}),
     ...(activity.flightNumber ? { flightNumber: activity.flightNumber } : {}),
+    // A viewer's export holds `{ provider: null }` for a code-only booking;
+    // there is nothing in it to keep, and the bundle has no null provider.
+    ...(activity.booking ? { booking: { ...activity.booking, provider: activity.booking.provider ?? undefined } } : {}),
   };
 }
 

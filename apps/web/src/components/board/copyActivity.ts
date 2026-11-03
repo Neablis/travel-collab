@@ -96,8 +96,11 @@ export function copyActivityCommand(
 ): AddActivity | null {
   const activity = trip.activities[activityId];
   if (activity === undefined) return null;
-  const { activityId: _id, ...fields } = activity;
+  // A booking is one reservation (M44): the copy is a new stop, not a second
+  // seat on the same code, so it starts unbooked.
+  const { activityId: _id, booking: _booking, ...fields } = activity;
   void _id;
+  void _booking;
   const value: ActivityFormValue = {
     ...fields,
     dayId: to.dayId,

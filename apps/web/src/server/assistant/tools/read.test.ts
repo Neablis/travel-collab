@@ -187,6 +187,43 @@ describe("read_day reports the headcount each stop is priced for", () => {
   });
 });
 
+// M44 (ADR-086 decision 2): a model's context is a leak path a viewer's
+// permissions never see, and an assistant takes only paths the user could, so
+// the model learns THAT a stop is booked and with whom, never the code or link
+// — whatever role is asking.
+describe("read_day on a booked stop", () => {
+  const trip = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 1 } });
+  const id = trip.days[0]!.activityIds[0]!;
+  trip.activities[id] = {
+    ...trip.activities[id]!,
+    booking: { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/r/1" },
+  };
+  const read = async () =>
+    (await readDayTool.invoke(
+      { days: 1 },
+      { trip, guests: [], scope: { kind: "trip" }, readBudget: newDayReadBudget(15) } as unknown as AssistantDeps,
+    )) as DayReadout;
+
+  it("says it is booked and with whom, the provider fenced as untrusted", async () => {
+    const stop = (await read()).stops[0]!;
+    expect(stop.booked).toBe(true);
+    expect(stop.provider).toBe(untrusted("Opentable"));
+  });
+
+  it("never carries the confirmation code or the link", async () => {
+    expect(JSON.stringify(await read())).not.toMatch(/XK29QP|example\.com/);
+  });
+
+  it("says not booked, with no provider, for a stop without a booking", async () => {
+    const bare = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 1 } });
+    const day = (await readDayTool.invoke(
+      { days: 1 },
+      { trip: bare, guests: [], scope: { kind: "trip" }, readBudget: newDayReadBudget(15) } as unknown as AssistantDeps,
+    )) as DayReadout;
+    expect(day.stops[0]).toMatchObject({ booked: false, provider: null });
+  });
+});
+
 /**
  * A trip whose day N's stops are in the cities `days[N - 1]` names, in time
  * order (the factory's hourly ladder) — `[]` is an empty day. Rolled up again

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import type { ActivityKind, TimeWindow } from "@tc/contracts";
+import type { ActivityKind, ActivityTag, TimeWindow } from "@tc/contracts";
 import { witness } from "./support/witness";
 import {
   detectConflicts,
@@ -16,6 +16,7 @@ type ActivitySpec = {
   window?: TimeWindow;
   point?: { name: string; lat: number; lng: number };
   kind?: ActivityKind;
+  tags?: ActivityTag[];
   // M24: a transit stop's destination. `lat`/`lng` optional because a stored
   // Location may carry neither.
   end?: { name: string; lat?: number; lng?: number };
@@ -41,14 +42,14 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
           notes: null,
           anchors: [],
           kind: a.kind ?? ("planned" as const),
-          tags: [],
+          tags: a.tags ?? [],
           cost: null,
           bookedBy: null,
           participants: [],
           mode: null,
           endLocation: a.end ?? null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
       ]),
     ),
@@ -506,5 +507,98 @@ describe("conflict engine properties", () => {
       }),
     );
     w.atLeast(24); // observed 49-64 non-empty comparisons
+  });
+});
+
+describe("containment is not a conflict (M44 D4)", () => {
+  const hhmm = (m: number) =>
+    `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const win = (start: number, end: number): TimeWindow => ({ start: hhmm(start), end: hhmm(end) });
+  const overlaps = (specs: ActivitySpec[]) =>
+    detectConflicts(boardState(specs)).filter((c) => c.kind === "time-overlap").length;
+
+  // An outer window and an inner one nested in it (inner != outer), in minutes.
+  const arbNested = fc
+    .tuple(minuteOfDay, minuteOfDay, minuteOfDay, minuteOfDay)
+    .map(([a, b, c, d]) => {
+      const [os, oe] = [Math.min(a, b), Math.max(a, b)];
+      const [is, ie] = [os + Math.min(c, d) % (oe - os + 1), os + Math.max(c, d) % (oe - os + 1)];
+      return { os, oe, is: Math.min(is, ie), ie: Math.max(is, ie) };
+    })
+    .filter((n) => n.oe > n.os && n.ie > n.is && (n.is !== n.os || n.ie !== n.oe));
+
+  it("never warns for a contained stop that is at most 120 minutes or a meal", () => {
+    const w = witness("contained short or meal");
+    fc.assert(
+      fc.property(arbNested, fc.boolean(), (n, asMeal) => {
+        const long = n.ie - n.is > 120;
+        if (long && !asMeal) return true; // the converse property below owns it
+        w.tick();
+        return (
+          overlaps([
+            { id: "outer", window: win(n.os, n.oe) },
+            { id: "inner", window: win(n.is, n.ie), tags: asMeal ? ["meal"] : [] },
+          ]) === 0
+        );
+      }),
+    );
+    w.atLeast(38); // observed 76 under the pinned seed
+  });
+
+  it("still warns for a contained stop that is over 120 minutes and not a meal", () => {
+    const w = witness("contained long non-meal");
+    fc.assert(
+      fc.property(arbNested, (n) => {
+        if (n.ie - n.is <= 120) return true;
+        w.tick();
+        return (
+          overlaps([
+            { id: "outer", window: win(n.os, n.oe) },
+            { id: "inner", window: win(n.is, n.ie) },
+          ]) === 1
+        );
+      }),
+    );
+    w.atLeast(27); // observed 55 under the pinned seed
+  });
+
+  // Identical windows are a double booking, not a short stop inside a long one.
+  it("warns for two stops with identical windows, short or meal", () => {
+    expect(overlaps([
+      { id: "a", window: win(600, 630) },
+      { id: "b", window: win(600, 630) },
+    ])).toBe(1);
+    expect(overlaps([
+      { id: "a", window: win(720, 810), tags: ["meal"] },
+      { id: "b", window: win(720, 810), tags: ["meal"] },
+    ])).toBe(1);
+  });
+
+  // The 120-minute limit sits on a boundary random minutes rarely land on.
+  it("excuses a non-meal stop of exactly 120 minutes inside a longer one, not 121", () => {
+    const outer = { id: "outer", window: win(480, 1080) };
+    expect(overlaps([outer, { id: "inner", window: win(600, 720) }])).toBe(0);
+    expect(overlaps([outer, { id: "inner", window: win(600, 721) }])).toBe(1);
+  });
+
+  it("always warns for a partial overlap, even when both are short or meals", () => {
+    const w = witness("partial overlap");
+    fc.assert(
+      fc.property(
+        fc.tuple(minuteOfDay, minuteOfDay, minuteOfDay, minuteOfDay).map((t) => [...t].sort((x, y) => x - y)),
+        (t) => {
+          const [p, q, r, s] = t as [number, number, number, number];
+          if (!(p < q && q < r && r < s)) return true; // strictly interleaved: a=[p,r], b=[q,s]
+          w.tick();
+          return (
+            overlaps([
+              { id: "a", window: win(p, r), tags: ["meal"] },
+              { id: "b", window: win(q, s), tags: ["meal"] },
+            ]) === 1
+          );
+        },
+      ),
+    );
+    w.atLeast(48); // observed 97 under the pinned seed
   });
 });

@@ -98,7 +98,7 @@ export const activityFactory = Factory.define<ActivityView, ActivityTransient>(
     mode: null,
     endLocation: null,
     pendingReason: null,
-    flightNumber: null,
+    flightNumber: null, booking: null,
   }),
 );
 

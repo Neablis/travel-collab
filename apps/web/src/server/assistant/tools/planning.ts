@@ -65,6 +65,9 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
  * - **`location` — hidden.** A stop has a verified path (`search_places` →
  *   `placeRef`), and a place that path cannot find is usually one the model
  *   does not know either; no pin is more honest than a guessed one there.
+ * - **`booking` — hidden (M44).** A confirmation code is the one field the
+ *   assistant has no reason to read or write, and its schema alone took the
+ *   edit step past the pre-split budget (contextBudget.test.ts). Still accepted if sent.
  * - **`endLocation` — `lat`/`lng` shown.** A transit leg's end has no
  *   `placeRef`, so the model's coordinate is its only fallback, and the ends
  *   are stations and airports a model mostly does know. ~120 tokens a step.
@@ -75,8 +78,8 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
  * is still accepted if sent.
  */
 const HIDDEN_FROM_MODEL: Partial<Record<BatchableCommandType["type"], readonly string[]>> = {
-  AddActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision"],
-  UpdateActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision"],
+  AddActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision", "booking"],
+  UpdateActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision", "booking"],
 };
 
 /**

@@ -34,7 +34,7 @@ function stop(name: string, dayIndex = 0): SavedStop {
     mode: null,
     endLocation: null,
     pendingReason: null,
-    flightNumber: null,
+    flightNumber: null, booking: null,
   };
 }
 

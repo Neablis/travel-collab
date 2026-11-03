@@ -311,6 +311,32 @@ describe("what a stranger is served", () => {
 // `src/app/api/shares/featured/route.test.ts` — neither of which needs Postgres,
 // which is the whole claim.
 
+// M44 gate box (ADR-086 decision 2): a confirmation number never reaches a
+// share link. The link is a bearer URL, so whoever holds it holds a credential
+// for the booking if the code rides along.
+describe("a booking on a shared trip", () => {
+  it("shows the provider and never the confirmation code or the manage link", async () => {
+    const tripId = await seedTrip();
+    const dayId = randomUUID();
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Dinner",
+        booking: { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/r/1" } },
+      OWNER,
+    );
+    const share = await createShare(tripId, OWNER);
+    if (!share.ok) throw new Error("unreachable");
+
+    const read = await readShare(share.value.token);
+
+    if (!read.ok) throw new Error("unreachable");
+    expect(Object.values(read.value.activities)[0]!.booking).toEqual({ provider: "Opentable" });
+    expect(JSON.stringify(read.value)).not.toContain("XK29QP");
+    const response = await PUBLIC_GET(new Request("http://x"), { params: Promise.resolve({ token: share.value.token }) });
+    expect(await response.text()).not.toContain("XK29QP");
+  });
+});
+
 // KI-53. `mode: "string"` columns echoed the write path's own ISO input and
 // rendered Postgres's format ("2026-01-01 00:00:00+00") on the read path, so
 // the same field had two shapes depending on which call you got it from.
