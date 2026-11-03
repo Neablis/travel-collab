@@ -40,11 +40,15 @@
   check (KI-2026-11-03). `resolveOne` consults `placeNameVerdict` after the geometry; a `"mismatch"`
   is refused like a wrong place, so the stop keeps its fallback, is reported `unverified`, and the
   city fallback can pin it at city level, as `savedDayPins.ts` does. `"not-comparable"` refuses
-  nothing. The stop's name is split at its first comma: the rest joins the stop's city and area as
-  context, so "Kegon Falls, Chūzenji, Nikkō" is matched as Kegon Falls. And `location.name` is never
+  nothing. Each comma segment of the stop's name is tried as the venue, the others joining the stop's
+  city and area as context (`nameVerdictOf`); a segment that is only the answer's own town is not
+  tried, and a street-address segment makes the verdict `not-comparable`. So "Kegon Falls, Chūzenji,
+  Nikkō" is matched as Kegon Falls, and "Rome, Trevi Fountain" as the fountain, never as anything
+  called Rome. `savedDayPins.ts` calls the same `nameVerdictOf`. And `location.name` is never
   the vendor's `canonicalName` any more: an accepted match keeps the approved name. Tests: the
   *venue's own name has to agree* block in `geocodeEnrichment.test.ts`, red with the name check
-  removed and red with the comma split removed. Older tests changed two ways: assertions that the
+  removed and red with the comma split removed; `placeAcceptance.test.ts` for the segment rule, each
+  of its three parts seen red. Older tests changed two ways: assertions that the
   vendor's name was written now assert the approved one, and stub answers that named a different
   place than the one asked for (or, in `writeTools.test.ts`, had no `canonicalName`) now name it.
   - **What it costs, knowingly:** the check refuses a correct venue the vendor names differently

@@ -294,6 +294,52 @@ describe("a name lookup's answer is judged before it is stored (KI-2026-11-03)",
     expect(r.location).toMatchObject({ lat: SEOUL.lat, lng: SEOUL.lng });
   });
 
+  // Review of PR 686, finding 1: a leg's far end puts its country in
+  // `countries`, but the region is drawn around `location`s only, so that
+  // country is still new to the region.
+  it("treats a country the trip reaches only by a leg's far end as new to the region", async () => {
+    const SEOUL = { lat: 37.5665, lng: 126.978, canonicalName: "Gwangjang Market, Jongno-gu, Seoul, South Korea", countryCode: "KR" };
+    const TOKYO = { minLat: 34.5, maxLat: 36.5, minLng: 138.5, maxLng: 140.5 };
+    const japan = { userId: "u1", region: TOKYO, countries: ["JP", "KR"], regionCountries: ["JP"] };
+    const r = await resolveStopLocation({ name: "Gwangjang Market", countryCode: "KR" }, japan, lookups({ "Gwangjang Market": [SEOUL] }));
+    expect(r.outcome).toBe("name");
+  });
+
+  // Review of PR 686, finding 2: the city answer faces the same region as the
+  // venue answer did, so a same-named city elsewhere is not pinned.
+  it("refuses a city answer outside the trip's region", async () => {
+    const SPRINGFIELD_IL = { lat: 39.7817, lng: -89.6501, canonicalName: "Springfield, Sangamon County, Illinois, USA", countryCode: "US" };
+    const d = lookups({ "Ria's Wines": [ATLANTA], "Springfield, US": [SPRINGFIELD_IL] });
+    const r = await resolveStopLocation({ name: "Ria's Wines", city: "Springfield", countryCode: "US" }, trip, d);
+    expect(r).toEqual({ location: { name: "Ria's Wines", city: "Springfield", countryCode: "US" }, outcome: "rejected" });
+  });
+
+  it("reports rejected, with no second lookup, when the city fallback cannot run", async () => {
+    const noCity = lookups({ "Ria's Wines": [ATLANTA] });
+    expect((await resolveStopLocation({ name: "Ria's Wines", countryCode: "US" }, trip, noCity)).outcome).toBe("rejected");
+    expect(noCity.charge).toHaveBeenCalledTimes(1);
+
+    // The venue lookup was paid for; the city's charge is refused.
+    const d = lookups({ "Ria's Wines": [ATLANTA], "Penn Yan, US": [PENN_YAN] });
+    vi.mocked(d.charge).mockResolvedValueOnce({ allowed: true }).mockResolvedValueOnce({ allowed: false, reason: "user", retryAfterSeconds: 60 });
+    const spent = await resolveStopLocation({ name: "Ria's Wines", city: "Penn Yan", countryCode: "US" }, trip, d);
+    expect(spent.outcome).toBe("rejected");
+    expect(d.g.forward).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a wrong-named leg destination, region or not", async () => {
+    const JFK = { lat: 40.6413, lng: -73.7781, canonicalName: "LaGuardia Airport, Queens, New York, USA", countryCode: "US" };
+    const headers = new Headers();
+    const leg = await resolveStopPlaces(
+      { location: { name: "Penn Yan", lat: 42.66, lng: -77.05 }, endLocation: { name: "John F. Kennedy International Airport" } },
+      trip,
+      headers,
+      lookups({ "John F. Kennedy International Airport": [JFK] }),
+    );
+    expect(headers.get("Geocode-Outcome-End")).toBe("rejected");
+    expect((leg.endLocation as Location | undefined)?.lat).toBeUndefined();
+  });
+
   it("judges a travel leg's destination without the trip's region", async () => {
     const BUFFALO = { lat: 42.94, lng: -78.73, canonicalName: "Buffalo Niagara International Airport, Cheektowaga, New York, USA", countryCode: "US" };
     const JFK = { lat: 40.6413, lng: -73.7781, canonicalName: "John F. Kennedy International Airport, Queens, New York, USA", countryCode: "US" };

@@ -310,13 +310,22 @@ fills them in when you leave them out, in this order:
    **The answer is checked before it is stored.** Its own name has to be the
    place you named (a different venue in the right town is refused), and it has
    to sit in the area of the trip's other stops, unless you sent a `countryCode`
-   the trip has no stop in yet: that is how the first stop in a new country
-   still resolves by name. A refused answer is never stored. If the location
-   names a `city` and a `countryCode`, the stop is pinned at that city's centre
-   instead, with `"precision": "city"` (one more lookup from your allowance);
-   otherwise it is saved without coordinates. Only the stop's part before the
-   first comma has to match the answer's name: "Kegon Falls, Nikkō" names Kegon
-   Falls, in Nikkō. An `address` lookup is not checked this way.
+   none of them is in: that is how the first stop in a new country still
+   resolves by name. (On a `PATCH`, the stop's own current pin does not count
+   as one of the trip's stops.) A refused answer is never stored. If the
+   location names a `city` and a `countryCode`, the stop is pinned at that
+   city's centre instead, with `"precision": "city"` (one more lookup from your
+   allowance), as long as that centre is in the trip's area too; otherwise it
+   is saved without coordinates.
+
+   How names are compared: each comma-separated part of the stop's name is
+   tried as the venue, so "Kegon Falls, Nikkō", "Rome, Trevi Fountain" and
+   "Dinner, Ria's Wines" all find their venue. A part that is only the
+   answer's town is never taken for the venue. Every word of the part has to
+   appear in the answer's own name ("Ria's Wines" does not match "Ria's Wine
+   Bar"); words like *bar*, *cafe* or *museum* are not required. A part that
+   starts like a street address ("123 Main St") is not compared at all, and an
+   `address` lookup is not checked this way.
 
 If the lookup finds nothing, or its answer is refused, the stop is **still
 created**, without coordinates or at its city. Every write whose body had a
@@ -328,10 +337,11 @@ and `lng`, or pick a candidate from `GET /v1/trips/{tripId}/geocode` and send it
 back as the `location`. Lookups count against your account's daily geocoding
 allowance.
 
-**A location's keys are checked.** A key a location (or its `address`) does not
-know is a 400 that names it: `latitude`, `lon` or `zip` is refused, never
+**On these two stop writes, a location's keys are checked.** A key a location
+(or its `address`) does not know is a 400 that names it: `latitude`, `lon` or `zip` is refused, never
 dropped. Dropping one used to mean the server geocoded the name over the
-coordinates you thought you had sent.
+coordinates you thought you had sent. Other writes that carry stops, such as
+trip import and saving a day to the library, still ignore an unknown key.
 
 ```json
 {

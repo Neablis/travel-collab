@@ -645,8 +645,10 @@ describe("enrichCommandLocations", () => {
       () => geocoder,
     );
     expect(calls).toEqual(["Dinosaur Bar-B-Que, Rochester"]);
-    expect(commands[0]).toMatchObject({ location: { lat: 43.1566 } });
-    expect(commands[1]).toMatchObject({ location: { lat: 43.1566 } });
+    // One lookup, one answer, but each command keeps the name IT was approved
+    // with: not the vendor's label, and not the first command's spelling.
+    expect(commands[0]).toMatchObject({ location: { name: "Dinosaur Bar-B-Que, Rochester", lat: 43.1566 } });
+    expect(commands[1]).toMatchObject({ location: { name: "dinosaur bar-b-que, rochester  ", lat: 43.1566 } });
   });
 
   it("runs lookups sequentially, never concurrently", async () => {

@@ -339,6 +339,26 @@ describe("v1 stop writes resolve their location", () => {
     expect(forwardAddress).not.toHaveBeenCalled();
   });
 
+  // Review of PR 686, finding 5. The trip that hit KI-2026-11-03 still holds
+  // the Atlanta pin. Counted in the region, it would admit Atlanta again when
+  // that very stop is looked up afresh, so the stop being edited is left out.
+  it("a PATCH judges the new lookup by the trip's other stops, not the stop's own wrong pin", async () => {
+    const { secret, tripId, dayId } = await caller();
+    await ADD_STOP(req(secret, { title: "Winery", dayId, location: { name: "Fox Run", lat: 42.66, lng: -77.05 } }, "POST"), P({ tripId }));
+    const wrong = await ADD_STOP(
+      req(secret, { title: "Wine", dayId, location: { name: "Ria's Wines", lat: 33.749, lng: -84.388 } }, "POST"),
+      P({ tripId }),
+    );
+    const trip = await wrong.json();
+    const activityId = Object.keys(trip.activities).find((id) => trip.activities[id].title === "Wine")!;
+
+    forward.mockResolvedValueOnce([{ lat: 33.749, lng: -84.388, canonicalName: "Ria's Wines, Atlanta, Georgia, USA", countryCode: "US" }]);
+    const patched = await PATCH_STOP(req(secret, { location: { name: "Ria's Wines" } }, "PATCH"), P({ tripId, activityId }));
+    expect(patched.status).toBe(200);
+    expect(patched.headers.get("Geocode-Outcome")).toBe("rejected");
+    expect((await patched.json()).activities[activityId].location).toEqual({ name: "Ria's Wines" });
+  });
+
   // M24. A leg on a stop that is not transit is refused by the command schema,
   // and the body alone decides it — so nothing is looked up or charged for a
   // write that could never land. The quota row is read as well as the mock,

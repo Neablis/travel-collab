@@ -23,7 +23,7 @@ Format:
   `rejected`: the answer was refused and the stop is saved without coordinates.
 - Why: a v1 name lookup stored the vendor's top hit unchecked, and Ria's Wines was pinned in Atlanta
   (KI-2026-11-03). It is now judged by the assistant's acceptance rule, moved into one shared module
-  (`apps/web/src/server/ai/placeAcceptance.ts`). And a location key the schema did not know
+  (`apps/web/src/server/ai/placeAcceptance.ts`), which `savedDayPins.ts` also uses. And a location key the schema did not know
   (`latitude`) was dropped without a word, so the server geocoded the name over coordinates the
   client believed it had sent.
 - Consumers updated: `apps/web` (the two v1 stop routes, `public-api/locations.ts`, `openapi.json`,

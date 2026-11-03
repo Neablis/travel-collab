@@ -1,7 +1,13 @@
-import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, type GeocodeOutcome, type Location } from "@tc/contracts";
+import {
+  GEOCODE_OUTCOME_END_HEADER,
+  GEOCODE_OUTCOME_HEADER,
+  type GeocodeOutcome,
+  type Location,
+  type TripDetail,
+} from "@tc/contracts";
 import { getGeocoder, type BoundingBox, type Geocoder, type GeocodeResult, type LatLng } from "@/server/geocoding";
 import { countryAtPoint } from "@/server/geocoding/countryAt";
-import { countryFilterFor, plausibleCoords } from "@/server/geocoding/region";
+import { countryFilterFor, plausibleCoords, tripCountriesOf, tripRegionOf, withinBox } from "@/server/geocoding/region";
 import { judgeMatch, nameQueryOf } from "@/server/ai/placeAcceptance";
 import { consumeQuota, geocodeQuota, type QuotaDecision } from "@/server/quota";
 import { PublicApiError } from "./commands";
@@ -54,6 +60,40 @@ export interface ResolveContext {
   userId: string;
   region: BoundingBox | null;
   countries?: readonly string[];
+  /**
+   * The countries of the stops `region` was drawn around: `location`s only,
+   * where `countries` also counts a leg's far end. A named country outside
+   * this list is one the region cannot speak for (`resolveStopLocation`).
+   * Absent = `countries`.
+   */
+  regionCountries?: readonly string[];
+}
+
+/**
+ * The context a v1 stop write resolves its places in: the trip's region and
+ * countries, drawn from every stop but the one being written.
+ *
+ * **The stop being edited is left out** (review of PR 686, finding 5). Its own
+ * pin is the thing in question: a stop wrongly pinned in Atlanta would widen
+ * the box to admit Atlanta, and a PATCH looking it up again would accept the
+ * same wrong answer. A new stop has no id yet, so nothing is left out.
+ */
+export function resolveContextOf(trip: TripDetail, userId: string, exceptActivityId?: string): ResolveContext {
+  const others: TripDetail =
+    exceptActivityId === undefined
+      ? trip
+      : { ...trip, activities: Object.fromEntries(Object.entries(trip.activities).filter(([id]) => id !== exceptActivityId)) };
+  const regionCountries = new Set<string>();
+  for (const activity of Object.values(others.activities)) {
+    const place = activity.location;
+    if (place?.countryCode && plausibleCoords(place)) regionCountries.add(place.countryCode.toUpperCase());
+  }
+  return {
+    userId,
+    region: tripRegionOf(others),
+    countries: tripCountriesOf(others),
+    regionCountries: [...regionCountries].sort(),
+  };
 }
 
 export interface LocationResolution {
@@ -166,15 +206,18 @@ export async function resolveStopLocation(
   if (!match) return { location: input, outcome: "no-match" };
   if (!input.address) {
     // The trip's region is the geographic check, with one exception: a
-    // country the caller named that the trip has no located stop in yet. That
-    // is a stop in a new country (a Seoul day on a Japan trip), the region
-    // cannot speak for it, and the named country already filtered the lookup
-    // and is never widened (`forward`). A country the trip IS in does not lift
-    // the region: "US" on a Finger Lakes trip would otherwise admit Atlanta.
-    const newCountry = input.countryCode !== undefined && !(ctx.countries ?? []).includes(input.countryCode);
+    // country the caller named that none of the region's stops is in. That is
+    // a stop in a new country (a Seoul day on a Japan trip), the region cannot
+    // speak for it, and the named country already filtered the lookup and is
+    // never widened (`forward`). A country the region's stops ARE in does not
+    // lift it: "US" on a Finger Lakes trip would otherwise admit Atlanta. A
+    // leg's far end does not count as being in a country here: the region is
+    // not drawn around it (review of PR 686, finding 1).
+    const known = ctx.regionCountries ?? ctx.countries ?? [];
+    const newCountry = input.countryCode !== undefined && !known.includes(input.countryCode);
     const region = newCountry ? null : ctx.region;
     const verdict = judgeMatch(nameQueryOf(input), match, { hint: null, region });
-    if (verdict === "wrong-place" || verdict === "wrong-name") return cityFallback(input, ctx, deps);
+    if (verdict === "wrong-place" || verdict === "wrong-name") return cityFallback(input, region, ctx, deps);
   }
 
   // The address's country, else the matched point's. The caller's own field
@@ -206,11 +249,24 @@ export async function resolveStopLocation(
  * city's coordinates and nothing else: the stop keeps its own name, city and
  * country, and says what the pin is (`precision: "city"`).
  *
+ * **Judged by the same region as the venue answer** (`region`, already null for
+ * a new country or a leg's far end), as the assistant's `resolveCityCoords` is.
+ * A "Springfield, US" three states from the trip is an answer about another
+ * Springfield, and a city pin is stored and widens the trip's region like any
+ * other (review of PR 686, finding 2).
+ *
  * Anything that stops it (no city or country, no quota, the vendor failing or
- * finding nothing) leaves the stop without coordinates, reported `rejected`:
- * the venue answer was refused, which is the fact a caller has to act on.
+ * finding nothing, an answer outside the region) leaves the stop without
+ * coordinates, reported `rejected`. That holds for a spent quota too, which
+ * `quota-exhausted` might seem to name: the venue answer was refused either
+ * way, and that is the fact a caller has to act on.
  */
-async function cityFallback(input: Location, ctx: ResolveContext, deps: ResolveDeps): Promise<LocationResolution> {
+async function cityFallback(
+  input: Location,
+  region: BoundingBox | null,
+  ctx: ResolveContext,
+  deps: ResolveDeps,
+): Promise<LocationResolution> {
   const rejected: LocationResolution = { location: input, outcome: "rejected" };
   if (!input.city || !input.countryCode) return rejected;
   try {
@@ -221,7 +277,7 @@ async function cityFallback(input: Location, ctx: ResolveContext, deps: ResolveD
       ...(ctx.region ? { viewbox: ctx.region } : {}),
     });
     const point = match ? plausibleCoords(match) : null;
-    if (!point) return rejected;
+    if (!point || (region != null && !withinBox(region, point))) return rejected;
     return { location: { ...input, ...point, precision: "city" }, outcome: "city" };
   } catch {
     return rejected;

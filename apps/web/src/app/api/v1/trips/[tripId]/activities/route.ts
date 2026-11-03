@@ -7,9 +7,8 @@ import {
   TripDetail,
   type Location,
 } from "@tc/contracts";
-import { tripCountriesOf, tripRegionOf } from "@/server/geocoding/region";
 import { orThrow, refuseUnparseable, runCommand, type CommandInput } from "@/server/public-api/commands";
-import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveStopPlaces } from "@/server/public-api/locations";
+import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveContextOf, resolveStopPlaces } from "@/server/public-api/locations";
 import { route } from "@/server/public-api/route";
 
 // Adding a stop. The body is `AddActivity` minus the two fields the server owns:
@@ -48,7 +47,7 @@ export const { POST } = route({
       // coordinates it is handed. The headers are set even if the command is
       // then refused by the domain, because the lookup already happened and was
       // charged — they describe the places, not the write.
-      const ctx = { userId: actor.userId, region: tripRegionOf(trip!), countries: tripCountriesOf(trip!) };
+      const ctx = resolveContextOf(trip!, actor.userId);
       return orThrow(await runCommand(actor, await resolveStopPlaces(command, ctx, responseHeaders)));
     },
   },

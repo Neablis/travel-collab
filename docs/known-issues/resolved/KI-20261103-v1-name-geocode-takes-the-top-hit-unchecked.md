@@ -46,6 +46,11 @@
     A second city in a country the trip is already in, sent by name with no `city`, is `rejected`
     when it is more than 150 km from the trip's stops. The caller sends coordinates or a candidate
     from `GET /v1/trips/{tripId}/geocode`.
+  - **Review of PR 686, fixed in the same PR:** the new-country exception reads the countries of
+    the stops the region is drawn around (a leg's far end does not count); the city fallback faces
+    the same region as the venue answer; a PATCH leaves the stop's own current pin out of the region,
+    so this very trip's Atlanta pin cannot admit Atlanta again (`resolveContextOf`); and a name that
+    holds an address, or puts its venue after a comma, is no longer refused for it.
   - Same branch: a location key the schema does not know (`latitude`, `lon`, `zip`) is a 400 on both
     v1 stop writes (`LocationWrite`) instead of being dropped and the name geocoded over it.
 - **Cross-reference:** KI-2026-09-20-a (the AI path's own missing name check), KI-15 (resolved, the

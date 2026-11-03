@@ -20,7 +20,7 @@
 import type { Location } from "@tc/contracts";
 import type { GeocodeResult } from "@/server/geocoding";
 import { boundingBoxAround, distanceKm, withinBox, type BoundingBox, type LatLng } from "@/server/geocoding/region";
-import { placeNameVerdict } from "./geocodeNameMatch";
+import { nameTokens, placeNameVerdict, type NameVerdict } from "./geocodeNameMatch";
 
 /**
  * How far a match may sit from coordinates we already hold for the place and
@@ -50,33 +50,84 @@ export interface PlaceBelief {
 }
 
 /**
- * The name to compare a candidate with, and the geography that cannot tell two
- * venues apart.
+ * What a candidate's name is compared with: the stop's name, split at its
+ * commas, and the geography the stop carries in its own fields.
  *
- * A stop's name often carries its own geography: "Kegon Falls, Chūzenji,
- * Nikkō". Only the part before the first comma names the venue; the rest joins
- * the stop's city, area and postal locality as context, which
- * `distinctiveTokens` drops from what the candidate has to match. Without that
- * split, a correct "Kegon Falls" candidate would be refused for not containing
- * "Nikkō".
+ * A stop's name often holds more than its venue: "Kegon Falls, Chūzenji,
+ * Nikkō" carries its geography, "Dinner, Ria's Wines" an activity, and "Rome,
+ * Trevi Fountain" puts the city first. Which segment names the venue is not
+ * knowable from the string, so `nameVerdictOf` tries each one, with the others
+ * as context.
  */
 export interface NameQuery {
-  place: string;
+  segments: string[];
   context: string[];
 }
 
-/** A location's `NameQuery`: its name up to the first comma, and every other piece of geography it carries. */
+/** A location's `NameQuery`: its name's comma segments, and the city, area and postal geography it carries. */
 export function nameQueryOf(location: Pick<Location, "name" | "city" | "area" | "address">): NameQuery {
-  const [place = "", ...tail] = location.name.split(",").map((part) => part.trim());
+  const segments = location.name
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
   const context = [
-    ...tail,
     location.area,
     location.city,
     location.address?.dependentLocality,
     location.address?.locality,
     location.address?.administrativeArea,
   ].filter((part): part is string => typeof part === "string" && part.length > 0);
-  return { place, context };
+  return { segments, context };
+}
+
+/**
+ * A segment that starts like a street address: a house number ("123",
+ * "221B", "1-2-3") and then a word. Such a segment names no venue, and the
+ * vendor's label for an address leads with the number alone, so comparing them
+ * refused every address sent as a name (review of PR 686, finding 3). A bare
+ * number is still a name: a bar called "1905".
+ */
+const STREET_ADDRESS = /^\d+[A-Za-z]?(?:[-/]\d+[A-Za-z]?)*\s+\p{L}/u;
+
+/**
+ * Whether a candidate's own name is the place the stop names: `match`,
+ * `mismatch`, or `not-comparable` (the check cannot tell, and refuses nothing).
+ *
+ * Each comma segment of the stop's name is tried as the venue, with the other
+ * segments and the stop's own geography as context (`placeNameVerdict`, KI-39).
+ * The first `match` wins. Two kinds of segment are not tried:
+ *
+ * - **the candidate's own geography**: a segment every word of which appears
+ *   in the candidate's label after its own name. "Rome" in "Rome, Trevi
+ *   Fountain" is where the answer is, not what it is called, and trying it
+ *   would accept any place in Rome. A stop named only for its town ("Penn Yan")
+ *   against a shop in that town therefore compares nothing and is a mismatch.
+ * - **a street address**, which makes the verdict `not-comparable`: the
+ *   geometry decides alone, as it did before the name check existed.
+ *
+ * A segment `placeNameVerdict` cannot compare (an answer in Japanese script)
+ * also makes the verdict `not-comparable` when nothing matched.
+ *
+ * The one rule for every path that checks a geocoded name: the assistant's
+ * enrichment and the v1 stop writes through `judgeMatch`, and the Playbook map
+ * backfill (`savedDayPins.ts`) directly.
+ */
+export function nameVerdictOf(query: NameQuery, candidateDisplayName: string): NameVerdict {
+  const geography = new Set(nameTokens(candidateDisplayName.split(",").slice(1).join(" ")));
+  let uncomparable = false;
+  for (const [index, segment] of query.segments.entries()) {
+    if (STREET_ADDRESS.test(segment)) {
+      uncomparable = true;
+      continue;
+    }
+    const tokens = nameTokens(segment);
+    if (tokens.length > 0 && tokens.every((token) => geography.has(token))) continue;
+    const others = query.segments.filter((_, other) => other !== index);
+    const verdict = placeNameVerdict(segment, candidateDisplayName, [...others, ...query.context]);
+    if (verdict === "match") return "match";
+    if (verdict === "not-comparable") uncomparable = true;
+  }
+  return uncomparable ? "not-comparable" : "mismatch";
 }
 
 /**
@@ -138,6 +189,6 @@ export function judgeMatch(
   } else if (region != null && !withinBox(region, point)) {
     return "wrong-place";
   }
-  if (placeNameVerdict(query.place, match.canonicalName, query.context) === "mismatch") return "wrong-name";
+  if (nameVerdictOf(query, match.canonicalName) === "mismatch") return "wrong-name";
   return hintTrusted(belief) || region != null ? "agrees" : "unchecked";
 }
