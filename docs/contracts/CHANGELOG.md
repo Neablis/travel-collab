@@ -13,7 +13,7 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-11-02 — A stop's `booking` (M44 part 2; public API version bump is part 3's)
+## 2026-11-02 — A stop's `booking` (M44 part 2; public API 2.1.0)
 - **Added** (`activity.ts`): `Booking` (`confirmation`, `provider`, each trimmed 1-100 characters;
   `url`, an http or https link up to 2000), every part optional. An optional `booking` on
   `AddActivity`, nullable-optional on `UpdateActivity` (omitted = unchanged, null = cleared, the
@@ -28,7 +28,8 @@ Format:
   MSW handlers, preview context, saved stops carry `booking: null` until part 3 decides, the
   assistant's `AddActivity`/`UpdateActivity` tools hide the field from the model: its schema
   alone took the edit step past the pre-split budget). `openapi.json` and the landing JSON
-  regenerated; `info.version` and its fingerprint are not bumped here (part 3).
+  regenerated; public API `2.0.0` to `2.1.0`, minor (an optional request field and a defaulted
+  response field), with the fingerprint of this part's document. Part 3 re-records both.
 - Breaking? no: optional on request bodies, defaulted on responses. Every event and
   `trip_details.doc` written before it reads as `null`
   (`packages/domain/test/m44-booking.test.ts` replays a pre-M44 log against its stored projection).
