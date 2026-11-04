@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LENGTH_BAND_LABELS, type NamedLengthBand } from "./playbooks";
 import { pageMetadata } from "./siteMetadata";
 
 // The two Playbooks cards that name nobody (spec 2026-10-02 §2.7): Discover's
@@ -298,6 +299,67 @@ export function tagTitle(label: string, city: string | null, country: string | n
   if (city !== null) return `${label} days in ${city}`;
   if (country !== null) return `${label} days in ${country}`;
   return `${label} days worth borrowing`;
+}
+
+/**
+ * What a length page calls its trips, from the band's own words in the
+ * Discover filter ("4-6 days") so the page and the control it mirrors say one
+ * thing: "1-day trips", "4-6 day trips", "7+ day trips".
+ */
+export const LENGTH_PAGE_TRIPS: Record<NamedLengthBand, string> = {
+  one: "1-day trips",
+  "two-three": "2-3 day trips",
+  "four-six": "4-6 day trips",
+  "seven-plus": "7+ day trips",
+};
+
+/**
+ * A length page's title base. A global page reads as a place page does ("4-6
+ * day trips from real travelers"); a scoped one names its place ("4-6 day
+ * trips in Kyoto, Japan"), the shape a "N days in X" search reads.
+ */
+export function lengthTitle(band: NamedLengthBand, city: string | null, country: string | null): string {
+  const trips = LENGTH_PAGE_TRIPS[band];
+  if (city !== null && country !== null) return `${trips} in ${city}, ${country}`;
+  if (city !== null) return `${trips} in ${city}`;
+  if (country !== null) return `${trips} in ${country}`;
+  return `${trips} from real travelers`;
+}
+
+/**
+ * A length page's description, shaped by its scope as `tagDescription` is: a
+ * city (with or without its country) goes deep on its featured day, a country
+ * names its cities, the whole library ranges over places.
+ */
+export function lengthDescription(
+  band: NamedLengthBand,
+  city: string | null,
+  country: string | null,
+  total: number,
+  days: readonly SeoDay[],
+): string {
+  const trips = LENGTH_PAGE_TRIPS[band];
+  const span = LENGTH_BAND_LABELS[band];
+  const place = city !== null && country !== null ? `${city}, ${country}` : (city ?? country);
+  const where = place === null ? "" : ` in ${place}`;
+  const countFallback =
+    total === 1
+      ? `A ${trips.replace(/trips$/, "trip")} a traveler planned${where}. Open it and drop it into your trip.`
+      : `${total} ${trips} other travelers planned${where}. Find one and drop it into your trip.`;
+  if (city !== null) {
+    const featured = days[0];
+    if (featured === undefined) return capGeneratedDescription(countFallback);
+    return capGeneratedDescription(`${place} in ${span}: ${dayHook(featured)}. A real trip, ready to drop into yours.`);
+  }
+  if (country !== null) {
+    const places = featuredByCity(days, 3).map(({ city: name }) => name);
+    if (places.length === 0) return capGeneratedDescription(countFallback);
+    return capGeneratedDescription(`${country} in ${span}, from real trips: ${places.join(", ")}. ${trips} you can borrow.`);
+  }
+  const places = featuredByCity(days, 2);
+  if (places.length === 0) return capGeneratedDescription(countFallback);
+  const hooks = places.map(({ city: name, day }) => `${name}'s ${placeHook(day)}`).join(", ");
+  return capGeneratedDescription(`${trips} from real travelers: ${hooks}. Borrow one for your next trip.`);
 }
 
 /**

@@ -1,7 +1,8 @@
 import type { ActivityTagDescribed } from "@tc/contracts";
 import { TAG_LABEL } from "./activityTags";
-import { countryCityTitle, placeTitle, tagTitle } from "./playbooksPreview";
-import { countryCityPath, placePath, tagPath } from "./playbookUrls";
+import type { NamedLengthBand } from "./playbooks";
+import { countryCityTitle, lengthTitle, placeTitle, tagTitle } from "./playbooksPreview";
+import { countryCityPath, lengthPath, placePath, tagPath } from "./playbookUrls";
 
 // The SEO lattice's navigation, as pure data: which pages sit one dimension
 // above and below a page, so a crawler — and the homepage — can walk the
@@ -26,6 +27,8 @@ export type LatticeNode = {
   country?: { slug: string; name: string; countries: string[] } | null;
   city?: { slug: string; name: string; cities: string[] } | null;
   tag?: ActivityTagDescribed | null;
+  /** A length page's band. A length page has no tag: the two dimensions are not crossed. */
+  length?: NamedLengthBand | null;
 };
 
 /** The lattice data a node's children are drawn from: every tag page and country×city pair with a day on it. */
@@ -39,6 +42,13 @@ export type LatticeData = {
   countryCities: readonly {
     country: { slug: string; name: string };
     city: { slug: string; name: string };
+    days: number;
+  }[];
+  /** Every length page with a day on it; absent, no page links a length. */
+  lengths?: readonly {
+    band: NamedLengthBand;
+    city: { slug: string; name: string } | null;
+    country: { slug: string; name: string } | null;
     days: number;
   }[];
 };
@@ -65,6 +75,19 @@ const tagChild = (page: LatticeData["tags"][number], slug: string): Child => ({
   days: page.days,
   label: tagLabel(page.tag, page.city, page.country),
   href: tagPath(page.tag, page.city?.slug ?? null, page.country?.slug ?? null),
+});
+
+const lengthLabel = (
+  band: NamedLengthBand,
+  city: { name: string } | null,
+  country: { name: string } | null,
+): string => lengthTitle(band, city?.name ?? null, country?.name ?? null);
+
+const lengthChild = (page: NonNullable<LatticeData["lengths"]>[number], slug: string): Child => ({
+  slug,
+  days: page.days,
+  label: lengthLabel(page.band, page.city, page.country),
+  href: lengthPath(page.band, page.city?.slug ?? null, page.country?.slug ?? null),
 });
 
 const countryCityChild = (page: LatticeData["countryCities"][number]): Child => ({
@@ -96,10 +119,54 @@ export function latticeNav(node: LatticeNode, lattice: LatticeData): LatticeNav 
   const country = node.country ?? null;
   const city = node.city ?? null;
   const tag = node.tag ?? null;
+  const length = node.length ?? null;
+  const lengths = lattice.lengths ?? [];
   const parents: LatticeLink[] = [];
   let children: Child[] = [];
 
-  if (country !== null && city !== null && tag !== null) {
+  // A place page's length pages: the bands with a day at exactly its scope.
+  const placeLengths = (countrySlug: string | null, citySlug: string | null): Child[] =>
+    lengths
+      .filter((page) => (page.country?.slug ?? null) === countrySlug && (page.city?.slug ?? null) === citySlug)
+      .map((page) => lengthChild(page, page.band));
+
+  if (length !== null) {
+    // A length page sits over its place page and the same band one place wider,
+    // and refines into the band one place narrower. Ordered before the tag and
+    // place branches, which a length page's place dimensions would also match.
+    if (country !== null && city !== null) {
+      parents.push(
+        { label: countryCityLabel(city, country), href: countryCityPath(country.slug, city.slug) },
+        { label: lengthLabel(length, null, country), href: lengthPath(length, null, country.slug) },
+        { label: lengthLabel(length, city, null), href: lengthPath(length, city.slug) },
+      );
+    } else if (country !== null) {
+      parents.push(
+        { label: placeLabel(country.name), href: placePath({ kind: "country", slug: country.slug }) },
+        { label: lengthLabel(length, null, null), href: lengthPath(length) },
+      );
+      children = lengths
+        .filter((page) => page.band === length && page.country?.slug === country.slug && page.city !== null)
+        .map((page) => lengthChild(page, page.city!.slug));
+    } else if (city !== null) {
+      parents.push(
+        { label: placeLabel(city.name), href: placePath({ kind: "city", slug: city.slug }) },
+        { label: lengthLabel(length, null, null), href: lengthPath(length) },
+      );
+      children = lengths
+        .filter((page) => page.band === length && page.city?.slug === city.slug && page.country !== null)
+        .map((page) => lengthChild(page, page.country!.slug));
+    } else {
+      children = [
+        ...lengths
+          .filter((page) => page.band === length && page.country !== null && page.city === null)
+          .map((page) => lengthChild(page, page.country!.slug)),
+        ...lengths
+          .filter((page) => page.band === length && page.city !== null && page.country === null)
+          .map((page) => lengthChild(page, page.city!.slug)),
+      ];
+    }
+  } else if (country !== null && city !== null && tag !== null) {
     parents.push(
       { label: countryCityLabel(city, country), href: countryCityPath(country.slug, city.slug) },
       { label: tagLabel(tag, null, country), href: tagPath(tag, null, country.slug) },
@@ -110,9 +177,12 @@ export function latticeNav(node: LatticeNode, lattice: LatticeData): LatticeNav 
       { label: placeLabel(country.name), href: placePath({ kind: "country", slug: country.slug }) },
       { label: placeLabel(city.name), href: placePath({ kind: "city", slug: city.slug }) },
     );
-    children = lattice.tags
-      .filter((page) => page.country?.slug === country.slug && page.city?.slug === city.slug)
-      .map((page) => tagChild(page, page.tag));
+    children = [
+      ...lattice.tags
+        .filter((page) => page.country?.slug === country.slug && page.city?.slug === city.slug)
+        .map((page) => tagChild(page, page.tag)),
+      ...placeLengths(country.slug, city.slug),
+    ];
   } else if (country !== null && tag !== null) {
     parents.push(
       { label: placeLabel(country.name), href: placePath({ kind: "country", slug: country.slug }) },
@@ -134,6 +204,7 @@ export function latticeNav(node: LatticeNode, lattice: LatticeData): LatticeNav 
       ...lattice.tags
         .filter((page) => page.country?.slug === country.slug && page.city === null)
         .map((page) => tagChild(page, page.tag)),
+      ...placeLengths(country.slug, null),
       ...lattice.countryCities
         .filter((page) => page.country.slug === country.slug)
         .map((page) => countryCityChild(page)),
@@ -143,6 +214,7 @@ export function latticeNav(node: LatticeNode, lattice: LatticeData): LatticeNav 
       ...lattice.tags
         .filter((page) => page.city?.slug === city.slug && page.country === null)
         .map((page) => tagChild(page, page.tag)),
+      ...placeLengths(null, city.slug),
       // And the countries the city sits in: a city page is where a name
       // that exists in two countries (Cambridge, Springfield) disambiguates,
       // so its country×city pages are refinements exactly like its tags.

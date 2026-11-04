@@ -13,6 +13,8 @@ import {
   dayIndexable,
   dayTitle,
   featuredByCity,
+  lengthDescription,
+  lengthTitle,
   placeHook,
   placeTitle,
   tagDescription,
@@ -367,5 +369,37 @@ describe("dayIndexable", () => {
     // The author's own read of a private day, and of a published day an operator hid.
     expect(dayIndexable({ day: { visibility: "private" }, moderation: null })).toBe(false);
     expect(dayIndexable({ day: { visibility: "public" }, moderation: hidden })).toBe(false);
+  });
+});
+
+describe("length page words", () => {
+  const kyoto: SeoDay = { name: "Kyoto temples", description: null, preview: [{ title: "Fushimi Inari" }, { title: "Nishiki Market" }], cities: ["Kyoto"] };
+  const osaka: SeoDay = { name: "Osaka eats", description: null, preview: [{ title: "Dotonbori" }], cities: ["Osaka"] };
+
+  it("titles a page by the filter's own band words and its place", () => {
+    expect(lengthTitle("one", null, null)).toBe("1-day trips from real travelers");
+    expect(lengthTitle("two-three", "Kyoto", null)).toBe("2-3 day trips in Kyoto");
+    expect(lengthTitle("four-six", null, "Japan")).toBe("4-6 day trips in Japan");
+    expect(lengthTitle("seven-plus", "Kyoto", "Japan")).toBe("7+ day trips in Kyoto, Japan");
+  });
+
+  it("goes deep on a city's featured day, ranges over a country's cities, and over the library's places", () => {
+    expect(lengthDescription("one", "Kyoto", "Japan", 4, [kyoto])).toBe(
+      "Kyoto, Japan in 1 day: Fushimi Inari, Nishiki Market. A real trip, ready to drop into yours.",
+    );
+    expect(lengthDescription("two-three", "Kyoto", null, 4, [kyoto])).toBe(
+      "Kyoto in 2-3 days: Fushimi Inari, Nishiki Market. A real trip, ready to drop into yours.",
+    );
+    expect(lengthDescription("four-six", null, "Japan", 4, [kyoto, osaka])).toBe(
+      "Japan in 4-6 days, from real trips: Kyoto, Osaka. 4-6 day trips you can borrow.",
+    );
+    expect(lengthDescription("seven-plus", null, null, 4, [kyoto, osaka])).toBe(
+      "7+ day trips from real travelers: Kyoto's Fushimi Inari, Osaka's Dotonbori. Borrow one for your next trip.",
+    );
+  });
+
+  it("falls back to the count with no day to feature, singular for one", () => {
+    expect(lengthDescription("one", "Kyoto", null, 1, [])).toBe("A 1-day trip a traveler planned in Kyoto. Open it and drop it into your trip.");
+    expect(lengthDescription("four-six", null, null, 5, [])).toBe("5 4-6 day trips other travelers planned. Find one and drop it into your trip.");
   });
 });

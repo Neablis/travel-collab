@@ -9,7 +9,7 @@
 import type { ActivityTag, ActivityTagDescribed } from "@tc/contracts";
 import { countryFacts } from "@tc/pages";
 import { countryName } from "./place";
-import { DISCOVER_PAGE_SIZE } from "./playbooks";
+import { DISCOVER_PAGE_SIZE, type NamedLengthBand } from "./playbooks";
 
 const MAX_SLUG_LENGTH = 60;
 const UUID_AT_END = /(?:^|-)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -129,6 +129,40 @@ export function tagPath(
     return `/playbooks/country/${countryPageSlug}/city/${citySlug}/tag/${tag}`;
   if (countryPageSlug !== null) return `/playbooks/country/${countryPageSlug}/tag/${tag}`;
   return citySlug === null ? `/playbooks/tag/${tag}` : `/playbooks/city/${citySlug}/${tag}`;
+}
+
+// Named for the range each covers, like the band keys, but spelled as the
+// filter reads them ("4-6 days"), since a URL's words are what a searcher sees
+// in a result. A URL has no redirect behind it, so a band that gains a
+// neighbour keeps its slug; a new band takes a new one.
+/** Each length band's URL segment. */
+export const LENGTH_PAGE_SLUG: Record<NamedLengthBand, string> = {
+  one: "1-day",
+  "two-three": "2-3-days",
+  "four-six": "4-6-days",
+  "seven-plus": "7-plus-days",
+};
+
+/** The band a length segment names, or null for any other segment (a 404). */
+export function lengthBandOfSlug(slug: string): NamedLengthBand | null {
+  return (Object.keys(LENGTH_PAGE_SLUG) as NamedLengthBand[]).find((band) => LENGTH_PAGE_SLUG[band] === slug) ?? null;
+}
+
+/**
+ * A length page's path, page one, with its own literal `/length/` segment as
+ * `tagPath` asks of every dimension after tag: `/playbooks/length/<band>`,
+ * `/playbooks/city/<slug>/length/<band>`, `/playbooks/country/<slug>/length/<band>`
+ * and `/playbooks/country/<country>/city/<city>/length/<band>`.
+ */
+export function lengthPath(
+  band: NamedLengthBand,
+  citySlug: string | null = null,
+  countryPageSlug: string | null = null,
+): string {
+  const segment = `length/${LENGTH_PAGE_SLUG[band]}`;
+  if (countryPageSlug !== null && citySlug !== null) return `/playbooks/country/${countryPageSlug}/city/${citySlug}/${segment}`;
+  if (countryPageSlug !== null) return `/playbooks/country/${countryPageSlug}/${segment}`;
+  return citySlug === null ? `/playbooks/${segment}` : `/playbooks/city/${citySlug}/${segment}`;
 }
 
 /** A country×city page's path, page one: `/playbooks/country/<country>/city/<city>`. */

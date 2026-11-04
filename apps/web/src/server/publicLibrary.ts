@@ -150,6 +150,25 @@ export async function tagPageFor(
   );
 }
 
+/** Every length page with a day on it: `playbooks.ts`'s `publishedLengthPages`, cached. */
+export function publishedLengthPages(): Promise<live.LengthPage[]> {
+  return libraryCached(["lengths"], [LIBRARY_TAG], live.publishedLengthPages);
+}
+
+/** The page for a length band, in one city's page, one country's page, one country×city pair, or the whole library, or null when no published day falls in the band there. */
+export async function lengthPageFor(
+  band: live.LengthPage["band"],
+  citySlug: string | null,
+  countrySlug: string | null,
+): Promise<live.LengthPage | null> {
+  return (
+    (await publishedLengthPages()).find(
+      (page) =>
+        page.band === band && (page.city?.slug ?? null) === citySlug && (page.country?.slug ?? null) === countrySlug,
+    ) ?? null
+  );
+}
+
 /** One page of a place's or an author's published days: `playbooks.ts`'s `publishedDaysPage`, cached. */
 export function publishedDaysPage(
   filter: Parameters<typeof live.publishedDaysPage>[0],

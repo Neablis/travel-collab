@@ -1,8 +1,14 @@
 import type { MetadataRoute } from "next";
 import { DEMO_TRIPS, demoPath } from "@/lib/demoTrip";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
-import { countryCityPath, dayPath, placeIndexable, placePath, tagPath } from "@/lib/playbookUrls";
-import { publishedCountryCityPages, publishedPlaces, publishedTagPages, sitemapDays } from "@/server/publicLibrary";
+import { countryCityPath, dayPath, lengthPath, placeIndexable, placePath, tagPath } from "@/lib/playbookUrls";
+import {
+  publishedCountryCityPages,
+  publishedLengthPages,
+  publishedPlaces,
+  publishedTagPages,
+  sitemapDays,
+} from "@/server/publicLibrary";
 
 // Read per request, not at build: the build has no database in CI. The reads
 // are cached for a day and cleared by a publish or an unpublish (ADR-063), so
@@ -29,16 +35,17 @@ const STATIC_PATHS = [
  * `/sitemap.xml`: the static public routes, every published, unmoderated,
  * undeleted day, and every city, country, country×city and tag page that is
  * indexed — the tag pages at every scope the lattice generates (global, city,
- * country, country×city), each from the same threshold the page's own robots
- * tag reads.
+ * country, country×city), and the length pages at the same four scopes, each
+ * from the same threshold the page's own robots tag reads.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = deploymentOrigin();
-  const [days, places, tags, countryCities] = await Promise.all([
+  const [days, places, tags, countryCities, lengths] = await Promise.all([
     sitemapDays(),
     publishedPlaces(),
     publishedTagPages(),
     publishedCountryCityPages(),
+    publishedLengthPages(),
   ]);
   return [
     ...STATIC_PATHS.map((path) => ({ url: `${origin}${path}` })),
@@ -65,6 +72,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .filter(placeIndexable)
       .map((page) => ({
         url: `${origin}${tagPath(page.tag, page.city?.slug ?? null, page.country?.slug ?? null)}`,
+        ...(page.newestPublishedAt ? { lastModified: page.newestPublishedAt } : {}),
+      })),
+    // And for the length pages' robots tag.
+    ...lengths
+      .filter(placeIndexable)
+      .map((page) => ({
+        url: `${origin}${lengthPath(page.band, page.city?.slug ?? null, page.country?.slug ?? null)}`,
         ...(page.newestPublishedAt ? { lastModified: page.newestPublishedAt } : {}),
       })),
   ];

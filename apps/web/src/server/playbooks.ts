@@ -6,9 +6,11 @@ import {
   DISCOVER_PAGE_SIZE,
   inBudgetBand,
   LENGTH_BAND_RANGE,
+  lengthBandOf,
   RATING_FLOOR_MIN,
   type BudgetBand,
   type LengthBand,
+  type NamedLengthBand,
   type DiscoverDay,
   type DiscoverResponse,
   type DiscoverScope,
@@ -985,6 +987,12 @@ type PublishedDay = {
   named: readonly DescribedTag[];
   /** When it was published, or null when it carries no date: the sitemap's `lastmod` source. */
   publishedAt: string | null;
+  /**
+   * The stored `day_count`, as `lengthPredicate` reads it — not the floor
+   * `parseSavedDayColumns` repairs it up to — so a length page's count and
+   * its listing agree about which band a day is in.
+   */
+  dayCount: number;
 };
 
 /** Every published, unmoderated, undeleted day this server can read. */
@@ -1023,6 +1031,7 @@ async function readablePublishedDays(): Promise<PublishedDay[]> {
         countries: row.countries,
         named: describeByTags(readable.stops)?.named ?? [],
         publishedAt: isoOf(row.published_at),
+        dayCount: Number(row.day_count),
       },
     ];
   });
@@ -1179,6 +1188,59 @@ export async function publishedTagPages(): Promise<TagPage[]> {
 }
 
 /**
+ * A length page: one band of Discover's length filter, the city page it is
+ * narrowed to or null, the country page it is narrowed to or null, and how
+ * many days fall in the band there. Like the tag lattice, a page exists for
+ * every combination a published day matches and for none it does not.
+ */
+export type LengthPage = {
+  band: NamedLengthBand;
+  city: TagPage["city"];
+  country: TagPage["country"];
+  /** The number `publishedDaysPage` totals for the band, which `placeIndexable` reads as for a place. */
+  days: number;
+  /** The newest `published_at` among those days, or null when none carries one: the sitemap's `lastmod`. */
+  newestPublishedAt: string | null;
+};
+
+/**
+ * Every length page with a day on it: each published day counts once in its
+ * band for the whole library, each city page and country page it touches,
+ * and each country×city pair it matches — the tag lattice's four scopes,
+ * counted by `publishedTagPages`' membership rules.
+ */
+export async function publishedLengthPages(): Promise<LengthPage[]> {
+  const published = await readablePublishedDays();
+  const { cities, countries } = placeMaps(published);
+  const counted = new Map<string, LengthPage>();
+  const count = (
+    band: NamedLengthBand,
+    city: LengthPage["city"],
+    country: LengthPage["country"],
+    publishedAt: string | null,
+  ) => {
+    const key = `${country?.slug ?? ""}:${city?.slug ?? ""}:${band}`;
+    const page = counted.get(key);
+    if (page === undefined) counted.set(key, { band, city, country, days: 1, newestPublishedAt: publishedAt });
+    else {
+      page.days += 1;
+      page.newestPublishedAt = newerPublishedAt(page.newestPublishedAt, publishedAt);
+    }
+  };
+  for (const day of published) {
+    const band = lengthBandOf(day.dayCount);
+    if (band === null) continue;
+    const { cities: slugs, countries: countrySlugs } = latticeSlugs(day);
+    count(band, null, null, day.publishedAt);
+    for (const slug of slugs) count(band, cities.get(slug)!, null, day.publishedAt);
+    for (const slug of countrySlugs) count(band, null, countries.get(slug)!, day.publishedAt);
+    for (const slug of slugs)
+      for (const country of countrySlugs) count(band, cities.get(slug)!, countries.get(country)!, day.publishedAt);
+  }
+  return [...counted.values()];
+}
+
+/**
  * A country×city page: one city's days inside one country — the city page
  * narrowed to the days that also touch the country, so a city name that
  * exists in two countries (Cambridge, Springfield) is two pages, not one.
@@ -1243,6 +1305,8 @@ export async function publishedDaysPage(
     countries?: string[];
     authorId?: string;
     tag?: DescribedTag;
+    /** Discover's length band, as its own SQL predicate: a length page. */
+    length?: LengthBand;
     sort?: DiscoverSort;
     /**
      * Additionally require the day to touch one of these city spellings —
@@ -1263,7 +1327,7 @@ export async function publishedDaysPage(
     scope: "everyone",
     sort: filter.sort ?? "most-added",
     budget: "any",
-    length: "any",
+    length: filter.length ?? "any",
     tag: filter.tag ?? "any",
     publishedOnly: true,
     readerId: null,
