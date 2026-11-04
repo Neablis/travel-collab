@@ -38,6 +38,8 @@ describe("registry", () => {
       "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
       // M52 decision 15, on `trip.people`'s terms.
       "chat.recent",
+      // M58 decision 8, on the same terms.
+      "poll",
     ].sort());
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -468,7 +470,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
     expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual([
       "country.facts", "link.external", "link.internal", "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
-      "chat.recent",
+      "chat.recent", "poll",
     ].sort());
   });
 

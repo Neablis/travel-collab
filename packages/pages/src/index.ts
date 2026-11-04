@@ -33,6 +33,8 @@ export { WebAddress, hostOf } from "./macros/primitives/link";
 // the person select in `apps/web` labels its options with the same rule.
 export { FORMER_MEMBER, personNames } from "./macros/primitives/balances";
 export { ASSISTANT_NAME } from "./macros/primitives/chatRecent";
+// M58: the poll's text read once (`pollSpecOf`), for the block's vote and the vote route.
+export { pollClosed, pollSpecOf, pollsIn, PollResults, PollVoteBody, type PollSpec } from "./macros/primitives/poll";
 // The one reader of an instant in a named zone; the server's weather cuts its
 // local days with it too, rather than a second `Intl` walk (review finding 6).
 export { clockIn, isKnownZone } from "./clock";

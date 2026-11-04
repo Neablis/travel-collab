@@ -71,6 +71,8 @@ export interface PublicNotebookInput {
   external?: ExternalInputs;
   /** The live public link of a notebook, by id (`WidgetContext.publicTokenFor`, part 2's lookup). */
   publicTokenFor: (pageId: string) => string | null;
+  /** Each poll's counts (`WidgetContext.pollTallies`). Counts only: no vote's author is ever handed in. */
+  pollTallies?: WidgetContext["pollTallies"];
   today: string | null;
   now: TripNowClock | null;
 }
@@ -99,6 +101,7 @@ export function toPublicNotebookView(input: PublicNotebookInput): PublicNotebook
     chat: null,
     soloTrip: false,
     publicTokenFor: input.publicTokenFor,
+    pollTallies: input.pollTallies,
   };
   const content = input.page.content.content.map((node) => publicNode(node, ctx));
   return { title: input.page.title, content, accents: accentsOf(trip, content) };

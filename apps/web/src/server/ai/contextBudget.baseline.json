@@ -219,10 +219,10 @@
         "ask_user",
         "hand_off"
       ],
-      "toolChars": 8791,
+      "toolChars": 8798,
       "instructionChars": 4310,
-      "totalChars": 13101,
-      "approxTokens": 3958
+      "totalChars": 13108,
+      "approxTokens": 3960
     },
     "page · question": {
       "tools": [
@@ -297,8 +297,8 @@
       "approxTokens": 482
     },
     "insert_widget": {
-      "chars": 1293,
-      "approxTokens": 391
+      "chars": 1300,
+      "approxTokens": 393
     },
     "search_widgets": {
       "chars": 1288,

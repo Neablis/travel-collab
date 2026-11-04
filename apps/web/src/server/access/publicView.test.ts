@@ -153,6 +153,29 @@ describe("toPublicNotebookView", () => {
     expect(view.title).toBe("Plan");
     expect(JSON.stringify(outcomeAt(view, 0))).toContain(trip.name);
   });
+
+  // A poll's votes are named for the group; a stranger is handed counts only
+  // (M58 decision 8), so the tally reaches the resolver without a voter.
+  describe("a poll", () => {
+    const POLL_ID = "22222222-2222-4222-8222-222222222222";
+    const poll = { pollId: POLL_ID, question: "Where to eat?", options: "Ramen, Sushi" };
+    const tallies = { [POLL_ID]: { counts: { Ramen: 3, Sushi: 1 }, closed: false } };
+
+    it("shows the question and each option's count, with no poll id", () => {
+      const view = viewOf(tripWithPeople(), [macro("poll", poll)], { pollTallies: tallies });
+      expect(outcomeAt(view, 0)).toMatchObject({
+        status: "ok",
+        rendered: { kind: "block", block: { kind: "poll", question: "Where to eat?", pollId: null, counts: { Ramen: 3, Sushi: 1 }, closed: false } },
+      });
+      expect(JSON.stringify(view)).not.toContain(POLL_ID);
+    });
+
+    it("is not shared, and its question and tally are not sent, when hidden", () => {
+      const view = viewOf(tripWithPeople(), [macro("poll", poll, true)], { pollTallies: tallies });
+      expect(outcomeAt(view, 0)).toEqual({ status: "not-shared" });
+      expect(JSON.stringify(view)).not.toContain("Where to eat?");
+    });
+  });
 });
 
 // M58 decision 5, Mitchell: "a hidden widget's data is not sent to the page".

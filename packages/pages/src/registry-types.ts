@@ -172,7 +172,8 @@ export type BlockPayload =
   | MissingNotebookPayload
   | ItineraryPayload
   | TripNowPayload | StopDirectionsPayload | TripFlightsPayload
-  | ChatRecentPayload;
+  | ChatRecentPayload
+  | PollPayload;
 
 // "Trip chat" (`chat.recent`, M52 decision 15): the newest messages, oldest
 // first. Each is the message itself, which the app draws with its chat's own
@@ -185,6 +186,25 @@ export type BlockPayload =
 // (Mitchell, PR 537 walk), and then `lines` is `null`.
 export interface ChatRecentLine { message: Extract<ChatMessage, { removed: false }>; author: string; }
 export interface ChatRecentPayload { kind: "chat-recent"; solo: boolean; lines: ChatRecentLine[] | null; }
+
+// "Poll" (`poll`, M58 decision 8). The question and options are the widget's
+// own words. **What a reader is handed depends on who they are**: a member gets
+// the `pollId` and reads the votes live (named, from the poll route), so
+// `counts` and `closed` are `null`; a stranger gets `counts` and `closed` and a
+// `null` `pollId`, because nothing on their page may name a poll, a person or a
+// way to vote. `options[].id` is what a vote stores.
+export interface PollOption { id: string; label: string; }
+export interface PollPayload {
+  kind: "poll";
+  pollId: string | null;
+  question: string;
+  options: PollOption[];
+  multi: boolean;
+  /** `yyyy-mm-dd`, the last day votes are taken. */
+  closesAt: string | null;
+  counts: Readonly<Record<string, number>> | null;
+  closed: boolean | null;
+}
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
@@ -678,6 +698,13 @@ export interface WidgetContext {
    * store. Absent means no notebook is public.
    */
   publicTokenFor?: (pageId: string) => string | null;
+  /**
+   * For a `public` reader: each poll's per-option counts and whether it is
+   * closed, by poll id (M58 decision 8). **Counts only**: this carries no voter,
+   * so a poll cannot leak one by being forgotten in the public view. Handed in
+   * by the server (`poll_votes`). Absent reads as no votes.
+   */
+  pollTallies?: Readonly<Record<string, { counts: Readonly<Record<string, number>>; closed: boolean }>>;
 }
 
 /** A `WidgetContext` capability a widget can require (`MacroDef.requires`). */

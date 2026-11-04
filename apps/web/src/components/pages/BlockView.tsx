@@ -21,6 +21,7 @@ import { TripNowBlock } from "./blocks/TripNowBlock";
 import { StopDirectionsBlock } from "./blocks/StopDirectionsBlock";
 import { TripFlightsBlock } from "./blocks/TripFlightsBlock";
 import { ChatRecentBlock } from "./blocks/ChatRecentBlock";
+import { PollBlock } from "./blocks/PollBlock";
 
 // The one place a block payload becomes a component, and the reason ADR-037
 // decision 1's "no switch case" is satisfied by a file that plainly contains a
@@ -123,6 +124,9 @@ export function BlockView({
       return <TripFlightsBlock payload={block} interactive={interactive} />;
     case "chat-recent":
       return <ChatRecentBlock payload={block} interactive={interactive} />;
+    // A member votes and a stranger reads counts (M58 decision 8); `interactive` is what tells them apart.
+    case "poll":
+      return <PollBlock payload={block} tripId={tripId} interactive={interactive} />;
     default: {
       // Not dead code and not defensive: this line is the enforcement. If
       // `block` is ever not `never` here, the assignment fails to compile and

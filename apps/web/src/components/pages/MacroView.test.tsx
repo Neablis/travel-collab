@@ -441,6 +441,21 @@ describe("a widget on a public page", () => {
     expect(screen.getByText("Not shared")).toBeTruthy();
   });
 
+  // M58 decision 8: a poll is counts and a question to a stranger, drawn under
+  // the board's providers (an editor's, mocked above) with no way to vote.
+  it("draws a poll's counts and offers no control to vote or close", () => {
+    const id = "33333333-3333-4333-8333-333333333333";
+    const outcome = renderMacro(
+      { ...publicCtx, pollTallies: { [id]: { counts: { Ramen: 2 }, closed: false } } },
+      "poll",
+      { pollId: id, question: "Where to eat?", options: "Ramen, Sushi" },
+    );
+    render(<PublicMacroView name="poll" outcome={outcome} accents={noAccents} />);
+    expect(screen.getByText("Where to eat?")).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
   it("draws what the server resolved", () => {
     const outcome = renderMacro(publicCtx, "attribute", { field: "trip.name" });
     render(<PublicMacroView name="attribute" outcome={outcome} accents={noAccents} />);
@@ -718,6 +733,8 @@ flightNumber: null, booking: null,
     });
     // A screen offering its chat (M52), so "Trip chat" is drawn rather than absent.
     const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } });
+    // A member's poll reads its votes from the server (M58): an empty tally, so the poll is drawn and no request leaves.
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ closed: false, counts: {}, votes: [], mine: [] })));
     try {
       for (const widget of presetCatalog()) {
         const { unmount } = render(
@@ -743,6 +760,7 @@ flightNumber: null, booking: null,
       }
     } finally {
       unregister();
+      vi.unstubAllGlobals();
       spy.mockRestore();
     }
     const nesting = errors.filter((e) => /cannot be a descendant of|cannot contain a nested/i.test(e));

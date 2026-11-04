@@ -71,6 +71,7 @@ import {
   type TripCommand,
 } from "@tc/contracts";
 import { z } from "zod";
+import { PollResults, type PollVoteBody } from "@tc/pages";
 import { BASE_URL } from "@/config";
 import { ALL_KEYS, beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -527,6 +528,32 @@ export async function markChatRead(tripId: string, messageId: string): Promise<A
     return networkError(err);
   }
 }
+
+// ── Polls (M58 decision 8) ───────────────────────────────────────────────────
+//
+// A member's reads and writes of one poll's votes. Every answer is the poll as
+// the group sees it (`PollResults`); a vote on a closed poll refuses 409 with
+// the code `poll-closed`.
+
+async function callPoll(tripId: string, pollId: string, init: RequestInit, suffix = ""): Promise<ApiResult<PollResults>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/polls/${pollId}${suffix}`), { cache: "no-store", ...init });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: PollResults.parse(await res.json()) };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** The poll's counts, who voted for what, and the caller's own pick. */
+export const fetchPoll = (tripId: string, pollId: string): Promise<ApiResult<PollResults>> => callPoll(tripId, pollId, {});
+
+/** Vote, or change a vote. */
+export const votePoll = (tripId: string, pollId: string, optionIds: string[]): Promise<ApiResult<PollResults>> =>
+  callPoll(tripId, pollId, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ optionIds } satisfies PollVoteBody) });
+
+/** Close the poll (an editor). */
+export const closePoll = (tripId: string, pollId: string): Promise<ApiResult<PollResults>> => callPoll(tripId, pollId, { method: "POST" }, "/close");
 
 // ── Access & Membership (M11 link 3) ─────────────────────────────────────────
 

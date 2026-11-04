@@ -29,6 +29,7 @@ import { tripNowWidget } from "./macros/primitives/nowNext";
 import { NOTHING_TODAY, stopDirections } from "./macros/primitives/directions";
 import { tripFlights } from "./macros/primitives/flights";
 import { chatRecent } from "./macros/primitives/chatRecent";
+import { poll } from "./macros/primitives/poll";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -93,6 +94,9 @@ const DEFS: AnyMacroDef[] = [
   // "Trip chat" (M52 decision 15): no selection, on `trip.people`'s terms,
   // and shown only to a reader who can see the chat (`MacroDef.requires`).
   chatRecent,
+  // "Poll" (M58 decision 8): no selection, on `trip.people`'s terms. The votes
+  // are not in the document (`poll_votes`); see `poll.ts`.
+  poll,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));

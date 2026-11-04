@@ -1,8 +1,10 @@
 import { parsePageDoc, type Page, type PageNode, type TripDetail } from "@tc/contracts";
+import { pollsIn } from "@tc/pages";
 import { isUuid } from "../ids";
 import { getPage, listPageEntries } from "../pages";
 import { getTripDetail } from "../projections";
 import { buildTripGlobals } from "../tripGlobals";
+import { pollToday, tallyFor } from "../polls/votes";
 import { isPublishable, liveShareTokensFor } from "./pageShares";
 import { toPublicNotebookView, type PublicNotebookView } from "./publicView";
 
@@ -15,10 +17,16 @@ import { toPublicNotebookView, type PublicNotebookView } from "./publicView";
 export async function publicViewOf(trip: TripDetail, page: Page): Promise<PublicNotebookView> {
   const [publicTokenFor, notebooks] = await Promise.all([liveShareTokensFor(trip.tripId), listPageEntries(trip.tripId)]);
   const now = new Date();
+  // A stranger is handed each shown poll's counts and nothing else of its
+  // votes (M58 decision 8). A hidden poll's are not even read.
+  const content = parsePageDoc(page.content);
+  const shown = pollsIn(content).filter((spec) => !spec.hideWhenPublic);
+  const tallies = await tallyFor(trip.tripId, shown, pollToday(now));
   return toPublicNotebookView({
     trip,
     globals: buildTripGlobals(trip),
-    page: { title: page.title, content: parsePageDoc(page.content), context: page.context },
+    page: { title: page.title, content, context: page.context },
+    pollTallies: Object.fromEntries([...tallies].map(([pollId, { counts, closed }]) => [pollId, { counts, closed }])),
     external: {
       // A stranger's page makes no call to a weather source on the group's
       // behalf (the trip's places would leave with it), so it reads as down.
