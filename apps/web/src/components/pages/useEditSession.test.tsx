@@ -114,7 +114,7 @@ describe("useEditSession", () => {
       setVisibility("hidden");
       setVisibility("visible");
       act(() => result.current.change(doc("ab")));
-      act(() => result.current.flush());
+      act(() => void result.current.flush());
       expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
       await act(async () => land(true));
       expect(commit.mock.calls).toEqual([
@@ -217,7 +217,7 @@ describe("useEditSession", () => {
     const commit = vi.fn<CommitSession>().mockImplementationOnce(() => new Promise((r) => (fail = r)));
     const { result, unmount } = mount(true, commit);
     act(() => result.current.change(doc("a")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     act(() => result.current.change(doc("ab")));
     await act(async () => fail(false));
     unmount();
@@ -235,9 +235,9 @@ describe("useEditSession", () => {
       .mockResolvedValue(true);
     const { result } = mount(true, commit);
     act(() => result.current.change(doc("a")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     act(() => result.current.change(doc("ab")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     act(() => result.current.change(doc("abc")));
     act(() => {
       vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS);
@@ -260,11 +260,62 @@ describe("useEditSession", () => {
       .mockResolvedValue(true);
     const { result, unmount } = mount(true, commit);
     act(() => result.current.change(doc("a")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     act(() => result.current.change(doc("ab")));
     unmount();
     await act(async () => land(true));
     expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
+  });
+
+  // *Make public* previews the stored page, so it waits on flush. A settle queued
+  // behind an in-flight commit has not started yet when flush returns, so the
+  // answer must come after the queued one, not the first.
+  it("flush resolves only once a commit queued behind another has landed", async () => {
+    let land: (ok: boolean) => void = () => {};
+    const commit = vi
+      .fn<CommitSession>()
+      .mockImplementationOnce(() => new Promise((r) => (land = r)))
+      .mockResolvedValue(true);
+    const { result } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    act(() => void result.current.flush());
+    act(() => result.current.change(doc("ab")));
+    let answer: boolean | undefined;
+    act(() => {
+      void Promise.resolve(result.current.flush()).then((ok) => (answer = ok));
+    });
+    await act(async () => land(true));
+    expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
+    expect(answer).toBe(true);
+  });
+
+  it("flush resolves false when the commit it waited for failed", async () => {
+    const commit = vi.fn<CommitSession>().mockResolvedValue(false);
+    const { result } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    let answer: boolean | undefined;
+    await act(async () => {
+      answer = await result.current.flush();
+    });
+    expect(answer).toBe(false);
+    expect(result.current.failed).toBe(true);
+  });
+
+  // A commit with no timeout would leave the caller waiting for ever: past the
+  // cap it counts as failed, so the save-failed state is shown.
+  it("flush gives up on a commit that never settles, and reports failed", async () => {
+    const commit = vi.fn<CommitSession>().mockImplementation(() => new Promise(() => {}));
+    const { result } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    let answer: boolean | undefined;
+    act(() => {
+      void Promise.resolve(result.current.flush(5000)).then((ok) => (answer = ok));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(answer).toBe(false);
+    expect(result.current.failed).toBe(true);
   });
 
   // A commit that rejects rather than resolving `false` must not hold the
@@ -273,11 +324,11 @@ describe("useEditSession", () => {
     const commit = vi.fn<CommitSession>().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(true);
     const { result } = mount(true, commit);
     act(() => result.current.change(doc("a")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     await act(() => Promise.resolve());
     expect(result.current.failed).toBe(true);
     act(() => result.current.change(doc("ab")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
   });
 
@@ -289,7 +340,7 @@ describe("useEditSession", () => {
     const commit = vi.fn<CommitSession>().mockImplementationOnce(() => new Promise(() => {}));
     const { result } = mount(true, commit);
     act(() => result.current.change(doc("a")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     act(() => result.current.change(doc("ab")));
     window.dispatchEvent(new Event("pagehide"));
     expect(commit.mock.calls).toEqual([
@@ -309,7 +360,7 @@ describe("useEditSession", () => {
       .mockResolvedValue(true);
     const { result, unmount } = mount(true, commit);
     act(() => result.current.change(doc("a")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     act(() => result.current.change(doc("ab")));
     window.dispatchEvent(new Event("pagehide"));
     await act(() => Promise.resolve());
@@ -334,9 +385,9 @@ describe("useEditSession", () => {
       .mockResolvedValue(true);
     const { result, unmount } = mount(true, commit);
     act(() => result.current.change(doc("a")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     act(() => result.current.change(doc("ab")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     await act(async () => land("superseded"));
     expect(result.current.failed).toBe(false);
     act(() => {
@@ -352,10 +403,10 @@ describe("useEditSession", () => {
     const commit = vi.fn<CommitSession>().mockResolvedValueOnce("superseded").mockResolvedValue(true);
     const { result } = mount(true, commit);
     act(() => result.current.change(doc("a")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     await act(() => Promise.resolve());
     act(() => result.current.change(doc("b")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("b")]);
   });
 
@@ -369,7 +420,7 @@ describe("useEditSession", () => {
   it("commits on flush, the manual retry", () => {
     const { result, commit } = mount();
     act(() => result.current.change(doc("a")));
-    act(() => result.current.flush());
+    act(() => void result.current.flush());
     expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: false, overtaking: false }]]);
   });
 });

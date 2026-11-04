@@ -80,6 +80,8 @@ interface PendingInsert {
 
 /** How long a Reading turn's inserts wait for the editor to become editable before the turn says so. */
 const EDITOR_READY_TIMEOUT_MS = 5_000;
+/** How long *Make public* waits for the edit it would preview to be saved. */
+const MAKE_PUBLIC_SAVE_WAIT_MS = 5_000;
 
 /** What the chat says when the assistant turned Editing on to do its job. */
 function switchedToEditing(blocks: number): string {
@@ -585,7 +587,7 @@ export function PageScreen({
   // See the effect after `restoreDraft`.
   const heldDraft = useRef<PageDraft | null>(null);
   // The edit session, for the load effect below, which is declared before it.
-  const sessionRef = useRef<{ change: (doc: PageDoc) => void; flush: () => void } | null>(null);
+  const sessionRef = useRef<{ change: (doc: PageDoc) => void; flush: (maxWaitMs?: number) => Promise<boolean> } | null>(null);
 
   // The trip's head as far as this screen knows it — the cursor
   // `useTripBroadcast` polls from. See the subscription below.
@@ -722,8 +724,6 @@ export function PageScreen({
   // argument). The server answers a no-op before it looks at the revision, so
   // a commit repeating what a keepalive already landed is not a conflict.
   const commitSeq = useRef(0);
-  // Commits on the wire, so *Make public* can wait for the edit it would preview.
-  const savesInFlight = useRef(new Set<Promise<unknown>>());
   const session = useEditSession(editing, (content, { keepalive, overtaking }) => {
     const seq = ++commitSeq.current;
     const draft = { base: baseRef.current ?? "", doc: content };
@@ -758,10 +758,7 @@ export function PageScreen({
         return true;
       });
     };
-    const sent = send(1);
-    savesInFlight.current.add(sent);
-    void sent.finally(() => savesInFlight.current.delete(sent)).catch(() => {});
-    return sent;
+    return send(1);
   }, (content) => rememberPageDraft(pageId, { base: baseRef.current ?? "", doc: content }));
   sessionRef.current = session;
 
@@ -810,14 +807,16 @@ export function PageScreen({
 
   // The preview is the stored page, so an edit still being saved (leaving
   // Editing settles it, but does not wait) would be left out of it, and the link
-  // would then serve something other than what was shown. Flush, then wait for
-  // every commit, including one queued behind another that starts a tick later.
+  // would then serve something other than what was shown. Wait for the session
+  // to drain, but only so long: a save that fails or hangs leaves the stored
+  // page without the edit, so the dialog stays shut and the save-failed banner
+  // says why. A page navigated to meanwhile is not the one asked about.
+  const pageIdRef = useRef(pageId);
+  pageIdRef.current = pageId;
   const openMakePublic = async () => {
-    session.flush();
-    while (savesInFlight.current.size > 0) {
-      await Promise.allSettled([...savesInFlight.current]);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }
+    const asked = pageId;
+    const saved = await session.flush(MAKE_PUBLIC_SAVE_WAIT_MS);
+    if (!saved || asked !== pageIdRef.current) return;
     setPublishing(true);
   };
 
@@ -831,7 +830,7 @@ export function PageScreen({
     editorRef.current?.commands.setContent(draft.doc as never, false);
     latestDocRef.current = draft.doc;
     session.change(draft.doc);
-    session.flush();
+    void session.flush();
   };
   // **A draft is replayed only for someone who may still edit** (Copilot,
   // PR #280). It used to be applied the moment the page loaded, role unasked —
@@ -1304,7 +1303,7 @@ export function PageScreen({
     const storable = toStoredPageDoc(content);
     if (storable === null) {
       unstorableRef.current = true;
-      session.flush();
+      void session.flush();
       setUnstorable(true);
       return;
     }
@@ -1620,7 +1619,7 @@ export function PageScreen({
           className="mb-3"
           data-testid="page-save-failure"
           actions={
-            <Button variant="secondary" size="sm" onClick={session.flush}>
+            <Button variant="secondary" size="sm" onClick={() => void session.flush()}>
               Retry saving
             </Button>
           }

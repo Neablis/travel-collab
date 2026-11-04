@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -3263,7 +3263,7 @@ describe("PageScreen: publishing a notebook", () => {
     server.use(
       http.patch("/api/trips/:tripId/pages/:pageId", async () => {
         await gate;
-        return HttpResponse.json({ ...page, updatedAt: "2026-11-04T01:00:00.000Z" });
+        return HttpResponse.json({ page: { ...page, updatedAt: "2026-11-04T01:00:00.000Z" } });
       }),
       http.get("/api/trips/:tripId/pages/:pageId/public-preview", () => {
         previewReads += 1;
@@ -3284,6 +3284,47 @@ describe("PageScreen: publishing a notebook", () => {
     release();
     await screen.findByRole("region", { name: "What a stranger sees" });
     expect(previewReads).toBe(1);
+  });
+
+  // A failed save leaves the stored page without the edit: previewing it would
+  // show a stranger something other than what the editor holds.
+  it("does not open the preview when the edit it waited for failed to save", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    server.use(http.patch("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ error: { code: "boom" } }, { status: 500 })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(screen.getAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!, "edit");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+
+    expect(await screen.findByTestId("page-save-failure")).toBeTruthy();
+    // Give an opening dialog its turn, so a pass is not just "not yet".
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("ends in the save-failed banner, not silence, when the save never answers", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    server.use(http.patch("/api/trips/:tripId/pages/:pageId", () => new Promise(() => {})));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(screen.getAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!, "edit");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    const makePublic = await screen.findByRole("button", { name: "Make public" });
+    // Only the wait is faked: the rest of the screen runs on the real clock.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(makePublic);
+      await act(async () => {
+        vi.advanceTimersByTime(5_000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await screen.findByTestId("page-save-failure")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("gives a viewer the chip and Copy link, and no control to publish or unpublish", async () => {
