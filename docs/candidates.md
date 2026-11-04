@@ -231,28 +231,6 @@ here two days later.
   checks it. Still not built: the generated map (that file says so), the gate-close step, and
   the KI binding.
 
-- **Contained activities: a meal inside a day-long activity is not a conflict
-  (Mitchell, 2026-08-02, from M8 dogfooding).** Every day of the Rochester run
-  raised a `time-overlap` warn, all three the same shape: a long anchor
-  activity (Niagara Falls 09:00–16:00, the Strong Museum 10:00–16:00) and a
-  lunch sitting *inside* it. The AI was not wrong — you *do* eat lunch during
-  a museum day — and the user's reading was "we might want a feature for when
-  the lunch is at the event." So this is not a prompt fix: telling the model
-  the conflict rules would only teach it to stop scheduling lunch, which is
-  worse. **The domain models overlap but has no notion of containment.**
-  Directions to weigh in a brainstorm, not yet decided: (a) real nested/child
-  activities in `packages/domain`; (b) a span/kind distinction so a long
-  activity is a *container* rather than a peer; (c) leave the model alone and
-  refine the rule in `conflicts.ts` — suppress `time-overlap` when one window
-  fully contains the other and the inner one is short; (d) do nothing and let
-  dismissal absorb it (status quo — but three warns on a three-day trip is
-  the AI teaching users to ignore the conflict UI, which is the real cost).
-  Note (c) is the cheapest and (a) is the most honest; the choice depends on
-  whether containment ever needs to mean anything beyond silencing a warn.
-  Deliberately kept out of M9 — it is a `packages/domain` contract question
-  with conflict-detector consequences and deserves its own design pass.
-  *Placed 2026-10-06 → `docs/milestones/M44-a-stop-knows-what-was-booked.md` (proposed, not yet scoped). M44's gate deletes this entry at close.*
-
 - **AI cost/quality tuning — "best model for my buck" (Mitchell, 2026-07-25).**
   **Thread (1), prompt trimming, was measured on 2026-07-27 and is NOT worth
   doing.** The per-round-trip payload is small: context envelope ~623 tokens for
@@ -439,3 +417,11 @@ here two days later.
   - **Prefetch volume on `/playbooks`:** 20+ RSC prefetches on load, each card link twice. Left
     alone on purpose, because they are what makes opening a day feel instant. Revisit only if
     field data shows contention.
+
+- **The share page shows a stop is booked (found 2026-11-02, M44 pre-walk).** M44's share API
+  already returns `booking: { provider }` for a booked stop (no code, no link), but the share
+  page (`/s/**`) renders no Booked chip or provider: `BookingChip` is only rendered by the board's
+  `apps/web/src/components/board/RiverBlock.tsx`. Found on the PR 684 preview pre-walk; Mitchell
+  deferred it ("share chip later"). The idea: render the chip and provider on the share page's
+  stop rows from the field the API already sends, so no contract change. Never the code.
+  Recorded in `docs/milestones/M44-a-stop-knows-what-was-booked.md` under Out of scope.
