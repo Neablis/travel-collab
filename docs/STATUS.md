@@ -101,11 +101,11 @@ confirmed fixed"*). Evidence, retro and spend are in
 **Next action:**
 1. Mitchell merges PR 679 (M44's part 0, prose only). Parts 1 to 5 are merged, so close no lower
    drafts. `migrate-production` is not needed: M44 added no migration.
-2. Then the order in `TODO.md` is M53 (*A search engine reads every public page the way a person
-   does*), proposed 2026-10-25 and not scoped: scope it with Mitchell (`plan-a-milestone`;
-   `docs/milestones/M53-search-reads-every-public-page.md`, seven open decisions). After it,
-   M58 (*A notebook anyone can read, and a poll for the people going*), minted 2026-11-04 and
-   not scoped (eight open decisions). M48 stays parked.
+2. Then the order in `TODO.md` is M58 (*A notebook anyone can read, and a poll for the people
+   going*), minted 2026-11-04 and placed ahead of M53 the same day by Mitchell: scope it with him
+   (`plan-a-milestone`; `docs/milestones/M58-a-notebook-anyone-can-read.md`, eight open
+   decisions). After it, M53 (*A search engine reads every public page the way a person does*,
+   seven open decisions). M48 stays parked.
 3. Open follow-ups from M44: KI-2026-11-03-a, KI-2026-11-02-a (the flaky `TripProvider.suggest`
    test) and the candidate *The share page shows a stop is booked*.
 Then remove the orchestrator's `tc-orchestrator` guard file from the build session's git dir.
@@ -121,7 +121,7 @@ KI-20261026-x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M
 KI-20261025-w, and the candidate *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
+3 moderate). The order is M58 (minted 2026-11-04, not scoped) → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
@@ -171,7 +171,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 ✓ → M44 → M53 → M58`; the M51 reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 ✓ → M44 → M58 → M53`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 

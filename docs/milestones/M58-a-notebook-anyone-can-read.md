@@ -6,8 +6,9 @@ with people who aren't members of the app, and include a call to action on the b
 to have them create their own account to create their own trip. Anonymous traffic can't join the
 trip from public pages."* Later the same day he added: *"a new poll widget for polling those
 going."* He named five questions to settle. They are decisions 1 to 5 below, and the poll is
-decision 8. Placed **last**, after M53, until Mitchell places it (see `docs/milestones/README.md`,
-*2026-11-04 — minted: M58, public notebooks and a poll*). Every decision below is a
+decision 8. **Placed ahead of M53 the same day, so it is current** (*"Can we make this the next
+milestone, not last"*; see `docs/milestones/README.md`, *2026-11-04 — minted: M58, public
+notebooks and a poll*). Every decision below is a
 recommendation. None has been answered.
 
 ## Why this exists
