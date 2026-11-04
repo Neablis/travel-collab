@@ -103,12 +103,12 @@ describe("POST /api/trips/:id/pages/:pageId/shares", () => {
     }
   });
 
-  it("404s a page that is not this trip's, and 400s a deleted trip", async () => {
+  it("404s a page that is not this trip's, and 422s a deleted trip", async () => {
     const a = await seed();
     const b = await seed();
     expect((await POST(req("POST"), params(b.tripId, a.pageId))).status).toBe(404);
     await executeTripCommand({ type: "DeleteTrip", tripId: a.tripId }, OWNER);
-    expect((await POST(req("POST"), params(a.tripId, a.pageId))).status).toBe(400);
+    expect((await POST(req("POST"), params(a.tripId, a.pageId))).status).toBe(422);
   });
 });
 

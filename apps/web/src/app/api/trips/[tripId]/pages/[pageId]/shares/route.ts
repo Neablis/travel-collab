@@ -16,12 +16,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ tr
   const { tripId, pageId } = await params;
   const access = await requireTripAccess(tripId, "editor");
   if ("error" in access) return access.error;
-  if (access.detail.status === "deleted") {
-    return Response.json({ error: "This trip has been deleted." }, { status: 400 });
-  }
   const result = await createPageShare(tripId, pageId, access.userId);
   if (!result.ok) {
-    // 422: the page exists but is one of the seeded notebooks that can't be public.
+    // 422: the page exists but can't be public (a seeded notebook, or a deleted trip), as in v1.
     const status = result.error.code === "invalid" ? 422 : 404;
     return Response.json({ error: result.error.message }, { status });
   }

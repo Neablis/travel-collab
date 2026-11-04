@@ -3,7 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { TODAY_SEED_KEY } from "@tc/pages";
 import type { Page, PageShare, TripDetail } from "@tc/contracts";
 import { db } from "../db/client";
-import { pageShares } from "../db/schema";
+import { pageShares, tripSummaries } from "../db/schema";
 import { isUuid } from "../ids";
 import { getPage } from "../pages";
 import { getTripDetail } from "../projections";
@@ -66,11 +66,6 @@ export async function createPageShare(
   if (!isPublishable(page)) {
     return { ok: false, error: { code: "invalid", message: "This notebook can't be made public." } };
   }
-  const trip = await getTripDetail(tripId);
-  if (trip === null || trip.status === "deleted") {
-    // A link minted on a deleted trip would be revoked by nothing, and a restore would make it live.
-    return { ok: false, error: { code: "invalid", message: "This trip has been deleted." } };
-  }
   const row: ShareRow = {
     id: randomUUID(),
     pageId,
@@ -80,14 +75,34 @@ export async function createPageShare(
     createdAt: new Date(now),
     revokedAt: null,
   };
-  // The unique live-row index decides a race: the loser inserts nothing and
-  // answers with the winner's link.
-  await db.insert(pageShares).values(row).onConflictDoNothing();
-  const [live] = await db
-    .select()
-    .from(pageShares)
-    .where(and(eq(pageShares.pageId, pageId), isNull(pageShares.revokedAt)));
-  return { ok: true, value: toDto(live ?? row) };
+  // One transaction holding the trip's row: a DeleteTrip projection updates that
+  // row before it revokes the trip's links, so it waits for this insert and then
+  // revokes it. A status check outside would leave a live link on a deleted trip
+  // that a restore would revive.
+  return db.transaction(async (tx): Promise<AccessResult<PageShare>> => {
+    const [trip] = await tx
+      .select({ status: tripSummaries.status })
+      .from(tripSummaries)
+      .where(eq(tripSummaries.tripId, tripId))
+      .for("share");
+    if (trip === undefined || trip.status === "deleted") {
+      // A link minted on a deleted trip would be revoked by nothing, and a restore would make it live.
+      return { ok: false, error: { code: "invalid", message: "This trip has been deleted." } };
+    }
+    // The unique live-row index decides a race: the loser inserts nothing and
+    // answers with the winner's link. That link can be revoked before it is
+    // read, so a miss tries again rather than answering a row never stored.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const [inserted] = await tx.insert(pageShares).values(row).onConflictDoNothing().returning();
+      if (inserted !== undefined) return { ok: true, value: toDto(inserted) };
+      const [live] = await tx
+        .select()
+        .from(pageShares)
+        .where(and(eq(pageShares.pageId, pageId), isNull(pageShares.revokedAt)));
+      if (live !== undefined) return { ok: true, value: toDto(live) };
+    }
+    return { ok: false, error: { code: "invalid", message: "This link changed while it was being made. Try again." } };
+  });
 }
 
 /** A page's links, newest first. Revoked rows stay: the Share panel is the group's audit of what was public. */
@@ -118,12 +133,16 @@ export async function revokePageShare(
   if (row === undefined) return notFound();
   // Idempotent: a double-click is a success, and keeps the first revoke's instant.
   if (row.revokedAt !== null) return { ok: true, value: toDto(row) };
-  const revokedAt = new Date(now);
-  await db
+  // Conditional, so of two simultaneous revokes only one writes; the other
+  // re-reads the winner's instant rather than reporting its own.
+  const [revoked] = await db
     .update(pageShares)
-    .set({ revokedAt })
-    .where(and(eq(pageShares.id, shareId), isNull(pageShares.revokedAt)));
-  return { ok: true, value: toDto({ ...row, revokedAt }) };
+    .set({ revokedAt: new Date(now) })
+    .where(and(eq(pageShares.id, shareId), isNull(pageShares.revokedAt)))
+    .returning();
+  if (revoked !== undefined) return { ok: true, value: toDto(revoked) };
+  const [stored] = await db.select().from(pageShares).where(eq(pageShares.id, shareId));
+  return stored === undefined ? notFound() : { ok: true, value: toDto(stored) };
 }
 
 /**

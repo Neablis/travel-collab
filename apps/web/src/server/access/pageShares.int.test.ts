@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { newPageDoc } from "@tc/contracts";
 import { eq } from "drizzle-orm";
 import { db } from "../db/client";
-import { pages as pagesTable, pageShares } from "../db/schema";
+import { pages as pagesTable, pageShares, tripSummaries } from "../db/schema";
 import { executeTripCommand } from "../commands";
 import { executePageCommand } from "../pageCommands";
 import { listPages } from "../pages";
@@ -56,6 +56,57 @@ describe("a public notebook is a revocable link", () => {
     const result = await createPageShare(tripId, pageId, OWNER);
     expect(!result.ok && result.error.code).toBe("invalid");
     expect(await listPageShares(tripId, pageId)).toHaveLength(0);
+  });
+
+  it("a trip deleted between the check and the insert leaves no live link", async () => {
+    const { tripId, pageId } = await seedTripWithPage();
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((r) => (locked = r));
+    // A writer that holds the trip's row, as the DeleteTrip projection does,
+    // and marks it deleted only once the publish is already in flight.
+    const deleter = db.transaction(async (tx) => {
+      await tx.select().from(tripSummaries).where(eq(tripSummaries.tripId, tripId)).for("update");
+      locked();
+      await hold;
+      await tx.update(tripSummaries).set({ status: "deleted" }).where(eq(tripSummaries.tripId, tripId));
+    });
+    await isLocked;
+    const publishing = createPageShare(tripId, pageId, OWNER);
+    await new Promise((r) => setTimeout(r, 200));
+    release();
+    await deleter;
+    const result = await publishing;
+    expect(!result.ok && result.error.code).toBe("invalid");
+    expect((await listPageShares(tripId, pageId)).filter((s) => s.revokedAt === null)).toHaveLength(0);
+  });
+
+  it("publishing while the link is revoked always answers a link that is stored", async () => {
+    for (let round = 0; round < 15; round++) {
+      const { tripId, pageId } = await seedTripWithPage();
+      const first = await publish(tripId, pageId);
+      const [revoke, ...publishes] = await Promise.all([
+        revokePageShare(tripId, pageId, first.shareId),
+        ...Array.from({ length: 4 }, () => createPageShare(tripId, pageId, OWNER)),
+      ]);
+      expect(revoke.ok).toBe(true);
+      const stored = new Set((await db.select().from(pageShares).where(eq(pageShares.pageId, pageId))).map((r) => r.token));
+      for (const p of publishes) if (p.ok) expect(stored.has(p.value.token)).toBe(true);
+    }
+  });
+
+  it("concurrent revokes all report the stored instant", async () => {
+    for (let round = 0; round < 10; round++) {
+      const { tripId, pageId } = await seedTripWithPage();
+      const share = await publish(tripId, pageId);
+      const results = await Promise.all(
+        Array.from({ length: 6 }, (_, i) => revokePageShare(tripId, pageId, share.shareId, `2026-03-0${i + 1}T00:00:00.000Z`)),
+      );
+      const [row] = await db.select().from(pageShares).where(eq(pageShares.id, share.shareId));
+      const stored = row?.revokedAt?.toISOString();
+      expect(new Set(results.map((r) => r.ok && r.value.revokedAt))).toEqual(new Set([stored]));
+    }
   });
 
   it("reads the live page, and revoke makes the token not-found", async () => {
