@@ -96,6 +96,10 @@ export interface PageView {
   publishable: boolean;
 }
 
+/**
+ * Reads a page with its live public token and the server's `publishable` verdict.
+ * Never throws: a refusal or network failure comes back as a failed `ApiResult`.
+ */
 export async function fetchPageView(tripId: string, pageId: string): Promise<ApiResult<PageView>> {
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}`));
@@ -132,6 +136,11 @@ export interface PublishPreview {
   alsoPublic: { pageId: string; title: string }[];
 }
 
+/**
+ * Fetches the stranger's-eye preview the publish dialog shows; the server builds
+ * it, so it matches what the link would serve. Never throws: a 422 for an
+ * unpublishable notebook or a 404 comes back as a failed `ApiResult`.
+ */
 export async function fetchPublishPreview(tripId: string, pageId: string): Promise<ApiResult<PublishPreview>> {
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}/public-preview`));
@@ -177,6 +186,10 @@ export async function createPageShare(tripId: string, pageId: string): Promise<A
   }
 }
 
+/**
+ * Revokes one share link and returns it with its `revokedAt` set. Idempotent on
+ * the server. Never throws: failures come back as a failed `ApiResult`.
+ */
 export async function revokePageShare(tripId: string, pageId: string, shareId: string): Promise<ApiResult<PageShare>> {
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}/shares/${shareId}`), { method: "DELETE" });
