@@ -43,6 +43,8 @@ export function tripFirstDataFixture({
         ...summary,
         content: { v: 1, type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: overviewText }] }] },
       },
+      publicToken: null,
+      publishable: true,
     },
     globals: { globals: { days: [], cities: [], tags: [], description: null, homeTimeZone: "UTC" } },
   };

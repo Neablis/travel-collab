@@ -284,6 +284,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     // published is the channel itself, which the path check holds.
     reaches: [],
   },
+  "trips/[tripId]/pages/[pageId]/public-preview": {
+    status: "never",
+    why: "The publish dialog's preview of what a stranger would read; v1 has no publish action to preview",
+    reaches: [{ module: "@/server/access/publicNotebook", symbols: ["publishPreviewFor"] }],
+  },
   "trips/[tripId]/pages/[pageId]/reset": {
     status: "never",
     why: "Resetting a seeded notebook is an in-app recovery action; left off the API by Mitchell, 2026-09-30",
