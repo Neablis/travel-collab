@@ -103,8 +103,9 @@ confirmed fixed"*). Evidence, retro and spend are in
    drafts. `migrate-production` is not needed: M44 added no migration.
 2. Then the order in `TODO.md` is M53 (*A search engine reads every public page the way a person
    does*), proposed 2026-10-25 and not scoped: scope it with Mitchell (`plan-a-milestone`;
-   `docs/milestones/M53-search-reads-every-public-page.md`, seven open decisions). M48 stays
-   parked.
+   `docs/milestones/M53-search-reads-every-public-page.md`, seven open decisions). After it,
+   M58 (*A notebook anyone can read, and a poll for the people going*), minted 2026-11-04 and
+   not scoped (eight open decisions). M48 stays parked.
 3. Open follow-ups from M44: KI-2026-11-03-a, KI-2026-11-02-a (the flaky `TripProvider.suggest`
    test) and the candidate *The share page shows a stop is booked*.
 Then remove the orchestrator's `tc-orchestrator` guard file from the build session's git dir.
@@ -170,7 +171,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 ✓ → M44 → M53`; the M51 reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 ✓ → M44 → M53 → M58`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 

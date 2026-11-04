@@ -138,6 +138,7 @@ for collaboration later landing on a product people already want to join.
 | M55 | Claude connects to Caesura as you, and can publish what it plans | **Closed 2026-10-28, gate 17 of 17** (part 0 PR 613). A remote MCP server at `/api/mcp` behind our own OAuth 2.1 server, every API secret on HMAC-SHA256, Connected apps (ADR-083): `M55-claude-connects-as-you.md` |
 | M56 | New trip is a picker, and the assistant never strands you | **Closed 2026-10-30, gate 17 of 17.** New trip as five picker pages and Review, world place search, and the assistant's `ask_user`, `show_options` and `hand_off` (ADR-084): `M56-new-trip-is-a-picker.md` |
 | M57 | The assistant is a graph of personas, and you can watch it work | **Minted, scoped and placed ahead of M44 2026-11-01 by Mitchell; current.** From the candidate and its design (`docs/specs/2026-10-30-assistant-personas-design.md`); see *2026-11-01 — minted and placed: M57*. Six personas in a typed graph with a reachability baseline, persona and outcome columns in the ledger, `switch_persona` once a turn, the trip planner split, and an operator Debug mode in the Ask panel plus a Personas tab in the console (ADR-085): `M57-assistant-personas.md` |
+| M58 | A notebook anyone can read, and a poll for the people going | **Proposed 2026-11-04 by Mitchell, not scoped; placed last, after M53, until he places it.** See *2026-11-04 — minted: M58, public notebooks and a poll*. A notebook made public at `/n/<token>` for people without an account, ending in a call to action to plan their own trip. No way to join from it. Private links and views are absent, the widget allow-list fails closed, make-private answers 404, editors and the owner publish, and a `poll` widget for members. Eight open decisions, each with a recommendation: `M58-a-notebook-anyone-can-read.md` |
 
 *A closed milestone's row is its gate, one line and its file. The longer rows
 they carried until 2026-11-01 are verbatim in `decisions-archive.md`, under
@@ -250,6 +251,18 @@ of this file.
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
 - **Table rows for closed milestones**, as they stood before the 2026-11-01 pass: *Moved out of README.md on 2026-11-01*, at the end
+
+### 2026-11-04 — minted: M58, public notebooks and a poll
+
+**Asked 2026-11-04.** Mitchell: *"Add a new milestone, allowing publicly sharable notebooks, so
+people can make trip overviews they can share with people who aren't members of the app, and
+include a call to action on the bottom of the page to have them create their own account to
+create their own trip. Anonymous traffic can't join the trip from public pages."* He named five
+questions to settle: links to other pages, a URL that leaks nothing, making it public then
+private again, who can publish, and which widgets a public page allows. Later the same day he
+added *"a new poll widget for polling those going."* **M58 is minted, not scoped**, and placed
+**last**, after M53, since he named no place for it. M53 stays current. Eight recommended
+decisions are in `M58-a-notebook-anyone-can-read.md`. Order: M53 → M58, with M48 parked.
 
 ### 2026-11-01 — minted and placed: M57, assistant personas
 
