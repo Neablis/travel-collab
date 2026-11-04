@@ -20,9 +20,10 @@ import { redactBookingFor } from "./bookingRedaction";
  * because they are on what the resolvers read, not in the widgets:
  * - A booking goes through `redactBookingFor(null)` (ADR-086): provider only.
  * - There is no chat, and the public reader has no `canChat`.
- * - A stop's `addedBy`, `bookedBy` and `participants` are emptied, and no
- *   member's name, look or guest list is handed in: actor ids and names
- *   identify real people.
+ * - A stop's `addedBy` is emptied, and no member's name, look or guest list
+ *   is handed in: actor ids and names identify real people. `bookedBy` and
+ *   `participants` stay: the money widgets split by them (an empty list means
+ *   "everyone"), and with no names handed in they print "Traveler N", never an id.
  *
  * Live, not pinned (ADR-088 §2), so there is no `seq` here, unlike `toSharedView`.
  */
@@ -111,7 +112,7 @@ function floored(trip: TripDetail): TripDetail {
     activities: Object.fromEntries(
       Object.entries(trip.activities).map(([id, activity]) => [
         id,
-        { ...activity, booking: redact(activity.booking), addedBy: null, bookedBy: null, participants: [] },
+        { ...activity, booking: redact(activity.booking), addedBy: null },
       ]),
     ),
   };

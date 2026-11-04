@@ -1,11 +1,17 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs } from "@tc/pages";
+import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs, type RenderOutcome } from "@tc/pages";
 import { withCostRollups } from "@tc/factories";
 import { MacroView, PublicMacroView } from "./MacroView";
 import { MacroEditorContext } from "./editor/MacroEditorContext";
+import { EditorHost } from "@/components/trip/context/EditorHost";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
+
+// A board editor, so the member-only controls would draw if the page let them.
+vi.mock("@/components/trip/context/TripProvider", () => ({
+  useOptionalTrip: () => ({ canEditBoard: true }),
+}));
 
 afterEach(cleanup);
 
@@ -448,6 +454,34 @@ describe("a widget on a public page", () => {
     } }, "link.internal", { to: { kind: "notebook", pageId: "11111111-1111-4111-8111-111111111111" } });
     render(<PublicMacroView name="link.internal" outcome={outcome} accents={noAccents} />);
     expect(screen.getByRole("link").getAttribute("href")).toBe("/n/tok-1");
+  });
+
+  // The member-only controls of the day-of widgets (*Add your flight*, a stop
+  // name's board focus) need the board's providers; a stranger's page must not
+  // draw them even when mounted under those providers.
+  it("offers a stranger no member-only control, even under the board's providers", () => {
+    const outcome: RenderOutcome = {
+      status: "ok",
+      rendered: { kind: "block", block: { kind: "trip-flights", heading: "none", flights: [], dayId: "day-2" } },
+    };
+    render(
+      <EditorHost>
+        <PublicMacroView name="trip.flights" outcome={outcome} accents={noAccents} />
+      </EditorHost>,
+    );
+    expect(screen.getByText("No flights on this trip yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add your flight" })).toBeNull();
+  });
+
+  // `open`'s rows go to Plan, a member's tab: on a stranger's page they are text.
+  it("draws an open widget's rows as text, not links into the trip", () => {
+    const outcome: RenderOutcome = {
+      status: "ok",
+      rendered: { kind: "items", items: [{ label: "Dinner needs a booking", sub: "", right: "Fix in Plan", tone: "warning", act: { kind: "rack" } }] },
+    };
+    render(<PublicMacroView name="open" outcome={outcome} accents={noAccents} />);
+    expect(screen.getByText("Fix in Plan")).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });
 

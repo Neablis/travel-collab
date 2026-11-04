@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { newPageDoc, type PageNode, type TripDetail } from "@tc/contracts";
 import { scenarios } from "@tc/factories";
-import { MACRO_REGISTRY, type WidgetContext } from "@tc/pages";
+import { MACRO_REGISTRY, renderMacro, type WidgetContext } from "@tc/pages";
 import { toPublicNotebookView, type PublicNotebookInput, type PublicWidgetNode } from "./publicView";
 
 // M58 (ADR-088 §5): three floors hold whatever a widget's setting says,
@@ -33,13 +33,16 @@ function tripWithPeople() {
   const stop = trip.activities[id]!;
   return {
     ...trip,
+    currency: "USD",
+    members: [{ userId: "user-sam-secret", role: "owner" as const }, { userId: "user-alex-secret", role: "editor" as const }],
     activities: {
       ...trip.activities,
       [id]: {
         ...stop,
         addedBy: "user-sam-secret",
         bookedBy: "user-alex-secret",
-        participants: ["user-alex-secret"],
+        participants: ["user-alex-secret", "user-sam-secret"],
+        cost: { amountMinor: 90_00, currency: "USD" },
         booking: { confirmation: "XK29QP", provider: "Opentable", url: "https://example.com/manage/XK29QP" },
       },
     },
@@ -74,13 +77,33 @@ describe("toPublicNotebookView", () => {
     expect(JSON.stringify(view)).not.toContain("meet at the airport");
   });
 
-  it("floor 3: a resolver reads no one who added, booked or shares a stop, and no member's name", () => {
+  it("floor 3: a resolver reads no one who added a stop, and no member's name", () => {
     const trip = tripWithPeople();
     const { ctx } = readBy(trip);
-    expect(ctx.trip!.activities[trip.days[0]!.activityIds[0]!]).toMatchObject({ addedBy: null, bookedBy: null, participants: [] });
+    expect(ctx.trip!.activities[trip.days[0]!.activityIds[0]!]).toMatchObject({ addedBy: null });
     expect(ctx).toMatchObject({ people: null, personas: null, guests: null });
-    const view = viewOf(trip, [macro("cost.balances", {}), macro("trip.people", {})]);
+  });
+
+  // ADR-088 §5 floors `addedBy` only. Who booked and who shares a stop is what
+  // the money widgets split by: emptied, a stranger would read false balances.
+  it("shows a stranger the same balances and share as a member, names aside", () => {
+    const trip = tripWithPeople();
+    const nodes = [macro("cost.balances", {}), macro("person.share", { who: "user-alex-secret" })];
+    const publicView = viewOf(trip, nodes);
+    const memberCtx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null, people: null, personas: null, guests: null, reader: "member" };
+    const member = nodes.map((node) => {
+      const { name, params } = (node as { attrs: { name: string; params: Record<string, unknown> } }).attrs;
+      return renderMacro(memberCtx, name, params);
+    });
+    expect([outcomeAt(publicView, 0), outcomeAt(publicView, 1)]).toEqual(member);
+  });
+
+  it("names no member in what a stranger is sent, ids included", () => {
+    const trip = tripWithPeople();
+    const view = viewOf(trip, [macro("cost.balances", {}), macro("person.share", { who: "user-alex-secret" }), macro("trip.people", {})]);
     expect(JSON.stringify(view)).not.toMatch(/secret/);
+    // The floor above is vacuous if the widgets said nothing about anyone.
+    expect(JSON.stringify(view)).toContain("Traveler 1");
   });
 
   it("carries the title, the document and the accents, and nothing of the trip", () => {
