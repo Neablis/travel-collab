@@ -4,7 +4,7 @@ import {
   type ExternalInputs, type RenderOutcome, type TripNowClock, type UnboundNeeds, type WidgetContext,
 } from "@tc/pages";
 import { cityAccents } from "@/components/pages/cityAccents";
-import type { AccentTable } from "@/components/pages/MacroView";
+import type { AccentTable } from "@/lib/publicDoc";
 import { redactBookingFor } from "./bookingRedaction";
 
 /**

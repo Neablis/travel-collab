@@ -4,12 +4,12 @@ import type {
   PageDoc,
   PageInlineNode,
   PageListContentNode,
-  PageMark,
   PageNode,
 } from "@tc/contracts";
-import { getMacro, repeatLabel, repeatOver, type RenderOutcome, type UnboundNeeds } from "@tc/pages";
+import { getMacro, repeatLabel, repeatOver } from "@tc/pages";
 import { EmptyChip } from "../EmptyChip";
-import { PublicMacroView, type AccentTable } from "../MacroView";
+import { PublicMacroView } from "../MacroView";
+import type { AccentTable, PublicDoc, PublicDocNode, PublicRepeatNode, PublicRepeatOutcome, PublicWidgetNode } from "@/lib/publicDoc";
 
 // The read half of ADR-038 decision 4: what a page looks like when this build
 // is not allowed to mount an editor over it.
@@ -195,42 +195,6 @@ export function ReadOnlyPageDoc({ doc }: { doc: PageDoc }) {
 // ---------------------------------------------------------------------------
 // The public reader (M58, ADR-088 §4)
 // ---------------------------------------------------------------------------
-
-/**
- * A widget as `/n/<token>`'s server answered it: its name and what it resolved
- * to for a stranger. These types restate the server's `PublicNotebookView`
- * (`server/access/publicView.ts`) because UI cannot import `@/server`; the
- * page file, which can, hands the real one to `PublicNotebookScreen`, so a
- * shape that drifts fails to compile there.
- */
-export interface PublicWidgetNode {
-  type: "macro";
-  attrs: { name: string; outcome: RenderOutcome };
-}
-
-export type PublicRepeatOutcome =
-  | { status: "ok"; lines: readonly string[] }
-  | { status: "empty"; emptyText: string }
-  | { status: "unbound"; needs: UnboundNeeds }
-  | { status: "invalid" }
-  | { status: "not-shared" };
-
-export interface PublicRepeatNode {
-  type: "repeat";
-  attrs: { name: string; outcome: PublicRepeatOutcome };
-}
-
-export type PublicDocNode =
-  | PublicWidgetNode
-  | PublicRepeatNode
-  | { type: "unknown" }
-  | { type: string; attrs?: Readonly<Record<string, unknown>>; text?: string; marks?: readonly PageMark[]; content?: readonly PublicDocNode[] };
-
-/** The document of a public notebook with its widgets already resolved, and the accents they wear. */
-export interface PublicDoc {
-  content: readonly PublicDocNode[];
-  accents: AccentTable;
-}
 
 // A stranger's page walks the server's answers, not a `PageDoc`: there is no
 // widget to resolve here, and a repeat's lines are written already. A node

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type Item, type ReaderCapability, type RenderOutcome } from "@tc/pages";
 import type { AccentFamily } from "@/lib/dayAccent";
+import type { AccentTable } from "@/lib/publicDoc";
 import { cn } from "@/lib/cn";
 import { usePeople, usePersonas, useGuests } from "./people";
 import { cityAccents, type CityAccents } from "./cityAccents";
@@ -82,17 +83,6 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   const reader = useReaderCapabilities();
   const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests, ...reader }, name, params);
   return <ResolvedMacroView name={name} outcome={outcome} accents={accents} tripId={context.tripId} onBindDay={onBindDay} editing={editing} compact={compact} />;
-}
-
-/**
- * Where each city and day on a public page wears its accent, as data: the
- * server resolves a stranger's widgets (M58, Mitchell on decision 5: *"a
- * hidden widget's data is not sent to the page"*), so there is no trip here to
- * derive `CityAccents` from. Only names and ids the page already shows.
- */
-export interface AccentTable {
-  cities: Readonly<Record<string, AccentFamily>>;
-  days: Readonly<Record<string, AccentFamily>>;
 }
 
 /**

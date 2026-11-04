@@ -10,7 +10,7 @@ import {
   type UpdatePageInput,
 } from "@tc/contracts";
 import { apiUrl, networkError, refusal, type ApiResult } from "@/lib/apiClient";
-import type { PublicDoc } from "@/components/pages/editor/ReadOnlyPageDoc";
+import type { PublicDoc } from "./publicDoc";
 import { beginWrite, endWrite } from "@/lib/queryCache";
 import { fitsKeepalive } from "@/lib/keepalive";
 import { tripKeys } from "@/lib/queryKeys";
