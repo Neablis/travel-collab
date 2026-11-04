@@ -84,10 +84,15 @@ function visibleInternalLinks(nodes: readonly PageNode[], into: Record<string, u
   return into;
 }
 
-/** `null` when the page is not in this trip. The caller has already checked the role. */
-export async function publishPreviewFor(tripId: string, pageId: string): Promise<PublishPreview | null> {
+/**
+ * `null` when the page is not in this trip; `"unpublishable"` for a notebook the
+ * server would refuse to make public, which has no preview to show. The caller
+ * has already checked the role.
+ */
+export async function publishPreviewFor(tripId: string, pageId: string): Promise<PublishPreview | "unpublishable" | null> {
   const page = isUuid(pageId) ? await getPage(pageId) : null;
   if (page === null || page.tripId !== tripId) return null;
+  if (!isPublishable(page)) return "unpublishable";
   const trip = await getTripDetail(tripId);
   if (trip === null) return null;
   const [view, entries, publicTokenFor] = await Promise.all([

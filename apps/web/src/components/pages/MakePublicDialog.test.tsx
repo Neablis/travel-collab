@@ -124,4 +124,29 @@ describe("MakePublicDialog", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("can't be made public");
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("says which notebooks are already public when a later one fails, and stops offering them", async () => {
+    const OTHER = "44444444-4444-4444-8444-444444444444";
+    fetchPublishPreview.mockResolvedValue({
+      ok: true,
+      value: { ...preview, alsoPublic: [{ pageId: SIDE, title: "Sam's surprise" }, { pageId: OTHER, title: "Packing" }] },
+    });
+    createPageShare.mockImplementation(async (_trip: string, pageId: string) =>
+      pageId === OTHER
+        ? { ok: false, error: { status: 500, message: "Try again." } }
+        : { ok: true, value: share({ pageId, token: "side-token" }) },
+    );
+    const { onChange } = mount();
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Sam's surprise" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Packing" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make public" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Sam's surprise is now public");
+    expect(alert.textContent).toContain("Try again.");
+    // The one that landed is no longer a choice; the one that did not is still ticked.
+    expect(screen.queryByRole("checkbox", { name: "Sam's surprise" })).toBeNull();
+    expect((screen.getByRole("checkbox", { name: "Packing" }) as HTMLInputElement).checked).toBe(true);
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

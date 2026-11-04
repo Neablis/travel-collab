@@ -11,5 +11,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tripId:
   const g = await guard(tripId, "editor");
   if ("error" in g) return g.error;
   const preview = await publishPreviewFor(tripId, pageId);
-  return preview === null ? Response.json({ error: "not-found" }, { status: 404 }) : Response.json({ preview });
+  if (preview === null) return Response.json({ error: "not-found" }, { status: 404 });
+  // The same refusal `POST .../shares` gives, so the dialog never previews what it cannot publish.
+  if (preview === "unpublishable") return Response.json({ error: "This notebook can't be made public." }, { status: 422 });
+  return Response.json({ preview });
 }

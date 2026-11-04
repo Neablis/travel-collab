@@ -267,6 +267,15 @@ describe("ShareButton", () => {
       await waitFor(() => expect(screen.queryByRole("list", { name: "Public notebooks" })).toBeNull());
     });
 
+    it("drops a notebook made private at once, even if the re-read then fails", async () => {
+      fetchTripPageSharesMock.mockResolvedValueOnce({ ok: true, value: [pageShare] }).mockResolvedValue({ ok: false, error: { status: 500, message: "down" } });
+      render(<ShareButton tripId={tripId} />);
+      await openPanel();
+      await userEvent.click(await screen.findByRole("button", { name: "Make Kyoto notes private" }));
+      await waitFor(() => expect(revokePageShareMock).toHaveBeenCalled());
+      await waitFor(() => expect(screen.queryByRole("list", { name: "Public notebooks" })).toBeNull());
+    });
+
     it("shows no list when none is public", async () => {
       render(<ShareButton tripId={tripId} />);
       await openPanel();
