@@ -39,6 +39,25 @@ describe("a public notebook is a revocable link", () => {
     expect(await listPageShares(tripId, pageId)).toHaveLength(1);
   });
 
+  it("concurrent publishes racing for one page leave exactly one live link, and all get its token", async () => {
+    // Rounds, not one: the window is a few ms and a single batch can serialise by luck.
+    for (let round = 0; round < 10; round++) {
+      const { tripId, pageId } = await seedTripWithPage();
+      const links = await Promise.all(Array.from({ length: 8 }, () => publish(tripId, pageId)));
+      expect(new Set(links.map((l) => l.token)).size).toBe(1);
+      const rows = await db.select().from(pageShares).where(eq(pageShares.pageId, pageId));
+      expect(rows.filter((r) => r.revokedAt === null)).toHaveLength(1);
+    }
+  });
+
+  it("refuses to publish a page of a deleted trip", async () => {
+    const { tripId, pageId } = await seedTripWithPage();
+    expect((await executeTripCommand({ type: "DeleteTrip", tripId }, OWNER)).ok).toBe(true);
+    const result = await createPageShare(tripId, pageId, OWNER);
+    expect(!result.ok && result.error.code).toBe("invalid");
+    expect(await listPageShares(tripId, pageId)).toHaveLength(0);
+  });
+
   it("reads the live page, and revoke makes the token not-found", async () => {
     const { tripId, pageId } = await seedTripWithPage();
     const share = await publish(tripId, pageId);

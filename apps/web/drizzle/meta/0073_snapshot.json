@@ -1989,7 +1989,7 @@
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "where": "\"page_shares\".\"revoked_at\" is null",
           "concurrently": false,
           "method": "btree",

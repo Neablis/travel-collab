@@ -1,7 +1,7 @@
 import { PageShare } from "@tc/contracts";
 import { createPageShare, listPageShares } from "@/server/access/pageShares";
 import { PublicApiError } from "@/server/public-api/commands";
-import { route } from "@/server/public-api/route";
+import { decodeKeyedCursor, keyedCursor, route } from "@/server/public-api/route";
 
 // Public notebook links (M58, ADR-088). Reading is `trips:read`, creating is
 // `sharing:write`, as a pinned share (Decision 4): handing someone a link is
@@ -13,15 +13,23 @@ export const { GET, POST } = route({
     scope: "trips:read",
     trip: "path",
     role: "editor",
-    collection: { item: PageShare, cursorOf: (share: PageShare) => share.createdAt },
+    collection: { item: PageShare, cursorOf: (share: PageShare) => keyedCursor(share.createdAt, share.shareId) },
     handle: async ({ params, page }) => {
       const all = await listPageShares(params["tripId"]!, params["pageId"]!);
-      const after = page.after;
-      return (after === null ? all : all.filter((s) => s.createdAt < after)).slice(0, page.limit);
+      // Newest first with the id as tie-break, so rows sharing a millisecond are neither skipped nor repeated.
+      const after = decodeKeyedCursor(page.after);
+      const rest =
+        after === null
+          ? all
+          : all.filter((s) => s.createdAt < after.sortKey || (s.createdAt === after.sortKey && s.shareId < after.id));
+      return rest.slice(0, page.limit);
     },
   },
   POST: {
     summary: "Make a Notebook page public: a link anyone can read, showing the page as it stands",
+    description:
+      "Answers 422 for the seeded Bookings & confirmations, Money and During-the-trip notebooks, and for a deleted trip. " +
+      "A page that is already public is answered with its live link.",
     scope: "sharing:write",
     trip: "path",
     role: "editor",

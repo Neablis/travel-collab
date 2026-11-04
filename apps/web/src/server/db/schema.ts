@@ -906,7 +906,7 @@ export const pageShares = pgTable(
   (t) => [
     uniqueIndex("page_shares_token").on(t.token),
     index("page_shares_trip").on(t.tripId),
-    index("page_shares_page_live").on(t.pageId).where(sql`${t.revokedAt} is null`),
+    uniqueIndex("page_shares_page_live").on(t.pageId).where(sql`${t.revokedAt} is null`),
   ],
 );
 

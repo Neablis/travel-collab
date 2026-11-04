@@ -48,7 +48,8 @@ const notFound = (): { ok: false; error: { code: "not-found"; message: string } 
 
 /**
  * Make a page public. A page that already has a live link is answered with that
- * link rather than a second one, so a double-click cannot leave two tokens out.
+ * link rather than a second one: `page_shares_page_live` is unique, so even two
+ * simultaneous requests leave one token out.
  * After a revoke there is no live row, so this mints a new row and a new token:
  * a revoked token never comes back (ADR-088 §1).
  */
@@ -65,11 +66,11 @@ export async function createPageShare(
   if (!isPublishable(page)) {
     return { ok: false, error: { code: "invalid", message: "This notebook can't be made public." } };
   }
-  const live = await db
-    .select()
-    .from(pageShares)
-    .where(and(eq(pageShares.pageId, pageId), isNull(pageShares.revokedAt)));
-  if (live[0] !== undefined) return { ok: true, value: toDto(live[0]) };
+  const trip = await getTripDetail(tripId);
+  if (trip === null || trip.status === "deleted") {
+    // A link minted on a deleted trip would be revoked by nothing, and a restore would make it live.
+    return { ok: false, error: { code: "invalid", message: "This trip has been deleted." } };
+  }
   const row: ShareRow = {
     id: randomUUID(),
     pageId,
@@ -79,8 +80,14 @@ export async function createPageShare(
     createdAt: new Date(now),
     revokedAt: null,
   };
-  await db.insert(pageShares).values(row);
-  return { ok: true, value: toDto(row) };
+  // The unique live-row index decides a race: the loser inserts nothing and
+  // answers with the winner's link.
+  await db.insert(pageShares).values(row).onConflictDoNothing();
+  const [live] = await db
+    .select()
+    .from(pageShares)
+    .where(and(eq(pageShares.pageId, pageId), isNull(pageShares.revokedAt)));
+  return { ok: true, value: toDto(live ?? row) };
 }
 
 /** A page's links, newest first. Revoked rows stay: the Share panel is the group's audit of what was public. */
@@ -92,7 +99,8 @@ export async function listPageShares(tripId: string, pageId?: string): Promise<P
     .where(pageId === undefined ? eq(pageShares.tripId, tripId) : and(eq(pageShares.tripId, tripId), eq(pageShares.pageId, pageId)));
   return rows
     .map(toDto)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+    // The id breaks a same-millisecond tie, so the v1 cursor can pick up exactly where a page ended.
+    .sort((a, b) => (a.createdAt === b.createdAt ? (a.shareId < b.shareId ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1));
 }
 
 export async function revokePageShare(

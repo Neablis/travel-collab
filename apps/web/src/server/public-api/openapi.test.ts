@@ -238,6 +238,12 @@ describe("openapi.json is derived from the declarations", () => {
     ).toEqual([]);
   });
 
+  it("documents the 422 a page share can answer", async () => {
+    const doc = JSON.parse(await generate()) as { paths: Record<string, Record<string, { description: string }>> };
+    const op = doc.paths["/v1/trips/{tripId}/pages/{pageId}/shares"]?.["post"];
+    expect(op?.description).toContain("422");
+  });
+
   it("names the scope and the role on every operation", async () => {
     const doc = JSON.parse(await generate()) as {
       paths: Record<string, Record<string, { description: string; security: unknown[] }>>;

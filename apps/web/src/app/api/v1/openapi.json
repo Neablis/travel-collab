@@ -24216,7 +24216,7 @@
       },
       "post": {
         "summary": "Make a Notebook page public: a link anyone can read, showing the page as it stands",
-        "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip. Answers 422 for the seeded Bookings & confirmations, Money and During-the-trip notebooks, and for a deleted trip. A page that is already public is answered with its live link.",
         "security": [
           {
             "bearerAuth": [
