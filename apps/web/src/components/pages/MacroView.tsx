@@ -107,13 +107,14 @@ export function PublicMacroView({ name, outcome, accents }: { name: string; outc
     return { ofCity: (city) => at(accents.cities, city), ofDayId: (dayId) => at(accents.days, dayId) };
   }, [accents]);
   // No trip id: a public link card carries its own `/n/<token>`, and every other target is plain.
-  return <ResolvedMacroView name={name} outcome={outcome} accents={lookup} tripId="" />;
+  return <ResolvedMacroView name={name} outcome={outcome} accents={lookup} tripId="" readOnly />;
 }
 
 /** One widget's outcome, drawn; where it came from is the caller's. */
-function ResolvedMacroView({ name, outcome, accents, tripId, onBindDay, editing = false, compact = false }: {
+function ResolvedMacroView({ name, outcome, accents, tripId, onBindDay, editing = false, compact = false, readOnly = false }: {
   name: string; outcome: RenderOutcome; accents: CityAccents; tripId: string;
-  onBindDay?: () => void; editing?: boolean; compact?: boolean;
+  // `readOnly`: a stranger's page, where the rows that point into the trip (`open`'s) are text.
+  onBindDay?: () => void; editing?: boolean; compact?: boolean; readOnly?: boolean;
 }) {
   const def = getMacro(name);
   // SPEC §27: nothing renders disabled, so a widget this reader may not use is
@@ -473,7 +474,7 @@ function ResolvedMacroView({ name, outcome, accents, tripId, onBindDay, editing 
         </a>
       );
     case "items":
-      return <ItemRows items={rendered.items} label={def?.title} tripId={tripId} interactive={!editing} />;
+      return <ItemRows items={rendered.items} label={def?.title} tripId={tripId} interactive={!editing && !readOnly} />;
     default: {
       // The same enforcement `BlockView` carries, for the same measured reason:
       // `strict` does NOT imply `noImplicitReturns` and this repo sets only
