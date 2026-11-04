@@ -241,7 +241,9 @@ function ResolvedMacroView({ name, outcome, accents, tripId, onBindDay, editing 
     case "inline":
       return <Segs segs={rendered.segs} accents={accents} />;
     case "block":
-      return <BlockView block={rendered.block} accents={accents} tripId={tripId} interactive={!editing} compact={compact} />;
+      // A stranger's page keeps the link card (its href is the public token's)
+      // but none of the member-only controls the other blocks gate on `interactive`.
+      return <BlockView block={rendered.block} accents={accents} tripId={tripId} interactive={!editing && (!readOnly || rendered.block.kind === "link-card")} compact={compact} />;
     // A repeat's rows.
     //
     // **`span`, not `div`, and that is not a style preference.** A widget node
