@@ -2,6 +2,10 @@ import { PageShare } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { revokePageShare } from "@/server/access/pageShares";
 
+/**
+ * Revokes one share link; editor only. Idempotent: a repeat answers 200 with the
+ * share as first revoked. An unknown share, or one on another page, is 404.
+ */
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ tripId: string; pageId: string; shareId: string }> },
