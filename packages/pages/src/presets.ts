@@ -658,7 +658,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "poll",
     // Two stand-ins the author overwrites in its settings: a poll with nothing
     // in it draws as a chip, and a new widget should show what it will be.
-    params: { question: "What should we do?", options: "Option 1, Option 2" },
+    params: { question: "What should we do?", options: [{ id: "1", label: "Option 1" }, { id: "2", label: "Option 2" }] },
     title: "Poll",
     summary: "Asks the people going a question with options to vote on, and shows who voted for what once everyone has.",
     keywords: ["poll", "vote", "voting", "ask", "question", "decide", "choose", "group", "survey"],

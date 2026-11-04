@@ -2231,7 +2231,7 @@
         "poll_id": {
           "name": "poll_id",
           "type": "uuid",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "trip_id": {
@@ -2255,7 +2255,15 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "poll_closes_trip_id_poll_id_pk": {
+          "name": "poll_closes_trip_id_poll_id_pk",
+          "columns": [
+            "trip_id",
+            "poll_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -2297,9 +2305,15 @@
         }
       },
       "indexes": {
-        "poll_votes_poll_user": {
-          "name": "poll_votes_poll_user",
+        "poll_votes_trip_poll_user": {
+          "name": "poll_votes_trip_poll_user",
           "columns": [
+            {
+              "expression": "trip_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "poll_id",
               "isExpression": false,
@@ -2314,21 +2328,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "poll_votes_trip": {
-          "name": "poll_votes_trip",
-          "columns": [
-            {
-              "expression": "trip_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -111,6 +111,6 @@ export function insertWidget(name: string, params: unknown = {}): InsertResult {
     // The stored discriminator is `"macro"`, not `"widget"` — ADR-038's
     // deviation note. Every page ever written uses it, and v1 is by definition
     // what those rows already contain.
-    node: { type: "macro", attrs: { name, params: parsed.data as Record<string, unknown> } },
+    node: { type: "macro", attrs: { name, params: (def.seed?.(parsed.data) ?? parsed.data) as Record<string, unknown> } },
   };
 }

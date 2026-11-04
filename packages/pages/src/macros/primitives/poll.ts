@@ -19,14 +19,24 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 // Every field is read leniently, because the editor's text boxes store what was
 // typed and `poll` judges it below: a half-written poll is `empty`, not a
-// widget whose settings "no longer fit it". `pollId` is the one exception. It
-// is minted when the widget is inserted (the schema's default runs in
-// `insertWidget`, whose parsed params are what is stored), and names the poll
-// for its votes for as long as the node lives.
+// widget whose settings "no longer fit it". `pollId` is the one exception, and
+// it is NOT defaulted here: `renderMacro` parses on every read, so a default
+// would give a stored poll without an id a new one each time and its votes
+// would never be found. It is minted once, by `seed` when the widget is
+// inserted; a node that has none is not a poll yet (`pollSpecOf`).
+//
+// `options` is a list of `{ id, label }`: the vote stores the id, so renaming an
+// option keeps its votes (decision 8). The comma-separated text a first build
+// stored is still read, each label being its own id.
+//
+// **The same poll id twice on one trip is one poll** (a pasted copy of the
+// widget shows, and votes into, the same poll), by design: votes and closes are
+// keyed by trip and poll id, so a copy on ANOTHER trip is a poll of its own.
+const PollOptionRow = z.object({ id: z.string(), label: z.string() });
 const PollParams = z.object({
-  pollId: z.string().uuid().default(() => crypto.randomUUID()),
+  pollId: z.string().uuid().optional(),
   question: z.string().optional(),
-  options: z.string().optional(),
+  options: z.union([z.string(), z.array(PollOptionRow)]).optional(),
   multi: z.boolean().optional(),
   closesAt: z.string().optional(),
 });
@@ -36,7 +46,7 @@ type PollParams = z.infer<typeof PollParams>;
 export interface PollSpec {
   pollId: string;
   question: string;
-  /** The id is the label: the vote stores it, so editing a poll keeps the votes of every option it still has. */
+  /** The id is the option's own, kept when its label is edited; the vote stores it. */
   options: { id: string; label: string }[];
   multi: boolean;
   /** `yyyy-mm-dd`, the last day votes are taken. */
@@ -44,18 +54,33 @@ export interface PollSpec {
   hideWhenPublic: boolean;
 }
 
-/** `null` when the text does not make a poll yet: no question, or fewer than two distinct options. */
+function optionsOf(raw: PollParams["options"]): PollSpec["options"] {
+  const rows = typeof raw === "string" ? raw.split(",").map((label) => ({ id: label.trim(), label })) : (raw ?? []);
+  const seen = new Set<string>();
+  const options: PollSpec["options"] = [];
+  for (const row of rows) {
+    const id = row.id.trim().slice(0, OPTION_LENGTH);
+    const label = row.label.trim().slice(0, OPTION_LENGTH);
+    // A row not yet typed into is not an option; a repeated id is one option.
+    if (id === "" || label === "" || seen.has(id)) continue;
+    seen.add(id);
+    options.push({ id, label });
+  }
+  return options.slice(0, MOST_OPTIONS);
+}
+
+/** `null` when the text does not make a poll yet: no id, no question, or fewer than two options. */
 export function pollSpecOf(raw: unknown, hideWhenPublic = false): PollSpec | null {
   const parsed = PollParams.safeParse(raw);
   if (!parsed.success) return null;
   const { pollId, question, options, multi, closesAt } = parsed.data;
-  const labels = [...new Set((options ?? "").split(",").map((o) => o.trim().slice(0, OPTION_LENGTH)).filter((o) => o !== ""))];
   const asked = (question ?? "").trim().slice(0, QUESTION_LENGTH);
-  if (asked === "" || labels.length < 2) return null;
+  const listed = optionsOf(options);
+  if (pollId === undefined || asked === "" || listed.length < 2) return null;
   return {
     pollId,
     question: asked,
-    options: labels.slice(0, MOST_OPTIONS).map((label) => ({ id: label, label })),
+    options: listed,
     multi: multi === true,
     closesAt: closesAt !== undefined && DAY.test(closesAt.trim()) ? closesAt.trim() : null,
     hideWhenPublic,
@@ -114,13 +139,20 @@ export const poll: MacroDef<PollParams, PollPayload> = {
   params: PollParams,
   inputs: [
     { name: "question", type: "text", label: "Question", placeholder: "Where should we eat?" },
-    { name: "options", type: "text", label: "Options", placeholder: "Ramen, Sushi, Tempura" },
+    { name: "options", type: "list", label: "Options", placeholder: "An option" },
     { name: "multi", type: "toggle", label: "Let people pick more than one", default: false },
     { name: "closesAt", type: "text", label: "Last day to vote", placeholder: "yyyy-mm-dd" },
   ],
   selection: undefined,
+  // The one id the schema leaves out: minted here, once, and stored with the node.
+  // Two blank options, so the settings open with two rows to type into.
+  seed: (params) => ({
+    ...params,
+    pollId: params.pollId ?? crypto.randomUUID(),
+    options: params.options ?? [{ id: crypto.randomUUID(), label: "" }, { id: crypto.randomUUID(), label: "" }],
+  }),
   description:
-    "A poll for the people going: a question and options (comma-separated in `options`). Every traveler votes once and can change it until an editor closes the poll or its `closesAt` day (yyyy-mm-dd) passes. Members see who voted for what; the public page shows only counts.",
+    "A poll for the people going: a question and its `options`, a list of `{ id, label }` (the id stays when the label is edited, so votes are kept). Every traveler votes once and can change it until an editor closes the poll or its `closesAt` day (yyyy-mm-dd) passes. Members see who voted for what; the public page shows only counts.",
   emptyText: "add a question and two options",
   // Fixed, never computed (ADR-037 decision 5): nobody's words.
   preview: "a question with options to vote on",

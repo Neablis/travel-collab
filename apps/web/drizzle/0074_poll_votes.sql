@@ -1,8 +1,9 @@
 CREATE TABLE "poll_closes" (
-	"poll_id" uuid PRIMARY KEY NOT NULL,
+	"poll_id" uuid NOT NULL,
 	"trip_id" uuid NOT NULL,
 	"closed_by" text NOT NULL,
-	"closed_at" timestamp with time zone NOT NULL
+	"closed_at" timestamp with time zone NOT NULL,
+	CONSTRAINT "poll_closes_trip_id_poll_id_pk" PRIMARY KEY("trip_id","poll_id")
 );
 --> statement-breakpoint
 CREATE TABLE "poll_votes" (
@@ -13,5 +14,4 @@ CREATE TABLE "poll_votes" (
 	"voted_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX "poll_votes_poll_user" ON "poll_votes" USING btree ("poll_id","user_id");--> statement-breakpoint
-CREATE INDEX "poll_votes_trip" ON "poll_votes" USING btree ("trip_id");
+CREATE UNIQUE INDEX "poll_votes_trip_poll_user" ON "poll_votes" USING btree ("trip_id","poll_id","user_id");

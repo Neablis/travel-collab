@@ -594,6 +594,8 @@ describe("every widget is legal where widgets actually go", () => {
   const LINKED_NOTEBOOK = "0f0f0f0f-0000-4000-8000-000000000001";
   function boundParams(entry: { widget: string; params: Readonly<Record<string, unknown>> }): Record<string, unknown> {
     const params: Record<string, unknown> = { ...entry.params };
+    // A poll's id is minted by the insert, which this sweep does not run; without one it is no poll yet.
+    if (entry.widget === "poll") params.pollId = "33333333-3333-4333-8333-333333333333";
     for (const input of getMacro(entry.widget)?.inputs ?? []) {
       if (input.type === "day") params[input.name] = { kind: "index", index: 0 };
       // A link lands asking where it goes (ADR-056); bind it the way its
@@ -734,7 +736,7 @@ flightNumber: null, booking: null,
     // A screen offering its chat (M52), so "Trip chat" is drawn rather than absent.
     const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } });
     // A member's poll reads its votes from the server (M58): an empty tally, so the poll is drawn and no request leaves.
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ closed: false, counts: {}, votes: [], mine: [] })));
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ closed: false, counts: {}, votes: [], mine: [], canClose: false })));
     try {
       for (const widget of presetCatalog()) {
         const { unmount } = render(

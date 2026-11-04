@@ -4,7 +4,7 @@ import { newPageDoc, type PageNode } from "@tc/contracts";
 import type { PollSpec } from "@tc/pages";
 import { executeTripCommand } from "@/server/commands";
 import { executePageCommand } from "@/server/pageCommands";
-import { castVote, closePoll, pollOnTrip, tallyFor } from "./votes";
+import { castVote, closePoll, pollOnTrip, tallyFor, writeVote } from "./votes";
 
 // The poll store (M58 decision 8): one vote per person per poll, changeable
 // until the poll closes, counted by option, and a poll id only ever means a
@@ -20,8 +20,7 @@ async function seedTrip(): Promise<string> {
   return tripId;
 }
 
-async function seedPoll(tripId: string, extra: Record<string, unknown> = {}): Promise<string> {
-  const pollId = randomUUID();
+async function seedPoll(tripId: string, extra: Record<string, unknown> = {}, pollId = randomUUID()): Promise<string> {
   const poll = { type: "macro", attrs: { name: "poll", params: { pollId, question: "Where to eat?", options: "Ramen, Sushi, Tempura", ...extra } } };
   const created = await executePageCommand(
     { type: "CreatePage", tripId, pageId: randomUUID(), title: "Votes page", context: { tripId }, content: newPageDoc([poll as unknown as PageNode]) },
@@ -97,6 +96,44 @@ describe("poll votes", () => {
     expect(await castVote(tripId, "ann", spec, ["Ramen"], "2026-11-04")).toEqual({ ok: true });
     expect(await castVote(tripId, "ann", spec, ["Sushi"], "2026-11-05")).toEqual({ ok: false, error: "closed" });
     expect((await tallyFor(tripId, [spec], "2026-11-05")).get(spec.pollId)!.closed).toBe(true);
+  });
+
+  it("keeps a vote on an option whose label was renamed: options are stored with their own ids", async () => {
+    const tripId = await seedTrip();
+    const options = [{ id: "opt-a", label: "Ramen" }, { id: "opt-b", label: "Sushi" }];
+    const spec = await specOf(tripId, await seedPoll(tripId, { options }));
+    expect(await castVote(tripId, "ann", spec, ["opt-a"], TODAY)).toEqual({ ok: true });
+    const renamed: PollSpec = { ...spec, options: [{ id: "opt-a", label: "Ramen bar" }, options[1]!] };
+    expect((await countsOf(tripId, renamed)).counts).toEqual({ "opt-a": 1, "opt-b": 0 });
+  });
+
+  // The same poll id on two trips (a widget pasted across trips): each trip's
+  // votes and its close are its own. Keyed by the poll alone, the second
+  // trip's vote overwrote the first's row and its close was silently dropped.
+  it("keeps one poll id apart on two trips: votes and closes are per trip", async () => {
+    const [tripA, tripB] = [await seedTrip(), await seedTrip()];
+    const pollId = randomUUID();
+    await seedPoll(tripA, {}, pollId);
+    await seedPoll(tripB, {}, pollId);
+    const [specA, specB] = [await specOf(tripA, pollId), await specOf(tripB, pollId)];
+    await castVote(tripA, "ann", specA, ["Ramen"], TODAY);
+    await castVote(tripB, "ann", specB, ["Sushi"], TODAY);
+    expect((await countsOf(tripA, specA)).counts).toEqual({ Ramen: 1, Sushi: 0, Tempura: 0 });
+    expect((await countsOf(tripB, specB)).counts).toEqual({ Ramen: 0, Sushi: 1, Tempura: 0 });
+    await closePoll(tripA, specA, OWNER, new Date());
+    await closePoll(tripB, specB, OWNER, new Date());
+    expect((await countsOf(tripB, specB)).closed).toBe(true);
+    expect(await castVote(tripA, "bob", specA, ["Ramen"], TODAY)).toEqual({ ok: false, error: "closed" });
+  });
+
+  // `castVote` reads the closed state and then writes; a close landing between
+  // the two must still refuse the vote, so the write itself is the check.
+  it("writes no vote on a poll an editor has closed, whatever was read before", async () => {
+    const tripId = await seedTrip();
+    const spec = await specOf(tripId, await seedPoll(tripId));
+    await closePoll(tripId, spec, OWNER, new Date());
+    expect(await writeVote(tripId, "ann", spec, ["Ramen"])).toBe(false);
+    expect((await countsOf(tripId, spec)).votes).toEqual([]);
   });
 
   it("does not count a vote for an option the poll no longer has", async () => {

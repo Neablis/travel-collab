@@ -414,3 +414,41 @@ describe("`open`'s class filter", () => {
     expect(bindSummary("open", {}, detail, null)).toBe("everything");
   });
 });
+
+// `poll`'s options: rows with ids of their own (M58 decision 8). Editing a
+// label must keep the id its votes are stored under, and removing a row that
+// has text asks first.
+describe("a list input", () => {
+  const OPTIONS = getMacro("poll")!.inputs.filter((i) => i.type === "list");
+  const rows = [{ id: "a", label: "Ramen" }, { id: "b", label: "Sushi" }];
+
+  it("renames an option without changing its id", async () => {
+    const user = userEvent.setup();
+    render(<Harness name="poll" inputs={OPTIONS} initial={{ options: rows }} />);
+    const first = screen.getByRole("textbox", { name: "Option 1" });
+    await user.clear(first);
+    await user.type(first, "Ramen bar");
+    await user.tab();
+    expect(stored().options).toEqual([{ id: "a", label: "Ramen bar" }, rows[1]]);
+  });
+
+  it("asks before removing an option that has a name, and only then removes it", async () => {
+    const user = userEvent.setup();
+    render(<Harness name="poll" inputs={OPTIONS} initial={{ options: rows }} />);
+    await user.click(screen.getByRole("button", { name: "Remove option 1" }));
+    expect(stored().options).toEqual(rows);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Remove option" }));
+    expect(stored().options).toEqual([rows[1]]);
+  });
+
+  it("adds a blank row with a new id, and drops a blank row without asking", async () => {
+    const user = userEvent.setup();
+    render(<Harness name="poll" inputs={OPTIONS} initial={{ options: rows }} />);
+    await user.click(screen.getByRole("button", { name: "Add option" }));
+    const added = (stored().options as { id: string; label: string }[])[2]!;
+    expect(added.label).toBe("");
+    expect(rows.map((r) => r.id)).not.toContain(added.id);
+    await user.click(screen.getByRole("button", { name: "Remove option 3" }));
+    expect(stored().options).toEqual(rows);
+  });
+});

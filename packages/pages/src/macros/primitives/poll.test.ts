@@ -3,6 +3,7 @@ import type { TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { PollPayload, WidgetContext } from "../../registry-types";
+import { insertWidget } from "../../insert";
 import { pollClosed, pollSpecOf, pollsIn } from "./poll";
 
 // "Poll" (M58 decision 8). What a reader cannot check from the screen is what
@@ -29,6 +30,41 @@ describe("poll", () => {
     expect(pollOf(ctx()).options).toEqual([
       { id: "Ramen", label: "Ramen" }, { id: "Sushi", label: "Sushi" }, { id: "Tempura", label: "Tempura" },
     ]);
+  });
+
+  // Decision 8, "Editing after votes are in": renaming an option keeps its votes,
+  // so an option's id is its own and the label is only what is shown.
+  it("keeps an option's id when its label is renamed", () => {
+    const options = [{ id: "opt-a", label: "Ramen" }, { id: "opt-b", label: "Sushi" }];
+    const before = pollSpecOf({ ...params, options });
+    const after = pollSpecOf({ ...params, options: [{ id: "opt-a", label: "Ramen bar" }, options[1]] });
+    expect(before?.options.map((o) => o.id)).toEqual(["opt-a", "opt-b"]);
+    expect(after?.options).toEqual([{ id: "opt-a", label: "Ramen bar" }, { id: "opt-b", label: "Sushi" }]);
+  });
+
+  it("skips an option row whose label is still blank", () => {
+    const options = [{ id: "a", label: "Ramen" }, { id: "b", label: "  " }, { id: "c", label: "Sushi" }];
+    expect(pollSpecOf({ ...params, options })?.options.map((o) => o.id)).toEqual(["a", "c"]);
+  });
+
+  // A poll's identity is minted once, when it is inserted. Parsing a stored
+  // node with none used to invent a new id on every read.
+  it("is no poll until it has an id: a missing one is not minted on read", () => {
+    const { pollId: _omitted, ...withoutId } = params;
+    expect(pollSpecOf(withoutId)).toBeNull();
+    expect(pollsIn({ type: "macro", attrs: { name: "poll", params: withoutId } })).toEqual([]);
+    expect(renderMacro(ctx(), "poll", withoutId).status).toBe("empty");
+  });
+
+  it("mints the id when the widget is inserted, a new one each time", () => {
+    const idOf = () => {
+      const inserted = insertWidget("poll", { question: "Where?" });
+      if (!inserted.ok) throw new Error("insert refused");
+      return inserted.node.attrs.params.pollId;
+    };
+    const [first, second] = [idOf(), idOf()];
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second).not.toBe(first);
   });
 
   it("drops a repeated or empty option", () => {

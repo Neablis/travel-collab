@@ -118,6 +118,8 @@ describe("registry", () => {
     target: { kind: "view", view: "Map" },
     url: "https://example.com/tickets",
     text: "Tickets",
+    // Option rows (`poll`): each its own id and label, the shape a vote keeps pointing at.
+    list: [{ id: "a", label: "Ramen" }],
     // A member's `userId` (`PersonRef`) — `detail`'s one member.
     person: "u1",
   };
@@ -325,6 +327,8 @@ describe("every widget renders (ADR-037 decision 2)", () => {
             i.type === "target" ? [[i.name, { kind: "notebook", pageId: LINKED_NOTEBOOK }]] : i.type === "url" ? [[i.name, "https://example.com/tickets"]] : [],
           ),
         ),
+        // A poll's id is minted by the insert, which this sweep does not run; without one it is no poll yet.
+        ...(entry.widget === "poll" ? { pollId: "11111111-1111-4111-8111-111111111111" } : {}),
         // "What one person is in for" lands asking who; the settings panel's
         // member select answers it, so the sweep picks the trip's one member.
         ...Object.fromEntries(

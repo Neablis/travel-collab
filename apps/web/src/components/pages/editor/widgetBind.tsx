@@ -12,6 +12,8 @@ import { ChoicesFilter, pickedChoices } from "./ChoicesFilter";
 import { FieldPicker } from "./FieldPicker";
 import { FieldColumns } from "./FieldColumns";
 import { LinkTargetPicker } from "./LinkTargetPicker";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { usePeople, useGuests } from "../people";
 
@@ -254,6 +256,7 @@ export function optionsFor(
     case "target":
     case "url":
     case "text":
+    case "list":
       return [];
     default: {
       // The enforcement, the same as `BlockView`'s: a new `WidgetInput` type
@@ -349,7 +352,7 @@ export function bindSummary(
   // nothing — which the default `allInputs` already leaves out.)
   // The link inputs are not filters either: a link's settings say where it
   // goes in its own control, not as "Showing …" (ADR-056).
-  const inputs = allInputs.filter((i) => !["toggle", "choice", "target", "url", "text"].includes(i.type));
+  const inputs = allInputs.filter((i) => !["toggle", "choice", "target", "url", "text", "list"].includes(i.type));
   if (inputs.length === 0) return null;
   // An unset single field is no answer at all rather than the widest one — the
   // widget renders `unbound("field")` whatever else is bound — so the summary
@@ -481,6 +484,83 @@ function CommittedText({
   );
 }
 
+/** The `{ id, label }` rows a `list` input holds. The comma-separated text a first build stored reads as rows whose id is the label. */
+function optionRowsOf(stored: unknown): { id: string; label: string }[] {
+  if (typeof stored === "string") return stored.split(",").map((label) => ({ id: label.trim(), label: label.trim() })).filter((r) => r.id !== "");
+  if (!Array.isArray(stored)) return [];
+  return stored.filter((r): r is { id: string; label: string } => typeof r?.id === "string" && typeof r?.label === "string");
+}
+
+/**
+ * A `list` input: one box per row, each committed on its own, so editing a
+ * label never touches the row's id. Removing a row that has text asks first,
+ * because the votes for it stop counting (M58 decision 8).
+ */
+function OptionRows({
+  id,
+  title,
+  placeholder,
+  rows,
+  onChange,
+  layout,
+}: {
+  id: string;
+  title: string;
+  placeholder: string;
+  rows: { id: string; label: string }[];
+  onChange: (rows: { id: string; label: string }[]) => void;
+  layout: "inline" | "stacked";
+}) {
+  const [removing, setRemoving] = useState<number | null>(null);
+  const asked = removing === null ? undefined : rows[removing];
+  const drop = (index: number) => onChange(rows.filter((_, i) => i !== index));
+  return (
+    <div role="group" aria-label={title} className="flex flex-col gap-1">
+      {rows.map((row, index) => (
+        <div key={row.id} className="flex items-center gap-1">
+          <CommittedText
+            id={`${id}-${index}`}
+            label={`Option ${index + 1}`}
+            value={row.label}
+            placeholder={placeholder}
+            autoFocus={false}
+            normalise={(raw) => raw}
+            validate={() => null}
+            onCommit={(next) => onChange(rows.map((r, i) => (i === index ? { ...r, label: next } : r)))}
+            layout={layout}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Remove option ${index + 1}`}
+            onClick={() => (row.label.trim() === "" ? drop(index) : setRemoving(index))}
+          >
+            Remove
+          </Button>
+        </div>
+      ))}
+      <Button variant="ghost" size="sm" onClick={() => onChange([...rows, { id: crypto.randomUUID(), label: "" }])}>
+        Add option
+      </Button>
+      {removing !== null && asked !== undefined ? (
+        <ConfirmDialog
+          title="Remove this option?"
+          body={`Votes for “${asked.label}” stop counting, and anyone who voted only for it will need to vote again.`}
+          confirmLabel="Remove option"
+          busy={false}
+          onOpenChange={(open) => {
+            if (!open) setRemoving(null);
+          }}
+          onConfirm={() => {
+            drop(removing);
+            setRemoving(null);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * One control per declared filter.
  *
@@ -591,6 +671,15 @@ export function WidgetBindControls({
               normalise={input.type === "url" ? withScheme : (raw) => raw}
               validate={input.type === "url" ? addressProblem : () => null}
               onCommit={(next) => onChange(withBinding(params, input, next))}
+              layout={layout}
+            />
+          ) : input.type === "list" ? (
+            <OptionRows
+              id={`${idPrefix}-${input.name}`}
+              title={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : input.label}
+              placeholder={input.placeholder}
+              rows={optionRowsOf(params[input.name])}
+              onChange={(rows) => onChange({ ...params, [input.name]: rows })}
               layout={layout}
             />
           ) : input.type === "field" && input.multiple ? (

@@ -21,6 +21,7 @@ const widget = (name: string, params: Record<string, unknown>): PageNode =>
   ({ type: "macro", attrs: { name, params } }) as unknown as PageNode;
 
 const QUESTION = "Where should we eat on night one?";
+// The comma text a first build stored (each label is its own id); the insert test below types the rows the editor now has.
 const OPTIONS = "Ramen, Sushi, Tempura";
 
 async function createPage(page: Page, tripId: string, title: string, content: PageNode[]): Promise<string> {
@@ -183,9 +184,23 @@ test("a poll is inserted from the editor, with its question and options typed in
   const question = settings.getByRole("textbox", { name: /Question/ });
   await question.fill(QUESTION);
   await question.press("Enter");
-  const options = settings.getByRole("textbox", { name: /Options/ });
-  await options.fill(OPTIONS);
-  await options.press("Enter");
+  // Two blank rows come with the widget; a third is added, then removed with a question.
+  for (const [index, label] of ["Ramen", "Sushi"].entries()) {
+    const row = settings.getByRole("textbox", { name: `Option ${index + 1}` });
+    await row.fill(label);
+    await row.press("Enter");
+  }
+  await settings.getByRole("button", { name: "Add option" }).click();
+  const third = settings.getByRole("textbox", { name: "Option 3" });
+  await third.fill("Pizza");
+  await third.press("Enter");
+  await settings.getByRole("button", { name: "Remove option 3" }).click();
+  await page.getByRole("dialog", { name: "Remove this option?" }).getByRole("button", { name: "Remove option" }).click();
+  await expect(settings.getByRole("textbox", { name: "Option 3" })).toHaveCount(0);
+  await settings.getByRole("button", { name: "Add option" }).click();
+  const last = settings.getByRole("textbox", { name: "Option 3" });
+  await last.fill("Tempura");
+  await last.press("Enter");
   await expect(page.getByRole("group", { name: QUESTION })).toBeVisible();
 
   await Promise.all([

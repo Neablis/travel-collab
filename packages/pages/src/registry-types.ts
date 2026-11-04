@@ -486,7 +486,11 @@ export type WidgetInput =
   | { name: string; type: "url"; label: string }
   // Free text whose absence is a real answer — the external link's optional
   // label, which falls back to the address's host.
-  | { name: string; type: "text"; label: string; placeholder: string };
+  | { name: string; type: "text"; label: string; placeholder: string }
+  // **A list of `{ id, label }` rows** (`poll`'s options): one text box each,
+  // with add and remove. The id is minted when the row is added and kept when
+  // the label is edited, so whatever points at a row (a vote) keeps pointing.
+  | { name: string; type: "list"; label: string; placeholder: string };
 
 /** The declared input types, derived so nothing can list them a second time. */
 export type WidgetInputType = WidgetInput["type"];
@@ -526,7 +530,7 @@ type Assert<T extends true> = T;
  * has a declared `default`, and absent IS that default. `choices` joins them
  * on decision 2's reasoning: absent is every option.
  */
-type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice" | "choices" | "text";
+type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice" | "choices" | "text" | "list";
 
 export type NeedsCoversEveryBindableInput = Assert<
   Exclude<WidgetInputType, NeverUnbound> extends UnboundNeeds ? true : false
@@ -826,6 +830,12 @@ export interface MacroDef<P, T> {
   // instance is hidden (`hideWhenPublic`), and the floors are the only thing
   // that holds whatever an editor set.
   description: string;             // human- AND machine-readable (AI + autocomplete)
+  /**
+   * Fills in what only an insert may decide, after the params parse: an id
+   * minted once, which a parse on every read must not invent. Run by
+   * `insertWidget` and nowhere else.
+   */
+  seed?(params: P): P;
   emptyText: string;               // declarative empty-state copy
   // Nothing to show is the GOOD news (`open`: the trip is settled), so the
   // renderer draws `emptyText` as the design's success line, not the muted

@@ -24,6 +24,8 @@ import { registerPhoneAsk } from "@/components/nav/phoneAsk";
 vi.mock("@/lib/apiClient", async (orig) => ({
   ...(await orig<typeof import("@/lib/apiClient")>()),
   fetchTripWeather: vi.fn(async () => ({ ok: false as const, error: { status: 0, message: "Network error" } })),
+  // The poll widget reads its votes for a member; the card's "couldn't be loaded" line is what is scanned.
+  fetchPoll: vi.fn(async () => ({ ok: false as const, error: { status: 0, message: "Network error" } })),
 }));
 vi.mock("@/lib/pagesClient", async (orig) => ({
   ...(await orig<typeof import("@/lib/pagesClient")>()),
