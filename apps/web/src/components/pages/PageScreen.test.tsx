@@ -3253,6 +3253,39 @@ describe("PageScreen: publishing a notebook", () => {
     expect(screen.getByText("Public")).toBeTruthy();
   });
 
+  it("previews only once an edit that was still saving has landed", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let previewReads = 0;
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", async () => {
+        await gate;
+        return HttpResponse.json({ ...page, updatedAt: "2026-11-04T01:00:00.000Z" });
+      }),
+      http.get("/api/trips/:tripId/pages/:pageId/public-preview", () => {
+        previewReads += 1;
+        return HttpResponse.json({
+          preview: { view: { title: "Itinerary", content: [], accents: { cities: {}, days: {} } }, plainText: [], alsoPublic: [] },
+        });
+      }),
+    );
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(screen.getAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!, "edit");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+
+    // The PATCH is still held: a preview now would be of the page without the edit.
+    expect(previewReads).toBe(0);
+    release();
+    await screen.findByRole("region", { name: "What a stranger sees" });
+    expect(previewReads).toBe(1);
+  });
+
   it("gives a viewer the chip and Copy link, and no control to publish or unpublish", async () => {
     const { trip, page } = serveWith({ role: "viewer", publicToken: "viewer-sees-this" });
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);

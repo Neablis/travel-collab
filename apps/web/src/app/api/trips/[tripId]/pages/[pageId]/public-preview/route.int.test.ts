@@ -10,6 +10,7 @@ import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
 const OWNER = "ppreview-route-owner";
 const VIEWER = "ppreview-route-viewer";
+const SUGGESTER = "ppreview-route-suggester";
 
 let currentUserId = OWNER;
 
@@ -101,6 +102,24 @@ describe("GET /api/trips/:id/pages/:pageId/public-preview", () => {
     expect(preview.view.title).toBe("Itinerary");
     expect(preview.view.content[0]?.attrs?.outcome?.status).toBe("not-shared");
     expect(JSON.stringify(preview)).not.toContain("example.com/secret");
+  });
+
+  it("403s a suggester, who cannot publish", async () => {
+    const tripId = await seedTrip();
+    const pageId = await seedPage(tripId, "Itinerary");
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "suggester" });
+    const accepted = await acceptInvite(invite.token, SUGGESTER);
+    if (!accepted.ok) throw new Error(accepted.error.message);
+    currentUserId = SUGGESTER;
+    expect((await GET(req(), params(tripId, pageId))).status).toBe(403);
+  });
+
+  it("422s a notebook that can never be public, rather than previewing it", async () => {
+    const tripId = await seedTrip();
+    const seeded = await listPages(tripId);
+    const money = seeded.find((p) => p.seedKey === "money");
+    if (money === undefined) throw new Error("no money seed");
+    expect((await GET(req(), params(tripId, money.id))).status).toBe(422);
   });
 
   it("403s a viewer and 404s a page of another trip", async () => {

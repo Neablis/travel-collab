@@ -165,6 +165,9 @@ export function ShareButton({
     setBusy(true);
     try {
       const result = await revokePageShare(tripId, entry.share.pageId, entry.share.shareId);
+      // At once, not left to the re-read: `load` keeps the list as it was when
+      // the shares read fails, which would leave a revoked link with a live Copy.
+      if (result.ok) setPublicNotebooks((prev) => prev.filter((n) => n.share.shareId !== entry.share.shareId));
       await load();
       if (!result.ok) setError(result.error.message);
     } finally {

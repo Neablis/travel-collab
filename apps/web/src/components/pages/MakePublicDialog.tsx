@@ -81,21 +81,37 @@ export function MakePublicDialog({
     };
   }, [open, tripId, pageId]);
 
+  // Each notebook that landed is public whatever happens next, so a later
+  // failure names them and stops offering them, rather than leaving them ticked
+  // as if still to do.
+  function failAfter(landed: readonly string[], message: string) {
+    if (landed.length === 0) {
+      setError(message);
+      return;
+    }
+    const names = (preview?.alsoPublic ?? []).filter((o) => landed.includes(o.pageId)).map((o) => o.title);
+    setPreview((prev) => (prev === null ? prev : { ...prev, alsoPublic: prev.alsoPublic.filter((o) => !landed.includes(o.pageId)) }));
+    setTicked((prev) => new Set([...prev].filter((id) => !landed.includes(id))));
+    setError(`${names.join(", ")} ${names.length === 1 ? "is" : "are"} now public. ${message}`);
+  }
+
   async function publish() {
     setBusy(true);
     setError(null);
     try {
       // The ticked notebooks first, so the page's links to them work the moment it is live.
+      const landed: string[] = [];
       for (const id of ticked) {
         const side = await createPageShare(tripId, id);
         if (!side.ok) {
-          setError(side.error.message);
+          failAfter(landed, side.error.message);
           return;
         }
+        landed.push(id);
       }
       const made = await createPageShare(tripId, pageId);
       if (!made.ok) {
-        setError(made.error.message);
+        failAfter(landed, made.error.message);
         return;
       }
       setLive(made.value);

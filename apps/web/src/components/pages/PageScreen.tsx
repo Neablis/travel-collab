@@ -722,6 +722,8 @@ export function PageScreen({
   // argument). The server answers a no-op before it looks at the revision, so
   // a commit repeating what a keepalive already landed is not a conflict.
   const commitSeq = useRef(0);
+  // Commits on the wire, so *Make public* can wait for the edit it would preview.
+  const savesInFlight = useRef(new Set<Promise<unknown>>());
   const session = useEditSession(editing, (content, { keepalive, overtaking }) => {
     const seq = ++commitSeq.current;
     const draft = { base: baseRef.current ?? "", doc: content };
@@ -756,7 +758,10 @@ export function PageScreen({
         return true;
       });
     };
-    return send(1);
+    const sent = send(1);
+    savesInFlight.current.add(sent);
+    void sent.finally(() => savesInFlight.current.delete(sent)).catch(() => {});
+    return sent;
   }, (content) => rememberPageDraft(pageId, { base: baseRef.current ?? "", doc: content }));
   sessionRef.current = session;
 
@@ -801,6 +806,19 @@ export function PageScreen({
     // As on load: a draft only ever meets an editable page.
     if (inspected.status === "mountable") setOfferedDraft({ ...mine, refused: true });
     return "superseded";
+  };
+
+  // The preview is the stored page, so an edit still being saved (leaving
+  // Editing settles it, but does not wait) would be left out of it, and the link
+  // would then serve something other than what was shown. Flush, then wait for
+  // every commit, including one queued behind another that starts a tick later.
+  const openMakePublic = async () => {
+    session.flush();
+    while (savesInFlight.current.size > 0) {
+      await Promise.allSettled([...savesInFlight.current]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    setPublishing(true);
   };
 
   // Puts an earlier visit's draft back, over what the page now says: only ever
@@ -1518,7 +1536,7 @@ export function PageScreen({
               onReset={handleReset}
               revision={() => baseRef.current ?? page.updatedAt}
               // Editors and the owner, on a notebook the server will make public.
-              onMakePublic={editRole === "writer" && publishable ? () => setPublishing(true) : undefined}
+              onMakePublic={editRole === "writer" && publishable ? () => void openMakePublic() : undefined}
             />
           )}
           {publishable ? (
