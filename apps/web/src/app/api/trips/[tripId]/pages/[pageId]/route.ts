@@ -5,6 +5,7 @@ import { MAX_PAGE_BODY_BYTES, getPage } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { readBody } from "@/server/readBody";
 import { tripPageView } from "@/server/tripViews";
+import { isPublishable, listPageShares } from "@/server/access/pageShares";
 
 // `pages.id` is a uuid column, so `getPage("not-a-uuid")` is not a miss — it is
 // `22P02` out of the driver, and all three handlers here answered 500 instead
@@ -23,7 +24,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tripId:
   const g = await guard(tripId, "viewer", { allowDemo: true });
   if ("error" in g) return g.error;
   const view = await tripPageView(tripId, pageId);
-  return view === null ? notFound() : Response.json(view);
+  if (view === null) return notFound();
+  // The page's own *Public* chip (M58): a viewer cannot read the shares list,
+  // and the chip is for them. The link is public by design, so its token is no
+  // more than a member of the trip may be told. `publishable` is the server's
+  // rule for a seeded notebook, so the *Make public* control is never drawn for
+  // the three that are refused and the client keeps no copy of the list.
+  const live = (await listPageShares(tripId, pageId)).find((share) => share.revokedAt === null);
+  return Response.json({ ...view, publicToken: live?.token ?? null, publishable: isPublishable(view.page) });
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {

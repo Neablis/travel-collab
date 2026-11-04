@@ -1,13 +1,10 @@
 import { cache } from "react";
-import { parsePageDoc } from "@tc/contracts";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { PublicNotebookScreen } from "@/components/access/PublicNotebookScreen";
 import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
-import { liveShareTokensFor, readPageShare } from "@/server/access/pageShares";
-import { toPublicNotebookView } from "@/server/access/publicView";
-import { listPageEntries } from "@/server/pages";
-import { buildTripGlobals } from "@/server/tripGlobals";
+import { readPageShare } from "@/server/access/pageShares";
+import { publicViewOf } from "@/server/access/publicNotebook";
 
 // `/n/<token>`: a public notebook (M58, ADR-088), for a reader with no account
 // and for a member alike: nobody gets a different page. Under `(front)` and
@@ -33,36 +30,7 @@ const load = cache(async (token: string) => {
   const read = await readPageShare(token);
   // Unknown, revoked, and a deleted page or trip are all this one answer.
   if (!read.ok) return null;
-  const { page, trip } = read.value;
-  const [publicTokenFor, notebooks] = await Promise.all([liveShareTokensFor(trip.tripId), listPageEntries(trip.tripId)]);
-  const now = new Date();
-  return toPublicNotebookView({
-    trip,
-    globals: buildTripGlobals(trip),
-    page: { title: page.title, content: parsePageDoc(page.content), context: page.context },
-    external: {
-      // A stranger's page makes no call to a weather source on the group's
-      // behalf (the trip's places would leave with it), so it reads as down.
-      weather: { state: "failed" },
-      notebooks: {
-        state: "ready",
-        value: {
-          pages: notebooks.map((entry) => ({
-            id: entry.id,
-            seedKey: entry.seedKey ?? null,
-            title: entry.title,
-            firstLine: entry.preview?.firstLine ?? null,
-            widgetCount: entry.preview?.widgetCount ?? 0,
-          })),
-        },
-      },
-    },
-    publicTokenFor,
-    // A stranger has no time zone to read the date in: the server's calendar
-    // day, and no clock, so nothing is scoped to "now".
-    today: now.toISOString().slice(0, 10),
-    now: null,
-  });
+  return publicViewOf(read.value.trip, read.value.page);
 });
 
 /** Metadata for `/n/<token>`: the notebook's title and the card of its title and cover; a dead link names nothing. */

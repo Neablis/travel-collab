@@ -7,10 +7,16 @@ import { instantiateDefaults } from "@tc/pages";
 import {
   addMissingDefaultNotebooks,
   createPage,
+  createPageShare,
   deletePage,
   fetchPage,
+  fetchPageShares,
+  fetchPageView,
   fetchPages,
+  fetchPublishPreview,
+  fetchTripPageShares,
   resetPageToDefault,
+  revokePageShare,
   restorePageVersion,
   updatePage,
 } from "@/lib/pagesClient";
@@ -104,6 +110,12 @@ describe("pagesClient totality — no helper ever rejects", () => {
   const CALLS: Record<string, () => Promise<{ ok: boolean; error?: { status: number; message: string } }>> = {
     fetchPages: () => fetchPages(TRIP_ID),
     fetchPage: () => fetchPage(TRIP_ID, PAGE_ID),
+    fetchPageView: () => fetchPageView(TRIP_ID, PAGE_ID),
+    fetchPublishPreview: () => fetchPublishPreview(TRIP_ID, PAGE_ID),
+    fetchPageShares: () => fetchPageShares(TRIP_ID, PAGE_ID),
+    fetchTripPageShares: () => fetchTripPageShares(TRIP_ID),
+    createPageShare: () => createPageShare(TRIP_ID, PAGE_ID),
+    revokePageShare: () => revokePageShare(TRIP_ID, PAGE_ID, PAGE_ID),
     createPage: () =>
       createPage(TRIP_ID, { title: "T", context: { tripId: TRIP_ID }, content: newPageDoc() }),
     updatePage: () => updatePage(TRIP_ID, PAGE_ID, { title: "T" }),

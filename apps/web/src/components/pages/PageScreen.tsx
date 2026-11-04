@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals, type TripMemberProfile, type TripRole } from "@tc/contracts";
-import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
+import { fetchPage, fetchPageView, restorePageVersion, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
 import { cachedRead, DEDUPE, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -12,6 +12,8 @@ import { usePreferences } from "@/components/account/PreferencesProvider";
 import { PageContainer } from "@/components/ui/page-container";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
+import { publicNotebookLink } from "@/lib/publicNotebookLink";
+import { MakePublicDialog } from "./MakePublicDialog";
 import { PageTitle } from "./PageTitle";
 import { SaveAsTemplate } from "./SaveAsTemplate";
 import { ResetToDefault } from "./ResetToDefault";
@@ -266,6 +268,12 @@ export function PageScreen({
   from?: "overview" | null;
 }) {
   const [page, setPage] = useState<Page | null>(null);
+  // M58: the live public link's token, from the page's own read so a viewer
+  // sees the chip too, and whether the server lets this notebook be public at
+  // all. The dialog moves the token as the editor publishes or retracts.
+  const [publicToken, setPublicToken] = useState<string | null>(null);
+  const [publishable, setPublishable] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [trip, setTrip] = useState<TripDetail | null>(null);
   // Names the document card after its own `h1`, so the card is an `article`
   // with the notebook's title — what a screen reader lands on, and how a test
@@ -601,10 +609,10 @@ export function PageScreen({
     void cachedRead(tripKeys.history(tripId), () => fetchTripHistory(tripId)).then((r) => {
       if (!cancelled && r.ok) headSeq.current = headSeqOf(r.value);
     });
-    void Promise.all([fetchPage(tripId, pageId), fetchTripDetail(tripId)]).then(([pageResult, tripResult]) => {
+    void Promise.all([fetchPageView(tripId, pageId), fetchTripDetail(tripId)]).then(([viewResult, tripResult]) => {
       if (cancelled) return;
-      if (!pageResult.ok) {
-        setError(pageResult.error.message);
+      if (!viewResult.ok) {
+        setError(viewResult.error.message);
         setStatus("error");
         return;
       }
@@ -613,7 +621,7 @@ export function PageScreen({
         setStatus("error");
         return;
       }
-      const loaded = pageResult.value;
+      const loaded = viewResult.value.page;
       const inspected = inspectStoredPageDoc(loaded.content);
       baseRef.current = loaded.updatedAt;
       baseDocRef.current = loaded.content;
@@ -630,6 +638,8 @@ export function PageScreen({
       // opens on what the server holds meanwhile.
       heldDraft.current = draft;
       setPage(loaded);
+      setPublicToken(viewResult.value.publicToken);
+      setPublishable(viewResult.value.publishable);
       setStored(inspected);
       setTrip(tripResult.value);
       setStatus("ready");
@@ -1507,8 +1517,20 @@ export function PageScreen({
               page={page}
               onReset={handleReset}
               revision={() => baseRef.current ?? page.updatedAt}
+              // Editors and the owner, on a notebook the server will make public.
+              onMakePublic={editRole === "writer" && publishable ? () => setPublishing(true) : undefined}
             />
           )}
+          {publishable ? (
+            <MakePublicDialog
+              tripId={tripId}
+              pageId={pageId}
+              title={page.title}
+              open={publishing}
+              onOpenChange={setPublishing}
+              onChange={setPublicToken}
+            />
+          ) : null}
           {/* The phone's `Ask` pill ended this row until 2026-10-10; it is the
               tab bar's Ask item now (`usePhoneAskEntry` above), the same one
               Plan, Map and the Notebook index offer. It only OPENS, as the
@@ -1671,7 +1693,13 @@ export function PageScreen({
               In Editing the title has the row to itself. */}
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1 break-words">
-              <PageTitle id={titleId} title={page.title} editable={editing} onRename={handleRename} />
+              <PageTitle
+                id={titleId}
+                title={page.title}
+                editable={editing}
+                onRename={handleRename}
+                publicLink={publicToken === null ? null : publicNotebookLink(publicToken)}
+              />
             </div>
             {editing ? null : <SaveAsTemplate tripId={tripId} pageId={pageId} title={page.title} />}
           </div>

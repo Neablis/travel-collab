@@ -4,7 +4,7 @@ import { repeatLabel, repeatNoun, repeatTemplate, resolveRepeat, sentenceLines, 
 import { cn } from "@/lib/cn";
 import { EmptyChip } from "../EmptyChip";
 import { usePeople } from "../people";
-import { SELECTED_RING } from "./MacroNodeView";
+import { HiddenWhenPublicBadge, SELECTED_RING } from "./MacroNodeView";
 import { useMacroEditorContext, usePageToday } from "./MacroEditorContext";
 import { useSelectionReport } from "./useSelectionReport";
 
@@ -104,6 +104,7 @@ export function RepeatNodeView({ node, selected, editor }: ReactNodeViewProps) {
           {label}
         </span>
       ) : null}
+      {editing && node.attrs.hideWhenPublic === true ? <HiddenWhenPublicBadge /> : null}
       {template === "" ? (
         editing ? (
           <p className="my-1 text-slate select-none">

@@ -3179,3 +3179,94 @@ describe("PageScreen: the trip's access moving under an open page", () => {
     });
   });
 });
+
+// M58 decisions 1 and 4: an editor publishes from the notebook's `⋯`, and
+// everyone who can read the notebook sees that it is public, from the page
+// itself, since only an editor can read the shares list.
+describe("PageScreen: publishing a notebook", () => {
+  const SHARE = {
+    shareId: "33333333-3333-4333-8333-333333333333",
+    tripId: "",
+    pageId: "",
+    token: "tok-from-the-server",
+    createdBy: "u1",
+    createdAt: "2026-11-04T00:00:00.000Z",
+    revokedAt: null,
+  };
+
+  function serveWith({ role, publicToken = null, publishable = true }: { role: "owner" | "viewer"; publicToken?: string | null; publishable?: boolean }) {
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID() });
+    const page = pageFixture({ tripId: trip.tripId, title: "Itinerary", actorId: "dev-alice" });
+    server.use(
+      http.get("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ page, publicToken, publishable })),
+      http.get("/api/trips/:tripId/pages/:pageId/shares", () => HttpResponse.json({ shares: [] })),
+      http.get("/api/trips/:tripId/pages/:pageId/public-preview", () =>
+        HttpResponse.json({
+          preview: {
+            view: { title: "Itinerary", content: [{ type: "paragraph", content: [{ type: "text", text: "Seen by a stranger" }] }], accents: { cities: {}, days: {} } },
+            plainText: [],
+            alsoPublic: [],
+          },
+        }),
+      ),
+      http.post("/api/trips/:tripId/pages/:pageId/shares", () =>
+        HttpResponse.json({ share: { ...SHARE, tripId: trip.tripId, pageId: page.id } }, { status: 201 }),
+      ),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json({
+          access: {
+            tripId: params.tripId,
+            myRole: role,
+            members: [{ userId: "u1", role, name: null, email: null, image: null }],
+            invites: [],
+            guests: [],
+            collaboratorsEntitled: true,
+          },
+        }),
+      ),
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    return { trip, page };
+  }
+
+  it("offers an editor Make public behind the ⋯, and the dialog opens on what a stranger sees", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+    const stranger = await screen.findByRole("region", { name: "What a stranger sees" });
+    expect(within(stranger).getByText("Seen by a stranger")).toBeTruthy();
+  });
+
+  it("shows the Public chip once the notebook is published from the dialog", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Itinerary" })).toBeTruthy();
+    expect(screen.queryByText("Public")).toBeNull();
+
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+    await screen.findByRole("textbox", { name: "Public link" });
+    expect(screen.getByText("Public")).toBeTruthy();
+  });
+
+  it("gives a viewer the chip and Copy link, and no control to publish or unpublish", async () => {
+    const { trip, page } = serveWith({ role: "viewer", publicToken: "viewer-sees-this" });
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    expect(await screen.findByText("Public")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy link" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More notebook actions" })).toBeNull();
+  });
+
+  it("offers no Make public on a notebook the server says cannot be public", async () => {
+    const { trip, page } = serveWith({ role: "owner", publishable: false });
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    expect(await screen.findByRole("button", { name: "Edit page" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More notebook actions" })).toBeNull();
+  });
+});

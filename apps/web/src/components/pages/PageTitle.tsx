@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { cn } from "@/lib/cn";
 
@@ -36,14 +38,23 @@ export function PageTitle({
   title,
   editable,
   onRename,
+  publicLink = null,
 }: {
   /** The heading's id, for a container that is labelled by it (`PageScreen`'s document card). */
   id?: string;
   title: string;
   editable: boolean;
   onRename: (next: string) => void;
+  /**
+   * The notebook's public address when it has one (M58). A *Public* chip and
+   * *Copy link* follow the heading, for a viewer or a suggester too, who
+   * cannot read the shares list. They sit beside the heading, never in it: the
+   * heading's text is the title and is what `commit` reads back.
+   */
+  publicLink?: string | null;
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -67,7 +78,7 @@ export function PageTitle({
     onRename(next);
   };
 
-  return (
+  const heading = (
     <Heading
       level={1}
       id={id}
@@ -101,5 +112,27 @@ export function PageTitle({
     >
       {title}
     </Heading>
+  );
+
+  if (publicLink === null) return heading;
+  return (
+    <>
+      {heading}
+      <div className="mt-1 flex items-center gap-1">
+        <Badge variant="info">Public</Badge>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            // A refused clipboard leaves the label alone: the link is one
+            // *Make public* away in the dialog, in a box.
+            void navigator.clipboard.writeText(publicLink).then(() => setCopied(true), () => setCopied(false));
+          }}
+        >
+          {copied ? "Copied" : "Copy link"}
+        </Button>
+      </div>
+    </>
   );
 }

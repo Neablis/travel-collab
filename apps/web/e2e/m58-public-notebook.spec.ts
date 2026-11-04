@@ -166,3 +166,73 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
     await after.context().close();
   }
 });
+
+// M58 part 4: the same thing done as a person does it. Hide a widget in its
+// settings, publish from the notebook's `⋯`, copy the link, read it as a
+// stranger, end it from the trip's Share panel.
+test("an editor hides a widget, publishes from the notebook, copies the link, and makes it private from the Share panel", async ({
+  page,
+  browser,
+}) => {
+  test.slow();
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const created = await page.request.post("/api/trips", { data: { name: e2eTripName("Publish") } });
+  expect(created.ok()).toBe(true);
+  const { tripId } = (await created.json()) as { tripId: string };
+  const planId = await createPage(page, tripId, "Our Japan plan", [
+    paragraph(text("Welcome to the plan")),
+    paragraph(text("It costs "), widget("cost", {})),
+  ]);
+
+  await page.goto(`/trips/${tripId}/pages/${planId}`);
+  await expect(page.getByRole("heading", { name: "Our Japan plan", level: 1 })).toBeVisible();
+
+  // Hide the cost in its settings: the badge says so in Editing.
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await page.locator('.tc-page-editor [data-macro-name="cost"]').locator('span:not([data-testid="widget-handle"])').first().click();
+  await page.getByTestId("widget-settings").getByRole("checkbox", { name: "Hide when public" }).check();
+  await expect(page.getByText("Hidden when public")).toBeVisible();
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes(`/pages/${planId}`)),
+    page.getByRole("button", { name: "Done editing" }).click(),
+  ]);
+
+  // Publish: the preview is what a stranger gets, with the hidden widget withheld.
+  await page.getByRole("button", { name: "More notebook actions" }).click();
+  await page.getByRole("button", { name: "Make public" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("region", { name: "What a stranger sees" }).getByText("Not shared")).toBeVisible();
+  await dialog.getByRole("button", { name: "Make public" }).click();
+  const link = dialog.getByRole("textbox", { name: "Public link" });
+  const address = await link.inputValue();
+  expect(address).toMatch(/\/n\/[A-Za-z0-9_-]{43}$/);
+
+  // Copy puts that same address on the clipboard.
+  await dialog.getByRole("button", { name: "Copy link" }).click();
+  await expect(dialog.getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(address);
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("Public", { exact: true })).toBeVisible();
+
+  const path = new URL(address).pathname;
+  const reader = await stranger(browser);
+  try {
+    expect((await reader.goto(path))!.status()).toBe(200);
+    await expect(reader.getByText("Welcome to the plan")).toBeVisible();
+    await expect(reader.getByText("Not shared")).toBeVisible();
+
+    // The trip's Share panel lists it, and ends it.
+    await page.goto(`/trips/${tripId}`);
+    await page.getByRole("button", { name: "Trip settings" }).click();
+    await page.getByRole("button", { name: "Share", exact: true }).click();
+    const panel = page.getByTestId("share-panel");
+    await expect(panel.getByRole("list", { name: "Public notebooks" }).getByText("Our Japan plan")).toBeVisible();
+    await panel.getByRole("button", { name: "Make Our Japan plan private" }).click();
+    await expect(panel.getByRole("list", { name: "Public notebooks" })).toHaveCount(0);
+
+    // Private again: the next request is a 404.
+    expect((await reader.goto(path))!.status()).toBe(404);
+  } finally {
+    await reader.context().close();
+  }
+});

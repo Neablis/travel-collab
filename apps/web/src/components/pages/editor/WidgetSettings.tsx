@@ -2,7 +2,9 @@
 import { useEditorState } from "@tiptap/react";
 import type { PageContext, TripDetail, TripGlobals } from "@tc/contracts";
 import { REPEAT_WIDGETS, getMacro, repeatOver, rescopeRows, type RepeatOver } from "@tc/pages";
+import type { Editor } from "@tiptap/react";
 import { Button } from "@/components/ui/button";
+import { CheckboxField } from "@/components/ui/checkbox";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { WidgetBindControls, bindableInputs } from "./widgetBind";
@@ -70,7 +72,14 @@ export function WidgetSettings({
   // keystroke elsewhere in the page does not re-render the panel.
   const widget = useEditorState({ editor, selector: ({ editor: e }) => selectedWidget(e.state) });
   const repeat = useEditorState({ editor, selector: ({ editor: e }) => selectedRepeat(e.state) });
-  if (repeat !== null) return <RepeatSettings editor={editor} repeat={repeat} detail={detail} globals={globals} page={page} />;
+  if (repeat !== null) {
+    return (
+      <div className="flex flex-col gap-4">
+        <RepeatSettings editor={editor} repeat={repeat} detail={detail} globals={globals} page={page} />
+        <HideWhenPublic editor={editor} pos={repeat.pos} />
+      </div>
+    );
+  }
   // A frame where the report has landed and the editor's selection has already
   // moved on (the selected widget was just removed). The screen closes the
   // panel on the next flush; rendering nothing until then beats rendering
@@ -102,6 +111,27 @@ export function WidgetSettings({
         }
         onRemove={() => editor.view.dispatch(removeWidget(editor.state, widget.pos))}
       />
+      <HideWhenPublic editor={editor} pos={widget.pos} />
+    </div>
+  );
+}
+
+// M58 decision 5: every instance, a repeat too, has its own *Hide when public*.
+// A stranger is shown *Not shared* and is sent none of its data. Read from the
+// node rather than from `SelectedInline`, which is about what a widget points
+// at. Written as an attribute step like a rebind, so the selection and the panel
+// stay up; an unticked box removes the attribute rather than storing `false`,
+// so a notebook that never hides anything saves as it always did.
+function HideWhenPublic({ editor, pos }: { editor: Editor; pos: number }) {
+  const hidden = useEditorState({ editor, selector: ({ editor: e }) => e.state.doc.nodeAt(pos)?.attrs.hideWhenPublic === true });
+  return (
+    <div className="flex flex-col gap-1">
+      <CheckboxField
+        title="Hide when public"
+        checked={hidden}
+        onCheckedChange={(on) => editor.view.dispatch(editor.state.tr.setNodeAttribute(pos, "hideWhenPublic", on ? true : undefined))}
+      />
+      <Text variant="muted">Anyone reading the public link sees “Not shared” here, and is sent nothing from it.</Text>
     </div>
   );
 }
