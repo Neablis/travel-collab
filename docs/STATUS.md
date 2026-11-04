@@ -103,7 +103,7 @@ confirmed fixed"*). Evidence, retro and spend are in
    drafts. `migrate-production` is not needed: M44 added no migration.
 2. **M58 is current and scoped (2026-11-04)**: all eight decisions answered, ADR-088, plan
    `docs/plans/2026-11-04-M58-public-notebooks-and-polls.md`, five parts as one stack, built by
-   the `build-a-milestone` session `session_01PDLEVT9fNHQ3ebtfa2Bqje`; part 0 is PR 688. After it,
+   the `build-a-milestone` session `session_01PDLEVT8nHM39UaJBS9BxLi` (handed off mid-build 2026-11-04: parts 1 and 2 are drafts, PRs 689 and 690, with their review fixes pushed); part 0 is PR 688. After it,
    M53 (seven open decisions). M48 stays parked.
 3. Open follow-ups from M44: KI-2026-11-03-a, KI-2026-11-02-a (the flaky `TripProvider.suggest`
    test) and the candidate *The share page shows a stop is booked*.
