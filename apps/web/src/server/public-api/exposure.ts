@@ -289,6 +289,16 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "The publish dialog's preview of what a stranger would read; v1 has no publish action to preview",
     reaches: [{ module: "@/server/access/publicNotebook", symbols: ["publishPreviewFor"] }],
   },
+  "trips/[tripId]/polls/[pollId]": {
+    status: "never",
+    why: "A poll block's votes inside a notebook page; v1 does not publish notebooks' interactive blocks",
+    reaches: [{ module: "@/server/polls/votes", symbols: ["castVote", "resultsFor"] }],
+  },
+  "trips/[tripId]/polls/[pollId]/close": {
+    status: "never",
+    why: "Closing a notebook poll is an in-app action; v1 does not publish notebooks' interactive blocks",
+    reaches: [{ module: "@/server/polls/votes", symbols: ["closePoll"] }],
+  },
   "trips/[tripId]/pages/[pageId]/reset": {
     status: "never",
     why: "Resetting a seeded notebook is an in-app recovery action; left off the API by Mitchell, 2026-09-30",
