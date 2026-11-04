@@ -4,9 +4,11 @@ import { PRODUCT_LINE, type CardCopy } from "./copy";
 
 /**
  * What a public notebook's link-preview card prints, and nothing else
- * (M58 decision 2): the notebook's title and the trip's cover. No trip name,
- * no dates, no member and no publisher, because an unfurler draws this before
- * anyone has clicked.
+ * (M58 decision 2): the notebook's title and the trip's cover. The trip is not
+ * read for its name, dates, members or publisher, because an unfurler draws
+ * this before anyone has clicked. The title is the page's own, which the
+ * publisher chose to share: an Overview page's title is the trip's name, so
+ * publishing one shares that name.
  */
 export type NotebookCard = { kind: "notebook"; title: string; cover: string | null } | { kind: "generic" };
 
