@@ -306,12 +306,44 @@ describe("a name lookup's answer is judged before it is stored (KI-2026-11-03)",
   });
 
   // Review of PR 686, finding 2: the city answer faces the same region as the
-  // venue answer did, so a same-named city elsewhere is not pinned.
-  it("refuses a city answer outside the trip's region", async () => {
+  // venue answer did. Mitchell, 2026-11-03: a city the caller NAMED loosens
+  // it, so only an answer that is not that city is refused outside the region.
+  it("refuses a city answer outside the trip's region unless it is the city the caller named", async () => {
+    const PHILADELPHIA = { lat: 39.9526, lng: -75.1652, canonicalName: "Philadelphia, Pennsylvania, USA", countryCode: "US", city: "Philadelphia" };
+    const other = lookups({ "Ria's Wines": [ATLANTA], "Penn Yan, US": [PHILADELPHIA] });
+    const refused = await resolveStopLocation({ name: "Ria's Wines", city: "Penn Yan", countryCode: "US" }, trip, other);
+    expect(refused).toEqual({ location: { name: "Ria's Wines", city: "Penn Yan", countryCode: "US" }, outcome: "rejected" });
+
+    // What the loosening admits, knowingly: the caller named Springfield.
     const SPRINGFIELD_IL = { lat: 39.7817, lng: -89.6501, canonicalName: "Springfield, Sangamon County, Illinois, USA", countryCode: "US" };
-    const d = lookups({ "Ria's Wines": [ATLANTA], "Springfield, US": [SPRINGFIELD_IL] });
-    const r = await resolveStopLocation({ name: "Ria's Wines", city: "Springfield", countryCode: "US" }, trip, d);
-    expect(r).toEqual({ location: { name: "Ria's Wines", city: "Springfield", countryCode: "US" }, outcome: "rejected" });
+    const named = lookups({ "Ria's Wines": [ATLANTA], "Springfield, US": [SPRINGFIELD_IL] });
+    const pinned = await resolveStopLocation({ name: "Ria's Wines", city: "Springfield", countryCode: "US" }, trip, named);
+    expect(pinned).toMatchObject({ outcome: "city", location: { lat: SPRINGFIELD_IL.lat, precision: "city" } });
+  });
+
+  // Mitchell, 2026-11-03: naming the city is how a stop far from the rest of
+  // the trip, in a country it is already in, resolves by name.
+  it("takes a venue outside the trip's region when it is in the city the caller named", async () => {
+    const NYC = { minLat: 40.4, maxLat: 41, minLng: -74.3, maxLng: -73.6 };
+    const nyTrip = { userId: "u1", region: NYC, countries: ["US"], regionCountries: ["US"] };
+    const NEPTUNE = { lat: 42.3601, lng: -71.0549, canonicalName: "Neptune Oyster, Salem Street, Boston, Massachusetts, USA", countryCode: "US", city: "Boston" };
+
+    const inBoston = await resolveStopLocation({ name: "Neptune Oyster", city: "Boston", countryCode: "US" }, nyTrip, lookups({ "Neptune Oyster": [NEPTUNE] }));
+    expect(inBoston.outcome).toBe("name");
+    expect(inBoston.location).toMatchObject({ lat: NEPTUNE.lat, city: "Boston" });
+
+    // No city named, or a different one: the region still refuses it.
+    const unnamed = await resolveStopLocation({ name: "Neptune Oyster", countryCode: "US" }, nyTrip, lookups({ "Neptune Oyster": [NEPTUNE] }));
+    expect(unnamed.outcome).toBe("rejected");
+    const elsewhere = lookups({ "Neptune Oyster": [NEPTUNE] });
+    const otherCity = await resolveStopLocation({ name: "Neptune Oyster", city: "Cambridge", countryCode: "US" }, nyTrip, elsewhere);
+    expect(otherCity.location.precision).not.toBe("venue");
+    expect(otherCity.outcome).not.toBe("name");
+
+    // And never the name check: a different restaurant in Boston is refused.
+    const wrongName = { ...NEPTUNE, canonicalName: "Legal Sea Foods, Boston, Massachusetts, USA" };
+    const r = await resolveStopLocation({ name: "Neptune Oyster", city: "Boston" }, nyTrip, lookups({ "Neptune Oyster": [wrongName] }));
+    expect(r.outcome).toBe("rejected");
   });
 
   it("reports rejected, with no second lookup, when the city fallback cannot run", async () => {

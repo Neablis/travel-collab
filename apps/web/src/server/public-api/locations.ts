@@ -8,6 +8,7 @@ import {
 import { getGeocoder, type BoundingBox, type Geocoder, type GeocodeResult, type LatLng } from "@/server/geocoding";
 import { countryAtPoint } from "@/server/geocoding/countryAt";
 import { countryFilterFor, plausibleCoords, tripCountriesOf, tripRegionOf, withinBox } from "@/server/geocoding/region";
+import { nameTokens } from "@/server/ai/geocodeNameMatch";
 import { judgeMatch, nameQueryOf } from "@/server/ai/placeAcceptance";
 import { consumeQuota, geocodeQuota, type QuotaDecision } from "@/server/quota";
 import { PublicApiError } from "./commands";
@@ -216,7 +217,16 @@ export async function resolveStopLocation(
     const known = ctx.regionCountries ?? ctx.countries ?? [];
     const newCountry = input.countryCode !== undefined && !known.includes(input.countryCode);
     const region = newCountry ? null : ctx.region;
-    const verdict = judgeMatch(nameQueryOf(input), match, { hint: null, region });
+    const query = nameQueryOf(input);
+    let verdict = judgeMatch(query, match, { hint: null, region });
+    // A city the caller named loosens the region (Mitchell, 2026-11-03): an
+    // answer outside the trip's area is taken when it is in that city, so a
+    // Boston stop on a New York trip resolves by name. Only the region is
+    // lifted, never the name check, and it costs no lookup: the answer's own
+    // city is in the response.
+    if (verdict === "wrong-place" && inNamedCity(input.city, match)) {
+      verdict = judgeMatch(query, match, { hint: null, region: null });
+    }
     if (verdict === "wrong-place" || verdict === "wrong-name") return cityFallback(input, region, ctx, deps);
   }
 
@@ -250,10 +260,13 @@ export async function resolveStopLocation(
  * country, and says what the pin is (`precision: "city"`).
  *
  * **Judged by the same region as the venue answer** (`region`, already null for
- * a new country or a leg's far end), as the assistant's `resolveCityCoords` is.
- * A "Springfield, US" three states from the trip is an answer about another
- * Springfield, and a city pin is stored and widens the trip's region like any
- * other (review of PR 686, finding 2).
+ * a new country or a leg's far end), as the assistant's `resolveCityCoords` is,
+ * and loosened the same way: an answer that IS the city the caller named is
+ * taken outside the region (`inNamedCity`). What that admits, knowingly: a
+ * "Springfield, US" three states from the trip, when the caller named
+ * Springfield. The caller said which city; an `address` with an
+ * `administrativeArea` is how to say which state (review of PR 686, finding 2,
+ * then Mitchell, 2026-11-03).
  *
  * Anything that stops it (no city or country, no quota, the vendor failing or
  * finding nothing, an answer outside the region) leaves the stop without
@@ -277,11 +290,25 @@ async function cityFallback(
       ...(ctx.region ? { viewbox: ctx.region } : {}),
     });
     const point = match ? plausibleCoords(match) : null;
-    if (!point || (region != null && !withinBox(region, point))) return rejected;
+    if (!point || (region != null && !withinBox(region, point) && !inNamedCity(input.city, match!))) return rejected;
     return { location: { ...input, ...point, precision: "city" }, outcome: "city" };
   } catch {
     return rejected;
   }
+}
+
+/**
+ * Whether a geocoder answer is in, or is, the city the caller named: its own
+ * `city` component, else the first part of its label (a city's answer names
+ * itself there), compared as folded tokens ("Nikkō" = "Nikko"). False when the
+ * caller named no city.
+ */
+function inNamedCity(city: string | undefined, match: Pick<GeocodeResult, "city" | "canonicalName">): boolean {
+  if (!city) return false;
+  const named = nameTokens(city).join(" ");
+  if (named === "") return false;
+  const answered = match.city ?? match.canonicalName.split(",")[0] ?? "";
+  return nameTokens(answered).join(" ") === named;
 }
 
 /**

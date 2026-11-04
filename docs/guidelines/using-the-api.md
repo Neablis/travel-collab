@@ -311,12 +311,16 @@ fills them in when you leave them out, in this order:
    place you named (a different venue in the right town is refused), and it has
    to sit in the area of the trip's other stops, unless you sent a `countryCode`
    none of them is in: that is how the first stop in a new country still
-   resolves by name. (On a `PATCH`, the stop's own current pin does not count
-   as one of the trip's stops.) A refused answer is never stored. If the
-   location names a `city` and a `countryCode`, the stop is pinned at that
-   city's centre instead, with `"precision": "city"` (one more lookup from your
-   allowance), as long as that centre is in the trip's area too; otherwise it
-   is saved without coordinates.
+   resolves by name. **Naming the stop's `city` loosens the area check:** an
+   answer outside the trip's area is taken when it is in that city, so a Boston
+   stop on a New York trip resolves by name when it says `"city": "Boston"`.
+   (On a `PATCH`, the stop's own current pin does not count as one of the
+   trip's stops.) A refused answer is never stored. If the location names a
+   `city` and a `countryCode`, the stop is pinned at that city's centre
+   instead, with `"precision": "city"` (one more lookup from your allowance);
+   otherwise it is saved without coordinates. A city name several places share
+   ("Springfield") is taken as you named it: send an `address` with its
+   `administrativeArea` to say which one.
 
    How names are compared: each comma-separated part of the stop's name is
    tried as the venue, so "Kegon Falls, Nikkō", "Rome, Trevi Fountain" and

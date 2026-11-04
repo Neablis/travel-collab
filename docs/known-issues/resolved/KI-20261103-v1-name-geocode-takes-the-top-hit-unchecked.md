@@ -51,6 +51,9 @@
     the same region as the venue answer; a PATCH leaves the stop's own current pin out of the region,
     so this very trip's Atlanta pin cannot admit Atlanta again (`resolveContextOf`); and a name that
     holds an address, or puts its venue after a comma, is no longer refused for it.
+  - **Mitchell, 2026-11-03:** a `city` the caller names loosens the region, for the venue answer
+    and the city fallback alike (`inNamedCity`, no extra lookup). This undoes part of the review's
+    finding 2 on purpose: a named "Springfield" can be pinned in the wrong state.
   - Same branch: a location key the schema does not know (`latitude`, `lon`, `zip`) is a 400 on both
     v1 stop writes (`LocationWrite`) instead of being dropped and the name geocoded over it.
 - **Cross-reference:** KI-2026-09-20-a (the AI path's own missing name check), KI-15 (resolved, the
