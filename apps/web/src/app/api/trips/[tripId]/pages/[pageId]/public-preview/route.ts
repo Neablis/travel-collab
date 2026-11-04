@@ -1,11 +1,14 @@
 import { guard } from "@/server/pages-guard";
 import { publishPreviewFor } from "@/server/access/publicNotebook";
 
-// The publish dialog's stranger's-eye preview (M58 decision 5). `editor`, the
-// role that can publish: it shows what the link would serve, which is the
-// page's content with the hidden widgets already withheld, so it is built here
-// by the same function `/n/<token>` uses and never recomputed in the browser
-// from the member's data.
+/**
+ * The publish dialog's stranger's-eye preview (M58 decision 5). Needs `editor`,
+ * the role that can publish. It shows what the link would serve, which is the
+ * page's content with the hidden widgets already withheld, so it is built here
+ * by the same function `/n/<token>` uses and never recomputed in the browser
+ * from the member's data. Answers 404 for an unknown page, 422 for a notebook
+ * that can't be made public.
+ */
 export async function GET(_req: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {
   const { tripId, pageId } = await params;
   const g = await guard(tripId, "editor");
