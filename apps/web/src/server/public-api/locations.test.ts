@@ -342,10 +342,18 @@ describe("a name lookup's answer is judged before it is stored (KI-2026-11-03)",
 
     // The vendor's `city` is not always the one people name: a Brooklyn
     // venue's is "New York", and "Brooklyn" is a part of its label.
-    const PETER_LUGER = { lat: 40.7099, lng: -73.9623, canonicalName: "Peter Luger, Broadway, Brooklyn, New York, USA", countryCode: "US", city: "New York" };
+    const PETER_LUGER = { lat: 40.7099, lng: -73.9623, canonicalName: "Peter Luger, Broadway, Brooklyn, New York, USA", countryCode: "US", city: "New York", area: "Brooklyn" };
     const bostonTrip = { userId: "u1", region: { minLat: 42, maxLat: 42.7, minLng: -71.5, maxLng: -70.7 }, countries: ["US"], regionCountries: ["US"] };
     const brooklyn = await resolveStopLocation({ name: "Peter Luger", city: "Brooklyn", countryCode: "US" }, bostonTrip, lookups({ "Peter Luger": [PETER_LUGER] }));
     expect(brooklyn.outcome).toBe("name");
+
+    // A STATE that shares the named city's name is not that city: Buffalo's
+    // Anchor Bar is in New York State, and a NYC trip naming "New York" must
+    // not take it (third review of PR 686).
+    const ANCHOR_BAR = { lat: 42.9006, lng: -78.8707, canonicalName: "Anchor Bar, Main Street, Buffalo, Erie County, New York, 14209, United States", countryCode: "US", city: "Buffalo" };
+    const buffalo = await resolveStopLocation({ name: "Anchor Bar", city: "New York", countryCode: "US" }, nyTrip, lookups({ "Anchor Bar": [ANCHOR_BAR] }));
+    expect(buffalo.outcome).not.toBe("name");
+    expect(buffalo.location.lat).not.toBe(ANCHOR_BAR.lat);
 
     // And never the name check: a different restaurant in Boston is refused.
     const wrongName = { ...NEPTUNE, canonicalName: "Legal Sea Foods, Boston, Massachusetts, USA" };

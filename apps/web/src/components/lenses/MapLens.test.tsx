@@ -1267,7 +1267,7 @@ describe("MapLens city-level stops", () => {
       },
     });
     const onSelectActivity = vi.fn();
-    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 1 });
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
     const { rerender } = render(
       <EditorHost>
         <MapLens detail={detail} onSelectActivity={onSelectActivity} />
@@ -1275,8 +1275,23 @@ describe("MapLens city-level stops", () => {
     );
     await waitFor(() => expect(markerInstances).toHaveLength(2));
     const hollow = markerInstances.find((marker) => marker.getElement().getAttribute("aria-label")?.endsWith("location not confirmed"))!;
+    // The stub's markers are not in the document; the real ones are.
+    document.body.append(hollow.getElement());
+    hollow.getElement().focus();
+    // `:focus` asked of the element, as SnapshotList.test.tsx does: Testing
+    // Library forbids reading `document.activeElement`.
+    expect(hollow.getElement().matches(":focus")).toBe(true);
+
+    // Its day goes off screen while it has focus.
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 1 });
+    rerender(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
     await waitFor(() => expect(hollow.getElement().getAttribute("aria-hidden")).toBe("true"));
     expect(hollow.getElement().tabIndex).toBe(-1);
+    expect(hollow.getElement().matches(":focus")).toBe(false);
 
     useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
     rerender(

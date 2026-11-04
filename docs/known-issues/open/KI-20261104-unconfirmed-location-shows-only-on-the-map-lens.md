@@ -1,7 +1,8 @@
 ### KI-2026-11-04 — a location marked `verified: false` shows as unconfirmed only on the trip's Map lens
 
-- **Severity:** cosmetic, and a little more for the assistant. Nothing is wrong. The fact is shown in one
-  place and quietly dropped in the others.
+- **Severity:** cosmetic on the display surfaces; correctness, narrowly, for `tripRegionOf`, where a wrong
+  guess widens the box later lookups are judged by and so admits wrong answers near it. Directions and
+  nearby-stop ranking use the guess as though it were confirmed.
 - **Area:**
   - `apps/web/src/server/invitePreview.ts`, `placeOf`: copies a location's map fields by name, so
     `verified` never reaches the invite preview's map.
@@ -24,7 +25,9 @@
 - **Why not fixed here:** scope. Mitchell, 2026-11-03: the map first, the other surfaces filed.
 - **Fix path:** one surface at a time. Copy `verified` in `invitePreview.ts`'s `placeOf` (and draw it in
   that map), add it to `read.ts`'s location view with a line in the tool description, and give the card
-  a short "Location not confirmed" note. Each needs a test that fails without it.
+  a short "Location not confirmed" note. For `tripRegionOf`, leave `verified: false` points out of the
+  box (as the stop being edited is left out in `resolveContextOf`). Directions and nearby stops could
+  say the place is unconfirmed rather than refuse it. Each needs a test that fails without it.
 - **Tripwire:** a new surface that draws or describes a stop's location.
 - **Cross-reference:** KI-2026-11-03, PR 686, `packages/contracts/src/activity.ts` (`verified`).
 - **First noted:** 2026-11-04, from the PR 686 discussion.

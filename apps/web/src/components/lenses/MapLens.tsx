@@ -818,6 +818,9 @@ export function MapLens({
         // could see it. A stock teardrop has no button to hide; setting the
         // attributes on it is harmless.
         if (markerOpacity === 0) {
+          // A pin focused when its day goes off screen would keep focus on an
+          // element nobody can see (third review of PR 686).
+          if (element === document.activeElement) element.blur();
           element.setAttribute("aria-hidden", "true");
           element.tabIndex = -1;
         } else {
