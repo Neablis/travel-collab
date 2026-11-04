@@ -805,6 +805,12 @@ describe("hide when public", () => {
     resolve.mockRestore();
   });
 
+  // A stranger is told it is not shared, not that its settings are stale.
+  it("answers not-shared for a hidden instance whose params no longer parse, or whose widget is unknown", () => {
+    expect(renderMacro(publicCtx, "attribute", { field: 42 }, undefined, true)).toEqual({ status: "not-shared" });
+    expect(renderMacro(publicCtx, "no.such.widget", {}, undefined, true)).toEqual({ status: "not-shared" });
+  });
+
   it("shows a hidden instance to a member, and an unhidden one to the public", () => {
     const params = { field: "trip.name" };
     expect(renderMacro({ ...ctx, reader: "member" }, "attribute", params, undefined, true).status).toBe("ok");

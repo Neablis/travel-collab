@@ -3,10 +3,11 @@ import { useContext, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type Item, type ReaderCapability } from "@tc/pages";
+import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type Item, type ReaderCapability, type RenderOutcome } from "@tc/pages";
+import type { AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 import { usePeople, usePersonas, useGuests } from "./people";
-import { cityAccents } from "./cityAccents";
+import { cityAccents, type CityAccents } from "./cityAccents";
 import { Segs } from "./WidgetSegs";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
@@ -42,19 +43,17 @@ const SHOWN_TO: Record<ReaderCapability, string> = {
  *
  * @param name - The macro name to render
  * @param params - Parameters passed to the macro
- * @param hideWhenPublic - The instance's own flag: a public reader is shown "Not shared" instead (M58)
  * @param external - Outside data slots (ADR-052); absent means every slot is still pending
  * @param onBindDay - Optional handler for rebinding a widget whose selected day was removed
  * @param editing - Editing mode: an unbound widget renders its ghost rather than its placeholder
  * @param compact - The phone Overview's density: a block with a phone form renders it
  * @returns The rendered macro widget or an appropriate status chip
  */
-export function MacroView({ detail, context, user = null, globals = null, external, name, params, hideWhenPublic = false, onBindDay, editing = false, compact = false }: {
+export function MacroView({ detail, context, user = null, globals = null, external, name, params, onBindDay, editing = false, compact = false }: {
   detail: TripDetail; context: PageContext; user?: UserPreferences | null;
   globals?: TripGlobals | null; external?: ExternalInputs; name: string;
-  params: Record<string, unknown>; hideWhenPublic?: boolean; onBindDay?: () => void; editing?: boolean; compact?: boolean;
+  params: Record<string, unknown>; onBindDay?: () => void; editing?: boolean; compact?: boolean;
 }) {
-  const def = getMacro(name);
   // One derivation per render of one widget, memoised on the trip: `cityAccents`
   // walks every day and probes five buckets, and a page can hold a dozen
   // widgets. It is cheap, but it is not free and the answer cannot change
@@ -81,7 +80,42 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // Whether the reader may chat (M52), for the widget that is absent without
   // (`MacroDef.requires`).
   const reader = useReaderCapabilities();
-  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests, ...reader }, name, params, undefined, hideWhenPublic);
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests, ...reader }, name, params);
+  return <ResolvedMacroView name={name} outcome={outcome} accents={accents} tripId={context.tripId} onBindDay={onBindDay} editing={editing} compact={compact} />;
+}
+
+/**
+ * Where each city and day on a public page wears its accent, as data: the
+ * server resolves a stranger's widgets (M58, Mitchell on decision 5: *"a
+ * hidden widget's data is not sent to the page"*), so there is no trip here to
+ * derive `CityAccents` from. Only names and ids the page already shows.
+ */
+export interface AccentTable {
+  cities: Readonly<Record<string, AccentFamily>>;
+  days: Readonly<Record<string, AccentFamily>>;
+}
+
+/**
+ * A widget on a public page, drawn from what the server resolved for the
+ * public reader (`toPublicNotebookView`), never from the trip. Reading only:
+ * a stranger edits nothing, and a link card goes only where its resolver sent it.
+ */
+export function PublicMacroView({ name, outcome, accents }: { name: string; outcome: RenderOutcome; accents: AccentTable }) {
+  const lookup = useMemo<CityAccents>(() => {
+    const at = (table: AccentTable["cities"], key: string | null): AccentFamily =>
+      key !== null && Object.hasOwn(table, key) ? table[key]! : "neutral";
+    return { ofCity: (city) => at(accents.cities, city), ofDayId: (dayId) => at(accents.days, dayId) };
+  }, [accents]);
+  // No trip id: a public link card carries its own `/n/<token>`, and every other target is plain.
+  return <ResolvedMacroView name={name} outcome={outcome} accents={lookup} tripId="" />;
+}
+
+/** One widget's outcome, drawn; where it came from is the caller's. */
+function ResolvedMacroView({ name, outcome, accents, tripId, onBindDay, editing = false, compact = false }: {
+  name: string; outcome: RenderOutcome; accents: CityAccents; tripId: string;
+  onBindDay?: () => void; editing?: boolean; compact?: boolean;
+}) {
+  const def = getMacro(name);
   // SPEC §27: nothing renders disabled, so a widget this reader may not use is
   // not here at all. Its author still has to see what they put there, so
   // Editing names it and who it is for, in fixed words: never the payload, so
@@ -206,7 +240,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
     case "inline":
       return <Segs segs={rendered.segs} accents={accents} />;
     case "block":
-      return <BlockView block={rendered.block} accents={accents} tripId={context.tripId} interactive={!editing} compact={compact} />;
+      return <BlockView block={rendered.block} accents={accents} tripId={tripId} interactive={!editing} compact={compact} />;
     // A repeat's rows.
     //
     // **`span`, not `div`, and that is not a style preference.** A widget node
@@ -439,7 +473,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
         </a>
       );
     case "items":
-      return <ItemRows items={rendered.items} label={def?.title} tripId={context.tripId} interactive={!editing} />;
+      return <ItemRows items={rendered.items} label={def?.title} tripId={tripId} interactive={!editing} />;
     default: {
       // The same enforcement `BlockView` carries, for the same measured reason:
       // `strict` does NOT imply `noImplicitReturns` and this repo sets only
