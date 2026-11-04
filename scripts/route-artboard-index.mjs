@@ -74,6 +74,7 @@ export const NOT_DRAWN = new Map([
   ["/playbooks/city/[slug]/length/[band]", "ADR-087: the city page over one length band's days in that city — no artboard"],
   ["/playbooks/country/[slug]/length/[band]", "ADR-087: the city page over one length band's days in that country — no artboard"],
   ["/playbooks/country/[slug]/city/[citySlug]/length/[band]", "ADR-087: the city page over one length band's days in one city inside its country — no artboard"],
+  ["/n/[token]", "M58 part 3: a public notebook page, read-only, rendered with the signed-in notebook's blocks — the design has no artboard for it"],
   ["/demo", "the picker, M42 D1, has no artboard"],
   ["/oauth/authorize", "M55 part 2: the OAuth consent page, a card of the design system's primitives — no artboard"],
 ]);
