@@ -3,9 +3,12 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { executeTripCommand } from "./commands";
+import { executePageCommand } from "./pageCommands";
+import { createPageShare } from "./access/pageShares";
+import { newPageDoc } from "@tc/contracts";
 import { getTripDetail, listTripSummaries, listTripSummariesPage, listTripSummariesVisibleTo, rebuildProjections } from "./projections";
 import { db } from "./db/client";
-import { events, tripDetails, tripMemberships, tripSummaries } from "./db/schema";
+import { events, pageShares, tripDetails, tripMemberships, tripSummaries } from "./db/schema";
 
 // Per run rather than the fixed "u1" (KI-69), so this file's events cannot be
 // confused with another suite's or a developer's own.
@@ -15,6 +18,30 @@ const actor = `u1-${randomUUID().slice(0, 8)}`;
 // events is gone (KI-69). The three `listTripSummaries()` reads below already
 // filter by this test's tripId; the rebuild comparison is now scoped to it too.
 describe("trip_summaries tracks lifecycle events", () => {
+  // A public link (M58) is revoked by PageDeleted. A rebuild replays that delete
+  // too, and a page can come back under its id: a link made after it did must
+  // not be revoked by the earlier delete the rebuild replays.
+  it("revokes a page's live link on delete, and a rebuild leaves a link made after it came back live", async () => {
+    const tripId = crypto.randomUUID();
+    const pageId = crypto.randomUUID();
+    const create = () =>
+      executePageCommand({ type: "CreatePage", tripId, pageId, title: "Notes", context: { tripId }, content: newPageDoc() }, actor);
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Linked" }, actor);
+    expect((await create()).ok).toBe(true);
+    const before = await createPageShare(tripId, pageId, actor);
+    if (!before.ok) throw new Error(before.error.message);
+
+    expect((await executePageCommand({ type: "DeletePage", tripId, pageId }, actor)).ok).toBe(true);
+    expect((await create()).ok).toBe(true);
+    const after = await createPageShare(tripId, pageId, actor);
+    if (!after.ok) throw new Error(after.error.message);
+    expect(after.value.token).not.toBe(before.value.token);
+
+    await rebuildProjections();
+    const rows = await db.select().from(pageShares).where(eq(pageShares.tripId, tripId));
+    const revoked = Object.fromEntries(rows.map((r) => [r.token, r.revokedAt !== null]));
+    expect(revoked).toEqual({ [before.value.token]: true, [after.value.token]: false });
+  });
 
   it("tracks rename, delete, and restore, and rebuild reproduces them", async () => {
     const tripId = crypto.randomUUID();

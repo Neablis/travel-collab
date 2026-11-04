@@ -63,6 +63,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/invites/[inviteId]": { status: "public", v1: ["trips/[tripId]/invites/[inviteId]"] },
   "trips/[tripId]/pages": { status: "public", v1: ["trips/[tripId]/pages"] },
   "trips/[tripId]/pages/[pageId]": { status: "public", v1: ["trips/[tripId]/pages/[pageId]"] },
+  "trips/[tripId]/pages/[pageId]/shares": { status: "public", v1: ["trips/[tripId]/pages/[pageId]/shares"] },
+  "trips/[tripId]/pages/[pageId]/shares/[shareId]": {
+    status: "public",
+    v1: ["trips/[tripId]/pages/[pageId]/shares/[shareId]"],
+  },
   "trips/[tripId]/saved-days/[savedDayId]": { status: "public", v1: ["trips/[tripId]/playbook-applications"] },
   "trips/[tripId]/shares": { status: "public", v1: ["trips/[tripId]/shares"] },
   "trips/[tripId]/shares/[shareId]": { status: "public", v1: ["trips/[tripId]/shares/[shareId]"] },

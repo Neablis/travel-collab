@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-04 — `PageShare`, a public notebook's link (M58 part 2; public API 2.4.0)
+- **New** (`packages/contracts/src/share.ts`): `PageShare` (`shareId`, `tripId`, `pageId`, `token`,
+  `createdBy`, `createdAt`, `revokedAt`), beside `TripShare` but with no pin: the link reads the
+  page live (ADR-088 §2). A new `page_shares` table (migration 0073) backs it. It is an access row,
+  not an event.
+- **New endpoints**: `GET`/`POST /v1/trips/{tripId}/pages/{pageId}/shares` and
+  `DELETE .../shares/{shareId}`, editor and above. `POST` answers 422 for the seeded Bookings,
+  Money and During-the-trip (`today`) pages. The app's `GET /api/trips/{tripId}/shares` also returns
+  `pageShares`, the trip's public notebooks.
+- Why: Mitchell, 2026-11-04 (M58 decisions 2-4, ADR-088 §1).
+- Consumers updated: `apps/web` (`server/access/pageShares.ts`, the app and v1 routes,
+  `exposure.ts`, `openapi.json`); `API_VERSION` 2.4.0 with a new `API_FINGERPRINT`. The UI that
+  reads the shape arrives in part 4.
+- Breaking? no. Additive.
+
 ## 2026-11-04 — A widget instance's `hideWhenPublic` (M58 part 1; public API 2.3.0)
 - **New** (`packages/contracts/src/pageDoc.ts`): `MacroNode.attrs.hideWhenPublic`, an optional
   boolean beside `params`. Absent means `false` and stays absent, so every stored page parses and
