@@ -10,7 +10,7 @@ import { publishedLengthPages } from "./playbooks";
 import { newSavedDayRow } from "./savedDays";
 
 // The length pages: Discover's length band over the place lattice. As in
-// `placePage.int.test.ts`, the city is minted per run and the country (Tuvalu)
+// `placePage.int.test.ts`, the city is minted per run and the country (Palau)
 // is one no other file seeds, since the published library is global.
 
 const run = randomUUID().slice(0, 6);
@@ -48,35 +48,35 @@ afterAll(async () => {
 describe("the length pages", () => {
   it("counts each day once in its band at every scope it matches, and lists exactly that set", async () => {
     const short = [
-      await day("One day A", { cities: [CITY], countries: ["TV"], dayCount: 1 }),
-      await day("One day B", { cities: [CITY], countries: ["TV"], dayCount: 1 }),
+      await day("One day A", { cities: [CITY], countries: ["PW"], dayCount: 1 }),
+      await day("One day B", { cities: [CITY], countries: ["PW"], dayCount: 1 }),
     ];
-    await day("Five days", { cities: [CITY], countries: ["TV"], dayCount: 5 });
+    await day("Five days", { cities: [CITY], countries: ["PW"], dayCount: 5 });
     // In the country, but another city: on the country's page, not the pair's.
-    const elsewhere = await day("One day elsewhere", { cities: [OTHER_CITY], countries: ["TV"], dayCount: 1 });
+    const elsewhere = await day("One day elsewhere", { cities: [OTHER_CITY], countries: ["PW"], dayCount: 1 });
 
     const pages = (await publishedLengthPages()).filter(
-      (page) => page.city?.slug === CITY_SLUG || page.country?.slug === "tuvalu",
+      (page) => page.city?.slug === CITY_SLUG || page.country?.slug === "palau",
     );
     const count = (band: string, city: string | null, country: string | null) =>
       pages.find(
         (page) => page.band === band && (page.city?.slug ?? null) === city && (page.country?.slug ?? null) === country,
       )?.days;
     expect(count("one", CITY_SLUG, null)).toBe(2);
-    expect(count("one", null, "tuvalu")).toBe(3);
-    expect(count("one", CITY_SLUG, "tuvalu")).toBe(2);
+    expect(count("one", null, "palau")).toBe(3);
+    expect(count("one", CITY_SLUG, "palau")).toBe(2);
     expect(count("four-six", CITY_SLUG, null)).toBe(1);
     expect(count("seven-plus", CITY_SLUG, null)).toBeUndefined();
 
     // The list a page draws is the set its count counted: the band's days, the pair's city only.
-    const pair = await lengthListing("country", props({ slug: "tuvalu", citySlug: CITY_SLUG, band: "1-day" }));
+    const pair = await lengthListing("country", props({ slug: "palau", citySlug: CITY_SLUG, band: "1-day" }));
     expect(pair).toMatchObject({
-      heading: `1-day trips in ${CITY}, Tuvalu`,
-      path: `/playbooks/country/tuvalu/city/${CITY_SLUG}/length/1-day`,
+      heading: `1-day trips in ${CITY}, Palau`,
+      path: `/playbooks/country/palau/city/${CITY_SLUG}/length/1-day`,
       total: 2,
     });
     expect(pair.days.map((d) => d.savedDayId).sort()).toEqual([...short].sort());
-    const country = await lengthListing("country", props({ slug: "tuvalu", band: "1-day" }));
+    const country = await lengthListing("country", props({ slug: "palau", band: "1-day" }));
     expect(country.days.map((d) => d.savedDayId).sort()).toEqual([...short, elsewhere].sort());
     expect(country.total).toBe(3);
   });
