@@ -89,6 +89,12 @@ export const RepeatNodeExtension = Node.create({
         },
         renderHTML: (attributes) => ({ "data-repeat-params": JSON.stringify(attributes.params ?? {}) }),
       },
+      // As on `macro`: the flag a hidden instance carries (M58), kept off the JSON when unset.
+      hideWhenPublic: {
+        default: undefined,
+        parseHTML: (element) => (element.hasAttribute("data-hide-when-public") ? true : undefined),
+        renderHTML: (attributes) => (attributes.hideWhenPublic === true ? { "data-hide-when-public": "" } : {}),
+      },
     };
   },
 
