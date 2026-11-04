@@ -101,11 +101,10 @@ confirmed fixed"*). Evidence, retro and spend are in
 **Next action:**
 1. Mitchell merges PR 679 (M44's part 0, prose only). Parts 1 to 5 are merged, so close no lower
    drafts. `migrate-production` is not needed: M44 added no migration.
-2. Then the order in `TODO.md` is M58 (*A notebook anyone can read, and a poll for the people
-   going*), minted 2026-11-04 and placed ahead of M53 the same day by Mitchell: scope it with him
-   (`plan-a-milestone`; `docs/milestones/M58-a-notebook-anyone-can-read.md`, eight open
-   decisions). After it, M53 (*A search engine reads every public page the way a person does*,
-   seven open decisions). M48 stays parked.
+2. **M58 is current and scoped (2026-11-04)**: all eight decisions answered, ADR-088, plan
+   `docs/plans/2026-11-04-M58-public-notebooks-and-polls.md`, five parts as one stack, built by
+   the `build-a-milestone` session `session_01PDLEVT9fNHQ3ebtfa2Bqje`; part 0 is PR 688. After it,
+   M53 (seven open decisions). M48 stays parked.
 3. Open follow-ups from M44: KI-2026-11-03-a, KI-2026-11-02-a (the flaky `TripProvider.suggest`
    test) and the candidate *The share page shows a stop is booked*.
 Then remove the orchestrator's `tc-orchestrator` guard file from the build session's git dir.
@@ -121,7 +120,7 @@ KI-20261026-x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M
 KI-20261025-w, and the candidate *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M58 (minted 2026-11-04, not scoped) → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
+3 moderate). The order is M58 (scoped 2026-11-04, building) → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;

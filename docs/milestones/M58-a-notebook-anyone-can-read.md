@@ -8,8 +8,9 @@ trip from public pages."* Later the same day he added: *"a new poll widget for p
 going."* He named five questions to settle. They are decisions 1 to 5 below, and the poll is
 decision 8. **Placed ahead of M53 the same day, so it is current** (*"Can we make this the next
 milestone, not last"*; see `docs/milestones/README.md`, *2026-11-04 — minted: M58, public
-notebooks and a poll*). Every decision below is a
-recommendation. None has been answered.
+notebooks and a poll*). **Scoped 2026-11-04 with Mitchell: all eight decisions answered**
+(*Answered* below; it overrides *As proposed* wherever they differ), with the mechanisms in
+ADR-088. Plan: `docs/plans/2026-11-04-M58-public-notebooks-and-polls.md`.
 
 ## Why this exists
 
@@ -41,7 +42,20 @@ That makes it a growth loop. It is not a way into the trip.
 
 ## Decisions
 
-### Open
+### Answered (2026-11-04, Mitchell, in session)
+
+| # | Asked | Answer |
+|---|---|---|
+| 1 | Links to other pages | **A link to a public notebook opens its `/n/` URL. Every other target (a private notebook, a seed that resolves to a private page, a day, a view) renders as plain text: its label, with no link.** Not as proposed: a private notebook's title does reach the page. So the publish dialog lists those titles under *Shown as plain text* before anything goes live, and keeps the unticked *Also make public* boxes. |
+| 2 | The URL | **As proposed:** `/n/<mintToken()>`, no ids or slug, `noindex`, not in the sitemap, `Referrer-Policy: no-referrer`, an OG card with only the title and cover, and no people's names on the page. |
+| 3 | Public, then private | **As proposed:** live, not pinned; `page_shares` is a CRUD access row, not a trip event; *Make private* works on the next request; a revoked URL is a plain 404; re-publishing mints a new token; deleting the notebook or trip revokes. |
+| 4 | Who publishes | **As proposed:** editors and the owner publish, and any of them can make it private; viewers and suggesters see a *Public* chip and can copy the link; the Share panel lists every public notebook; no tier gate. The seeded *Bookings & confirmations*, *Money* and *During the trip* notebooks can't be published. |
+| 5 | Which widgets | **Not as proposed. Every widget shows by default, and every widget instance has a *Hide when public* setting** (*"Default allow all, but have a setting in all widgets to hide/turn off when public. Leverage a new default state like the no data state"*). A hidden widget draws, for a stranger, **a new quiet *Not shared* state styled like the widget's no-data state**, and its data is not sent to the page. In edit mode, members see a *Hidden when public* badge on it. **Three floors stay whatever a setting says** (asked and answered: *"Keep all three"*): booking confirmation codes and links are stripped for a reader without a seat (ADR-086), `chat.recent` needs `canChat` so it never draws for a stranger, and stops carry no `addedBy` names. Everything else shows its data, a lodging stop's address included, unless the widget is hidden. |
+| 6 | Signed-in visitors | **Not as proposed. Everyone sees the stranger's page**, members included: no *Open in the trip*, and no join, request-access or invite control for anyone. |
+| 7 | The call to action | **As proposed:** one shared `PublicCta` band, *Start planning — free* to `/signup?ref=public-notebook`, landing in New trip, used on `/n/`, `/s/` and `/demo/<slug>`. Mitchell approves the words on the preview. |
+| 8 | The poll | **As proposed for members** (named votes in their own `poll_votes` store, every seat votes, one vote changeable until closed, single choice with a *pick more than one* setting, an optional close date, editors close). **On a public page, following 5, it shows by default as read-only: the question and each option's count, with no names, no *not voted yet* list and no vote control** (*"Read-only counts"*). It can be hidden like any widget. |
+
+### As proposed (2026-11-04, before the answers)
 
 1. **Links to other pages.** A notebook's `link.internal` targets are `notebook`, `seed`, `day`
    and `view` (`linkTarget.ts:23-31`). *Recommendation:* the link is resolved for the public
@@ -177,56 +191,57 @@ That makes it a growth loop. It is not a way into the trip.
      2"*), a nudge to people who haven't voted, and letting the assistant read results are
      candidates.
 
-### Decisions that need an ADR at scoping
+### The ADR
 
-Decisions 2, 3 and 5 make one rule: *a public notebook is a revocable bearer link to a live page,
-read through an allow-list that fails closed*. That rule goes in **ADR-088**, which amends
-ADR-027. Decision 8's own store for votes is recorded beside it.
+Decisions 2, 3 and 5 make one rule: *a public notebook is a revocable bearer link to a live
+page, read through one server-side public view. Every widget shows unless its instance is hidden,
+and three floors hold whatever a setting says.* It is **ADR-088**, which amends ADR-027. Decision
+8's own store for votes is recorded beside it.
 
 ## Scope
 
-A first cut of the parts, for the plan to settle:
+Five parts, as one stack. The files are in the plan.
 
-1. **The public read contract** (decisions 1 and 5): `publicRead` on every `MacroDef`, with an
-   exhaustive registry test; the public `WidgetContext`; the server-side explicit list for the
-   public trip view (no members, actors, bookings or lodging addresses); and link resolution
-   that drops private targets on the server.
+1. **The public read** (decisions 1 and 5): a `hideWhenPublic` setting on every widget instance;
+   the public reader context; the *Not shared* state; the server-side public view with the three
+   floors; and link resolution for a public reader (public notebook → `/n/`, anything else →
+   plain text).
 2. **Public links** (decisions 2–4): `page_shares` and its migration; create, list and revoke
-   (editor or owner) on the app API and the public API (`api/v1`); revoke on notebook or trip
-   delete; the cache revalidation.
+   (editor or owner) on the app API and `api/v1`; revoke on notebook or trip delete; the cache
+   revalidation.
 3. **The public page** (decisions 2, 6 and 7): `/n/[token]` with `noindex`,
-   `Referrer-Policy: no-referrer`, the OG card, a 404 for revoked links, and *Open in the trip*
-   for members; and `PublicCta`, shared with `/s/` and `/demo`.
-4. **Publishing in the notebook** (decisions 1 and 4): the *Make public* control and its preview
-   of what a stranger sees, with the *won't show* list and the *Also make public* boxes; the
-   *Public* chip; copy link; make private; and the list in the trip's Share panel.
-5. **The poll widget** (decision 8): the widget contract, `poll_votes` and its migration, the vote
-   endpoint, the widget at 390 and 1440, closing, and `publicRead: "absent"`.
+   `Referrer-Policy: no-referrer`, the OG card and a 404 for revoked links; and `PublicCta`,
+   shared with `/s/` and `/demo`.
+4. **Publishing in the notebook** (decisions 1, 4 and 5): *Make public* with its stranger's-eye
+   preview, the *Shown as plain text* list and the *Also make public* boxes; the *Public* chip;
+   copy link; make private; the Share panel's list; and *Hide when public* in every widget's menu,
+   with its edit-mode badge.
+5. **The poll widget** (decision 8): the widget contract, `poll_votes` and its migration, the
+   vote and close endpoints, the widget at 390 and 1440, and its public read-only counts.
 0. **The gate**: the evidence, ADR-088, the retro.
 
 ## Out of scope
 
 - Search engines finding public notebooks: no sitemap entry, and `noindex` stays (decision 2).
 - A public board, map or calendar. Only the notebook is public.
-- Any way for a stranger or a non-member to join, request access to or comment on the trip.
-- *Copy this trip to my account* from a public notebook (ADR-028's clone). That's a candidate,
-  once decision 5's list has shown which data may leave.
-- Hiding the dates or showing *Day 1, Day 2* in place of them. That's a candidate if publishers
-  ask.
-- Showing costs publicly, even as an opt-in. That's a candidate.
-- Poll extras: stop options, reminders, anonymous polls, the assistant reading results
-  (decision 8).
+- Any way for a stranger, or anyone without an invite, to join, request access to or comment on
+  the trip (decision 6).
+- *Copy this trip to my account* from a public notebook (ADR-028's clone). That's a candidate.
+- A trip-wide *hide when public* default per widget kind. Every hide is per instance (decision 5).
+- Poll extras: stop options, reminders, anonymous polls, the assistant reading results.
 
 ## Exit gate
 
-- [ ] **Allow-list fails closed:** the registry test fails when a `MacroDef` has no
-  `publicRead`, and it was seen to fail with one removed.
-- [ ] **Nothing private reaches the page:** with a notebook holding one of every `absent` widget,
-  a booked stop and a lodging stop with an address, the public page's HTML and RSC payload contain
-  no cost, member name, `addedBy`, confirmation code, street address, chat text or private page
-  id (an e2e, `test:e2e:ci-like`, or CI on the PR).
+- [ ] **Hide when public:** every widget in `MACRO_REGISTRY` accepts `hideWhenPublic` (a registry
+  test over every entry, seen to fail with the setting removed from one), and a hidden widget
+  draws *Not shared* on the public page while members still see it with its badge.
+- [ ] **Hidden data stays on the server:** with a notebook holding a hidden cost chart, a booked
+  stop, a stop with `addedBy` and a `chat.recent`, the public page's HTML and RSC payload contain
+  no cost figure from the hidden chart, confirmation code, booking URL, `addedBy` name or chat
+  text (an e2e, `test:e2e:ci-like`, or CI on the PR).
 - [ ] **Links:** on a public page, a link to another public notebook opens its `/n/` URL while
-  signed out, and links to a private notebook, a day and a view are absent (the same e2e).
+  signed out, and links to a private notebook, a day and a view render as their text with no
+  `href` (the same e2e).
 - [ ] **URL:** the token is 43 base64url characters, and the URL contains no trip id, page id or
   title. The page answers with `noindex` and `Referrer-Policy: no-referrer`, and no `/n/` path is
   in the sitemap.
@@ -238,12 +253,13 @@ A first cut of the parts, for the plan to settle:
 - [ ] **Who:** a viewer and a suggester get 403 creating a link, and an editor gets 201. The
   seeded *Bookings & confirmations*, *Money* and *During the trip* notebooks have no *Make
   public* control.
-- [ ] **No way in:** the public page has no join, invite or request-access control for a signed-out
-  visitor or a signed-in non-member, and a member sees *Open in the trip*.
+- [ ] **No way in:** the public page has no join, invite, request-access or *Open in the trip*
+  control, signed out or signed in as a member.
 - [ ] **Call to action:** the band is at the foot of `/n/`, `/s/` and `/demo/<slug>`, and its
   sign-up records `ref=public-notebook` and lands in New trip.
 - [ ] **Poll:** two members vote, one changes their vote, an editor closes the poll and a third
-  member can't vote after it closes. The poll is absent on the same notebook's public page.
+  member can't vote after it closes. On the same notebook's public page the poll shows its
+  question and counts with no names and no vote control.
 - [ ] **[walk]** Mitchell publishes a real trip's Overview, opens the link in a private window
-  on his phone, follows a link to a second public notebook, signs up from the band, then makes
-  the first notebook private and sees the link go dead.
+  on his phone, follows a link to a second public notebook, sees a hidden widget's *Not shared*
+  state, signs up from the band, then makes the first notebook private and sees the link go dead.
