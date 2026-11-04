@@ -70,6 +70,10 @@ export const NOT_DRAWN = new Map([
   ["/playbooks/country/[slug]/city/[citySlug]/tag/[tag]", "SEO lattice: the city page over one tag's days in one city inside its country — no artboard"],
   ["/playbooks/tag/[tag]", "M42 part 5: the city page over the days a tag describes — no artboard"],
   ["/playbooks/city/[slug]/[tag]", "M42 part 5: the city page over one tag's days in that city — no artboard"],
+  ["/playbooks/length/[band]", "ADR-087: the city page over one length band's days — no artboard"],
+  ["/playbooks/city/[slug]/length/[band]", "ADR-087: the city page over one length band's days in that city — no artboard"],
+  ["/playbooks/country/[slug]/length/[band]", "ADR-087: the city page over one length band's days in that country — no artboard"],
+  ["/playbooks/country/[slug]/city/[citySlug]/length/[band]", "ADR-087: the city page over one length band's days in one city inside its country — no artboard"],
   ["/demo", "the picker, M42 D1, has no artboard"],
   ["/oauth/authorize", "M55 part 2: the OAuth consent page, a card of the design system's primitives — no artboard"],
 ]);

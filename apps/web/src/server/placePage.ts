@@ -15,7 +15,14 @@ import {
 import { NOINDEX_FOLLOW, pageMetadata } from "@/lib/siteMetadata";
 import type { PlacePage } from "./playbooks";
 // Cached for a day, and cleared on publish (ADR-063).
-import { countryCityFor, placeFor, publishedCountryCityPages, publishedDaysPage, publishedTagPages } from "./publicLibrary";
+import {
+  countryCityFor,
+  placeFor,
+  publishedCountryCityPages,
+  publishedDaysPage,
+  publishedLengthPages,
+  publishedTagPages,
+} from "./publicLibrary";
 
 // The city and country pages (SEO pass, D6): one page over two kinds of place.
 // Here rather than in either page file because a page file is not a module
@@ -97,7 +104,11 @@ export async function placeListing(
   const { page, data } = await resolve(kind, props);
   if (data === null) notFound();
   const { name, days: total } = data.place;
-  const [tags, countryCities] = await Promise.all([publishedTagPages(), publishedCountryCityPages()]);
+  const [tags, countryCities, lengths] = await Promise.all([
+    publishedTagPages(),
+    publishedCountryCityPages(),
+    publishedLengthPages(),
+  ]);
   const path = placePath(data.place);
   // The last crumb is this page at its own URL: on `?page=N` the trail
   // ends at page N, as the page's canonical does, not at page one.
@@ -110,7 +121,7 @@ export async function placeListing(
     days: data.days,
     total,
     page,
-    nav: latticeNav(kind === "city" ? { city: data.place } : { country: data.place }, { tags, countryCities }),
+    nav: latticeNav(kind === "city" ? { city: data.place } : { country: data.place }, { tags, countryCities, lengths }),
   };
 }
 
@@ -168,7 +179,11 @@ export async function countryCityListing(props: CountryCityRouteProps): Promise<
   const { page, data } = await resolveCountryCity(props);
   if (data === null) notFound();
   const { pair } = data;
-  const [tags, countryCities] = await Promise.all([publishedTagPages(), publishedCountryCityPages()]);
+  const [tags, countryCities, lengths] = await Promise.all([
+    publishedTagPages(),
+    publishedCountryCityPages(),
+    publishedLengthPages(),
+  ]);
   const path = countryCityPath(pair.country.slug, pair.city.slug);
   // The last crumb is this page at its own URL, as on the place pages.
   const crumbs = countryCityPageCrumbs(
@@ -184,6 +199,6 @@ export async function countryCityListing(props: CountryCityRouteProps): Promise<
     days: data.days,
     total: pair.days,
     page,
-    nav: latticeNav({ country: pair.country, city: pair.city }, { tags, countryCities }),
+    nav: latticeNav({ country: pair.country, city: pair.city }, { tags, countryCities, lengths }),
   };
 }

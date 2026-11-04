@@ -125,7 +125,11 @@ describe("the SEO lattice", () => {
       page: 1,
     });
     expect(pair.nav?.parents.map((link) => link.href)).toEqual(["/playbooks/country/nauru", `/playbooks/city/${rome}`]);
-    expect(pair.nav?.children.map((link) => link.href)).toEqual([`/playbooks/country/nauru/city/${rome}/tag/meal`]);
+    // Its tag pages, and now its length page too: every day here is one day long.
+    expect(pair.nav?.children.map((link) => link.href)).toEqual([
+      `/playbooks/country/nauru/city/${rome}/tag/meal`,
+      `/playbooks/country/nauru/city/${rome}/length/1-day`,
+    ]);
 
     // The country×city×tag listing is the same count, under its own heading.
     const tagged = await countryTagListing({
@@ -171,6 +175,7 @@ describe("the SEO lattice", () => {
     expect(city.nav?.parents).toEqual([]);
     expect(city.nav?.children.map((link) => link.href)).toEqual([
       `/playbooks/city/${rome}/meal`,
+      `/playbooks/city/${rome}/length/1-day`,
       `/playbooks/country/nauru/city/${rome}`,
       `/playbooks/country/kiribati/city/${rome}`,
     ]);

@@ -4,11 +4,13 @@ const sitemapDays = vi.fn();
 const publishedPlaces = vi.fn();
 const publishedTagPages = vi.fn();
 const publishedCountryCityPages = vi.fn();
+const publishedLengthPages = vi.fn();
 vi.mock("@/server/playbooks", () => ({
   sitemapDays: () => sitemapDays(),
   publishedPlaces: () => publishedPlaces(),
   publishedTagPages: () => publishedTagPages(),
   publishedCountryCityPages: () => publishedCountryCityPages(),
+  publishedLengthPages: () => publishedLengthPages(),
 }));
 
 import { DEMO_TRIPS } from "@/lib/demoTrip";
@@ -20,6 +22,7 @@ beforeEach(() => {
   publishedPlaces.mockReset().mockResolvedValue([]);
   publishedTagPages.mockReset().mockResolvedValue([]);
   publishedCountryCityPages.mockReset().mockResolvedValue([]);
+  publishedLengthPages.mockReset().mockResolvedValue([]);
 });
 
 describe("sitemap.xml", () => {
@@ -86,6 +89,32 @@ describe("sitemap.xml", () => {
       "/playbooks/country/italy/tag/meal",
       "/playbooks/country/italy/city/rome/tag/meal",
     ]);
+  });
+
+  // The length pages, at all four scopes, hold to the same threshold and are
+  // dated like the tag pages.
+  it("lists length pages at every scope only from three days up, dated by their newest day", async () => {
+    const italy = { slug: "italy", name: "Italy", countries: ["IT"] };
+    const rome = { slug: "rome", name: "Rome", cities: ["Rome"] };
+    publishedLengthPages.mockResolvedValue([
+      { band: "one", city: null, country: null, days: 3, newestPublishedAt: "2026-10-21T10:00:00.000Z" },
+      { band: "seven-plus", city: null, country: null, days: 2, newestPublishedAt: null },
+      { band: "two-three", city: rome, country: null, days: 3, newestPublishedAt: null },
+      { band: "four-six", city: null, country: italy, days: 4, newestPublishedAt: null },
+      { band: "one", city: null, country: italy, days: 2, newestPublishedAt: null },
+      { band: "two-three", city: rome, country: italy, days: 3, newestPublishedAt: null },
+    ]);
+    const entries = await sitemap();
+    const lengths = entries.map((entry) => new URL(entry.url).pathname).filter((path) => path.includes("/length/"));
+    expect(lengths).toEqual([
+      "/playbooks/length/1-day",
+      "/playbooks/city/rome/length/2-3-days",
+      "/playbooks/country/italy/length/4-6-days",
+      "/playbooks/country/italy/city/rome/length/2-3-days",
+    ]);
+    expect(entries.find((e) => new URL(e.url).pathname === "/playbooks/length/1-day")?.lastModified).toBe(
+      "2026-10-21T10:00:00.000Z",
+    );
   });
 
   // M53 part C: a place or tag entry is dated by its newest published day,

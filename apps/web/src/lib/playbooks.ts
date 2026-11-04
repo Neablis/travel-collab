@@ -203,6 +203,26 @@ export const LENGTH_BAND_LABELS: Record<LengthBand, string> = {
   "seven-plus": "7+ days",
 };
 
+/** A band that names a length, every one but `any`: what a length page is about. */
+export type NamedLengthBand = Exclude<LengthBand, "any">;
+
+/** The named bands in the filter's own order, shortest first. */
+export const NAMED_LENGTH_BANDS: readonly NamedLengthBand[] = ["one", "two-three", "four-six", "seven-plus"];
+
+/**
+ * The band a stored `day_count` falls in, read off `LENGTH_BAND_RANGE` so the
+ * length pages count exactly the set `lengthPredicate` lists; null below 1,
+ * which no row holds (`day_count` defaults to 1) but which no band covers.
+ */
+export function lengthBandOf(dayCount: number): NamedLengthBand | null {
+  return (
+    NAMED_LENGTH_BANDS.find((band) => {
+      const [min, max] = LENGTH_BAND_RANGE[band];
+      return dayCount >= min && (max === null || dayCount <= max);
+    }) ?? null
+  );
+}
+
 /**
  * §15's fourth filter: a minimum average rating (M12 D9).
  *

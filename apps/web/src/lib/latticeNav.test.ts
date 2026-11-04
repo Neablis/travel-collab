@@ -121,4 +121,64 @@ describe("latticeNav", () => {
     expect(nav.children).toHaveLength(12);
     expect(nav.children[0]?.href).toBe("/playbooks/country/country-0/tag/meal");
   });
+
+  describe("length pages", () => {
+    const withLengths: LatticeData = {
+      ...lattice,
+      lengths: [
+        { band: "one", city: null, country: null, days: 20 },
+        { band: "two-three", city: null, country: null, days: 7 },
+        { band: "one", city: null, country: { slug: "italy", name: "Italy" }, days: 8 },
+        { band: "one", city: { slug: "rome", name: "Rome" }, country: null, days: 5 },
+        { band: "one", city: { slug: "rome", name: "Rome" }, country: { slug: "italy", name: "Italy" }, days: 4 },
+        { band: "one", city: { slug: "rome", name: "Rome" }, country: { slug: "united-states", name: "United States" }, days: 1 },
+        { band: "two-three", city: { slug: "milan", name: "Milan" }, country: { slug: "italy", name: "Italy" }, days: 2 },
+      ],
+    };
+
+    it("climbs a country×city length page to its place, and to the band one place wider each way", () => {
+      const nav = latticeNav({ country: ITALY, city: ROME, length: "one" }, withLengths);
+      expect(nav.parents).toEqual([
+        { label: "Rome, Italy: trips from real travelers", href: "/playbooks/country/italy/city/rome" },
+        { label: "1-day trips in Italy", href: "/playbooks/country/italy/length/1-day" },
+        { label: "1-day trips in Rome", href: "/playbooks/city/rome/length/1-day" },
+      ]);
+      expect(nav.children).toEqual([]);
+    });
+
+    it("refines a country's band into its cities, a city's into its countries, and the library's into both", () => {
+      expect(latticeNav({ country: ITALY, length: "one" }, withLengths)).toEqual({
+        parents: [
+          { label: "Italy trips from real travelers", href: "/playbooks/country/italy" },
+          { label: "1-day trips from real travelers", href: "/playbooks/length/1-day" },
+        ],
+        children: [{ label: "1-day trips in Rome, Italy", href: "/playbooks/country/italy/city/rome/length/1-day" }],
+      });
+      expect(latticeNav({ city: ROME, length: "one" }, withLengths).children.map((link) => link.href)).toEqual([
+        "/playbooks/country/italy/city/rome/length/1-day",
+        "/playbooks/country/united-states/city/rome/length/1-day",
+      ]);
+      expect(latticeNav({ length: "one" }, withLengths)).toEqual({
+        parents: [],
+        children: [
+          { label: "1-day trips in Italy", href: "/playbooks/country/italy/length/1-day" },
+          { label: "1-day trips in Rome", href: "/playbooks/city/rome/length/1-day" },
+        ],
+      });
+    });
+
+    it("links a place page down to its own bands, and no other place's", () => {
+      const country = latticeNav({ country: ITALY }, withLengths).children.map((link) => link.href);
+      expect(country).toContain("/playbooks/country/italy/length/1-day");
+      expect(country.filter((href) => href.includes("/length/"))).toEqual(["/playbooks/country/italy/length/1-day"]);
+      const city = latticeNav({ city: ROME }, withLengths).children.map((link) => link.href);
+      expect(city.filter((href) => href.includes("/length/"))).toEqual(["/playbooks/city/rome/length/1-day"]);
+      const pair = latticeNav({ country: ITALY, city: ROME }, withLengths).children.map((link) => link.href);
+      expect(pair.filter((href) => href.includes("/length/"))).toEqual(["/playbooks/country/italy/city/rome/length/1-day"]);
+    });
+
+    it("leaves a tag page's links alone", () => {
+      expect(latticeNav({ tag: "meal" }, withLengths)).toEqual(latticeNav({ tag: "meal" }, lattice));
+    });
+  });
 });

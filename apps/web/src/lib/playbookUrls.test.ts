@@ -7,6 +7,9 @@ import {
   countrySlug,
   dayPath,
   daySegment,
+  LENGTH_PAGE_SLUG,
+  lengthBandOfSlug,
+  lengthPath,
   MIN_INDEXED_PLACE_DAYS,
   parseDaySegment,
   placeIndexable,
@@ -151,5 +154,27 @@ describe("place URLs", () => {
     expect(tagPath("meal", null, "japan")).toBe("/playbooks/country/japan/tag/meal");
     expect(tagPath("meal", "kyoto", "japan")).toBe("/playbooks/country/japan/city/kyoto/tag/meal");
     expect(countryCityPath("japan", "kyoto")).toBe("/playbooks/country/japan/city/kyoto");
+  });
+});
+
+describe("length URLs", () => {
+  it("gives each scope its own literal /length/ segment, after the place", () => {
+    expect(lengthPath("one")).toBe("/playbooks/length/1-day");
+    expect(lengthPath("two-three", "kyoto")).toBe("/playbooks/city/kyoto/length/2-3-days");
+    expect(lengthPath("four-six", null, "japan")).toBe("/playbooks/country/japan/length/4-6-days");
+    expect(lengthPath("seven-plus", "kyoto", "japan")).toBe("/playbooks/country/japan/city/kyoto/length/7-plus-days");
+  });
+
+  it("reads every band's slug back to its band, and nothing else to any band", () => {
+    for (const [band, slug] of Object.entries(LENGTH_PAGE_SLUG)) expect(lengthBandOfSlug(slug)).toBe(band);
+    // The band keys `?length=` uses are not URL segments: one spelling per page.
+    for (const other of ["one", "two-three", "7+", "1-days", "", "any"]) expect(lengthBandOfSlug(other)).toBeNull();
+  });
+
+  // A length segment can never be read as a tag on the legacy bare city form
+  // (`/playbooks/city/<slug>/<tag>`): no tag key is spelled "length".
+  it("keeps the length segment clear of every tag key", async () => {
+    const { ActivityTagDescribed } = await import("@tc/contracts");
+    expect(ActivityTagDescribed.options).not.toContain("length");
   });
 });
