@@ -106,6 +106,22 @@ describe("toPublicNotebookView", () => {
     expect(JSON.stringify(view)).toContain("Traveler 1");
   });
 
+  it("sends only the attrs a node is drawn with: an unknown type or an extra attr is dropped", () => {
+    const trip = tripWithPeople();
+    const doc = newPageDoc([
+      { type: "futureCard", attrs: { ownerId: "user-secret-1" }, content: [{ type: "paragraph", content: [] }] },
+      { type: "heading", attrs: { level: 2, authorId: "user-secret-2" }, content: [{ type: "text", text: "Hello" }] },
+    ] as unknown as PageNode[]);
+    const view = toPublicNotebookView({
+      trip, globals: null, today: null, now: null, publicTokenFor: () => null,
+      page: { title: "Plan", content: doc, context: { tripId: trip.tripId } },
+    });
+    expect(JSON.stringify(view)).not.toMatch(/secret/);
+    // Vacuous unless the allowed heading still ships its level and text.
+    expect(JSON.stringify(view)).toContain('"level":2');
+    expect(JSON.stringify(view)).toContain("Hello");
+  });
+
   it("carries the title, the document and the accents, and nothing of the trip", () => {
     const trip = tripWithPeople();
     const view = viewOf(trip, [macro("attribute", { field: "trip.name" })]);
