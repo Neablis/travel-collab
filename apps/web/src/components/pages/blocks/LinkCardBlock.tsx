@@ -68,10 +68,18 @@ export function LinkCardBlock({
         <span className="text-base font-semibold text-ink">{payload.title}</span>
         <span className="truncate text-sm text-slate">{payload.summary}</span>
       </span>
-      {interactive ? <ArrowRight aria-hidden className="size-4 shrink-0 text-slate" /> : null}
+      {interactive && payload.to.kind !== "plain" ? <ArrowRight aria-hidden className="size-4 shrink-0 text-slate" /> : null}
     </>
   );
   const card = "my-1 flex items-center gap-3 rounded-md border border-hairline bg-surface px-3.5 py-3 no-underline";
+  // A target a public reader may not follow (M58): the label, and no arrow.
+  if (payload.to.kind === "plain") {
+    return (
+      <span className={card} data-testid="link-card">
+        {body}
+      </span>
+    );
+  }
   if (!interactive) {
     return (
       <span className={card} data-testid="link-card">

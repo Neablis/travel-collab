@@ -13,6 +13,22 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-04 — A widget instance's `hideWhenPublic` (M58 part 1; public API 2.3.0)
+- **New** (`packages/contracts/src/pageDoc.ts`): `MacroNode.attrs.hideWhenPublic`, an optional
+  boolean beside `params`. Absent means `false` and stays absent, so every stored page parses and
+  saves back unchanged. It is on the attrs rather than in `params` because each widget's params
+  schema strips keys it does not know.
+- Why: Mitchell, 2026-11-04 (M58 decision 5, ADR-088 §4): every widget shows on a public
+  notebook unless its instance is hidden.
+- Consumers updated: `packages/pages` (`renderMacro` takes the flag and answers `not-shared` for a
+  public reader before `resolve` runs); `apps/web` (`MacroView` draws *Not shared*; the editor's
+  node attribute and its control arrive in M58 part 4); `openapi.json`, since `PageNode` carries
+  the widget node.
+- Public API: every widget node in `openapi.json` gains the optional `hideWhenPublic` property;
+  `API_VERSION` 2.3.0, with a new `API_FINGERPRINT`.
+- Breaking? no. Optional on a strict node; an older client that parses a page carrying it would
+  reject the key, so the flag is only ever written by part 4's control.
+
 ## 2026-11-04 — `Location.verified`: a coordinate no geocoder confirmed (public API 2.2.0)
 - **New** (`packages/contracts/src/activity.ts`): `Location.verified`, optional, and only ever
   `false`. It marks coordinates no vendor corroborated. Today that means an assistant's guess that

@@ -56,6 +56,20 @@ describe("LinkCardBlock", () => {
   });
 });
 
+// M58 decision 1: a card to a page a stranger can't read is its label alone.
+describe("LinkCardBlock for the public reader", () => {
+  it("draws a plain card as text, with no link", () => {
+    render(<LinkCardBlock payload={{ ...money, to: { kind: "plain" }, summary: "" }} tripId={TRIP} />);
+    expect(screen.getByTestId("link-card").textContent).toContain("Money");
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("links a public notebook to its /n/ address", () => {
+    render(<LinkCardBlock payload={{ ...money, to: { kind: "public", token: "tok-1" } }} tripId={TRIP} />);
+    expect(screen.getByRole("link", { name: /Money/ }).getAttribute("href")).toBe("/n/tok-1");
+  });
+});
+
 describe("linkHref", () => {
   it("opens a notebook on its own route from the trip's", () => {
     expect(linkHref({ kind: "notebook", pageId: PAGE }, TRIP, `/trips/${TRIP}`)).toBe(`/trips/${TRIP}/pages/${PAGE}`);

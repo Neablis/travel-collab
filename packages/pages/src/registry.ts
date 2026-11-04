@@ -134,20 +134,32 @@ export type RenderOutcome =
   // Not shown at all (M52 decision 20): the reader lacks what the widget
   // `requires`. Never a chip — SPEC §27, nothing renders disabled.
   | { status: "absent" }
+  // The instance is hidden from a public reader (M58, ADR-088 §4). Not an
+  // absence: the stranger is told something is here and not shared.
+  | { status: "not-shared" }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
 // `item` is the repeat line this widget is being rendered on, when it sits in a
 // repeat's template (ADR-035 decision 4). Render-time only: it never reaches
-// the stored node. Without one, the widget is handed its page's date scope
+// the stored node. `hideWhenPublic` is the instance's own flag (`attrs`, beside
+// its params). Without one, the widget is handed its page's date scope
 // (ADR-080 §4). A day or a stop line already names a day the scope narrowed
 // it to, through `resolveRepeat`, so it wins; a city line names no day, so it
 // carries the page's too.
-export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown, item?: ItemScope): RenderOutcome {
+export function renderMacro(
+  ctx: WidgetContext,
+  name: string,
+  rawParams: unknown,
+  item?: ItemScope,
+  hideWhenPublic = false,
+): RenderOutcome {
   const def = getMacro(name);
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
+  // Before `requires` and `resolve`, so a hidden instance's data is never read for a stranger.
+  if (hideWhenPublic && ctx.reader === "public") return { status: "not-shared" };
   if (def.requires !== undefined && ctx[def.requires] !== true) return { status: "absent" };
   // What the page's settings take over is read as unset, so they win.
   const params = withoutSuperseded(ctx.page, def, parsed.data as Record<string, unknown>, ctx.now ?? null);

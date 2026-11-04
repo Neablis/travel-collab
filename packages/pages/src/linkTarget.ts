@@ -32,7 +32,14 @@ export const LinkTarget = z.discriminatedUnion("kind", [
 export type LinkTarget = z.infer<typeof LinkTarget>;
 
 /** A target a card can be sent to: the resolver has already turned a seed key into the page it names. */
-export type ResolvedLinkTarget = Exclude<LinkTarget, { kind: "seed" }>;
+export type ResolvedLinkTarget = Exclude<LinkTarget, { kind: "seed" }> | { kind: "public"; token: string };
+
+/**
+ * A card a public reader may read but not follow (M58, ADR-088 §6): its label,
+ * and nothing to go to. It carries no page id, so a private notebook's id
+ * cannot reach a stranger through the link that names it.
+ */
+export type PlainLinkTarget = { kind: "plain" };
 
 /**
  * Where a widget's row may send someone (M43 decision 4): anywhere a link card
@@ -52,7 +59,7 @@ export type ActTarget = ResolvedLinkTarget | { kind: "rack" };
  */
 export interface LinkCardPayload {
   kind: "link-card";
-  to: ResolvedLinkTarget;
+  to: ResolvedLinkTarget | PlainLinkTarget;
   eyebrow: string;
   title: string;
   summary: string;

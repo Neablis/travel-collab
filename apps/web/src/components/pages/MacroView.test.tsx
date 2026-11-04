@@ -6,6 +6,7 @@ import { withCostRollups } from "@tc/factories";
 import { MacroView } from "./MacroView";
 import { MacroEditorContext } from "./editor/MacroEditorContext";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
+import { PublicReaderProvider } from "./readerCapabilities";
 
 afterEach(cleanup);
 
@@ -420,6 +421,52 @@ describe("a widget for readers who are not this one", () => {
   it("is not there at all while reading", () => {
     render(<div data-testid="page"><MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} /></div>);
     expect(screen.getByTestId("page").textContent).toBe("");
+  });
+});
+
+// M58 decision 5 (ADR-088 §4): a hidden instance is drawn for a stranger as a
+// quiet "Not shared" chip and nothing of its data; a member is unaffected.
+describe("a widget hidden when public", () => {
+  const publicPage = (hide: boolean) => (
+    <PublicReaderProvider publicTokenFor={() => null}>
+      <MacroView detail={baseDetail} context={ctx} name="attribute" params={{ field: "trip.name" }} hideWhenPublic={hide} />
+    </PublicReaderProvider>
+  );
+
+  it("draws Not shared instead of the widget for the public reader", () => {
+    render(publicPage(true));
+    expect(screen.getByText("Not shared")).toBeTruthy();
+    expect(screen.queryByText("Test Trip")).toBeNull();
+  });
+
+  it("draws an unhidden widget for the public reader", () => {
+    render(publicPage(false));
+    expect(screen.getByText("Test Trip")).toBeTruthy();
+    expect(screen.queryByText("Not shared")).toBeNull();
+  });
+
+  it("is unaffected for a member, who is not told it is hidden", () => {
+    render(<MacroView detail={baseDetail} context={ctx} name="attribute" params={{ field: "trip.name" }} hideWhenPublic />);
+    expect(screen.getByText("Test Trip")).toBeTruthy();
+    expect(screen.queryByText("Not shared")).toBeNull();
+  });
+
+  // The floor: a stranger has no chat, even where the screen they are on
+  // offers one (floors live in the reader, not in a widget's setting).
+  it("never draws the trip chat for the public reader, even with a chat on offer", () => {
+    const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } });
+    try {
+      render(
+        <div data-testid="page">
+          <PublicReaderProvider publicTokenFor={() => null}>
+            <MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} />
+          </PublicReaderProvider>
+        </div>,
+      );
+      expect(screen.getByTestId("page").textContent).toBe("");
+    } finally {
+      unregister();
+    }
   });
 });
 

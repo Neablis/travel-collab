@@ -1,12 +1,15 @@
 import { cn } from "../../lib/cn";
 import { Button } from "../ui/button";
 
-export type EmptyChipTone = "muted" | "action" | "error";
+export type EmptyChipTone = "muted" | "action" | "error" | "not-shared";
 
 const toneClasses: Record<EmptyChipTone, string> = {
   muted: "border-hairline bg-surface text-slate",
   action: "border-brand bg-brand-tint text-brand-pressed hover:bg-moss",
   error: "border-danger-tint bg-danger-tint text-danger-ink",
+  // A widget the publisher kept from a public reader (M58): quieter than
+  // `muted`, a dashed edge, because nothing is wrong and nothing is missing.
+  "not-shared": "border-dashed border-hairline bg-transparent text-slate",
 };
 
 // A small inline chip used for macro empty/unbound/error states. `action`

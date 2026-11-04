@@ -42,16 +42,17 @@ const SHOWN_TO: Record<ReaderCapability, string> = {
  *
  * @param name - The macro name to render
  * @param params - Parameters passed to the macro
+ * @param hideWhenPublic - The instance's own flag: a public reader is shown "Not shared" instead (M58)
  * @param external - Outside data slots (ADR-052); absent means every slot is still pending
  * @param onBindDay - Optional handler for rebinding a widget whose selected day was removed
  * @param editing - Editing mode: an unbound widget renders its ghost rather than its placeholder
  * @param compact - The phone Overview's density: a block with a phone form renders it
  * @returns The rendered macro widget or an appropriate status chip
  */
-export function MacroView({ detail, context, user = null, globals = null, external, name, params, onBindDay, editing = false, compact = false }: {
+export function MacroView({ detail, context, user = null, globals = null, external, name, params, hideWhenPublic = false, onBindDay, editing = false, compact = false }: {
   detail: TripDetail; context: PageContext; user?: UserPreferences | null;
   globals?: TripGlobals | null; external?: ExternalInputs; name: string;
-  params: Record<string, unknown>; onBindDay?: () => void; editing?: boolean; compact?: boolean;
+  params: Record<string, unknown>; hideWhenPublic?: boolean; onBindDay?: () => void; editing?: boolean; compact?: boolean;
 }) {
   const def = getMacro(name);
   // One derivation per render of one widget, memoised on the trip: `cityAccents`
@@ -80,7 +81,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // Whether the reader may chat (M52), for the widget that is absent without
   // (`MacroDef.requires`).
   const reader = useReaderCapabilities();
-  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests, ...reader }, name, params);
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests, ...reader }, name, params, undefined, hideWhenPublic);
   // SPEC §27: nothing renders disabled, so a widget this reader may not use is
   // not here at all. Its author still has to see what they put there, so
   // Editing names it and who it is for, in fixed words: never the payload, so
@@ -88,6 +89,9 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   if (outcome.status === "absent") {
     return editing && def?.requires ? <EmptyChip tone="muted" label={`${def.title}: ${SHOWN_TO[def.requires]}`} /> : null;
   }
+  // The publisher kept this one back (M58). Only the public reader gets this
+  // status, so members see the widget as usual and nothing here is theirs.
+  if (outcome.status === "not-shared") return <EmptyChip tone="not-shared" label="Not shared" />;
   // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
   if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;
@@ -428,7 +432,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
         <a
           href={rendered.href}
           target="_blank"
-          rel="noopener noreferrer"
+          rel={rendered.rel ?? "noopener noreferrer"}
           className="text-brand underline decoration-1 underline-offset-2 hover:text-brand-hover"
         >
           {rendered.text}

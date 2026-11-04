@@ -357,7 +357,7 @@ export type Rendered =
   // whole value IS an address, and its `href` has passed the params schema's
   // http/https check before `render` sees it. `MacroView` draws it as an
   // `<a target="_blank" rel="noopener noreferrer">`, and nothing else does.
-  | { kind: "link"; href: string; text: string }
+  | { kind: "link"; href: string; text: string; rel?: string }
   // `ItemsPayload.items`, passed through: already text and a declared target.
   | { kind: "items"; items: readonly Item[] };
 
@@ -374,7 +374,8 @@ export const ghost = (valueKind: ValueKind, label: string): Seg =>
 export const inlineOf = (...segs: Seg[]): Rendered => ({ kind: "inline", segs });
 export const blockOf = (block: BlockPayload): Rendered => ({ kind: "block", block });
 /** An outbound link as a `Rendered` — `link.external`'s one output (ADR-056); the href is already schema-checked. */
-export const linkOf = (href: string, t: string): Rendered => ({ kind: "link", href, text: t });
+export const linkOf = (href: string, t: string, rel?: string): Rendered =>
+  rel === undefined ? { kind: "link", href, text: t } : { kind: "link", href, text: t, rel };
 export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rendered =>
   headings === undefined ? { kind: "rows", rows } : { kind: "rows", rows, headings };
 /** A widget's action rows as a `Rendered` of kind `items`, passed through unchanged (M43 decision 4). */
@@ -657,6 +658,26 @@ export interface WidgetContext {
    * says how to get one rather than showing any. Absent is "not solo".
    */
   soloTrip?: boolean;
+  /**
+   * Who is reading (M58, ADR-088 §4): a `member` of the trip, or the `public`,
+   * a stranger on a public notebook's link. **Absent is `member`**, so every
+   * context built before this keeps its meaning.
+   *
+   * A public reader never reaches an instance marked `hideWhenPublic`:
+   * `renderMacro` answers `not-shared` before `resolve` runs, so the data is
+   * never read. The public reader has no `canChat`, and no seat to see a
+   * booking's code through, whatever a widget's setting says; those floors
+   * live in the public view (`toPublicNotebookView`), not in the widgets.
+   */
+  reader?: "member" | "public";
+  /**
+   * For a `public` reader: the token of the live public link to a notebook,
+   * by page id, or `null` when it has none. A link card to a notebook with a
+   * token goes to `/n/<token>`; every other target is plain text. **Handed in
+   * by the server** (`page_shares`, M58 part 2), because this package reads no
+   * store. Absent means no notebook is public.
+   */
+  publicTokenFor?: (pageId: string) => string | null;
 }
 
 /** A `WidgetContext` capability a widget can require (`MacroDef.requires`). */
@@ -772,6 +793,11 @@ export interface MacroDef<P, T> {
    * `renderMacro` answers `absent` without it, before `resolve` runs.
    */
   requires?: ReaderCapability;
+  // **Anyone adding a widget that reads people, money or location must decide
+  // whether it needs a floor in the public view** (`toPublicNotebookView`,
+  // ADR-088 Consequences). A widget is public the day it ships unless an
+  // instance is hidden (`hideWhenPublic`), and the floors are the only thing
+  // that holds whatever an editor set.
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
   // Nothing to show is the GOOD news (`open`: the trip is settled), so the
