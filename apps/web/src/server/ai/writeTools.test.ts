@@ -837,6 +837,27 @@ describe("grounding — a cited placeRef becomes the location that commits", () 
     expect((proposal!.commands[0] as { location: { name: string } }).location.name).toBe("Nowhere");
   });
 
+  // `verified` is the server's too (2026-11-03). A model claiming it would,
+  // unstripped, make the whole command unparseable: `true` is no value the
+  // field has, and `false` beside no coordinates breaks its refinement.
+  it("strips a verified the model claimed, so the command still parses", () => {
+    const proposal = proposeGrounded([
+      {
+        type: "AddActivity",
+        args: {
+          title: "Invented",
+          dayRef: "day 1",
+          kind: "transit",
+          location: { name: "Nowhere", verified: true },
+          endLocation: { name: "Elsewhere", verified: false },
+        },
+      },
+    ]);
+    expect(proposal).not.toBeNull();
+    expect((proposal!.commands[0] as { location: object }).location).toEqual({ name: "Nowhere" });
+    expect((proposal!.commands[0] as { endLocation: object }).endLocation).toEqual({ name: "Elsewhere" });
+  });
+
   // The ORDER of the two transforms, which is load-bearing: the strip runs
   // before grounding writes, so a cited stop keeps the server's `venue` rather
   // than losing it to the model's own claim being cleaned up afterwards.
@@ -882,7 +903,7 @@ describe("commitProposal", () => {
     const geocoder = {
       forward: vi.fn(async () => {
         order.push("geocode");
-        return [{ name: "Trevi Fountain, Rome, Italy", lat: 41.9009, lng: 12.4833, city: "Rome", countryCode: "IT" }];
+        return [{ canonicalName: "Trevi Fountain, Rome, Italy", lat: 41.9009, lng: 12.4833, city: "Rome", countryCode: "IT" }];
       }),
     };
     vi.mocked(executeTripCommandBatch).mockImplementation(async () => {

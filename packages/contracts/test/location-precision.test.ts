@@ -108,3 +108,21 @@ describe("Location.precision", () => {
     expect(parsed.activities[A1]!.location?.city).toBe("Jeonju-si");
   });
 });
+
+// Mitchell, 2026-11-03: `verified: false` marks a coordinate no vendor
+// confirmed. Absent is unknown, so every stored location still parses; `true`
+// does not exist; and like `precision` it describes coordinates and cannot
+// outlive them.
+describe("Location.verified", () => {
+  it("is optional, and only ever false", () => {
+    expect(Location.safeParse({ name: "Dinner", lat: 43.08, lng: -79.06 }).success).toBe(true);
+    expect(Location.safeParse({ name: "Dinner", lat: 43.08, lng: -79.06, verified: false }).success).toBe(true);
+    expect(Location.safeParse({ name: "Dinner", lat: 43.08, lng: -79.06, verified: true }).success).toBe(false);
+  });
+
+  it("requires coordinates", () => {
+    const result = Location.safeParse({ name: "Dinner", verified: false });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe("verified requires coordinates");
+  });
+});

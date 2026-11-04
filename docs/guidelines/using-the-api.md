@@ -303,15 +303,61 @@ fills them in when you leave them out, in this order:
    and in a country: `countryCode`, if you set it, restricts the lookup to that
    country. Otherwise the countries the trip's already-located stops are in (all
    of them, if it spans several) are **preferred**: the lookup searches inside
-   them first and, only if that finds nothing, searches everywhere — so the
-   first stop in a new country still resolves by name. A trip with nothing
-   located yet is not restricted at all. Sending `countryCode` is still the
-   surest way to place a name that exists in several countries.
+   them first and, only if that finds nothing, searches everywhere. A trip with
+   nothing located yet is not restricted at all. Sending `countryCode` is still
+   the surest way to place a name that exists in several countries.
 
-If the lookup finds nothing, the stop is **still created**, without coordinates.
-Every write whose body had a `location` answers with a `Geocode-Outcome` header:
-`provided`, `address`, `name`, `no-match`, `quota-exhausted` or `unavailable`.
-Lookups count against your account's daily geocoding allowance.
+   **The answer is checked before it is stored.** Its own name has to be the
+   place you named (a different venue in the right town is refused), and it has
+   to sit in the area of the trip's other stops, unless you sent a `countryCode`
+   none of them is in: that is how the first stop in a new country still
+   resolves by name. **Naming the stop's `city` loosens the area check:** an
+   answer outside the trip's area is taken when it is in that city, so a Boston
+   stop on a New York trip resolves by name when it says `"city": "Boston"`.
+   (On a `PATCH`, the stop's own current pin does not count as one of the
+   trip's stops.) A refused answer is never stored. If the location names a
+   `city` and a `countryCode`, the stop is pinned at that city's centre
+   instead, with `"precision": "city"` (one more lookup from your allowance);
+   otherwise it is saved without coordinates. A city name several places share
+   ("Springfield") is taken as you named it: send an `address` with its
+   `administrativeArea` to say which one. A stop placed this way counts as one
+   of the trip's stops afterwards, so it widens the area later lookups are
+   checked against. A city is matched by its exact name, so "Saint Louis" does
+   not loosen the check for an answer in "St. Louis".
+
+   How names are compared: each comma-separated part of the stop's name is
+   tried as the venue, so "Kegon Falls, Nikkō", "Rome, Trevi Fountain" and
+   "Dinner, Ria's Wines" all find their venue. A part that is only the
+   answer's town is never taken for the venue. Every word of the part has to
+   appear in the answer's own name ("Ria's Wines" does not match "Ria's Wine
+   Bar"); words like *bar*, *cafe* or *museum* are not required. A part that
+   starts like a street address ("123 Main St") is not compared at all, and an
+   `address` lookup is not checked this way.
+
+If the lookup finds nothing, or its answer is refused, the stop is **still
+created**, without coordinates or at its city. Every write whose body had a
+`location` answers with a `Geocode-Outcome` header: `provided`, `address`, `name`,
+`city` (the answer was refused and the stop is pinned at its city), `rejected`
+(the answer was refused and the stop has no coordinates), `no-match`,
+`quota-exhausted` or `unavailable`. To place a refused stop exactly, send `lat`
+and `lng`, or pick a candidate from `GET /v1/trips/{tripId}/geocode` and send it
+back as the `location`. Lookups count against your account's daily geocoding
+allowance.
+
+**A location can say its coordinates were not confirmed.** `"verified": false`
+on a location you read means no geocoder corroborated those coordinates: today,
+a guess the assistant kept because its lookup could not place the stop. The app
+draws it as a hollow pin. Absent means nothing is claimed either way, which is
+what every pin you set yourself carries. There is no `true`. You may send
+`"verified": false` on a stop write to mark your own coordinates as a guess;
+it needs `lat` and `lng`, and any later write that replaces the location
+clears it.
+
+**On these two stop writes, a location's keys are checked.** A key a location
+(or its `address`) does not know is a 400 that names it: `latitude`, `lon` or `zip` is refused, never
+dropped. Dropping one used to mean the server geocoded the name over the
+coordinates you thought you had sent. Other writes that carry stops, such as
+trip import and saving a day to the library, still ignore an unknown key.
 
 ```json
 {

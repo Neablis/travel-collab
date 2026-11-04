@@ -83,9 +83,71 @@ export const CITY_DISC_ACCENT_VAR = "--map-city-disc-accent";
 const CITY_DISC_PX = 46;
 const CITY_DISC_BADGE_PX = 22;
 const CITY_DISC_DOT_PX = 7;
+// The stock teardrop's body (maplibre-gl's default marker is 27 x 41 with its
+// shadow), so a hollow pin is the same size as a filled one beside it.
+const UNCONFIRMED_PIN_W_PX = 27;
+const UNCONFIRMED_PIN_H_PX = 36;
 // 1.5px at 55% of the accent is the design's "soft" stroke; the fill is 13% of
 // it. Both are percentages of the ACCENT, not opacities of the element.
 const CITY_DISC_STROKE = "1.5px";
+
+/**
+ * The marker for a stop whose coordinate no geocoder confirmed (`verified:
+ * false`, Mitchell, 2026-11-03): the stock teardrop's shape, HOLLOW.
+ *
+ * The shape still points at one spot, because the guess is about one spot; the
+ * empty body is what says nobody has confirmed it. The outline carries the
+ * day's accent exactly as a filled teardrop does, since colour means WHICH DAY
+ * here and nothing else. The same `var()` indirection as the disc, for the
+ * same reason (an `accent` of "" leaves the fallback to slate).
+ *
+ * 27 x 36 is the stock marker's body without its shadow, and the element is
+ * anchored at its `bottom`, so the tip sits where the coordinate is.
+ */
+function unconfirmedPinElement(accent: string, label: string | null): HTMLElement {
+  const element = document.createElement(label === null ? "div" : "button");
+  if (label !== null && element instanceof HTMLButtonElement) {
+    element.type = "button";
+    element.setAttribute("aria-label", label);
+  }
+  element.className = "map-unconfirmed-pin";
+  if (accent !== "") element.style.setProperty(CITY_DISC_ACCENT_VAR, accent);
+  const accentColor = `var(${CITY_DISC_ACCENT_VAR}, var(--color-slate))`;
+  Object.assign(element.style, {
+    appearance: "none",
+    padding: "0",
+    border: "0",
+    background: "none",
+    width: `${UNCONFIRMED_PIN_W_PX}px`,
+    height: `${UNCONFIRMED_PIN_H_PX}px`,
+    display: "block",
+  });
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${UNCONFIRMED_PIN_W_PX} ${UNCONFIRMED_PIN_H_PX}`);
+  svg.setAttribute("width", String(UNCONFIRMED_PIN_W_PX));
+  svg.setAttribute("height", String(UNCONFIRMED_PIN_H_PX));
+  svg.setAttribute("aria-hidden", "true");
+  const body = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  // The stock maplibre teardrop's outline, inset by half the stroke so the
+  // stroke stays inside the box.
+  body.setAttribute(
+    "d",
+    "M25.5,13.5 C25.5,18.8 19.3,26.3 14.2,33.3 C13.8,33.9 13.2,33.9 12.8,33.3 C7.7,26.3 1.5,18.9 1.5,13.5 C1.5,6.9 6.9,1.5 13.5,1.5 C20.1,1.5 25.5,6.9 25.5,13.5 Z",
+  );
+  body.setAttribute("stroke-width", "2");
+  body.style.stroke = accentColor;
+  body.style.fill = "var(--color-surface)";
+  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  dot.setAttribute("cx", "13.5");
+  dot.setAttribute("cy", "13.5");
+  dot.setAttribute("r", "4");
+  dot.setAttribute("stroke-width", "2");
+  dot.style.stroke = accentColor;
+  dot.style.fill = "none";
+  svg.append(body, dot);
+  element.append(svg);
+  return element;
+}
 
 /**
  * The marker for a city-level group: a DISC, not a teardrop.
@@ -349,12 +411,14 @@ export function MapLens({
   // stop enriched from unknown to `city` without moving would otherwise keep
   // the stale marker forever. `mode` and `end` are in it for the same reason:
   // together they decide whether a transit stop is a leg of its own and which
-  // layer draws it (routeLegs), without the stop itself moving.
+  // layer draws it (routeLegs), without the stop itself moving. `unconfirmed`
+  // too: a geocoder confirming a guess at the same coordinate turns a hollow
+  // teardrop solid without moving it.
   const routeKey = days
     .map(
       (day) =>
         `${day.dayId}:${day.accent}[${day.stops
-          .map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}:${s.precision ?? ""}:${s.mode ?? ""}:${s.end ? `${s.end.lat}:${s.end.lng}` : ""}`)
+          .map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}:${s.precision ?? ""}:${s.unconfirmed ? "u" : ""}:${s.mode ?? ""}:${s.end ? `${s.end.lat}:${s.end.lng}` : ""}`)
           .join(",")}]`,
     )
     .join("|");
@@ -597,9 +661,17 @@ export function MapLens({
                         : null,
                     ),
                   }
-                : accent
-                  ? { color: accent }
-                  : undefined,
+                : group.unconfirmed
+                  ? {
+                      element: unconfirmedPinElement(
+                        accent,
+                        onSelectActivity ? `${first.title} — location not confirmed` : null,
+                      ),
+                      anchor: "bottom",
+                    }
+                  : accent
+                    ? { color: accent }
+                    : undefined,
             )
               .setLngLat([group.lng, group.lat])
               .addTo(map);
@@ -738,7 +810,23 @@ export function MapLens({
         // An invisible pin must not still be clickable: opacity alone leaves
         // the element in the hit-test, so a tap on empty map would open a stop
         // from a day that is not on screen.
-        marker.getElement().style.pointerEvents = markerOpacity === 0 ? "none" : "";
+        const element = marker.getElement();
+        element.style.pointerEvents = markerOpacity === 0 ? "none" : "";
+        // Nor reachable by keyboard or announced (review of PR 686): a hidden
+        // day's hollow pin or city disc is a real `<button>`, so without this
+        // it stayed in the tab order and the accessibility tree while nobody
+        // could see it. A stock teardrop has no button to hide; setting the
+        // attributes on it is harmless.
+        if (markerOpacity === 0) {
+          // A pin focused when its day goes off screen would keep focus on an
+          // element nobody can see (third review of PR 686).
+          if (element === document.activeElement) element.blur();
+          element.setAttribute("aria-hidden", "true");
+          element.tabIndex = -1;
+        } else {
+          element.removeAttribute("aria-hidden");
+          element.removeAttribute("tabindex");
+        }
       }
     }
 

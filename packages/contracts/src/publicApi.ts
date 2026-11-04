@@ -472,6 +472,12 @@ export const GeocodeOutcome = z.enum([
   "address",         // coordinates came from geocoding `location.address`
   "name",            // coordinates came from geocoding `location.name`
   "no-match",        // looked up, vendor found nothing; saved without coordinates
+  // A name lookup's answer was refused (KI-2026-11-03): its own name is a
+  // different place's, or it sits outside the trip's region (unless the
+  // caller named a country the trip has no stop in yet). Never stored. `city`: pinned at the centre of the stop's
+  // `city` instead, `precision: "city"`. `rejected`: saved without coordinates.
+  "city",
+  "rejected",
   "quota-exhausted", // the owner's daily geocode allowance is spent; saved without coordinates
   "unavailable",     // geocoder unconfigured, erroring, or quota store down; saved without coordinates
 ]);

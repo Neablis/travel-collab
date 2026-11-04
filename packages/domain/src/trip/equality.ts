@@ -77,7 +77,9 @@ function sameTimeWindow(a: TimeWindow | null, b: TimeWindow | null): boolean {
 // KI-54, one field later. `address` (compared by `sameAddress`) is the one
 // after that, and it is nested rather than scalar — correcting a street number
 // changes nothing else about the stop, not even its coordinates, so no other
-// comparison here can stand in for it.
+// comparison here can stand in for it. `verified` (2026-11-03) is the latest:
+// a stop the geocoder later confirms at the very same coordinates loses only
+// that flag, and comparing equal would reject the edit as a no-op.
 function sameLocation(a: Location | null, b: Location | null): boolean {
   if (a === null || b === null) return a === b;
   return (
@@ -88,6 +90,7 @@ function sameLocation(a: Location | null, b: Location | null): boolean {
     a.countryCode === b.countryCode &&
     a.area === b.area &&
     a.precision === b.precision &&
+    a.verified === b.verified &&
     sameAddress(a.address, b.address)
   );
 }

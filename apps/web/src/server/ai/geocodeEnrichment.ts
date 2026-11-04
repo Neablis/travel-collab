@@ -26,7 +26,6 @@ import type { BatchableCommand, Location } from "@tc/contracts";
 import type { Geocoder, GeocodeOptions } from "@/server/geocoding";
 import {
   boundingBoxAround,
-  distanceKm,
   plausibleCoords,
   withinBox,
   TRIP_REGION_MARGIN_KM,
@@ -34,6 +33,7 @@ import {
   type LatLng,
 } from "@/server/geocoding/region";
 import { mapRateLimited, MIN_INTERVAL_MS } from "@/server/ai/rateLimit";
+import { judgeMatch, lookupViewbox, nameQueryOf, type NameQuery } from "@/server/ai/placeAcceptance";
 
 // Serialized at 500 ms apart, every lookup is wall-clock latency added to an AI
 // request that is already slow. 15 caps that at ~7 s, past which the marginal
@@ -41,16 +41,9 @@ import { mapRateLimited, MIN_INTERVAL_MS } from "@/server/ai/rateLimit";
 // are reported as skipped rather than silently left alone.
 const MAX_LOOKUPS_PER_BATCH = 15;
 
-// How far a geocode result may sit from the model's own coordinates and still
-// count as "the same place, located more precisely". Generous enough for a
-// vaguely-placed restaurant inside a metro area, nowhere near enough to cross
-// an ocean.
-const MAX_REFINE_KM = 50;
-
-// Padding around a single model-supplied hint. Tight, because it describes one
-// place — where `TRIP_REGION_MARGIN_KM` (imported above, stated once in
-// geocodeRegion.ts) is loose because a trip legibly spans a region.
-const HINT_MARGIN_KM = 50;
+// How far a match may sit from the model's own coordinates (`MAX_REFINE_KM`),
+// and the box a hint biases the lookup with, are stated once in
+// `placeAcceptance.ts`, which the v1 stop writes judge their lookups by too.
 
 type LocationCommand = Extract<BatchableCommand, { type: "AddActivity" | "UpdateActivity" }>;
 
@@ -238,6 +231,24 @@ function sanitizeCoords(location: Location): Location {
   return withoutCoords;
 }
 
+/** The location without a `verified` flag: for a pin a vendor has just answered. */
+function withoutVerified(location: Location): Location {
+  const copy = { ...location };
+  delete copy.verified;
+  return copy;
+}
+
+/**
+ * The location marked `verified: false` when it carries coordinates no vendor
+ * confirmed: a model's guess that enrichment kept because it found nothing
+ * better (Mitchell, 2026-11-03). The map draws it as a hollow pin rather than
+ * as a located venue. A location with no plausible coordinates is returned
+ * without the flag, which describes coordinates and cannot outlive them.
+ */
+function markUnconfirmed(location: Location): Location {
+  return plausibleCoords(location) ? { ...location, verified: false } : withoutVerified(location);
+}
+
 type Outcome = "verified" | "unverified" | "unchecked" | "failed";
 
 interface Resolution {
@@ -282,16 +293,29 @@ interface Resolution {
 // With no hint at all, judgment is `region`-only, same as an untrusted hint.
 // With neither hint nor region, there is nothing to check the top match
 // against, so it is accepted but reported `unchecked` — never `verified`.
+//
+// **And the match's own name has to agree with the one asked for**
+// (KI-2026-09-20-a). A region box can only refuse a wrong CITY; Kegon Falls
+// resolved to Urami Falls, 8 km away inside the same box, and was renamed,
+// re-pinned and reported `verified`. `judgeMatch` (placeAcceptance.ts) consults
+// KI-39's `placeNameVerdict` after the geometry, so a `mismatch` is refused like
+// a wrong place: the fallback is kept and the name reported `unverified`, which
+// is what lets the city fallback below pin it at city level instead. A name the
+// check cannot compare (an answer in Japanese script) refuses nothing.
+//
+// The geometry and the name rule live in `placeAcceptance.ts`, shared with the
+// v1 stop writes, so the two resolvers cannot drift apart again (KI-2026-11-03).
 async function resolveOne(
   geocoder: Geocoder,
-  name: string,
+  query: NameQuery & { name: string },
   hint: LatLng | null,
   region: BoundingBox | null,
   countries: Pick<GeocodeOptions, "countryCodes"> = {},
 ): Promise<Resolution> {
+  const { name } = query;
   const fallback: Location = hint ? { name, lat: hint.lat, lng: hint.lng } : { name };
-  const hintTrusted = hint != null && (region == null || withinBox(region, hint));
-  const viewbox = hintTrusted ? boundingBoxAround([hint], HINT_MARGIN_KM) : region;
+  const belief = { hint, region };
+  const viewbox = lookupViewbox(belief);
 
   let match;
   try {
@@ -303,8 +327,16 @@ async function resolveOne(
   }
   if (!match) return { location: fallback, outcome: "unverified" };
 
+  const verdict = judgeMatch(query, match, belief);
+  if (verdict === "wrong-place" || verdict === "wrong-name") return { location: fallback, outcome: "unverified" };
+
+  // `name` is the one asked for, never the vendor's `canonicalName`
+  // (KI-2026-09-20-a): the vendor's label is a whole address ("Kegon Falls,
+  // Chūzenji, Nikkō, Tochigi Prefecture, 321-1661, Japan"), and a stop the
+  // human approved keeps the name they approved. The per-command map below
+  // restores each command's own spelling over this one.
   const found: Location = {
-    name: match.canonicalName,
+    name,
     lat: match.lat,
     lng: match.lng,
     // The vendor answered a VENUE query with a place, so that is what its
@@ -320,28 +352,9 @@ async function resolveOne(
     ...(match.city ? { city: match.city } : {}),
     ...(match.area ? { area: match.area } : {}),
   };
-  const matchPoint: LatLng = { lat: match.lat, lng: match.lng };
-
-  if (hintTrusted) {
-    // Belt and suspenders: a trusted hint already sits inside `region` (that
-    // is what "trusted" means), so a match within MAX_REFINE_KM of it will
-    // almost always also be within `region`. Checking both anyway catches the
-    // rare case where the hint sits near the region's own edge and the match
-    // is just far enough past it.
-    const agreesWithHint = distanceKm(hint!, matchPoint) <= MAX_REFINE_KM;
-    const agreesWithRegion = region == null || withinBox(region, matchPoint);
-    return agreesWithHint && agreesWithRegion
-      ? { location: found, outcome: "verified" }
-      : { location: fallback, outcome: "unverified" };
-  }
-  if (region) {
-    return withinBox(region, matchPoint)
-      ? { location: found, outcome: "verified" }
-      : { location: fallback, outcome: "unverified" };
-  }
-  // Nothing to check against. Take it, but do not claim it was verified — and
+  // Nothing to check against: take it, but do not claim it was verified — and
   // do not nag the user about it either (see LocationEnrichmentReport).
-  return { location: found, outcome: "unchecked" };
+  return { location: found, outcome: verdict === "agrees" ? "verified" : "unchecked" };
 }
 
 // The city half of a fallback (KI-2026-08-30-f). One lookup, judged by the
@@ -455,7 +468,10 @@ async function enrichLocationSlots(
   // the stops it SKIPS looking up (see `isServerLocated` below), so the report
   // has to exist by then.
   const report = emptyReport();
-  const pending = new Map<string, { name: string; hint: LatLng | null; destination: boolean; ownCountry: boolean }>();
+  const pending = new Map<
+    string,
+    { name: string; query: NameQuery; hint: LatLng | null; destination: boolean; ownCountry: boolean }
+  >();
   for (const command of commands) {
     if (!hasLocation(command)) continue;
     // **Already located by the server — do not look it up again** (M9
@@ -482,7 +498,16 @@ async function enrichLocationSlots(
     const hint = plausibleCoords(command.location);
     const ownCountry = command.location.countryCode !== undefined;
     if (!existing) {
-      pending.set(key, { name: command.location.name, hint, destination: destinations.has(command), ownCountry });
+      pending.set(key, {
+        name: command.location.name,
+        // The name check's context (city, area, the name's own comma tail) is
+        // the first command's, like the spelling and the hint: one lookup per
+        // name, judged once.
+        query: nameQueryOf(command.location),
+        hint,
+        destination: destinations.has(command),
+        ownCountry,
+      });
     } else {
       if (!existing.hint && hint) existing.hint = hint;
       if (ownCountry) existing.ownCountry = true;
@@ -504,8 +529,18 @@ async function enrichLocationSlots(
 
   // AFTER the charge, and only if something survived it: `getGeocoder()` throws
   // without the key, and a batch the quota refused outright must not turn a
-  // ceiling into a 500.
-  if (attempted.length === 0) return { commands, report };
+  // ceiling into a 500. Every stop here was skipped, so every model coordinate
+  // is still a guess, marked as the final map below marks a skipped one.
+  if (attempted.length === 0) {
+    return {
+      commands: commands.map((command) =>
+        hasLocation(command) && !isServerLocated(command.location)
+          ? { ...command, location: markUnconfirmed(command.location) }
+          : command,
+      ),
+      report,
+    };
+  }
 
   const geocoder = getGeocoder();
 
@@ -524,7 +559,7 @@ async function enrichLocationSlots(
   // lookup of a region-less trip can come back `unchecked` — and a destination,
   // which never sees the region and never anchors it.
   const anchors: LatLng[] = [];
-  const resolved = await mapRateLimited(attempted, MIN_INTERVAL_MS, async ([key, { name, hint, destination, ownCountry }]) => {
+  const resolved = await mapRateLimited(attempted, MIN_INTERVAL_MS, async ([key, { name, query, hint, destination, ownCountry }]) => {
     const region = destination ? null : tripRegion ?? boundingBoxAround(anchors, TRIP_REGION_MARGIN_KM);
     // The trip's countries as a hint (Mitchell, 2026-09-30), on the same
     // terms as the region: never for a destination, which is judged without the
@@ -534,7 +569,7 @@ async function enrichLocationSlots(
     // trip-derived list must not override it. (The city fallback's query names
     // its country outright, so it takes no filter either.)
     const countries = destination || ownCountry || tripCountries.length === 0 ? {} : { countryCodes: tripCountries };
-    const resolution = await resolveOne(geocoder, name, hint, region, countries);
+    const resolution = await resolveOne(geocoder, { ...query, name }, hint, region, countries);
     // Anything we settled on is evidence about where the trip is — including a
     // rejected lookup's surviving model hint. A `failed` lookup taught us
     // nothing new, so it contributes nothing, and neither does a destination:
@@ -689,7 +724,9 @@ async function enrichLocationSlots(
       // M9's grounding is supposed to guarantee.
       if (isServerLocated(command.location)) return command;
       const resolution = resolutionByKey.get(keyOf(command));
-      if (!resolution) return command;
+      // Never looked up (over the per-batch cap or the quota): whatever
+      // coordinates the model gave are still its own guess.
+      if (!resolution) return { ...command, location: markUnconfirmed(command.location) };
       // `verified`/`unchecked` both carry a real geocoder match (`found`,
       // stored as `resolution.location`) keyed only by name — reusing it
       // across every command sharing that name is the intended dedupe: one
@@ -715,7 +752,13 @@ async function enrichLocationSlots(
       // component used to cost the user a city they had asked for.
       const approved = sanitizeCoords(command.location);
       if (resolution.outcome === "verified" || resolution.outcome === "unchecked") {
-        return { ...command, location: { ...approved, ...resolution.location } };
+        // A vendor answer replaces the coordinates, so nothing the model said
+        // about trusting them survives. `withoutVerified` rather than relying on
+        // the spread: the match carries no `verified` key to overwrite one with.
+        // The approved `name` is restored last: the shared match carries the
+        // first command's spelling, and no command's name is ever the vendor's
+        // (KI-2026-09-20-a).
+        return { ...command, location: { ...withoutVerified(approved), ...resolution.location, name: approved.name } };
       }
       // A city centroid, and said to be one. Additive by construction: it only
       // ever reaches a location that had no usable coordinate of its own, every
@@ -725,7 +768,10 @@ async function enrichLocationSlots(
       // approved — ABSENT for a surviving model guess, which is the whole point
       // of absent meaning unknown (contracts/src/activity.ts).
       const pin = cityPins.get(command);
-      const location: Location = pin ? { ...approved, ...pin, precision: "city" } : approved;
+      // A city pin is a vendor's answer about the city, so it is confirmed for
+      // what it claims. Without one, a surviving model coordinate is a guess
+      // nothing corroborated, and says so (`verified: false`, 2026-11-03).
+      const location: Location = pin ? { ...withoutVerified(approved), ...pin, precision: "city" } : markUnconfirmed(approved);
       return { ...command, location };
     }),
     report,

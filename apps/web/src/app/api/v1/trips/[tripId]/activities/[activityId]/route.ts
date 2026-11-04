@@ -3,12 +3,12 @@ import {
   clearDetailFieldsForKind,
   GEOCODE_OUTCOME_END_HEADER,
   GEOCODE_OUTCOME_HEADER,
+  LocationWrite,
   TripDetail,
   UpdateActivity,
 } from "@tc/contracts";
-import { tripCountriesOf, tripRegionOf } from "@/server/geocoding/region";
 import { orThrow, refuseUnparseable, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
-import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveStopPlaces } from "@/server/public-api/locations";
+import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveContextOf, resolveStopPlaces } from "@/server/public-api/locations";
 import { route } from "@/server/public-api/route";
 
 // **The endpoint Decision 14 is about.**
@@ -27,6 +27,11 @@ import { route } from "@/server/public-api/route";
 // promise.
 const PatchStopBody = UpdateActivity.omit({ type: true, tripId: true, activityId: true, placeRef: true })
   .extend({
+    // Strict places (`LocationWrite`): `.strict()` below reaches only this
+    // object's own keys, so a `{ location: { name, latitude, longitude } }`
+    // used to lose its coordinates without a word and be geocoded by name.
+    location: LocationWrite.nullable().optional(),
+    endLocation: LocationWrite.nullable().optional().describe(UpdateActivity.shape.endLocation.description ?? ""),
     // The move half, in the same flat object. `dayId: null` is the backlog.
     dayId: z.string().guid().nullable().optional(),
     position: z.number().int().nonnegative().optional(),
@@ -84,7 +89,8 @@ export const { PATCH, DELETE } = route({
       // clears the stop's pin and an absent one leaves it alone, so neither
       // spends a geocode. `resolveStopPlaces` holds that rule for both places.
       if (commands[0]?.type === "UpdateActivity") {
-        const ctx = { userId: actor.userId, region: tripRegionOf(trip!), countries: tripCountriesOf(trip!) };
+        // The stop's own current pin is left out of the region: it is what is being replaced.
+        const ctx = resolveContextOf(trip!, actor.userId, activityId);
         commands[0] = await resolveStopPlaces(commands[0], ctx, responseHeaders);
       }
       return orThrow(await runBatch(actor, commands));

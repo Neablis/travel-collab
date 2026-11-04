@@ -99,6 +99,10 @@ const HEIDELBERG = {
   countryCode: "DE",
   city: "Heidelberg",
 };
+// What the vendor answers a NAME lookup with: a place whose own name is the one
+// asked for. A name lookup's answer under a different place's name is refused
+// (KI-2026-11-03), so an address-shaped label would not be stored.
+const named = (name: string) => ({ ...HEIDELBERG, canonicalName: `${name}, Heidelberg, Germany` });
 
 beforeEach(() => {
   forward.mockReset();
@@ -193,7 +197,7 @@ describe("v1 stop writes resolve their location", () => {
   // own header — sent only when the body carried one.
   it("POST with an endLocation resolves it too and answers in Geocode-Outcome-End, leaving Geocode-Outcome to `location`", async () => {
     const { secret, tripId, dayId } = await caller();
-    forward.mockResolvedValueOnce([HEIDELBERG]);
+    forward.mockResolvedValueOnce([named("Heidelberg Hbf")]);
 
     const res = await ADD_STOP(
       req(
@@ -235,7 +239,7 @@ describe("v1 stop writes resolve their location", () => {
     expect(created.status).toBe(201);
     const activityId = Object.keys((await created.json()).activities)[0] as string;
 
-    forward.mockResolvedValueOnce([HEIDELBERG]);
+    forward.mockResolvedValueOnce([named("Heidelberg Castle")]);
     const patched = await PATCH_STOP(
       req(secret, { location: { name: "Heidelberg Castle" } }, "PATCH"),
       P({ tripId, activityId }),
@@ -263,7 +267,7 @@ describe("v1 stop writes resolve their location", () => {
   // `responseHeaders` onto a deliberate `PublicApiError` refusal.
   it("a stop the domain refuses still reports the outcome of the lookup it already paid for", async () => {
     const { secret, tripId } = await caller();
-    forward.mockResolvedValueOnce([HEIDELBERG]);
+    forward.mockResolvedValueOnce([named("Heidelberg Castle")]);
 
     const res = await ADD_STOP(
       req(
@@ -300,6 +304,59 @@ describe("v1 stop writes resolve their location", () => {
     expect(res.status).toBe(400);
     expect(forwardAddress).not.toHaveBeenCalled();
     expect(forward).not.toHaveBeenCalled();
+  });
+
+  // A location key the schema does not know used to be dropped without a word,
+  // and the stop was then geocoded by name, over coordinates the client
+  // believed it had sent (`LocationWrite`, 2026-11-03). Both writes, both
+  // places, and the address inside a location, refuse it before any lookup.
+  it("an unknown key in a location is a 400 naming it, before any lookup, on POST and PATCH", async () => {
+    const { secret, tripId, dayId } = await caller();
+    const misspelt = { name: "Ria's Wines", latitude: 42.66, longitude: -77.05 };
+    // The stop the PATCHes aim at, made first so it is the trip's only one.
+    const created = await ADD_STOP(req(secret, { title: "Wine", dayId }, "POST"), P({ tripId }));
+    const activityId = Object.keys((await created.json()).activities)[0] as string;
+
+    const posted = await ADD_STOP(req(secret, { title: "Wine", dayId, location: misspelt }, "POST"), P({ tripId }));
+    expect(posted.status).toBe(400);
+    expect(JSON.stringify(await posted.json())).toContain("latitude");
+
+    const patched = await PATCH_STOP(req(secret, { location: misspelt }, "PATCH"), P({ tripId, activityId }));
+    expect(patched.status).toBe(400);
+
+    const leg = await PATCH_STOP(
+      req(secret, { kind: "transit", mode: "car", endLocation: { name: "Penn Yan", lon: -77.05 } }, "PATCH"),
+      P({ tripId, activityId }),
+    );
+    expect(leg.status).toBe(400);
+
+    const zip = await ADD_STOP(
+      req(secret, { title: "Wine", location: { name: "Ria's", address: { countryCode: "US", lines: ["1 Main St"], zip: "14527" } } }, "POST"),
+      P({ tripId }),
+    );
+    expect(zip.status).toBe(400);
+    expect(forward).not.toHaveBeenCalled();
+    expect(forwardAddress).not.toHaveBeenCalled();
+  });
+
+  // Review of PR 686, finding 5. The trip that hit KI-2026-11-03 still holds
+  // the Atlanta pin. Counted in the region, it would admit Atlanta again when
+  // that very stop is looked up afresh, so the stop being edited is left out.
+  it("a PATCH judges the new lookup by the trip's other stops, not the stop's own wrong pin", async () => {
+    const { secret, tripId, dayId } = await caller();
+    await ADD_STOP(req(secret, { title: "Winery", dayId, location: { name: "Fox Run", lat: 42.66, lng: -77.05 } }, "POST"), P({ tripId }));
+    const wrong = await ADD_STOP(
+      req(secret, { title: "Wine", dayId, location: { name: "Ria's Wines", lat: 33.749, lng: -84.388 } }, "POST"),
+      P({ tripId }),
+    );
+    const trip = await wrong.json();
+    const activityId = Object.keys(trip.activities).find((id) => trip.activities[id].title === "Wine")!;
+
+    forward.mockResolvedValueOnce([{ lat: 33.749, lng: -84.388, canonicalName: "Ria's Wines, Atlanta, Georgia, USA", countryCode: "US" }]);
+    const patched = await PATCH_STOP(req(secret, { location: { name: "Ria's Wines" } }, "PATCH"), P({ tripId, activityId }));
+    expect(patched.status).toBe(200);
+    expect(patched.headers.get("Geocode-Outcome")).toBe("rejected");
+    expect((await patched.json()).activities[activityId].location).toEqual({ name: "Ria's Wines" });
   });
 
   // M24. A leg on a stop that is not transit is refused by the command schema,

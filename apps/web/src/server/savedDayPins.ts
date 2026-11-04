@@ -1,5 +1,5 @@
 import { Location, type SavedStop } from "@tc/contracts";
-import { placeNameVerdict } from "@/server/ai/geocodeNameMatch";
+import { nameQueryOf, nameVerdictOf } from "@/server/ai/placeAcceptance";
 import type { GeocodeCharge } from "@/server/ai/geocodeEnrichment";
 import { MIN_INTERVAL_MS } from "@/server/ai/rateLimit";
 import type { Geocoder } from "@/server/geocoding";
@@ -192,7 +192,10 @@ export async function pinStops(
         match !== null &&
         point !== null &&
         withinBox(box, point) &&
-        placeNameVerdict(location.name, match.canonicalName, [city]) !== "mismatch";
+        // The shared name rule (placeAcceptance.ts), so a Playbook stop and a
+        // trip stop are judged by the same words. `city` is the stop's own,
+        // and nameQueryOf already reads it as context.
+        nameVerdictOf(nameQueryOf(location), match.canonicalName) !== "mismatch";
       const pinned = accepted
         ? withPin(location, {
             ...point,

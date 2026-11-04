@@ -23,4 +23,11 @@ describe("MapLegend", () => {
     render(<MapLegend />);
     expect(screen.getByText("Somewhere in this city")).toBeTruthy();
   });
+
+  // The hollow teardrop (a coordinate no geocoder confirmed) is a shape
+  // difference too, and the legend is the only place that names it.
+  it("explains the hollow pin", () => {
+    render(<MapLegend />);
+    expect(screen.getByText("Not confirmed")).toBeTruthy();
+  });
 });

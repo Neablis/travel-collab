@@ -1224,6 +1224,115 @@ describe("MapLens city-level stops", () => {
       expect(markerInstances.filter((marker) => marker.getElement().dataset.stopCount === "2")).toHaveLength(1),
     );
   });
+
+  // Mitchell, 2026-11-03: a coordinate no geocoder confirmed (`verified: false`)
+  // is a hollow teardrop, so a guess no longer looks like a located venue.
+  it("draws an unconfirmed stop as a hollow teardrop, and an ordinary one as the stock pin", async () => {
+    markerInstances.length = 0;
+    const s1 = locatedActivity("s1", 41.95, 12.5, "a1");
+    const detail = tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ["s1", "s2"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        s1: { ...s1, location: { ...s1.location!, verified: false as const } },
+        s2: locatedActivity("s2", 41.9, 12.49, "a1"),
+      },
+    });
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    render(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={vi.fn()} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+    const [hollow, stock] = markerInstances;
+    expect(hollow!.getElement().getAttribute("aria-label")).toMatch(/location not confirmed$/);
+    expect((hollow!.options as { anchor?: string }).anchor).toBe("bottom");
+    expect(stock!.options?.element).toBeUndefined();
+  });
+
+  // Review of PR 686: a hollow pin is a real `<button>`, so on a day that is
+  // not on screen it must leave the tab order and the accessibility tree too,
+  // not only the hit-test.
+  it("takes a hidden day's hollow pin out of the tab order, and puts it back", async () => {
+    markerInstances.length = 0;
+    const s1 = locatedActivity("s1", 41.95, 12.5, "a1");
+    const detail = tripDetailFixture({
+      days: [
+        { dayId: "d1", activityIds: ["s1"], date: "2027-06-01", costSubtotal: 0 },
+        { dayId: "d2", activityIds: ["s2"], date: "2027-06-02", costSubtotal: 0 },
+      ],
+      activities: {
+        s1: { ...s1, location: { ...s1.location!, verified: false as const } },
+        s2: locatedActivity("s2", 41.9, 12.49, "a2"),
+      },
+    });
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+    const hollow = markerInstances.find((marker) => marker.getElement().getAttribute("aria-label")?.endsWith("location not confirmed"))!;
+    // The stub's markers are not in the document; the real ones are.
+    document.body.append(hollow.getElement());
+    hollow.getElement().focus();
+    // `:focus` asked of the element, as SnapshotList.test.tsx does: Testing
+    // Library forbids reading `document.activeElement`.
+    expect(hollow.getElement().matches(":focus")).toBe(true);
+
+    // Its day goes off screen while it has focus.
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 1 });
+    rerender(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(hollow.getElement().getAttribute("aria-hidden")).toBe("true"));
+    expect(hollow.getElement().tabIndex).toBe(-1);
+    expect(hollow.getElement().matches(":focus")).toBe(false);
+
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    rerender(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(hollow.getElement().getAttribute("aria-hidden")).toBeNull());
+    expect(hollow.getElement().tabIndex).toBe(0);
+  });
+
+  // The `routeKey` trap, a fourth time: a geocoder confirming a guess at the
+  // same coordinate changes only the flag, and the pin has to turn solid.
+  it("rebuilds the markers when a stop is confirmed but nothing moves", async () => {
+    markerInstances.length = 0;
+    const s1 = locatedActivity("s1", 41.95, 12.5, "a1");
+    const before = tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ["s1"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: { s1: { ...s1, location: { ...s1.location!, verified: false as const } } },
+    });
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={before} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(1));
+    expect(markerInstances[0]!.getElement().getAttribute("aria-label")).toMatch(/location not confirmed$/);
+
+    const after = tripDetailFixture({
+      days: before.days,
+      activities: { s1 },
+    });
+    rerender(
+      <EditorHost>
+        <MapLens detail={after} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances.at(-1)!.options?.element).toBeUndefined());
+  });
 });
 
 // Mitchell, 2026-08-30 design pass: "map view pretty broken on mobile … remove

@@ -13,6 +13,58 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-04 — `Location.verified`: a coordinate no geocoder confirmed (public API 2.2.0)
+- **New** (`packages/contracts/src/activity.ts`): `Location.verified`, optional, and only ever
+  `false`. It marks coordinates no vendor corroborated. Today that means an assistant's guess that
+  enrichment kept because its lookup found nothing, was refused, failed, or never ran. Absent means
+  unknown, as an absent `precision` does, so every stored location still parses. There is no `true`.
+  A refinement refuses it without `lat`/`lng` (`verified requires coordinates`).
+- Why: Mitchell, 2026-11-03, settling the gap `precision`'s comment left open. A model guess reached
+  the map looking exactly like a located venue. It is a field of its own rather than a fourth
+  `precision` value for two reasons. `precision` says what a coordinate describes, not how far it is
+  trusted. And `TripDetail` is parsed strictly on the client, so a new enum value would make a cached
+  bundle fail to load the whole trip, while an unknown key is dropped.
+- Consumers updated:
+  - `packages/domain`: `sameLocation` compares it, so confirming a guess at the same point is not a
+    no-op.
+  - `apps/web`, writer: `geocodeEnrichment.ts` writes it, the product's only writer, and clears
+    it when a vendor answer or a city pin replaces the coordinates. A v1 caller may send it about
+    its own coordinates. The model may not: the planning tools hide it, and `groundCitedPlaces`
+    strips it as it strips `precision`.
+  - `apps/web`, map: `mapRailData.ts` carries it as `unconfirmed`. `MapLens.tsx` draws a hollow
+    teardrop for it and rebuilds markers when it changes. `MapLegend.tsx` has a "Not confirmed" key.
+  - `packages/fixtures`: one demo stop carries it (`UNCONFIRMED_STOP_IDS`, `expectations.unconfirmed: 1`).
+- Public API: every `Location` in `openapi.json` gains the optional `verified` property; same
+  `API_VERSION` 2.2.0 as the entry below, with a new `API_FINGERPRINT`. A v1 write may
+  send `verified: false`; nothing accepts `true`.
+- Breaking? no. Optional on every shape that stores or reads it; an old client drops the key.
+
+## 2026-11-04 — `LocationWrite`, and `GeocodeOutcome` gains `city` and `rejected` (KI-2026-11-03; public API 2.2.0)
+- **New** (`packages/contracts/src/activity.ts`): `LocationWrite`, `Location` with unknown keys refused,
+  its own and its `address`'s, every refinement kept (`safeExtend`). The v1 stop writes
+  (`POST /v1/trips/{tripId}/activities`, `PATCH …/activities/{activityId}`) take it for `location` and
+  `endLocation`. `Location` itself, the stored and command shape, is unchanged and still strips.
+- **Added** (`packages/contracts/src/publicApi.ts`): two `GeocodeOutcome` values. `city`: the name
+  lookup's answer was refused and the stop is pinned at its `city`'s centre, `precision: "city"`.
+  `rejected`: the answer was refused and the stop is saved without coordinates.
+- Why: a v1 name lookup stored the vendor's top hit unchecked, and Ria's Wines was pinned in Atlanta
+  (KI-2026-11-03). It is now judged by the assistant's acceptance rule, moved into one shared module
+  (`apps/web/src/server/ai/placeAcceptance.ts`), which `savedDayPins.ts` also uses. And a location key the schema did not know
+  (`latitude`) was dropped without a word, so the server geocoded the name over coordinates the
+  client believed it had sent.
+- Consumers updated: `apps/web` (the two v1 stop routes, `public-api/locations.ts`, `openapi.json`,
+  `docs/guidelines/using-the-api.md`). The assistant's enrichment (`geocodeEnrichment.ts`) calls the
+  same rule, now with KI-39's name check (KI-2026-09-20-a), and keeps the approved name.
+- Public API: `API_VERSION` 2.1.0 → **2.2.0** (2.1.0 went to M44's bookings while this was open),
+  new `API_FINGERPRINT`. `openapi.json` changes only in
+  the `Geocode-Outcome` description: the generator does not emit `additionalProperties`, so the
+  strictness is in the guide, not the document.
+- Breaking? In principle, two ways, and minor by the 1.27.0 precedent (nothing that worked stops
+  working). A location with an unknown key is now a 400; the key never did anything, and dropping it
+  is the defect. A name lookup that used to store the vendor's top hit may now store the city or no
+  coordinates, with `Geocode-Outcome` saying which; that hit was the bug. A client switching
+  exhaustively on `Geocode-Outcome` meets two new values.
+
 ## 2026-11-02 — A booking's code is for editors (M44 part 3; public API 2.1.0)
 - **Changed** (`activity.ts`): `ActivitySnapshot.booking.provider` may be `null`, which only a read
   below editor carries: a code-only booking is served as `{ provider: null }`, so a viewer still

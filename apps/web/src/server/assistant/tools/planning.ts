@@ -73,13 +73,14 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
  *   are stations and airports a model mostly does know. ~120 tokens a step.
  *
  * `precision` is hidden on both: it is stripped from anything the model sends
- * regardless. `address` stays on both — it is how a place search cannot find
+ * regardless. So is `verified`, which enrichment writes and the model has no
+ * business claiming either way (2026-11-03). `address` stays on both — it is how a place search cannot find
  * reaches the stop at all (the first live session's brewery). Everything here
  * is still accepted if sent.
  */
 const HIDDEN_FROM_MODEL: Partial<Record<BatchableCommandType["type"], readonly string[]>> = {
-  AddActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision", "booking"],
-  UpdateActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision", "booking"],
+  AddActivity: ["location.lat", "location.lng", "location.precision", "location.verified", "endLocation.precision", "endLocation.verified", "booking"],
+  UpdateActivity: ["location.lat", "location.lng", "location.precision", "location.verified", "endLocation.precision", "endLocation.verified", "booking"],
 };
 
 /**

@@ -138,14 +138,40 @@ export const Location = z
     // `area` carries, and the same one M18 broke by shipping a required field
     // into this shape (see contracts/test/location-precision.test.ts).
     //
-    // NOT a fourth tier for the assistant's own unverified guess, which today
-    // reaches the map indistinguishable from a vendor-verified venue. That is
-    // a real gap and a deliberate omission: naming it is a product decision
-    // about what the map should claim, not a shape this PR can settle.
+    // NOT a fourth tier for the assistant's own unverified guess: that is
+    // `verified` below, a separate field (Mitchell, 2026-11-03), because how
+    // much we trust a coordinate is a different fact from what it describes.
     precision: LocationPrecision.optional().describe(
       "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — " +
         "sent without them it is refused (\"precision requires coordinates\").",
     ),
+    // **`false` when no vendor corroborated the coordinates: the assistant's
+    // own guess, kept because nothing better was found** (Mitchell,
+    // 2026-11-03). Before this a model coordinate the geocoder could not
+    // confirm reached the map looking exactly like a located venue, which is
+    // the laundering of a guess into a fact that KI-15 is about.
+    //
+    // Only `false` exists. Absent means what an absent `precision` means,
+    // UNKNOWN, and covers every location written before this field, every
+    // pin a person or an API caller placed, and every vendor answer; there is
+    // no `true` because nothing could honestly write it for all of those.
+    //
+    // A separate field rather than a fourth `precision` value for two reasons.
+    // `precision` says what the coordinates DESCRIBE, not how far we trust
+    // them, and a city centroid can be confirmed while a venue guess cannot. And
+    // a new enum value is unreadable to a client cached before it: `TripDetail`
+    // is parsed strictly on the client (apiClient.ts), so an old bundle would
+    // fail to load the whole trip (the M18 lesson). An unknown KEY is dropped.
+    //
+    // Written in the product by `geocodeEnrichment.ts` only. A v1 caller may
+    // send it about its own coordinates, and the demo fixture carries one
+    // (UNCONFIRMED_STOP_IDS). The model may not: `groundCitedPlaces` strips it.
+    // Cleared by any write that replaces the location, since a new location
+    // object does not carry it.
+    verified: z
+      .literal(false)
+      .optional()
+      .describe("`false` when no geocoder confirmed the coordinates (an assistant's guess). Absent = unknown. Requires `lat` and `lng`."),
     // A structured postal address (see PostalAddress). Independent of
     // `city`/`area`, which are the geocoder's display/grouping fields: a post
     // town and the city a stop groups under legitimately differ. Only
@@ -170,11 +196,36 @@ export const Location = z
     message: "precision requires coordinates",
     path: ["precision"],
   })
+  // `verified` is about the coordinates, like `precision`, and cannot outlive them.
+  .refine((l) => l.verified === undefined || l.lat !== undefined, {
+    message: "verified requires coordinates",
+    path: ["verified"],
+  })
   .refine((l) => l.address === undefined || l.countryCode === undefined || l.countryCode === l.address.countryCode, {
     message: "countryCode must match address.countryCode",
     path: ["address", "countryCode"],
   });
 export type Location = z.infer<typeof Location>;
+
+/**
+ * `Location` as a public API write accepts it: a key it does not know is a 400,
+ * where `Location` drops it without a word.
+ *
+ * Dropping is right for a STORED location (`trip_details.doc` is raw jsonb
+ * parsed on read, and a key from a later field must not fail an old reader)
+ * and wrong for a write. A client that sends `latitude`/`longitude`, or `lon`,
+ * has its coordinates silently removed, and the server then geocodes the name
+ * as though none were sent: the pin lands wherever the name resolves, and the
+ * response says `Geocode-Outcome: name` about coordinates the client believes
+ * it set. An agent reported a coordinates-only PATCH that "did not stick" while
+ * a full location did; its request was not kept, and this is the one way the
+ * schema could produce that (2026-11-03).
+ *
+ * The nested `address` is strict for the same reason (`zip` for `postalCode`).
+ * Every refinement of `Location` is kept (`safeExtend`).
+ */
+export const LocationWrite = Location.safeExtend({ address: PostalAddress.strict().optional() }).strict();
+export type LocationWrite = z.infer<typeof LocationWrite>;
 
 // Where a stop sits in the planning workflow. Exactly one per activity, and
 // never absent: "planned" is the zero value, which is why the field defaults

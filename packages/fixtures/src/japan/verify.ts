@@ -81,6 +81,8 @@ export type JapanTripReport = {
   colorShifted: string[];
   untaggedCount: number;
   withCoordinates: number;
+  /** Located stops marked `verified: false`: the Map lens's hollow teardrops. */
+  unconfirmed: number;
   withCost: number;
   cities: string[];
   budgetMinor: number;
@@ -230,6 +232,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
 
   let untaggedCount = 0;
   let withCoordinates = 0;
+  let unconfirmed = 0;
   let withCost = 0;
   const cities = new Set<string>();
   const currencies = new Set<string>();
@@ -256,6 +259,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     // in reset-demo-data's integration test on PR #74.)
     if (activity.location?.lat !== undefined && activity.location?.lng !== undefined) withCoordinates += 1;
     else activitiesWithoutCoordinates.push(activity.title);
+    if (activity.location?.verified === false) unconfirmed += 1;
     if (activity.location?.city) cities.add(activity.location.city);
     if (activity.cost) {
       withCost += 1;
@@ -455,6 +459,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     colorShifted,
     untaggedCount,
     withCoordinates,
+    unconfirmed,
     withCost,
     cities: [...cities].sort(),
     budgetMinor: state.budget?.amountMinor ?? 0,
@@ -507,7 +512,7 @@ export function formatReport(report: JapanTripReport, findings: readonly string[
   row("pending reasons", histogram(report.pendingReasons));
   row("roster roles", `${histogram(report.rosterRoles)} / not travelling ${report.notTravelling}`);
   row("colour shifted", report.colorShifted.join(", ") || "—");
-  row("with coordinates", `${report.withCoordinates}/${report.activityCount}`);
+  row("with coordinates", `${report.withCoordinates}/${report.activityCount} / not confirmed ${report.unconfirmed}`);
   row("with a cost", `${report.withCost}/${report.activityCount}`);
   row("cities", report.cities.join(", "));
   row("budget", `${report.budgetMinor / 100} ${report.currencies.join("/") || "—"}`);
