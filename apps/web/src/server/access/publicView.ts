@@ -56,7 +56,7 @@ export interface PublicRepeatNode {
   attrs: { name: string; outcome: PublicRepeatOutcome };
 }
 
-/** Every other node, as stored, with its children made public too. A node this build does not know is dropped to its type. */
+/** Every other node the page draws, with only the attrs it draws and its children made public too. Any node not drawn is dropped to its type. */
 export type PublicDocNode =
   | PublicWidgetNode
   | PublicRepeatNode
@@ -133,10 +133,31 @@ function publicNode(node: PageNode | { type: string }, ctx: WidgetContext): Publ
     case "unknown":
       return { type: "unknown" };
     default:
-      return "content" in stored
-        ? { ...stored, content: (stored.content as readonly PageNode[]).map((child) => publicNode(child, ctx)) }
-        : stored;
+      return publicPlain(stored, ctx);
   }
+}
+
+// The nodes the public page draws, and the attrs it draws each with
+// (`renderPublic`). Anything else is a bare `unknown`: a node type or an
+// attr this list does not name never reaches the browser, so a future node that
+// carries an id cannot leak by being forgotten here.
+const PLAIN_NODES: Readonly<Record<string, readonly string[]>> = {
+  text: [], hardBreak: [], paragraph: [], blockquote: [], bulletList: [], listItem: [],
+  codeBlock: [], horizontalRule: [], heading: ["level"], orderedList: ["start"],
+};
+
+function publicPlain(stored: PageNode, ctx: WidgetContext): PublicDocNode {
+  if (!Object.hasOwn(PLAIN_NODES, stored.type)) return { type: "unknown" };
+  const keep = PLAIN_NODES[stored.type]!;
+  const node = stored as { attrs?: Record<string, unknown>; text?: string; marks?: readonly PageMark[]; content?: readonly PageNode[] };
+  const attrs = Object.fromEntries(keep.filter((key) => node.attrs?.[key] !== undefined).map((key) => [key, node.attrs![key]]));
+  return {
+    type: stored.type,
+    ...(keep.length > 0 && { attrs }),
+    ...(node.text !== undefined && { text: node.text }),
+    ...(node.marks && { marks: node.marks }),
+    ...(node.content && { content: node.content.map((child) => publicNode(child, ctx)) }),
+  };
 }
 
 function publicRepeat(ctx: WidgetContext, attrs: { name: string; params: Record<string, unknown>; hideWhenPublic?: boolean }): PublicRepeatOutcome {
