@@ -96,7 +96,7 @@ function fixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
-        flightNumber: null,
+        flightNumber: null, booking: null,
       },
       [UNSCHEDULED_ACTIVITY_ID]: {
         activityId: UNSCHEDULED_ACTIVITY_ID,
@@ -114,7 +114,7 @@ function fixture() {
         mode: null,
         endLocation: null,
         pendingReason: null,
-        flightNumber: null,
+        flightNumber: null, booking: null,
       },
     },
   });
@@ -342,6 +342,57 @@ describe("ActivityEditorSheet", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "UpdateActivity", participants: ["u1"] }));
+  });
+
+  // M44: the phone sheet and the desktop editor are this one form. Owner and
+  // editor set a booking through UpdateActivity; anyone below never sees the
+  // section, and their save leaves the stored booking alone.
+  it("sets a booking through UpdateActivity for an owner", async () => {
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+    await userEvent.type(await screen.findByLabelText("Confirmation"), "ABC123");
+    await userEvent.type(screen.getByLabelText("Provider"), "Hotel Okura");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "UpdateActivity", booking: { confirmation: "ABC123", provider: "Hotel Okura" } }),
+    );
+  });
+
+  // A suggester holds the redacted booking (the provider alone). Their save
+  // must leave it alone: the draft's optimistic state is where a stray
+  // `booking: null` would show, as the stop turning unbooked.
+  it("offers a suggester no Booking section, and their save leaves the booking alone", async () => {
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: { tripId: TRIP_ID, myRole: "suggester", members: [], invites: [], guests: [] },
+    });
+    const booked = fixture();
+    booked.activities[SCHEDULED_ACTIVITY_ID]!.booking = { provider: "Hotel Okura" };
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: booked });
+    function Probe() {
+      const { activeTrip, draft } = useTrip();
+      return <p data-testid="probe">{`${draft?.count ?? 0} ${JSON.stringify(activeTrip?.activities[SCHEDULED_ACTIVITY_ID]?.booking)}`}</p>;
+    }
+    render(
+      <TripProvider tripId={TRIP_ID}>
+        <EditorHost>
+          <Opener mode="edit" activityId={SCHEDULED_ACTIVITY_ID} />
+          <PeopleProvider tripId={TRIP_ID}>
+            <ActivityEditorSheet />
+          </PeopleProvider>
+          <Probe />
+        </EditorHost>
+      </TripProvider>,
+    );
+    await screen.findByDisplayValue("Existing stop");
+    expect(screen.queryByText("Booking")).toBeNull();
+    expect(screen.queryByLabelText("Confirmation")).toBeNull();
+    await userEvent.type(screen.getByLabelText("What or where"), " II");
+    await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() => expect(screen.getByTestId("probe").textContent).toMatch(/^1 /));
+    expect(screen.getByTestId("probe").textContent).toBe('1 {"provider":"Hotel Okura"}');
   });
 
   it("treats Half day as four hours", async () => {

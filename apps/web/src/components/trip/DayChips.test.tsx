@@ -41,7 +41,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
       },
     });
@@ -76,7 +76,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
         [osakaActivity]: {
           activityId: osakaActivity,
@@ -94,7 +94,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
       },
     });
@@ -138,7 +138,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
         [noLocationActivity]: {
           activityId: noLocationActivity,
@@ -156,7 +156,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
       },
     });
@@ -198,7 +198,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
         [kyotoActivity]: {
           activityId: kyotoActivity,
@@ -216,7 +216,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
       },
     });
@@ -255,7 +255,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
         [tokyoActivity]: {
           activityId: tokyoActivity,
@@ -273,7 +273,7 @@ describe("chipModel", () => {
           mode: null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         },
       },
     });
@@ -437,7 +437,7 @@ describe("cityFor", () => {
     mode: null,
     endLocation: null,
     pendingReason: null,
-    flightNumber: null,
+    flightNumber: null, booking: null,
   });
   const oneStopDay = { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 };
   const twoStopDay = {

@@ -352,6 +352,19 @@ export type PendingReason = z.infer<typeof PendingReason>;
 // wherever the stop goes.
 export const FlightNumber = z.string().trim().min(1).max(20);
 
+// What was booked for a stop (M44 decision 1, ADR-086): the confirmation code,
+// who it was booked with, and the link to manage it. Any kind of stop may carry
+// one, so it is not in KIND_DETAIL_FIELDS. Each part is optional because
+// people hold some and not others; a booking with none of the three is no
+// booking, and the decider stores that as `null`. The url is http(s) only: it
+// is rendered as a link, and `javascript:` is a valid URL.
+export const Booking = z.object({
+  confirmation: z.string().trim().min(1).max(100).optional(),
+  provider: z.string().trim().min(1).max(100).optional(),
+  url: z.url({ protocol: /^https?$/ }).max(2000).optional(),
+});
+export type Booking = z.infer<typeof Booking>;
+
 /**
  * **Each field that details ONE kind, and the kind it belongs to** (ADR-053's
  * travel leg, ADR-055's pending reason). A stop of any other kind may not
@@ -507,6 +520,10 @@ export const AddActivity = z.object({
   flightNumber: FlightNumber.optional().describe(
     "A flight leg's flight number, such as `TP 1234`. Only allowed when `kind` is `transit`; otherwise a 400.",
   ),
+  // M44. Any kind may carry one. Omitted = no booking.
+  booking: Booking.optional().describe(
+    "What was booked for this stop: `confirmation` code, `provider` and a manage-it `url` (http or https). Any kind of stop. Omitted = none.",
+  ),
 });
 export type AddActivity = z.infer<typeof AddActivity>;
 
@@ -561,6 +578,10 @@ export const UpdateActivity = z.object({
   flightNumber: FlightNumber.nullable().optional().describe(
     "A flight leg's flight number. Omitted = unchanged, null = cleared. Only allowed while the stop is (or this " +
       "patch makes it) `transit`; otherwise a 400. A patch that changes `kind` away from `transit` clears it for you.",
+  ),
+  booking: Booking.nullable().optional().describe(
+    "Omitted = unchanged, null = cleared. The whole booking is replaced, so send every part to keep. A booking " +
+      "with none of its three parts is stored as cleared. Any kind of stop.",
   ),
 });
 export type UpdateActivity = z.infer<typeof UpdateActivity>;
@@ -711,6 +732,21 @@ export const ActivitySnapshot = z.object({
   // already decided, and a later tightening of the command schema must not
   // make an old one unreadable.
   flightNumber: z.string().nullable().default(null),
+  // ---- What was booked (M44 decision 1) ----
+  //
+  // Defaulted because every stored payload predates it; plain strings rather
+  // than `Booking`, for `flightNumber`'s reason. Never `{}`: the decider
+  // stores a booking with no parts as null.
+  booking: z
+    .object({
+      confirmation: z.string().optional(),
+      // null only on a read below editor: `{ provider: null }` says "booked"
+      // without the code (ADR-086 decision 2). The log never holds one.
+      provider: z.string().nullable().optional(),
+      url: z.string().optional(),
+    })
+    .nullable()
+    .default(null),
 });
 export type ActivitySnapshot = z.infer<typeof ActivitySnapshot>;
 

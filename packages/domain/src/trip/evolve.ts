@@ -89,13 +89,13 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
     case "TripStyleSet":
       return { ...state, pace: event.payload.pace, tags: [...event.payload.tags] };
     case "ActivityAdded": {
-      const { activityId, dayId, title, timeWindow, location, notes, anchors, kind, tags, cost, bookedBy, participants, mode, endLocation, pendingReason, flightNumber } =
+      const { activityId, dayId, title, timeWindow, location, notes, anchors, kind, tags, cost, bookedBy, participants, mode, endLocation, pendingReason, flightNumber, booking } =
         event.payload;
       const next: TripState = {
         ...state,
         activities: {
           ...state.activities,
-          [activityId]: { title, timeWindow, location, notes, anchors, kind, tags, cost, bookedBy, participants, mode, endLocation, pendingReason, flightNumber },
+          [activityId]: { title, timeWindow, location, notes, anchors, kind, tags, cost, bookedBy, participants, mode, endLocation, pendingReason, flightNumber, booking },
         },
       };
       if (dayId === null) return { ...next, backlog: [...next.backlog, activityId] };
@@ -108,13 +108,13 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       };
     }
     case "ActivityUpdated": {
-      const { activityId, title, timeWindow, location, notes, anchors, kind, tags, cost, bookedBy, participants, mode, endLocation, pendingReason, flightNumber } =
+      const { activityId, title, timeWindow, location, notes, anchors, kind, tags, cost, bookedBy, participants, mode, endLocation, pendingReason, flightNumber, booking } =
         event.payload;
       return {
         ...state,
         activities: {
           ...state.activities,
-          [activityId]: { title, timeWindow, location, notes, anchors, kind, tags, cost, bookedBy, participants, mode, endLocation, pendingReason, flightNumber },
+          [activityId]: { title, timeWindow, location, notes, anchors, kind, tags, cost, bookedBy, participants, mode, endLocation, pendingReason, flightNumber, booking },
         },
       };
     }

@@ -615,7 +615,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // "Still to book" is `stop.rows` plus this param, so a model can compose it
     // without the preset list — with no edit to the catalogue to get there.
     // `columns` is a field input, so its vocabulary is the manifest's paths.
-    expect(paramsOf("stop.rows")).toEqual({ only: ["needsBooking"], columns: fieldChoices("stop").map((c) => c.path) });
+    expect(paramsOf("stop.rows")).toEqual({ only: ["needsBooking", "booked"], columns: fieldChoices("stop").map((c) => c.path) });
     // And a primitive that takes only filters says so with an empty object
     // rather than by omission, so "no extra params" is a statement.
     expect(paramsOf("cost")).toEqual({});

@@ -59,6 +59,7 @@ function addActivity(
     ...(stop.endLocation ? { endLocation: stop.endLocation } : {}),
     ...(stop.pendingReason ? { pendingReason: stop.pendingReason } : {}),
     ...(stop.flightNumber ? { flightNumber: stop.flightNumber } : {}),
+    ...(stop.booking ? { booking: stop.booking } : {}),
   };
 }
 

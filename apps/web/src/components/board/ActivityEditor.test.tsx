@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NearbyStop, type ActivityView, type Anchor } from "@tc/contracts";
@@ -37,7 +37,7 @@ describe("ActivityEditor", () => {
       mode: null,
       endLocation: null,
       pendingReason: null,
-      flightNumber: null,
+      flightNumber: null, booking: null,
     };
     const onSave = vi.fn();
     const props = { initial, mode: "edit" as const, days: [], onSave, onCancel: vi.fn() };
@@ -79,7 +79,7 @@ function existingStop(overrides: Partial<ActivityView> = {}): ActivityView {
     mode: null,
     endLocation: null,
     pendingReason: null,
-    flightNumber: null,
+    flightNumber: null, booking: null,
     ...overrides,
   };
 }
@@ -412,7 +412,7 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     mode: null,
     endLocation: null,
     pendingReason: null,
-    flightNumber: null,
+    flightNumber: null, booking: null,
     ...over,
   });
 
@@ -811,5 +811,69 @@ describe("ActivityEditor — the Day field while the stop moves elsewhere", () =
     await userEvent.selectOptions(screen.getByLabelText("Day"), "day-1");
     rerender(<ActivityEditor {...props} defaultDayId={undefined} />);
     expect((screen.getByLabelText("Day") as HTMLSelectElement).value).toBe("day-1");
+  });
+});
+
+// M44 decision 1: what was booked, kept on the stop. Editor and owner only:
+// below that the server has already stripped the code, so a form built from
+// the redacted read would otherwise save "nothing booked" over the real one.
+describe("ActivityEditor — the Booking section", () => {
+  const mountBooking = (initial: ActivityView, canEditBooking: boolean) => {
+    const onSave = vi.fn();
+    render(<ActivityEditor initial={initial} mode="edit" days={[]} canEditBooking={canEditBooking} onSave={onSave} onCancel={vi.fn()} />);
+    return onSave;
+  };
+  const booked = existingStop({ booking: { confirmation: "ABC123", provider: "Hotel Okura", url: "https://okura.example/manage" } });
+  const save = () => fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  it("starts collapsed and sets a booking from the three fields", () => {
+    const onSave = mountBooking(existingStop(), true);
+    fireEvent.change(screen.getByLabelText("Confirmation"), { target: { value: " ABC123 " } });
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "Hotel Okura" } });
+    fireEvent.change(screen.getByLabelText("Link"), { target: { value: "https://okura.example/manage" } });
+    save();
+    expect(onSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({ booking: { confirmation: "ABC123", provider: "Hotel Okura", url: "https://okura.example/manage" } }),
+    );
+  });
+
+  it("keeps a booking through an untouched save, and clears it when all three are emptied", () => {
+    const onSave = mountBooking(booked, true);
+    expect(screen.getByLabelText<HTMLInputElement>("Confirmation").value).toBe("ABC123");
+    save();
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ booking: booked.booking }));
+    for (const label of ["Confirmation", "Provider", "Link"]) fireEvent.change(screen.getByLabelText(label), { target: { value: "" } });
+    save();
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ booking: null }));
+  });
+
+  it("refuses a link that is not http or https, and saves nothing", () => {
+    const onSave = mountBooking(existingStop(), true);
+    fireEvent.change(screen.getByLabelText("Link"), { target: { value: "javascript:alert(1)" } });
+    save();
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("http");
+  });
+
+  // The field is inside a disclosure; an error about it must not be about
+  // something the reader cannot see.
+  it("opens the section when a link is refused, and when a booking exists", () => {
+    mountBooking(existingStop(), true);
+    const section = () => screen.getByTestId("activity-booking") as HTMLDetailsElement;
+    expect(section().open).toBe(false);
+    fireEvent.change(screen.getByLabelText("Link"), { target: { value: "javascript:alert(1)" } });
+    save();
+    expect(section().open).toBe(true);
+    cleanup();
+    mountBooking(booked, true);
+    expect(section().open).toBe(true);
+  });
+
+  it("is absent below editor, and then leaves the booking out of the save so the stored one stands", () => {
+    const onSave = mountBooking(booked, false);
+    expect(screen.queryByText("Booking")).toBeNull();
+    expect(screen.queryByLabelText("Confirmation")).toBeNull();
+    save();
+    expect(onSave.mock.calls.at(-1)?.[0]).not.toHaveProperty("booking");
   });
 });

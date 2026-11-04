@@ -68,7 +68,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
   // included. The demo has no presence, and a failure costs one poll the field,
   // as above.
   const [page, suggestionsRev, accessRev, chatRev, online] = await Promise.all([
-    getTripEventsAfter(tripId, after.data),
+    getTripEventsAfter(tripId, after.data, access.role),
     suggestionsRevForRole(tripId, access.userId, access.role).catch((error: unknown) => {
       console.error("events poll: suggestionsRev query failed", { tripId, error });
       return undefined;

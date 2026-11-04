@@ -1,6 +1,7 @@
 import { TripDetail } from "@tc/contracts";
 import { listGuests } from "@/server/access/guests";
 import { overlayMembers } from "@/server/access/overlay";
+import { redactDetailFor } from "@/server/access/bookingRedaction";
 import { getTripDetailAt } from "@/server/history";
 import { PublicApiError } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
@@ -14,7 +15,7 @@ export const { GET } = route({
     trip: "path",
     role: "viewer",
     response: TripDetail,
-    handle: async ({ params, trip }) => {
+    handle: async ({ params, trip, role }) => {
       const seq = Number(params["seq"]);
       if (!Number.isInteger(seq) || seq < 1) {
         throw new PublicApiError(400, "A revision is a positive whole number.");
@@ -28,7 +29,8 @@ export const { GET } = route({
       // the plan (guests spec P2).
       // `trip` is the overlaid detail `trip: "path"` already loaded.
       const guests = await listGuests(params["tripId"]!);
-      return overlayMembers(at, trip!.members, guests);
+      // The replay reads the raw log, past the redaction `trip` already had.
+      return redactDetailFor(role!, overlayMembers(at, trip!.members, guests));
     },
   },
 });

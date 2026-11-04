@@ -233,6 +233,30 @@ describe("stop.rows", () => {
     ]);
   });
 
+  it("keeps only booked stops when asked, with provider and, if sent, the code", () => {
+    const fixture = selectionTrip();
+    const { s1, s4 } = fixture.ids;
+    const act = fixture.trip.activities;
+    act[s1] = { ...act[s1]!, booking: { provider: "Trenitalia", confirmation: "ABC123" } };
+    // What a reader below editor receives: the server blanked the provider and
+    // dropped the code, and the renderer must not invent either.
+    act[s4] = { ...act[s4]!, booking: { provider: null } };
+    const ctx = contextOf(fixture);
+    const rows = lines(ctx, "stop.rows", { only: "booked" });
+    expect(rows.filter((r) => !r.startsWith("Day"))).toHaveLength(2);
+    expect(rows.some((r) => r.includes("Trenitalia") && r.includes("ABC123"))).toBe(true);
+    const redacted = rows.find((r) => r.includes(act[s4]!.title));
+    expect(redacted).toContain("Booked");
+    expect(redacted).not.toContain("ABC123");
+  });
+
+  it("says nothing is booked when the booked rule is what emptied it", () => {
+    expect(renderMacro(contextOf(selectionTrip()), "stop.rows", { only: "booked" })).toEqual({
+      status: "empty",
+      because: "nothing booked yet",
+    });
+  });
+
   it("says nothing is left to book when the rule is what emptied it", () => {
     // Day 3 is two `planned` stops. "no stops to show" under a Still to book
     // heading reads as a fault; this reads as the good news it is.

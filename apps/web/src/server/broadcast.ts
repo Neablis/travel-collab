@@ -1,8 +1,9 @@
-import type { TripEventsPage } from "@tc/contracts";
+import type { TripEventsPage, TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { db } from "./db/client";
 import { readStreamAfter, readStreamHeadSeq } from "./eventStore";
 import { demoTripHeadSeq } from "./demoTrip";
+import { redactEventsFor } from "./access/bookingRedaction";
 
 /**
  * The read side of M13 link 2 — "what happened on this trip since `seq` N?"
@@ -36,10 +37,15 @@ export const MAX_EVENTS_PER_POLL = 200;
  * `afterSeq` ahead of the head is not an error: a client can hold a seq this
  * trip no longer has after a revert, and the honest answer is the head it
  * should resynchronise to, not a 4xx.
+ *
+ * `role` is required, not defaulted: an `ActivityAdded` payload is the whole
+ * stop, so what a reader below editor is served is redacted here (ADR-086
+ * decision 2) and no second caller can forget to.
  */
 export async function getTripEventsAfter(
   tripId: string,
   afterSeq: number,
+  role: TripRole,
 ): Promise<TripEventsPage> {
   // The demo trip is a fixture, not rows (ADR-031) — its log is folded from
   // `@tc/fixtures` and never moves, so there is nothing to broadcast and never
@@ -55,5 +61,5 @@ export async function getTripEventsAfter(
   if (headSeq - afterSeq > MAX_EVENTS_PER_POLL) return { headSeq, events: [], resync: true };
 
   const events = await readStreamAfter(db, tripId, afterSeq, MAX_EVENTS_PER_POLL);
-  return { headSeq, events, resync: false };
+  return { headSeq, events: redactEventsFor(role, events), resync: false };
 }

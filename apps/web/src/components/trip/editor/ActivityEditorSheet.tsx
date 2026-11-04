@@ -41,7 +41,7 @@ import { cn } from "@/lib/cn";
 // needs, and wiring dayId correctly into AddActivity/UpdateActivity.
 export function ActivityEditorSheet() {
   const { state, close, returnFocus } = useEditor();
-  const { activeTrip, dispatch, dispatchBatch, canEditBoard, boardMode, access } = useTrip();
+  const { activeTrip, dispatch, dispatchBatch, canEditBoard, boardMode, access, myRole } = useTrip();
   // Opted in to suggest mode (W8): a suggester's save joins their draft, so
   // only a reader gets the read-only sheet.
   const readOnly = !canEditBoard;
@@ -99,7 +99,7 @@ export function ActivityEditorSheet() {
           mode: state.prefill.mode ?? null,
           endLocation: null,
           pendingReason: null,
-          flightNumber: null,
+          flightNumber: null, booking: null,
         }
       : null;
 
@@ -347,6 +347,9 @@ export function ActivityEditorSheet() {
           guests={namedGuests}
           guestNames={guestNames.current}
           guestsLoaded={guests !== null}
+          // M44: the booking's code is the editor's (the server strips it
+          // below that), so an unknown role holds it back as a suggester's.
+          canEditBooking={myRole === "editor" || myRole === "owner"}
           nearbyStops={nearbyStops}
           onSave={handleSave}
           onCancel={close}

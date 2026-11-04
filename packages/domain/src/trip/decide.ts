@@ -11,7 +11,7 @@ import { rollupCosts } from "./costs";
 import { daySpan, isCalendarDate } from "./dates";
 import { tripStatesEqual } from "./equality";
 import { evolveTrip } from "./evolve";
-import type { TripState } from "./state";
+import type { ActivityState, TripState } from "./state";
 
 export type Rejection = { code: string; message: string };
 export type Decision =
@@ -61,6 +61,19 @@ function kindDetailRejection(stop: Parameters<typeof kindDetailFieldsOffKind>[0]
     OFF_KIND_CODE[owner] ?? "field-off-kind",
     `Only a ${owner} stop can have ${same.join(" or ")}${others} — clear ${off.length > 1 ? "them" : "it"}, or keep the stop's kind as ${owner}.`,
   );
+}
+
+// A booking with none of its parts is no booking (M44 decision 1): store null,
+// never `{}`, so "has a booking" is one check and clearing all three equals clearing.
+function normalizeBooking(booking: ActivityState["booking"] | undefined): ActivityState["booking"] {
+  if (booking === undefined || booking === null) return null;
+  const { confirmation, provider, url } = booking;
+  if (confirmation === undefined && provider === undefined && url === undefined) return null;
+  return {
+    ...(confirmation !== undefined ? { confirmation } : {}),
+    ...(provider !== undefined ? { provider } : {}),
+    ...(url !== undefined ? { url } : {}),
+  };
 }
 
 function okUnlessNoOp(state: TripState, events: TripEvent[]): Decision {
@@ -301,6 +314,7 @@ function decideCommand(
             endLocation: command.endLocation ?? null,
             pendingReason: command.pendingReason ?? null,
             flightNumber: command.flightNumber ?? null,
+            booking: normalizeBooking(command.booking),
           },
         },
       ]);
@@ -342,6 +356,7 @@ function decideCommand(
             endLocation,
             pendingReason,
             flightNumber,
+            booking: command.booking === undefined ? current.booking : normalizeBooking(command.booking),
           },
         },
       ]);
