@@ -2,9 +2,11 @@ import { PageShare } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { createPageShare, listPageShares } from "@/server/access/pageShares";
 
-// `editor`, as a pinned share (ADR-027, ADR-088 §1): a viewer or suggester
-// cannot hand out a way in they were themselves given. They see the link's
-// chip from the page itself, not from here.
+/**
+ * Lists a page's share links, revoked ones included. Needs `editor`, as a pinned
+ * share (ADR-027, ADR-088 §1): a viewer or suggester cannot hand out a way in they
+ * were themselves given. They see the link's chip from the page itself, not from here.
+ */
 export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {
   const { tripId, pageId } = await params;
   const access = await requireTripAccess(tripId, "editor");
@@ -12,6 +14,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   return Response.json({ shares: (await listPageShares(tripId, pageId)).map((s) => PageShare.parse(s)) });
 }
 
+/**
+ * Mints a public link for a page; editor only. Answers 201 with the new share,
+ * 422 if the page can't be public, 404 if it or the trip is gone.
+ */
 export async function POST(_request: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {
   const { tripId, pageId } = await params;
   const access = await requireTripAccess(tripId, "editor");

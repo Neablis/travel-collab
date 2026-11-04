@@ -37,6 +37,10 @@ function toDto(row: ShareRow): PageShare {
  */
 const UNPUBLISHABLE_SEEDS: ReadonlySet<string> = new Set(["bookings-and-confirmations", "money", TODAY_SEED_KEY]);
 
+/**
+ * Whether a page may be made public: false for the three seeded notebooks in
+ * `UNPUBLISHABLE_SEEDS`, true for every other page, including one with no seed key.
+ */
 export function isPublishable(page: { seedKey?: string | null | undefined }): boolean {
   return page.seedKey == null || !UNPUBLISHABLE_SEEDS.has(page.seedKey);
 }
@@ -118,6 +122,12 @@ export async function listPageShares(tripId: string, pageId?: string): Promise<P
     .sort((a, b) => (a.createdAt === b.createdAt ? (a.shareId < b.shareId ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1));
 }
 
+/**
+ * Revokes a share link, scoped to its trip and page so an id from another page
+ * answers `not-found`. Callers must already have checked editor access. Idempotent:
+ * revoking a revoked share succeeds and returns the first revoke's instant.
+ * `now` is injected for tests.
+ */
 export async function revokePageShare(
   tripId: string,
   pageId: string,
