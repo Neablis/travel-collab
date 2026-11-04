@@ -3,10 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs } from "@tc/pages";
 import { withCostRollups } from "@tc/factories";
-import { MacroView } from "./MacroView";
+import { MacroView, PublicMacroView } from "./MacroView";
 import { MacroEditorContext } from "./editor/MacroEditorContext";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
-import { PublicReaderProvider } from "./readerCapabilities";
 
 afterEach(cleanup);
 
@@ -424,49 +423,31 @@ describe("a widget for readers who are not this one", () => {
   });
 });
 
-// M58 decision 5 (ADR-088 §4): a hidden instance is drawn for a stranger as a
-// quiet "Not shared" chip and nothing of its data; a member is unaffected.
-describe("a widget hidden when public", () => {
-  const publicPage = (hide: boolean) => (
-    <PublicReaderProvider publicTokenFor={() => null}>
-      <MacroView detail={baseDetail} context={ctx} name="attribute" params={{ field: "trip.name" }} hideWhenPublic={hide} />
-    </PublicReaderProvider>
-  );
+// M58 decision 5 (Mitchell: "a hidden widget's data is not sent to the page"):
+// a stranger's widgets are resolved on the server (`toPublicNotebookView`), and
+// the page draws only those outcomes, never a trip.
+describe("a widget on a public page", () => {
+  const publicCtx = { trip: baseDetail, page: ctx, user: null, globals: null, today: null, reader: "public" as const };
+  const noAccents = { cities: {}, days: {} };
 
-  it("draws Not shared instead of the widget for the public reader", () => {
-    render(publicPage(true));
+  it("draws Not shared for an instance hidden when public", () => {
+    render(<PublicMacroView name="attribute" outcome={{ status: "not-shared" }} accents={noAccents} />);
     expect(screen.getByText("Not shared")).toBeTruthy();
-    expect(screen.queryByText("Test Trip")).toBeNull();
   });
 
-  it("draws an unhidden widget for the public reader", () => {
-    render(publicPage(false));
+  it("draws what the server resolved", () => {
+    const outcome = renderMacro(publicCtx, "attribute", { field: "trip.name" });
+    render(<PublicMacroView name="attribute" outcome={outcome} accents={noAccents} />);
     expect(screen.getByText("Test Trip")).toBeTruthy();
-    expect(screen.queryByText("Not shared")).toBeNull();
   });
 
-  it("is unaffected for a member, who is not told it is hidden", () => {
-    render(<MacroView detail={baseDetail} context={ctx} name="attribute" params={{ field: "trip.name" }} hideWhenPublic />);
-    expect(screen.getByText("Test Trip")).toBeTruthy();
-    expect(screen.queryByText("Not shared")).toBeNull();
-  });
-
-  // The floor: a stranger has no chat, even where the screen they are on
-  // offers one (floors live in the reader, not in a widget's setting).
-  it("never draws the trip chat for the public reader, even with a chat on offer", () => {
-    const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } });
-    try {
-      render(
-        <div data-testid="page">
-          <PublicReaderProvider publicTokenFor={() => null}>
-            <MacroView detail={baseDetail} context={ctx} name="chat.recent" params={{}} />
-          </PublicReaderProvider>
-        </div>,
-      );
-      expect(screen.getByTestId("page").textContent).toBe("");
-    } finally {
-      unregister();
-    }
+  it("links a card only to a public notebook, by its token", () => {
+    const outcome = renderMacro({ ...publicCtx, publicTokenFor: () => "tok-1", external: {
+      weather: { state: "pending" },
+      notebooks: { state: "ready", value: { pages: [{ id: "11111111-1111-4111-8111-111111111111", seedKey: null, title: "Open", firstLine: null, widgetCount: 0 }] } },
+    } }, "link.internal", { to: { kind: "notebook", pageId: "11111111-1111-4111-8111-111111111111" } });
+    render(<PublicMacroView name="link.internal" outcome={outcome} accents={noAccents} />);
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/n/tok-1");
   });
 });
 
