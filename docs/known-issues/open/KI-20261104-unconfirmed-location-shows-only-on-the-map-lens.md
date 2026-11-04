@@ -11,6 +11,11 @@
     but not `verified`, so the assistant cannot tell its own unconfirmed guesses from located stops.
   - `apps/web/src/components/playbooks/SharedDayMap.tsx`: the Playbook / shared-day map draws its own
     pins and ignores the flag.
+  - Places that USE the coordinate as though it were confirmed (second review of PR 686, finding 3):
+    `apps/web/src/lib/directions.ts` ("Get directions" goes to the guess), `apps/web/src/server/nearbyStops.ts`
+    (other stops ranked by distance from it), and `tripRegionOf` in
+    `apps/web/src/server/geocoding/region.ts` (the guess widens the trip's region for later lookups).
+    The last is the one with a correctness edge: a wrong guess admits wrong answers near it.
 - **Symptom / What happens:** PR 686 added `Location.verified: false` (Mitchell, 2026-11-03) for an
   assistant coordinate no geocoder confirmed. The trip's Map lens draws it as a hollow teardrop with a
   "Not confirmed" legend key. Everywhere else the same stop looks exactly like a confirmed one: a solid

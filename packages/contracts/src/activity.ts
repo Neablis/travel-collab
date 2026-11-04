@@ -163,8 +163,11 @@ export const Location = z
     // is parsed strictly on the client (apiClient.ts), so an old bundle would
     // fail to load the whole trip (the M18 lesson). An unknown KEY is dropped.
     //
-    // Written by `geocodeEnrichment.ts` only; cleared by any write that
-    // replaces the location, since a new location object does not carry it.
+    // Written in the product by `geocodeEnrichment.ts` only. A v1 caller may
+    // send it about its own coordinates, and the demo fixture carries one
+    // (UNCONFIRMED_STOP_IDS). The model may not: `groundCitedPlaces` strips it.
+    // Cleared by any write that replaces the location, since a new location
+    // object does not carry it.
     verified: z
       .literal(false)
       .optional()

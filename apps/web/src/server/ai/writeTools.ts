@@ -290,15 +290,14 @@ function detailIntentsWithKind(intents: RawToolIntent[]): RawToolIntent[] {
  * proposal's `skipped` list, where the user reads it. A refusal somebody can
  * see beats a coordinate nobody checked.
  *
- * **It also strips a `precision` the model claimed for its own coordinates**,
- * which closes the gap `contracts/src/activity.ts` names in its own comment:
+ * **It also strips a `precision` and a `verified` the model claimed for its own
+ * coordinates.** Both are the server's to write: `verified: false` is
+ * enrichment's mark on a guess it could not confirm (2026-11-03), and a model
+ * sending `verified: true`, or `false` beside no coordinates, would otherwise
+ * make its whole command unparseable rather than lose one key.
  *
- * > *NOT a fourth tier for the assistant's own unverified guess, which today
- * > reaches the map indistinguishable from a vendor-verified venue. That is a
- * > real gap and a deliberate omission.*
- *
- * Grounding is what makes it stop being deliberate, because grounding needs the
- * field to MEAN something: `enrichCommandLocations` now skips a location that
+ * `precision` matters more, because grounding needs the field to MEAN
+ * something: `enrichCommandLocations` now skips a location that
  * already carries `precision` and coordinates — a place the server itself
  * resolved — so a model that could write `precision: "venue"` beside a guessed
  * lat/lng could skip the one check that would have caught it. Stripped BEFORE
@@ -321,9 +320,10 @@ export function groundCitedPlaces(
     // carrying precision and coordinates exactly as it skips a `location`.
     for (const field of ["location", "endLocation"] as const) {
       const claimed = args[field];
-      if (claimed !== null && typeof claimed === "object" && "precision" in claimed) {
+      if (claimed !== null && typeof claimed === "object" && ("precision" in claimed || "verified" in claimed)) {
         const cleaned: Record<string, unknown> = { ...(claimed as Record<string, unknown>) };
         delete cleaned.precision;
+        delete cleaned.verified;
         args[field] = cleaned;
       }
     }

@@ -340,6 +340,13 @@ describe("a name lookup's answer is judged before it is stored (KI-2026-11-03)",
     expect(otherCity.location.precision).not.toBe("venue");
     expect(otherCity.outcome).not.toBe("name");
 
+    // The vendor's `city` is not always the one people name: a Brooklyn
+    // venue's is "New York", and "Brooklyn" is a part of its label.
+    const PETER_LUGER = { lat: 40.7099, lng: -73.9623, canonicalName: "Peter Luger, Broadway, Brooklyn, New York, USA", countryCode: "US", city: "New York" };
+    const bostonTrip = { userId: "u1", region: { minLat: 42, maxLat: 42.7, minLng: -71.5, maxLng: -70.7 }, countries: ["US"], regionCountries: ["US"] };
+    const brooklyn = await resolveStopLocation({ name: "Peter Luger", city: "Brooklyn", countryCode: "US" }, bostonTrip, lookups({ "Peter Luger": [PETER_LUGER] }));
+    expect(brooklyn.outcome).toBe("name");
+
     // And never the name check: a different restaurant in Boston is refused.
     const wrongName = { ...NEPTUNE, canonicalName: "Legal Sea Foods, Boston, Massachusetts, USA" };
     const r = await resolveStopLocation({ name: "Neptune Oyster", city: "Boston" }, nyTrip, lookups({ "Neptune Oyster": [wrongName] }));
@@ -357,6 +364,16 @@ describe("a name lookup's answer is judged before it is stored (KI-2026-11-03)",
     const spent = await resolveStopLocation({ name: "Ria's Wines", city: "Penn Yan", countryCode: "US" }, trip, d);
     expect(spent.outcome).toBe("rejected");
     expect(d.g.forward).toHaveBeenCalledTimes(1);
+
+    // The city lookup itself throwing: still rejected, never an exception.
+    const throwing = deps({
+      forward: vi.fn(async (query: string) => {
+        if (query === "Ria's Wines") return [ATLANTA];
+        throw new Error("geocode failed: 500");
+      }) as Geocoder["forward"],
+    });
+    const failed = await resolveStopLocation({ name: "Ria's Wines", city: "Penn Yan", countryCode: "US" }, trip, throwing);
+    expect(failed).toEqual({ location: { name: "Ria's Wines", city: "Penn Yan", countryCode: "US" }, outcome: "rejected" });
   });
 
   it("refuses a wrong-named leg destination, region or not", async () => {

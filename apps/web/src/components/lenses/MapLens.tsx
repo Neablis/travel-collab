@@ -810,7 +810,20 @@ export function MapLens({
         // An invisible pin must not still be clickable: opacity alone leaves
         // the element in the hit-test, so a tap on empty map would open a stop
         // from a day that is not on screen.
-        marker.getElement().style.pointerEvents = markerOpacity === 0 ? "none" : "";
+        const element = marker.getElement();
+        element.style.pointerEvents = markerOpacity === 0 ? "none" : "";
+        // Nor reachable by keyboard or announced (review of PR 686): a hidden
+        // day's hollow pin or city disc is a real `<button>`, so without this
+        // it stayed in the tab order and the accessibility tree while nobody
+        // could see it. A stock teardrop has no button to hide; setting the
+        // attributes on it is harmless.
+        if (markerOpacity === 0) {
+          element.setAttribute("aria-hidden", "true");
+          element.tabIndex = -1;
+        } else {
+          element.removeAttribute("aria-hidden");
+          element.removeAttribute("tabindex");
+        }
       }
     }
 

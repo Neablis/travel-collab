@@ -1250,6 +1250,44 @@ describe("MapLens city-level stops", () => {
     expect(stock!.options?.element).toBeUndefined();
   });
 
+  // Review of PR 686: a hollow pin is a real `<button>`, so on a day that is
+  // not on screen it must leave the tab order and the accessibility tree too,
+  // not only the hit-test.
+  it("takes a hidden day's hollow pin out of the tab order, and puts it back", async () => {
+    markerInstances.length = 0;
+    const s1 = locatedActivity("s1", 41.95, 12.5, "a1");
+    const detail = tripDetailFixture({
+      days: [
+        { dayId: "d1", activityIds: ["s1"], date: "2027-06-01", costSubtotal: 0 },
+        { dayId: "d2", activityIds: ["s2"], date: "2027-06-02", costSubtotal: 0 },
+      ],
+      activities: {
+        s1: { ...s1, location: { ...s1.location!, verified: false as const } },
+        s2: locatedActivity("s2", 41.9, 12.49, "a2"),
+      },
+    });
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 1 });
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+    const hollow = markerInstances.find((marker) => marker.getElement().getAttribute("aria-label")?.endsWith("location not confirmed"))!;
+    await waitFor(() => expect(hollow.getElement().getAttribute("aria-hidden")).toBe("true"));
+    expect(hollow.getElement().tabIndex).toBe(-1);
+
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    rerender(
+      <EditorHost>
+        <MapLens detail={detail} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(hollow.getElement().getAttribute("aria-hidden")).toBeNull());
+    expect(hollow.getElement().tabIndex).toBe(0);
+  });
+
   // The `routeKey` trap, a fourth time: a geocoder confirming a guess at the
   // same coordinate changes only the flag, and the pin has to turn solid.
   it("rebuilds the markers when a stop is confirmed but nothing moves", async () => {

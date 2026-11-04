@@ -53,7 +53,10 @@
     holds an address, or puts its venue after a comma, is no longer refused for it.
   - **Mitchell, 2026-11-03:** a `city` the caller names loosens the region, for the venue answer
     and the city fallback alike (`inNamedCity`, no extra lookup). This undoes part of the review's
-    finding 2 on purpose: a named "Springfield" can be pinned in the wrong state.
+    finding 2 on purpose: a named "Springfield" can be pinned in the wrong state. And a pin taken
+    that way is one of the trip's stops from then on, so it widens the region for every later
+    lookup: after a Springfield, IL city pin on the Finger Lakes trip, a name lookup with no city
+    that lands in Pittsburgh is inside the box and accepted (second review of PR 686, finding 1).
   - Same branch: a location key the schema does not know (`latitude`, `lon`, `zip`) is a 400 on both
     v1 stop writes (`LocationWrite`) instead of being dropped and the name geocoded over it.
 - **Cross-reference:** KI-2026-09-20-a (the AI path's own missing name check), KI-15 (resolved, the

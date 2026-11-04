@@ -27,9 +27,10 @@ Format:
 - Consumers updated:
   - `packages/domain`: `sameLocation` compares it, so confirming a guess at the same point is not a
     no-op.
-  - `apps/web`, writer: `geocodeEnrichment.ts` writes it, the only writer, and clears it when a
-    vendor answer or a city pin replaces the coordinates. The assistant's planning tools hide it
-    from the model, as they hide `precision`.
+  - `apps/web`, writer: `geocodeEnrichment.ts` writes it, the product's only writer, and clears
+    it when a vendor answer or a city pin replaces the coordinates. A v1 caller may send it about
+    its own coordinates. The model may not: the planning tools hide it, and `groundCitedPlaces`
+    strips it as it strips `precision`.
   - `apps/web`, map: `mapRailData.ts` carries it as `unconfirmed`. `MapLens.tsx` draws a hollow
     teardrop for it and rebuilds markers when it changes. `MapLegend.tsx` has a "Not confirmed" key.
   - `packages/fixtures`: one demo stop carries it (`UNCONFIRMED_STOP_IDS`, `expectations.unconfirmed: 1`).

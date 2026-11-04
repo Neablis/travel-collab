@@ -299,16 +299,22 @@ async function cityFallback(
 
 /**
  * Whether a geocoder answer is in, or is, the city the caller named: its own
- * `city` component, else the first part of its label (a city's answer names
- * itself there), compared as folded tokens ("Nikkō" = "Nikko"). False when the
- * caller named no city.
+ * `city` component, or any comma part of its label, compared as folded tokens
+ * ("Nikkō" = "Nikko"). False when the caller named no city.
+ *
+ * The label as well as `city`, because the vendor's `city` is not always the
+ * one people name: a Brooklyn venue's `city` is "New York", while "Brooklyn"
+ * is a part of its label (review of PR 686, finding 5). A whole part must
+ * equal the named city, so "Salem" never matches "Salem Street". Spelling
+ * variants ("Saint Louis" for "St. Louis", "New York City") still do not
+ * match, which fails safe: the region check stands.
  */
 function inNamedCity(city: string | undefined, match: Pick<GeocodeResult, "city" | "canonicalName">): boolean {
   if (!city) return false;
   const named = nameTokens(city).join(" ");
   if (named === "") return false;
-  const answered = match.city ?? match.canonicalName.split(",")[0] ?? "";
-  return nameTokens(answered).join(" ") === named;
+  const answered = [match.city ?? "", ...match.canonicalName.split(",")];
+  return answered.some((part) => nameTokens(part).join(" ") === named);
 }
 
 /**
