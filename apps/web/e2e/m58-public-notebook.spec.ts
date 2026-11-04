@@ -46,7 +46,13 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
   expect(created.ok()).toBe(true);
   const { tripId } = (await created.json()) as { tripId: string };
 
-  // A day with a booked stop: the code and its manage link are the floor.
+  // The dev user the "desktop" project signs in as; a member id is what an `addedBy` would print.
+  const memberId = "dev-alice";
+  // `dev-alice` is shown as "Alice" (`displayName.ts`).
+  const memberName = "Alice";
+
+  // A day with a booked stop: the code and its manage link are the floor, and
+  // the member booked and joined it, so only the floors keep them off the page.
   const dayId = randomUUID();
   for (const command of [
     { type: "AddDay", tripId, dayId },
@@ -58,14 +64,13 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
       title: "Dinner at Sushi Dai",
       timeWindow: { start: "19:00", end: "20:00" },
       booking: { confirmation: BOOKING_CODE, provider: "Sushi Dai", url: BOOKING_URL },
+      bookedBy: memberId,
+      participants: [memberId],
     },
   ]) {
     const response = await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     expect(response.ok(), JSON.stringify(command)).toBe(true);
   }
-  // The dev user the "desktop" project signs in as; a member id is what an `addedBy` would print.
-  const memberId = "dev-alice";
-
   const packingId = await createPage(page, tripId, "Packing list", [paragraph(text("Socks and a charger"))]);
   const surpriseId = await createPage(page, tripId, "Surprise for Sam", [paragraph(text("Do not tell"))]);
   const packing = await publish(page, tripId, packingId);
@@ -76,6 +81,7 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
     paragraph(widget("link.external", { href: `https://${HIDDEN_PARAM}.example/`, label: "Secret" }, true)),
     paragraph(widget("attribute", { field: "trip.name" }, true)),
     widget("day.detail", {}),
+    widget("trip.people", {}),
     widget("link.internal", { to: { kind: "notebook", pageId: packingId } }),
     widget("link.internal", { to: { kind: "notebook", pageId: surpriseId } }),
     widget("link.internal", { to: { kind: "view", view: "Plan" } }),
@@ -97,6 +103,8 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
     await expect(reader.getByRole("heading", { name: "Our Japan plan", level: 1 })).toBeVisible();
     await expect(reader.getByText("Welcome to the plan")).toBeVisible();
     await expect(reader.getByText("Dinner at Sushi Dai").first()).toBeVisible();
+    // The people widget speaks, so the absent name below is not an absent widget.
+    await expect(reader.getByText("Traveler 1").first()).toBeVisible();
     // The two hidden widgets: told something is here, and nothing about it.
     await expect(reader.getByText("Not shared")).toHaveCount(2);
 
@@ -117,7 +125,7 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
     );
 
     // What was sent, three ways. Every string here is one the page must not carry.
-    const forbidden = [BOOKING_CODE, BOOKING_URL, HIDDEN_PARAM, tripName, memberId, tripId, planId, packingId, surpriseId];
+    const forbidden = [BOOKING_CODE, BOOKING_URL, HIDDEN_PARAM, tripName, memberId, memberName, tripId, planId, packingId, surpriseId];
     const wire = {
       html: await (await reader.request.get(path)).text(),
       rsc: await (await reader.request.get(path, { headers: { rsc: "1" } })).text(),
@@ -164,5 +172,23 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
     expect((await after.goto(`/n/${again.token}`))!.status()).toBe(200);
   } finally {
     await after.context().close();
+  }
+
+  // A token that never existed, and a notebook deleted while public, are the
+  // same dead link: a 404 that names nothing and is not cached.
+  const deleted = await createPage(page, tripId, "Deleted while public", [paragraph(text("Gone soon"))]);
+  const doomed = await publish(page, tripId, deleted);
+  expect((await page.request.delete(`/api/trips/${tripId}/pages/${deleted}`)).ok()).toBe(true);
+  const dead = await stranger(browser);
+  try {
+    for (const token of [doomed.token, "A".repeat(43)]) {
+      const response = await dead.goto(`/n/${token}`);
+      expect(response!.status(), token).toBe(404);
+      expect(response!.headers()["cache-control"], token).toContain("no-store");
+      const body = await dead.content();
+      for (const named of ["Deleted while public", "Gone soon", tripName]) expect(body.includes(named), named).toBe(false);
+    }
+  } finally {
+    await dead.context().close();
   }
 });

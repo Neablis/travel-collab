@@ -65,7 +65,10 @@ const load = cache(async (token: string) => {
   });
 });
 
-/** Metadata for `/n/<token>`: the notebook's title and the card of its title and cover; a dead link names nothing. */
+/**
+ * Metadata for `/n/<token>`: the notebook's title and the card of its title and cover; a dead link names nothing.
+ * The title is the page's own, which the publisher chose to share (an Overview page's is the trip's name).
+ */
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const { token } = await params;
   const view = await load(token);
