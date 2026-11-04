@@ -1,4 +1,4 @@
-# ADR-086: Length pages are Discover's length bands over the place lattice
+# ADR-087: Length pages are Discover's length bands over the place lattice
 
 **Status:** **Proposed — 2026-11-04.** Accepted when Mitchell merges the PR that adds them.
 **Deciders:** Mitchell (product); Claude — drafted

@@ -32,7 +32,7 @@ import {
 // city inside its country: `/playbooks/length/<band>`,
 // `/playbooks/city/<slug>/length/<band>`, `/playbooks/country/<slug>/length/<band>`
 // and `/playbooks/country/<slug>/city/<city>/length/<band>`. Read, counted,
-// paged and indexed as the tag pages are, and drawn by the same list (ADR-086).
+// paged and indexed as the tag pages are, and drawn by the same list (ADR-087).
 
 /** What a length route hands its page: the `[band]` segment, the city's and country's slugs where its scope has them, and `?page=`. */
 export type LengthRouteProps = {
