@@ -261,6 +261,7 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "og/invite/[token]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/notebook/[token]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/playbooks": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/playbooks/city/[city]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/playbooks/city/[city]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
