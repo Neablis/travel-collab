@@ -82,6 +82,17 @@ describe("a public notebook is a revocable link", () => {
     expect((await listPageShares(tripId, pageId)).filter((s) => s.revokedAt === null)).toHaveLength(0);
   });
 
+  it("a link published after the delete's instant but before its projection is still revoked", async () => {
+    const { tripId, pageId } = await seedTripWithPage();
+    // The publish took the trip row first, so it saw a live trip and committed;
+    // its createdAt is later than the DeleteTrip's occurredAt, which was stamped
+    // before the projection ran. A future instant stands in for that ordering.
+    const share = await createPageShare(tripId, pageId, OWNER, new Date(Date.now() + 60_000).toISOString());
+    expect(share.ok).toBe(true);
+    expect((await executeTripCommand({ type: "DeleteTrip", tripId }, OWNER)).ok).toBe(true);
+    expect((await listPageShares(tripId, pageId)).filter((s) => s.revokedAt === null)).toHaveLength(0);
+  });
+
   it("publishing while the link is revoked always answers a link that is stored", async () => {
     for (let round = 0; round < 15; round++) {
       const { tripId, pageId } = await seedTripWithPage();

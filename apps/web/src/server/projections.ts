@@ -65,8 +65,10 @@ export async function applyTripEvents(
           .set({ status: "deleted" })
           .where(eq(tripSummaries.tripId, event.payload.tripId));
         // A deleted trip has no public notebooks (ADR-088 §1). A restore does
-        // not bring them back: a revoked token never does.
-        await revokeLiveShares(tx, eq(pageShares.tripId, event.payload.tripId), env.occurredAt);
+        // not bring them back: a revoked token never does. Unbounded: a publish
+        // that took the trip row first is stamped after this event's instant
+        // yet commits before this UPDATE, and must still be revoked.
+        await revokeLiveShares(tx, eq(pageShares.tripId, event.payload.tripId), env.occurredAt, false);
         break;
       case "TripRestored":
         await tx.update(tripSummaries)
@@ -153,16 +155,19 @@ export async function applyPageEvents(tx: Queryable, envelopes: EventEnvelope[])
 
 /**
  * Revoke the live `page_shares` rows `where` names, as of the event that
- * deleted their page or trip. Only rows created at or before that instant: a
- * rebuild replays a delete that an undo later reversed, and the link an editor
- * made after the undo must not be revoked by it. Revoking a revoked row is a
- * no-op, so a replay changes nothing.
+ * deleted their page or trip. A page delete revokes only rows created at or
+ * before that instant (`bounded`): a rebuild replays a delete that an undo
+ * later reversed, and the link an editor made after the undo must not be
+ * revoked by it. A trip delete cannot be bounded, because a publish racing it
+ * is stamped later than the event (see `createPageShare`); it holds the trip
+ * row, so the UPDATE above waits for it. Revoking a revoked row is a no-op, so
+ * a replay changes nothing.
  */
-async function revokeLiveShares(tx: Queryable, where: SQL, occurredAt: string): Promise<void> {
+async function revokeLiveShares(tx: Queryable, where: SQL, occurredAt: string, bounded = true): Promise<void> {
   await tx
     .update(pageShares)
     .set({ revokedAt: new Date(occurredAt) })
-    .where(and(where, isNull(pageShares.revokedAt), lte(pageShares.createdAt, new Date(occurredAt))));
+    .where(and(where, isNull(pageShares.revokedAt), bounded ? lte(pageShares.createdAt, new Date(occurredAt)) : undefined));
 }
 
 // The seed key a `PageCreated` gives its row: the one it names, or, for an
