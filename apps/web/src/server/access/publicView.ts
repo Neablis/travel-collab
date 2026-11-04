@@ -61,7 +61,7 @@ export type PublicDocNode =
   | PublicWidgetNode
   | PublicRepeatNode
   | { type: "unknown" }
-  | { type: string; attrs?: Readonly<Record<string, unknown>>; text?: string; marks?: readonly PageMark[]; content?: readonly PublicDocNode[] };
+  | { type: string; attrs?: Readonly<Record<string, unknown>>; text?: string; marks?: readonly { type: string }[]; content?: readonly PublicDocNode[] };
 
 export interface PublicNotebookInput {
   trip: TripDetail;
@@ -146,16 +146,21 @@ const PLAIN_NODES: Readonly<Record<string, readonly string[]>> = {
   codeBlock: [], horizontalRule: [], heading: ["level"], orderedList: ["start"],
 };
 
+const PLAIN_MARKS: ReadonlySet<string> = new Set(["bold", "italic", "strike", "code"]);
+
 function publicPlain(stored: PageNode, ctx: WidgetContext): PublicDocNode {
   if (!Object.hasOwn(PLAIN_NODES, stored.type)) return { type: "unknown" };
   const keep = PLAIN_NODES[stored.type]!;
   const node = stored as { attrs?: Record<string, unknown>; text?: string; marks?: readonly PageMark[]; content?: readonly PageNode[] };
   const attrs = Object.fromEntries(keep.filter((key) => node.attrs?.[key] !== undefined).map((key) => [key, node.attrs![key]]));
+  // Marks are open at the API (a link's href, a mention's author), and the
+  // public text draws none of them, so only the typographic four ship, bare.
+  const plainMarks = (node.marks ?? []).filter((mark) => PLAIN_MARKS.has(mark.type)).map((mark) => ({ type: mark.type }));
   return {
     type: stored.type,
     ...(keep.length > 0 && { attrs }),
     ...(node.text !== undefined && { text: node.text }),
-    ...(node.marks && { marks: node.marks }),
+    ...(plainMarks.length > 0 && { marks: plainMarks }),
     ...(node.content && { content: node.content.map((child) => publicNode(child, ctx)) }),
   };
 }
