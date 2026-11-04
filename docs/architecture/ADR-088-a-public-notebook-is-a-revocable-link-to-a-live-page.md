@@ -42,11 +42,15 @@ one.
    - A revoked or unknown token answers a 404 that names nothing.
    - It shows no member's name or avatar.
 4. **Every widget shows unless its instance is hidden.** This is not an allow-list. Every widget
-   instance accepts `hideWhenPublic: boolean` (default `false`) in its params, so hiding a widget
+   instance accepts `hideWhenPublic: boolean` (default `false`) on its attrs, beside its params (the params schemas strip unknown keys), so hiding a widget
    is a notebook edit like any other. For a public reader:
    - A hidden instance draws a new **_Not shared_** state, modelled on the widget's no-data
      state.
-   - Its data is not resolved on the server, so it never reaches the HTML or the RSC payload.
+   - **Widgets are resolved on the server for a public reader**, and the client receives only
+     the resolved output, never `TripDetail` or raw page content. A hidden instance resolves to
+     *Not shared* with its params stripped, so neither its data nor its params reach the HTML or
+     the RSC payload. (Added 2026-11-04 from part 1's review: hiding on the client left the
+     whole trip in the payload.)
    - Members see the widget as usual, with a *Hidden when public* badge in edit mode.
 5. **Three floors hold whatever a setting says.** These are in the public view, not in the
    widgets:
