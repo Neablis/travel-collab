@@ -1,17 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { commandsFor } from "@tc/factories";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { createInvite, revokeInvite } from "@/server/access/invites";
+import { createPageShare, isPublishable, revokePageShare } from "@/server/access/pageShares";
+import { listPages } from "@/server/pages";
+import { setTripCover } from "@/server/tripCovers";
+import { notebookCardFor, notebookCopy } from "@/server/og/notebook";
 import { mintReferralCode } from "@/server/entitlements/referrals";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { GET as inviteImage } from "./invite/[token]/route";
 import { GET as inviteMeta } from "./invite/[token]/meta/route";
 import { GET as referralImage } from "./referral/[code]/route";
 import { GET as referralMeta } from "./referral/[code]/meta/route";
+import { GET as notebookImage } from "./notebook/[token]/route";
 
 // The preview routes (spec 2026-09-27 §2.3): each state answers a real PNG at
 // the size chat apps expect, and the meta sibling carries the title the
@@ -22,9 +29,23 @@ const run = randomUUID().slice(0, 8);
 const OWNER = `dev-og-routes-owner-${run}`;
 const TRIP_NAME = "Japan: Tokyo → Kyoto";
 
+// The cover is a photo on the photo host, which the card renderer fetches; the
+// network guard refuses a third party, so it is answered here with one pixel.
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
+const photoHost = setupServer(
+  http.get("https://images.unsplash.com/*", () => new HttpResponse(ONE_PIXEL_PNG, { headers: { "content-type": "image/png" } })),
+);
+afterAll(() => photoHost.close());
+
 let pendingToken = "";
 let revokedToken = "";
 let referralCode = "";
+let liveNotebookToken = "";
+let revokedNotebookToken = "";
+let notebookTitle = "";
 
 const request = new Request("http://test/x");
 const withToken = (token: string) => ({ params: Promise.resolve({ token }) });
@@ -38,6 +59,7 @@ async function pngSize(response: Response): Promise<{ width: number; height: num
 }
 
 beforeAll(async () => {
+  photoHost.listen({ onUnhandledRequest: "bypass" });
   await entitleAccounts([OWNER]);
   await db.update(users).set({ name: "Dana Reyes", email: "dana@example.com" }).where(eq(users.id, OWNER));
   const tripId = randomUUID();
@@ -50,6 +72,27 @@ beforeAll(async () => {
   const revoked = await createInvite(tripId, OWNER, { email: null, role: "editor" });
   await revokeInvite(tripId, revoked.inviteId);
   revokedToken = revoked.token;
+  // M58: a notebook that was public and is private again, then public once
+  // more (a new token), on a trip with a cover. Not the Overview, whose title
+  // is the trip's name and so could not show the card names nothing else.
+  const notebook = (await listPages(tripId)).find((page) => isPublishable(page) && !page.title.includes(TRIP_NAME))!;
+  notebookTitle = notebook.title;
+  await setTripCover(
+    tripId,
+    {
+      id: "photo-1", alt: null, photographerName: "Pat", photographerUrl: "https://unsplash.com/@pat",
+      photoPageUrl: "https://unsplash.com/photos/photo-1", downloadLocation: "https://api.unsplash.com/photos/photo-1/download",
+      urls: { raw: "https://images.unsplash.com/photo-1", regular: "https://images.unsplash.com/photo-1?w=1080", small: "https://images.unsplash.com/photo-1?w=400" },
+    },
+    OWNER,
+  );
+  const first = await createPageShare(tripId, notebook.id, OWNER);
+  if (!first.ok) throw new Error(first.error.message);
+  await revokePageShare(tripId, notebook.id, first.value.shareId);
+  revokedNotebookToken = first.value.token;
+  const second = await createPageShare(tripId, notebook.id, OWNER);
+  if (!second.ok) throw new Error(second.error.message);
+  liveNotebookToken = second.value.token;
   const minted = await mintReferralCode(OWNER);
   if (!minted.ok) throw new Error(minted.reason);
   referralCode = minted.code;
@@ -123,6 +166,41 @@ describe("GET /api/og/referral/:code/meta", () => {
   });
 });
 
+// M58 (ADR-088 §2): the card for `/n/<token>` is the notebook's title and the
+// trip's cover, and nothing else; a revoked or unknown token is the generic card.
+describe("GET /api/og/notebook/:token", () => {
+  it("draws a live notebook as a 1200×630 PNG that no cache may keep", async () => {
+    const response = await notebookImage(request, withToken(liveNotebookToken));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(await pngSize(response)).toEqual({ width: 1200, height: 630 });
+  });
+
+  it.each([
+    ["a revoked link", () => revokedNotebookToken],
+    ["an unknown token", () => `no-such-token-${run}`],
+  ])("draws %s as the generic card, which names nothing", async (_state, token) => {
+    expect(await notebookCardFor(token())).toEqual({ kind: "generic" });
+    const response = await notebookImage(request, withToken(token()));
+
+    expect(response.status).toBe(200);
+    expect(await pngSize(response)).toEqual({ width: 1200, height: 630 });
+  });
+
+  it("carries the title and the cover, and neither the trip's name nor anyone's", async () => {
+    const card = await notebookCardFor(liveNotebookToken);
+
+    expect(card).toEqual({ kind: "notebook", title: notebookTitle, cover: "https://images.unsplash.com/photo-1?w=1080" });
+    const copy = JSON.stringify(notebookCopy(card));
+    expect(copy).toContain(notebookTitle);
+    expect(copy).not.toContain("Japan");
+    expect(copy).not.toContain("Dana");
+    expect(copy).not.toContain("Jun 1");
+  });
+});
+
 describe("the per-IP rate limit on every /api/og route", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -137,6 +215,7 @@ describe("the per-IP rate limit on every /api/og route", () => {
     ["invite meta", (req: Request) => inviteMeta(req, withToken(pendingToken))],
     ["referral image", (req: Request) => referralImage(req, withCode(referralCode))],
     ["referral meta", (req: Request) => referralMeta(req, withCode(referralCode))],
+    ["notebook image", (req: Request) => notebookImage(req, withToken(liveNotebookToken))],
   ])("refuses the %s past the ceiling with an uncacheable 429, per IP", async (_route, call) => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2031-01-01T12:00:30.000Z"));

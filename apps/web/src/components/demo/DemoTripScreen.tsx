@@ -10,6 +10,7 @@ import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
+import { PublicCta } from "@/components/access/PublicCta";
 import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
@@ -47,9 +48,6 @@ export function DemoTripScreen({ demo, summary }: { demo: DemoTrip; summary: Dem
           <>
             <Link href="/signin" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
               Sign in
-            </Link>
-            <Link href="/signup" className={cn(buttonVariants({ variant: "primary", size: "sm" }), "no-underline")}>
-              Start a trip
             </Link>
           </>
         }
@@ -89,6 +87,11 @@ export function DemoTripScreen({ demo, summary }: { demo: DemoTrip; summary: Dem
           </TripProvider>
         </Suspense>
       </PageContainer>
+      {/* After the board, so it is the page's foot (M58 decision 7); above the
+          bar below, which is fixed and has its own inset. */}
+      <div className="phone-tab-bar-inset mx-auto w-full max-w-285 px-7 pb-10">
+        <PublicCta />
+      </div>
       {/* The phone's only way between the views here: below 768px the board
           hides its own view strip and leaves them to this bar. `(front)` has no
           bar of its own, so the demo mounts the one `(app)/layout.tsx` does —

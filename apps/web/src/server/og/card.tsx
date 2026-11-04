@@ -79,6 +79,10 @@ export async function renderCard(
   copy: CardCopy,
   cacheControl: string,
   cacheTags: Record<string, string> = {},
+  // A photo drawn down the right-hand edge (M58's notebook card), fetched by
+  // the renderer from this absolute address. The caller has already decided
+  // it may be shown.
+  cover: string | null = null,
 ): Promise<ImageResponse> {
   // A trip name is the user's, and can be long; the headline steps down a size
   // rather than being cut, and clamps at three lines past that.
@@ -110,6 +114,17 @@ export async function renderCard(
           <path d="M124 -6 L 130 90" stroke={c.hairline} strokeWidth="0.4" />
           <path d="M140 -6 C 136 18, 148 34, 143 52 S 152 74, 148 90" stroke={c.infoTint} strokeWidth="3.2" />
         </svg>
+        {cover === null ? null : (
+          // satori draws an <img>; next/image is for pages and is not available here.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={cover}
+            alt=""
+            width={240}
+            height={CARD_SIZE.height}
+            style={{ position: "absolute", top: 0, right: 0, width: 240, height: CARD_SIZE.height, objectFit: "cover" }}
+          />
+        )}
         <div
           style={{
             display: "flex",

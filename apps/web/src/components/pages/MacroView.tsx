@@ -107,13 +107,13 @@ export function PublicMacroView({ name, outcome, accents }: { name: string; outc
     return { ofCity: (city) => at(accents.cities, city), ofDayId: (dayId) => at(accents.days, dayId) };
   }, [accents]);
   // No trip id: a public link card carries its own `/n/<token>`, and every other target is plain.
-  return <ResolvedMacroView name={name} outcome={outcome} accents={lookup} tripId="" />;
+  return <ResolvedMacroView name={name} outcome={outcome} accents={lookup} tripId="" publicReader />;
 }
 
 /** One widget's outcome, drawn; where it came from is the caller's. */
-function ResolvedMacroView({ name, outcome, accents, tripId, onBindDay, editing = false, compact = false }: {
+function ResolvedMacroView({ name, outcome, accents, tripId, onBindDay, editing = false, compact = false, publicReader = false }: {
   name: string; outcome: RenderOutcome; accents: CityAccents; tripId: string;
-  onBindDay?: () => void; editing?: boolean; compact?: boolean;
+  onBindDay?: () => void; editing?: boolean; compact?: boolean; publicReader?: boolean;
 }) {
   const def = getMacro(name);
   // SPEC §27: nothing renders disabled, so a widget this reader may not use is
@@ -473,7 +473,8 @@ function ResolvedMacroView({ name, outcome, accents, tripId, onBindDay, editing 
         </a>
       );
     case "items":
-      return <ItemRows items={rendered.items} label={def?.title} tripId={tripId} interactive={!editing} />;
+      // Never a link for a stranger: a row goes to a board, and the trip it would open is not theirs to see.
+      return <ItemRows items={rendered.items} label={def?.title} tripId={tripId} interactive={!editing && !publicReader} />;
     default: {
       // The same enforcement `BlockView` carries, for the same measured reason:
       // `strict` does NOT imply `noImplicitReturns` and this repo sets only
