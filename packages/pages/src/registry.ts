@@ -134,16 +134,29 @@ export type RenderOutcome =
   // Not shown at all (M52 decision 20): the reader lacks what the widget
   // `requires`. Never a chip — SPEC §27, nothing renders disabled.
   | { status: "absent" }
+  // The instance is hidden from a public reader (M58, ADR-088 §4). Not an
+  // absence: the stranger is told something is here and not shared.
+  | { status: "not-shared" }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
 // `item` is the repeat line this widget is being rendered on, when it sits in a
 // repeat's template (ADR-035 decision 4). Render-time only: it never reaches
-// the stored node. Without one, the widget is handed its page's date scope
+// the stored node. `hideWhenPublic` is the instance's own flag (`attrs`, beside
+// its params). Without one, the widget is handed its page's date scope
 // (ADR-080 §4). A day or a stop line already names a day the scope narrowed
 // it to, through `resolveRepeat`, so it wins; a city line names no day, so it
 // carries the page's too.
-export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown, item?: ItemScope): RenderOutcome {
+export function renderMacro(
+  ctx: WidgetContext,
+  name: string,
+  rawParams: unknown,
+  item?: ItemScope,
+  hideWhenPublic = false,
+): RenderOutcome {
+  // First of all, so a hidden instance's data is never read for a stranger,
+  // and a stale or unknown one tells them only that it is not shared.
+  if (hideWhenPublic && ctx.reader === "public") return { status: "not-shared" };
   const def = getMacro(name);
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});

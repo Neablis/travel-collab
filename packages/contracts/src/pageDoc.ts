@@ -54,6 +54,11 @@ export const MacroNode = z.object({
   attrs: z.object({
     name: z.string().min(1),
     params: z.record(z.string(), z.unknown()).default({}),
+    // M58 (ADR-088 §4): keep this instance from a public reader. Absent is
+    // `false`, and stays absent rather than defaulting, so every stored page
+    // parses and saves back unchanged. It sits beside `params`, not in them:
+    // each widget's params schema strips keys it doesn't know.
+    hideWhenPublic: z.boolean().optional(),
   }),
 });
 export type MacroNode = z.infer<typeof MacroNode>;

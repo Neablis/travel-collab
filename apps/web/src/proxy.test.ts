@@ -179,6 +179,19 @@ describe("proxy", () => {
       },
     );
 
+    // M58: a public notebook is read by people with no account, so matching it
+    // would bounce every recipient to /signin (the `/s/` reasoning). Even with
+    // a `?ref=` it banks the channel and asks nobody who they are.
+    it.each(["/n/tok", "/n/tok.segments/_tree.segment.rsc"])("never matches %s on a path entry", (pathname) => {
+      expect(nextMatches(config.matcher.filter((entry) => typeof entry === "string"), pathname)).toBe(false);
+    });
+
+    it("lets a public notebook through without auth(), ref or not", () => {
+      authCalls.count = 0;
+      handle(request("/n/tok?ref=showhn", { session: false, hint: false }));
+      expect(authCalls.count).toBe(0);
+    });
+
     it("answers a path that only shares a guarded prefix without auth()", () => {
       authCalls.count = 0;
       handle(request("/homeless?ref=a", { session: false, hint: false }));

@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
 import { ChoicesRef, FilterDimension } from "@tc/contracts";
 import { z } from "zod";
-import { distinctApplies, getMacro, inputsFor, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
+import { distinctApplies, getMacro, inputsFor, renderMacro, MACRO_NAMES, MACRO_REGISTRY, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
 import { fieldChoices } from "./fields";
@@ -788,5 +788,33 @@ describe("`open`'s class param", () => {
     expect(parses(["east", "east"])).toBe(false);
     expect(parses([])).toBe(false);
     expect(parses(["conflict"])).toBe(false);
+  });
+});
+
+// M58 decision 5 (ADR-088 §4): every widget instance can be hidden from a
+// stranger, and a hidden one is never resolved, so its data cannot reach the page.
+describe("hide when public", () => {
+  const ctx: WidgetContext = { trip: detail, page: { tripId: detail.tripId }, user: null, globals: null, today: null };
+  const publicCtx: WidgetContext = { ...ctx, reader: "public" };
+
+  it.each(MACRO_NAMES)("%s: a hidden instance is not resolved for the public reader", (name) => {
+    const def = MACRO_REGISTRY[name]!;
+    const resolve = vi.spyOn(def, "resolve");
+    expect(renderMacro(publicCtx, name, {}, undefined, true)).toEqual({ status: "not-shared" });
+    expect(resolve).not.toHaveBeenCalled();
+    resolve.mockRestore();
+  });
+
+  // A stranger is told it is not shared, not that its settings are stale.
+  it("answers not-shared for a hidden instance whose params no longer parse, or whose widget is unknown", () => {
+    expect(renderMacro(publicCtx, "attribute", { field: 42 }, undefined, true)).toEqual({ status: "not-shared" });
+    expect(renderMacro(publicCtx, "no.such.widget", {}, undefined, true)).toEqual({ status: "not-shared" });
+  });
+
+  it("shows a hidden instance to a member, and an unhidden one to the public", () => {
+    const params = { field: "trip.name" };
+    expect(renderMacro({ ...ctx, reader: "member" }, "attribute", params, undefined, true).status).toBe("ok");
+    expect(renderMacro(ctx, "attribute", params, undefined, true).status).toBe("ok");
+    expect(renderMacro(publicCtx, "attribute", params).status).toBe("ok");
   });
 });

@@ -27,13 +27,16 @@ import { tripKeys } from "@/lib/queryKeys";
  *
  * Rendered as the notebook's `⋯` menu with this as its one item, so the menu
  * and its trigger share the item's visibility: when this renders nothing, there
- * is no empty `⋯` left behind.
+ * is no empty `⋯` left behind. *Make public* (M58) is the menu's other item,
+ * and its screen decides when it is offered (`onMakePublic`): a notebook with
+ * only that item still gets the menu, one with neither gets nothing.
  */
 export function ResetToDefault({
   tripId,
   page,
   onReset,
   revision = () => page.updatedAt,
+  onMakePublic,
 }: {
   tripId: string;
   page: Page;
@@ -46,6 +49,8 @@ export function ResetToDefault({
    * by the e2e walk).
    */
   revision?: () => string;
+  /** Offers *Make public*, for a reader who may publish this notebook. Absent: the item is not in the menu. */
+  onMakePublic?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [open, setOpen] = useState(false);
@@ -69,7 +74,8 @@ export function ResetToDefault({
   // The menu's only item is this one, so the whole menu — trigger included —
   // goes when the item would. An `⋯` that opens onto nothing is a control that
   // lies about having something behind it.
-  if (!seeded || !isOwner) return null;
+  const mayReset = seeded && isOwner;
+  if (!mayReset && onMakePublic === undefined) return null;
 
   async function reset() {
     setBusy(true);
@@ -110,19 +116,33 @@ export function ResetToDefault({
           </Button>
         }
       >
-        <Button
-          variant="ghost"
-          className="h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
-          onClick={() => {
-            setMenuOpen(false);
-            setError(null);
-            setOpen(true);
-          }}
-        >
-          Reset to default
-        </Button>
+        {onMakePublic === undefined ? null : (
+          <Button
+            variant="ghost"
+            className="h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
+            onClick={() => {
+              setMenuOpen(false);
+              onMakePublic();
+            }}
+          >
+            Make public
+          </Button>
+        )}
+        {mayReset ? (
+          <Button
+            variant="ghost"
+            className="h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
+            onClick={() => {
+              setMenuOpen(false);
+              setError(null);
+              setOpen(true);
+            }}
+          >
+            Reset to default
+          </Button>
+        ) : null}
       </Popover>
-      <Dialog open={open} onOpenChange={setOpen} title="Reset to default?">
+      <Dialog open={open && mayReset} onOpenChange={setOpen} title="Reset to default?">
         <div className="flex flex-col gap-3">
           <Text variant="secondary">
             This replaces everything in “{page.title}” with the notebook as it comes with a new trip. The current

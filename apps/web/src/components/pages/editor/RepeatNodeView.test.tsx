@@ -149,6 +149,26 @@ describe("a sentence for each day", () => {
   });
 });
 
+describe("a repeat hidden when public (M58)", () => {
+  const hiddenDoc = (hidden: boolean): PageDoc =>
+    newPageDoc([{ type: "repeat", attrs: { name: "day.rows", params: { template: SENTENCE }, ...(hidden ? { hideWhenPublic: true } : {}) }, content: [] }]);
+
+  it("wears the badge in Editing and nowhere else, and only when hidden", async () => {
+    const editing = mount(hiddenDoc(true), true);
+    expect(await screen.findByText("Hidden when public")).toBeTruthy();
+    editing.unmount();
+
+    const reading = mount(hiddenDoc(true), false);
+    await waitFor(() => expect(linesIn(reading.container)).toHaveLength(3));
+    expect(screen.queryByText("Hidden when public")).toBeNull();
+    reading.unmount();
+
+    const shown = mount(hiddenDoc(false), true);
+    await waitFor(() => expect(linesIn(shown.container)).toHaveLength(3));
+    expect(screen.queryByText("Hidden when public")).toBeNull();
+  });
+});
+
 describe("a sentence for each stop, with a name that is markup", () => {
   it("prints the name as text in both modes — no element, no attribute, no handler", async () => {
     const hostile = "<img src=x onerror=alert(1)>";

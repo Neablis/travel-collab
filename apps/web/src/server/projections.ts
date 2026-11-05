@@ -23,7 +23,7 @@ import { z } from "zod";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Queryable } from "./db/client";
-import { events, pages, tripCovers, tripDetails, tripSummaries } from "./db/schema";
+import { events, pageShares, pages, tripCovers, tripDetails, tripSummaries } from "./db/schema";
 import { readAll } from "./eventStore";
 import { isUuid } from "./ids";
 import { TRIP_COVER_JSON } from "./tripCovers";
@@ -64,6 +64,11 @@ export async function applyTripEvents(
         await tx.update(tripSummaries)
           .set({ status: "deleted" })
           .where(eq(tripSummaries.tripId, event.payload.tripId));
+        // A deleted trip has no public notebooks (ADR-088 §1). A restore does
+        // not bring them back: a revoked token never does. Unbounded: a publish
+        // that took the trip row first is stamped after this event's instant
+        // yet commits before this UPDATE, and must still be revoked.
+        await revokeLiveShares(tx, eq(pageShares.tripId, event.payload.tripId), env.occurredAt, false);
         break;
       case "TripRestored":
         await tx.update(tripSummaries)
@@ -140,11 +145,29 @@ export async function applyPageEvents(tx: Queryable, envelopes: EventEnvelope[])
           .delete(pages)
           .where(eq(pages.id, event.payload.pageId))
           .returning({ seedKey: pages.seedKey });
+        await revokeLiveShares(tx, eq(pageShares.pageId, event.payload.pageId), envelope.occurredAt);
         if (gone?.seedKey != null) await passSeedKeyOnRows(tx, event.payload.tripId, gone.seedKey, envelope.seq);
         break;
       }
     }
   }
+}
+
+/**
+ * Revoke the live `page_shares` rows `where` names, as of the event that
+ * deleted their page or trip. A page delete revokes only rows created at or
+ * before that instant (`bounded`): a rebuild replays a delete that an undo
+ * later reversed, and the link an editor made after the undo must not be
+ * revoked by it. A trip delete cannot be bounded, because a publish racing it
+ * is stamped later than the event (see `createPageShare`); it holds the trip
+ * row, so the UPDATE above waits for it. Revoking a revoked row is a no-op, so
+ * a replay changes nothing.
+ */
+async function revokeLiveShares(tx: Queryable, where: SQL, occurredAt: string, bounded = true): Promise<void> {
+  await tx
+    .update(pageShares)
+    .set({ revokedAt: new Date(occurredAt) })
+    .where(and(where, isNull(pageShares.revokedAt), bounded ? lte(pageShares.createdAt, new Date(occurredAt)) : undefined));
 }
 
 // The seed key a `PageCreated` gives its row: the one it names, or, for an

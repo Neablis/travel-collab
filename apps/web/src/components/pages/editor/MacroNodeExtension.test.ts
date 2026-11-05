@@ -59,4 +59,31 @@ describe("MacroNodeExtension", () => {
 
     editor.destroy();
   });
+
+  // An instance hidden from the public reader (M58) is that flag on the node;
+  // an editor that does not declare the attribute drops it on the next autosave.
+  it("keeps hideWhenPublic through getJSON(), and writes none when it is off", () => {
+    const editor = new Editor({
+      extensions: [StarterKit, MacroNodeExtension],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "macro", attrs: { name: "cost.trip", params: {}, hideWhenPublic: true } },
+              { type: "macro", attrs: { name: "cost.trip", params: {} } },
+            ],
+          },
+        ],
+      },
+    });
+
+    const [hidden, shown] = editor.getJSON().content?.[0]?.content ?? [];
+    expect(hidden?.attrs).toEqual({ name: "cost.trip", params: {}, hideWhenPublic: true });
+    // Saved as JSON, an unset flag is no key at all.
+    expect(JSON.stringify(shown?.attrs)).not.toContain("hideWhenPublic");
+
+    editor.destroy();
+  });
 });

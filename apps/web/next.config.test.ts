@@ -218,6 +218,29 @@ describe("the web manifest", () => {
   });
 });
 
+describe("a public notebook's page", () => {
+  // M58, ADR-088 §3. The token is the URL, so an outbound link must not carry
+  // it in a Referer, and a revoked link must not answer from a cache.
+  it("sends no referrer and is never stored, and keeps every other security header", async () => {
+    const served = await headersServedAt("/n/abc");
+    expect(served.get("referrer-policy")).toBe("no-referrer");
+    expect(served.get("cache-control")).toBe("private, no-store");
+
+    const global = (await headersFor("production", "production")).find((r) => r.source === "/:path*");
+    for (const { key, value } of global?.headers ?? []) {
+      if (key !== "Referrer-Policy") expect(served.get(key.toLowerCase()), key).toBe(value);
+    }
+  });
+
+  it("lends neither to a path that only starts with the letter", async () => {
+    for (const pathname of ["/notes/abc", "/", "/api/og/notebook/abc"]) {
+      const served = await headersServedAt(pathname);
+      expect(served.get("referrer-policy"), pathname).not.toBe("no-referrer");
+      expect(served.has("cache-control"), pathname).toBe(false);
+    }
+  });
+});
+
 describe("the cover image proxy", () => {
   // Next sets these headers before a route handler runs and then drops any the
   // handler sets under the same name (`send-response.js`), so the sandbox the
@@ -340,6 +363,6 @@ describe("the four counter-probed CSP surfaces (KI-2026-09-12-d)", () => {
     const cspOf = (source: string) =>
       routes.find((r) => r.source === source)?.headers.find((h) => h.key === "Content-Security-Policy")?.value;
     expect(cspOf("/:path*")).toBeDefined();
-    expect(cspOf("/:prefix(s|invite)/:path*")).toBe(cspOf("/:path*"));
+    expect(cspOf("/:prefix(s|invite|n)/:path*")).toBe(cspOf("/:path*"));
   });
 });

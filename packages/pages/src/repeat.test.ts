@@ -99,6 +99,19 @@ describe("resolveRepeat — which items a repeat yields", () => {
   });
 });
 
+// M58 (ADR-088 §4): a repeat is a widget, so it is hidden from a stranger on
+// the same terms, and its items (and its sentence) are never worked out for one.
+describe("resolveRepeat — hidden when public", () => {
+  it("is not-shared for the public reader, even with params that no longer fit, and resolves for a member", () => {
+    const { ctx } = ctxOf();
+    const publicCtx: WidgetContext = { ...ctx, reader: "public" };
+    expect(resolveRepeat(publicCtx, "day.rows", {}, true)).toEqual({ status: "not-shared" });
+    expect(resolveRepeat(publicCtx, "day.rows", { day: "Tuesday" }, true)).toEqual({ status: "not-shared" });
+    expect(resolveRepeat(ctx, "day.rows", {}, true)).toMatchObject({ status: "ok" });
+    expect(resolveRepeat(publicCtx, "day.rows", {})).toMatchObject({ status: "ok" });
+  });
+});
+
 describe("repeatLabel — the rail's words", () => {
   it("names what it repeats over and how many, in English", () => {
     expect(repeatLabel("day", 9)).toBe("For every day · 9 days");

@@ -2,6 +2,7 @@
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import type { WidgetShape } from "@tc/contracts";
 import { getMacro } from "@tc/pages";
+import { Badge } from "@/components/ui/badge";
 import { MacroView } from "../MacroView";
 import { useMacroEditorContext } from "./MacroEditorContext";
 import { useSelectionReport } from "./useSelectionReport";
@@ -47,6 +48,19 @@ export const SELECTED_RING = "ring-2 ring-brand rounded";
 // it is absolutely positioned against the wrapper, which is why the wrapper is
 // `relative` in edit mode for every shape now, not only for blocks.
 const EDIT_OUTLINE = "tc-widget-edit relative";
+
+/**
+ * What a member sees on a widget a stranger is told is *Not shared* (M58
+ * decision 5). Editing only, and painted out of flow like the handle, so the
+ * prose does not move; a widget's own data stays drawn beneath it.
+ */
+export function HiddenWhenPublicBadge() {
+  return (
+    <Badge variant="warning" className="absolute -top-3.5 right-0 z-10 py-0 leading-4 select-none" data-testid="hidden-when-public">
+      Hidden when public
+    </Badge>
+  );
+}
 
 /**
  * Renders a macro node inside the editor, and reports its selection outwards.
@@ -98,6 +112,7 @@ export function MacroNodeView({ node, selected, editor }: ReactNodeViewProps) {
           ▸
         </span>
       ) : null}
+      {editing && node.attrs.hideWhenPublic === true ? <HiddenWhenPublicBadge /> : null}
       <MacroView detail={detail} context={context} user={user} globals={globals} external={external} name={name} params={params} onBindDay={onBindDay} editing={editing} compact={compact} />
     </NodeViewWrapper>
   );

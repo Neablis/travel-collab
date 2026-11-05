@@ -1,6 +1,7 @@
-import { TripShare } from "@tc/contracts";
+import { PageShare, TripShare } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { createShare, listShares } from "@/server/access/shares";
+import { listPageShares } from "@/server/access/pageShares";
 
 // `editor`, not `owner` — deliberately a different line from invites
 // (ADR-027). An invite grants participation and is the owner's call; a pinned
@@ -11,7 +12,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   const { tripId } = await params;
   const access = await requireTripAccess(tripId, "editor");
   if ("error" in access) return access.error;
-  return Response.json({ shares: (await listShares(tripId)).map((s) => TripShare.parse(s)) });
+  // The Share panel also lists every public notebook (M58 decision 4), so
+  // nothing is public without the group seeing it.
+  return Response.json({
+    shares: (await listShares(tripId)).map((s) => TripShare.parse(s)),
+    pageShares: (await listPageShares(tripId)).map((s) => PageShare.parse(s)),
+  });
 }
 
 export async function POST(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {

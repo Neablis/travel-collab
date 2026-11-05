@@ -883,6 +883,33 @@ export const tripShares = pgTable(
   (t) => [uniqueIndex("trip_shares_token").on(t.token), index("trip_shares_trip").on(t.tripId)],
 );
 
+// A public notebook (M58, ADR-088): a revocable link to one LIVE page. CRUD with
+// audit fields, **never an event**, so undo, revert and a history replay can
+// never bring a revoked link back. `revoked_at` is set once and never cleared:
+// publishing again inserts a new row with a new token.
+//
+// No foreign key to `pages` or the trip, on `trip_shares`' terms: both are
+// projections that rebuild by delete-and-insert. Deleting the page or the trip
+// revokes its rows from the projection (`applyPageEvents`, `applyTripEvents`).
+export const pageShares = pgTable(
+  "page_shares",
+  {
+    id: uuid("id").primaryKey(),
+    pageId: uuid("page_id").notNull(),
+    tripId: uuid("trip_id").notNull(),
+    token: text("token").notNull(),
+    createdBy: text("created_by").notNull(),
+    // `mode: "date"`, as `trip_shares` (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    uniqueIndex("page_shares_token").on(t.token),
+    index("page_shares_trip").on(t.tripId),
+    uniqueIndex("page_shares_page_live").on(t.pageId).where(sql`${t.revokedAt} is null`),
+  ],
+);
+
 // Named snapshots (M40 D4): a label on a position in a trip's log. CRUD with
 // audit fields, **never an event** — a snapshot occupies no `seq`, and the only
 // way one reaches the trip is a restore, which is `RevertToState { toSeq: seq }`

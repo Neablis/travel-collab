@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { VariantProps } from "class-variance-authority";
-import type { TripShare } from "@tc/contracts";
+import { displayNameFor } from "@/lib/displayName";
+import type { PageShare, TripShare } from "@tc/contracts";
 import { Button, type buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover } from "@/components/ui/popover";
@@ -10,10 +11,13 @@ import { Text } from "@/components/ui/text";
 import { ReferralNudge } from "@/components/account/ReferralNudge";
 import {
   createTripShare,
+  fetchTripAccess,
   fetchTripShares,
   revokeTripShare,
   shareLink,
 } from "@/lib/apiClient";
+import { fetchPages, fetchTripPageShares, revokePageShare } from "@/lib/pagesClient";
+import { publicNotebookLink } from "@/lib/publicNotebookLink";
 
 // Real as of M11 link 4 — this was `<Preview id="share-button">`, an inert
 // control with no onClick, at two call sites (TripHeader's action cluster and
@@ -29,6 +33,17 @@ import {
 function pinLabel(share: TripShare): string {
   return `Pinned at change ${share.seq}`;
 }
+
+/** A live public link with the words the panel needs to say what it is (M58 decision 4). */
+interface PublicNotebook {
+  share: PageShare;
+  title: string;
+  by: string;
+}
+
+// UTC, so the day a link was made does not depend on whose clock reads it.
+const madeOn = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 export function ShareButton({
   tripId,
@@ -50,12 +65,27 @@ export function ShareButton({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [publicNotebooks, setPublicNotebooks] = useState<PublicNotebook[]>([]);
   // Same reasoning as the People section's: a `title` tooltip is not a delivery
   // mechanism, and copying IS how a share link is sent (CodeRabbit, PR #70).
   const [revealed, setRevealed] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // The public notebooks are read beside the pinned links, and a failure of
+    // theirs leaves the list as it was rather than naming an error for a part
+    // of the panel the pinned links do not depend on.
+    const publicRead = Promise.all([fetchTripPageShares(tripId), fetchPages(tripId), fetchTripAccess(tripId)]).then(([shares, pages, access]) => {
+      if (!shares.ok) return;
+      const titles = new Map(pages.ok ? pages.value.pages.map((p) => [p.id, p.title]) : []);
+      const names = new Map(access.ok ? access.value.members.map((m) => [m.userId, displayNameFor(m)]) : []);
+      setPublicNotebooks(
+        shares.value
+          .filter((share) => share.revokedAt === null)
+          .map((share) => ({ share, title: titles.get(share.pageId) ?? "A notebook", by: names.get(share.createdBy) ?? "a member" })),
+      );
+    });
     const result = await fetchTripShares(tripId);
+    await publicRead;
     if (result.ok) {
       setShares(result.value);
       // A retry that worked must not leave the previous failure on screen
@@ -120,6 +150,31 @@ export function ShareButton({
     }
   }
 
+  async function copyPublic(token: string, shareId: string) {
+    try {
+      await navigator.clipboard.writeText(publicNotebookLink(token));
+      setCopied(shareId);
+      setRevealed(null);
+    } catch {
+      setCopied(null);
+      setRevealed(publicNotebookLink(token));
+    }
+  }
+
+  async function handleMakePrivate(entry: PublicNotebook) {
+    setBusy(true);
+    try {
+      const result = await revokePageShare(tripId, entry.share.pageId, entry.share.shareId);
+      // At once, not left to the re-read: `load` keeps the list as it was when
+      // the shares read fails, which would leave a revoked link with a live Copy.
+      if (result.ok) setPublicNotebooks((prev) => prev.filter((n) => n.share.shareId !== entry.share.shareId));
+      await load();
+      if (!result.ok) setError(result.error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const live = (shares ?? []).filter((s) => s.revokedAt === null);
 
   return (
@@ -177,6 +232,48 @@ export function ShareButton({
                 </Button>
               </div>
             ))}
+          </div>
+        )}
+
+        {publicNotebooks.length > 0 && (
+          <div className="flex flex-col gap-1.5 border-t border-hairline pt-3">
+            <Text as="span" className="text-xs font-semibold text-ink">
+              Public notebooks
+            </Text>
+            <Text as="span" className="text-xs text-slate">
+              Anyone with the link can read these, without an account.
+            </Text>
+            <ul aria-label="Public notebooks" className="flex flex-col gap-1.5">
+              {publicNotebooks.map((entry) => (
+                <li key={entry.share.shareId} className="flex flex-col gap-0.5">
+                  <Text as="span" className="min-w-0 truncate text-xs text-ink">
+                    {entry.title}
+                  </Text>
+                  <Text as="span" className="text-xs text-slate">
+                    Made public by {entry.by} on {madeOn(entry.share.createdAt)}
+                  </Text>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Copy link to ${entry.title}`}
+                      onClick={() => void copyPublic(entry.share.token, entry.share.shareId)}
+                    >
+                      {copied === entry.share.shareId ? "Copied" : "Copy link"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Make ${entry.title} private`}
+                      disabled={busy}
+                      onClick={() => void handleMakePrivate(entry)}
+                    >
+                      Make private
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

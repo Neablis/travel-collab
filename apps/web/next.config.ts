@@ -220,11 +220,22 @@ const nextConfig: NextConfig = {
       // `/signin` is deliberately not listed here rather than accidentally
       // omitted. It is recorded because the reasoning, not the rule, is what
       // makes it safe.
-      source: "/:prefix(s|invite)/:path*",
+      //
+      // `/n/**` (M58, ADR-088) is the same shape of secret: a public
+      // notebook's token IS its URL, and the page carries a publisher's own
+      // external links.
+      source: "/:prefix(s|invite|n)/:path*",
       headers: [
         ...securityHeaders.filter((h) => h.key !== "Referrer-Policy"),
         { key: "Referrer-Policy", value: "no-referrer" },
       ],
+    },
+    {
+      // Making a notebook private works on the next request (ADR-088 §3), so
+      // no browser or CDN keeps a copy of it. Its own entry, because `/s/`
+      // and `/invite/` have no such rule.
+      source: "/n/:path*",
+      headers: [{ key: "Cache-Control", value: "private, no-store" }],
     },
     {
       // A URL cover's image, served from our origin (ADR-081 item 3). Next

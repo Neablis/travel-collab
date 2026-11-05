@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEMO_TRIPS } from "@/lib/demoTrip";
 import { demoTripSummary } from "@/lib/demoTripSummaries";
@@ -40,5 +40,15 @@ describe("DemoTripScreen finishing a copy after sign-in", () => {
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/trips/copy"));
     expect(duplicateTripMock.mock.calls).toEqual([[demo("iceland-ring-road").tripId]]);
+  });
+});
+
+describe("DemoTripScreen call to action", () => {
+  // M58 decision 7: the demo asks the way `/n/` and `/s/` do.
+  it("ends with the shared band, to sign up as the public-notebook channel", () => {
+    render(<DemoTripScreen demo={demo("japan")} summary={demoTripSummary("japan")} />);
+
+    expect(screen.getByRole("link", { name: "Start planning — free" }).getAttribute("href")).toContain("ref=public-notebook");
+    expect(screen.queryByRole("link", { name: "Start a trip" })).toBeNull();
   });
 });

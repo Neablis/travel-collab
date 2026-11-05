@@ -25,8 +25,17 @@ vi.mock("@/lib/apiClient", () => ({
   fetchTripShares: (...args: unknown[]) => fetchTripSharesMock(...args),
   createTripShare: vi.fn(),
   revokeTripShare: vi.fn(),
+  fetchTripAccess: vi.fn(async () => ({ ok: false, error: { status: 0, message: "stubbed" } })),
   shareLink: (token: string) => `http://test/s/${token}`,
 }));
+
+// And the public notebooks the same panel lists (M58): none here.
+vi.mock("@/lib/pagesClient", () => ({
+  fetchTripPageShares: vi.fn(async () => ({ ok: true, value: [] })),
+  fetchPages: vi.fn(async () => ({ ok: true, value: { pages: [], viewerId: null } })),
+  revokePageShare: vi.fn(),
+}));
+vi.mock("@/lib/publicNotebookLink", () => ({ publicNotebookLink: (token: string) => `http://test/n/${token}` }));
 
 // The People section is its own surface with its own suites
 // (`people/*.test.tsx`); it fetches /api/trips/:id/access on mount, which this

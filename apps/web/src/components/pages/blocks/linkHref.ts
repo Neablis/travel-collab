@@ -17,6 +17,9 @@ import type { ActTarget } from "@tc/pages";
  * cards drew with no link at all, and Mitchell reported them dead.
  */
 export function linkHref(to: ActTarget, tripId: string, pathname: string): string {
+  // A public notebook (M58): reached by its token from anywhere, and the
+  // address carries no trip or page id (ADR-088 §1).
+  if (to.kind === "public") return `/n/${to.token}`;
   // No pathname is a render outside the router, which only a test does.
   const offTrip = pathname !== "" && !pathname.startsWith("/trips/");
   if (to.kind === "notebook") {

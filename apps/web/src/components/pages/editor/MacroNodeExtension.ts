@@ -47,6 +47,15 @@ export const MacroNodeExtension = Node.create({
           "data-macro-params": JSON.stringify(attributes.params ?? {}),
         }),
       },
+      // M58: the instance's own "hide from a public reader" flag. Undeclared,
+      // the schema drops it on the first autosave and a hidden widget turns
+      // public. No default, so an unset one stays off the saved JSON, which
+      // is what the contract's optional boolean means.
+      hideWhenPublic: {
+        default: undefined,
+        parseHTML: (element) => (element.hasAttribute("data-hide-when-public") ? true : undefined),
+        renderHTML: (attributes) => (attributes.hideWhenPublic === true ? { "data-hide-when-public": "" } : {}),
+      },
     };
   },
 

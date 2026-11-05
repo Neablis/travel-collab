@@ -13,6 +13,37 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-04 — `PageShare`, a public notebook's link (M58 part 2; public API 2.4.0)
+- **New** (`packages/contracts/src/share.ts`): `PageShare` (`shareId`, `tripId`, `pageId`, `token`,
+  `createdBy`, `createdAt`, `revokedAt`), beside `TripShare` but with no pin: the link reads the
+  page live (ADR-088 §2). A new `page_shares` table (migration 0073) backs it. It is an access row,
+  not an event.
+- **New endpoints**: `GET`/`POST /v1/trips/{tripId}/pages/{pageId}/shares` and
+  `DELETE .../shares/{shareId}`, editor and above. `POST` answers 422 for the seeded Bookings,
+  Money and During-the-trip (`today`) pages. The app's `GET /api/trips/{tripId}/shares` also returns
+  `pageShares`, the trip's public notebooks.
+- Why: Mitchell, 2026-11-04 (M58 decisions 2-4, ADR-088 §1).
+- Consumers updated: `apps/web` (`server/access/pageShares.ts`, the app and v1 routes,
+  `exposure.ts`, `openapi.json`); `API_VERSION` 2.4.0 with a new `API_FINGERPRINT`. The UI that
+  reads the shape arrives in part 4.
+- Breaking? no. Additive.
+
+## 2026-11-04 — A widget instance's `hideWhenPublic` (M58 part 1; public API 2.3.0)
+- **New** (`packages/contracts/src/pageDoc.ts`): `MacroNode.attrs.hideWhenPublic`, an optional
+  boolean beside `params`. Absent means `false` and stays absent, so every stored page parses and
+  saves back unchanged. It is on the attrs rather than in `params` because each widget's params
+  schema strips keys it does not know.
+- Why: Mitchell, 2026-11-04 (M58 decision 5, ADR-088 §4): every widget shows on a public
+  notebook unless its instance is hidden.
+- Consumers updated: `packages/pages` (`renderMacro` takes the flag and answers `not-shared` for a
+  public reader before `resolve` runs); `apps/web` (`MacroView` draws *Not shared*; the editor's
+  node attribute and its control arrive in M58 part 4); `openapi.json`, since `PageNode` carries
+  the widget node.
+- Public API: every widget node in `openapi.json` gains the optional `hideWhenPublic` property;
+  `API_VERSION` 2.3.0, with a new `API_FINGERPRINT`.
+- Breaking? no. Optional on a strict node; an older client that parses a page carrying it would
+  reject the key, so the flag is only ever written by part 4's control.
+
 ## 2026-11-04 — `Location.verified`: a coordinate no geocoder confirmed (public API 2.2.0)
 - **New** (`packages/contracts/src/activity.ts`): `Location.verified`, optional, and only ever
   `false`. It marks coordinates no vendor corroborated. Today that means an assistant's guess that

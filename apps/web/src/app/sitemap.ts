@@ -18,7 +18,9 @@ export const dynamic = "force-dynamic";
 
 /**
  * The public routes with no database behind their URL, each demo trip among
- * them (M42 D1). Profiles and the board are `noindex` (D4) and stay out.
+ * them (M42 D1). Profiles and the board are `noindex` (D4) and stay out, and so
+ * does every `/n/<token>` (M58): its token is a bearer credential, not a page
+ * to be found.
  */
 const STATIC_PATHS = [
   "/",

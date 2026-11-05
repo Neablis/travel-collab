@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PageTitle } from "./PageTitle";
 
@@ -68,5 +69,26 @@ describe("PageTitle", () => {
 
     expect(onRename).not.toHaveBeenCalled();
     expect(heading.textContent).toBe("Trip Overview");
+  });
+
+  // The chip a viewer or a suggester reads the link from: they cannot read the
+  // shares list, so it comes from the page itself (M58).
+  describe("the Public chip", () => {
+    it("is absent for a private notebook, and the heading's name is the title alone", () => {
+      render(<PageTitle title="Trip Overview" editable={false} onRename={vi.fn()} publicLink={null} />);
+      expect(screen.queryByText("Public")).toBeNull();
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Trip Overview");
+    });
+
+    it("shows beside a public notebook's title, outside the heading, and copies the link", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+      render(<PageTitle title="Trip Overview" editable={false} onRename={vi.fn()} publicLink="http://test/n/tok" />);
+
+      expect(screen.getByText("Public")).toBeTruthy();
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Trip Overview");
+      await userEvent.click(screen.getByRole("button", { name: "Copy link" }));
+      expect(writeText).toHaveBeenCalledWith("http://test/n/tok");
+    });
   });
 });

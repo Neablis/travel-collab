@@ -403,3 +403,39 @@ describe("WidgetSettings on a page scoped to today", () => {
     expect(panel.getByRole("button", { name: "Weather: dates" })).toBeTruthy();
   });
 });
+
+// M58 decision 5: every widget instance, a repeat too, has a *Hide when public*
+// setting. It is the instance's own attribute, and it is omitted rather than
+// stored false, so a notebook that never uses it saves exactly as before.
+describe("WidgetSettings: Hide when public", () => {
+  const stored = (editor: Editor) => JSON.stringify(editor.getJSON());
+
+  it("sets the widget's attribute when ticked, and leaves it off the saved document when unticked", async () => {
+    const editor = await openOn(1);
+    const box = within(screen.getByTestId("widget-settings")).getByRole("checkbox", { name: "Hide when public" }) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+
+    await userEvent.click(box);
+    await waitFor(() => expect(stored(editor)).toContain('"hideWhenPublic":true'));
+    expect((screen.getByRole("checkbox", { name: "Hide when public" }) as HTMLInputElement).checked).toBe(true);
+    // Only the selected widget of the sentence.
+    expect(stored(editor).match(/hideWhenPublic/g)).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Hide when public" }));
+    await waitFor(() => expect(stored(editor)).not.toContain("hideWhenPublic"));
+  });
+
+  it("is on a repeat's settings too", async () => {
+    let editor: Editor | undefined;
+    render(
+      <Harness
+        onEditor={(e) => (editor = e)}
+        value={newPageDoc([{ type: "repeat", attrs: { name: "city.rows", params: { template: "Hi {name}" } }, content: [] }])}
+      />,
+    );
+    await waitFor(() => expect(editor).toBeDefined());
+    editor!.view.dispatch(editor!.state.tr.setSelection(NodeSelection.create(editor!.state.doc, 0)));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Hide when public" }));
+    await waitFor(() => expect(JSON.stringify(editor!.getJSON())).toContain('"hideWhenPublic":true'));
+  });
+});

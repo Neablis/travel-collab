@@ -63,6 +63,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/invites/[inviteId]": { status: "public", v1: ["trips/[tripId]/invites/[inviteId]"] },
   "trips/[tripId]/pages": { status: "public", v1: ["trips/[tripId]/pages"] },
   "trips/[tripId]/pages/[pageId]": { status: "public", v1: ["trips/[tripId]/pages/[pageId]"] },
+  "trips/[tripId]/pages/[pageId]/shares": { status: "public", v1: ["trips/[tripId]/pages/[pageId]/shares"] },
+  "trips/[tripId]/pages/[pageId]/shares/[shareId]": {
+    status: "public",
+    v1: ["trips/[tripId]/pages/[pageId]/shares/[shareId]"],
+  },
   "trips/[tripId]/saved-days/[savedDayId]": { status: "public", v1: ["trips/[tripId]/playbook-applications"] },
   "trips/[tripId]/shares": { status: "public", v1: ["trips/[tripId]/shares"] },
   "trips/[tripId]/shares/[shareId]": { status: "public", v1: ["trips/[tripId]/shares/[shareId]"] },
@@ -256,6 +261,7 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "og/invite/[token]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/notebook/[token]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/playbooks": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/playbooks/city/[city]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/playbooks/city/[city]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
@@ -277,6 +283,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     // Nothing: v1's resources execute these same commands. What is never
     // published is the channel itself, which the path check holds.
     reaches: [],
+  },
+  "trips/[tripId]/pages/[pageId]/public-preview": {
+    status: "never",
+    why: "The publish dialog's preview of what a stranger would read; v1 has no publish action to preview",
+    reaches: [{ module: "@/server/access/publicNotebook", symbols: ["publishPreviewFor"] }],
   },
   "trips/[tripId]/pages/[pageId]/reset": {
     status: "never",

@@ -3,6 +3,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { acceptInvite, createInvite } from "@/server/access/invites";
 import { createShare } from "@/server/access/shares";
+import { createPageShare } from "@/server/access/pageShares";
+import { executePageCommand } from "@/server/pageCommands";
+import { newPageDoc } from "@tc/contracts";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
 const OWNER = "shares-route-owner";
@@ -116,6 +119,21 @@ describe("GET / DELETE /api/trips/:id/shares", () => {
     await join(tripId, "viewer", VIEWER);
     currentUserId = VIEWER;
     expect((await GET(req(), params(tripId))).status).toBe(403);
+  });
+
+  // M58 decision 4: nothing is public without the group seeing it in the panel.
+  it("also lists the trip's public notebooks, revoked ones included", async () => {
+    const tripId = await seedTrip();
+    const pageId = randomUUID();
+    const made = await executePageCommand(
+      { type: "CreatePage", tripId, pageId, title: "Notes", context: { tripId }, content: newPageDoc() },
+      OWNER,
+    );
+    expect(made.ok).toBe(true);
+    const live = await createPageShare(tripId, pageId, OWNER);
+    if (!live.ok) throw new Error("could not publish the page this test lists");
+    const body = (await (await GET(req(), params(tripId))).json()) as { pageShares: { shareId: string; pageId: string }[] };
+    expect(body.pageShares.map((s) => [s.shareId, s.pageId])).toEqual([[live.value.shareId, pageId]]);
   });
 
   it("turns a link off", async () => {

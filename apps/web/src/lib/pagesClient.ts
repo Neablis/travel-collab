@@ -3,12 +3,14 @@ import {
   CreatePageInput,
   Page,
   PageListEntry,
+  PageShare,
   ResetPageInput,
   ResetPageResult,
   RestorePageInput,
   type UpdatePageInput,
 } from "@tc/contracts";
 import { apiUrl, networkError, refusal, type ApiResult } from "@/lib/apiClient";
+import type { PublicDoc } from "./publicDoc";
 import { beginWrite, endWrite } from "@/lib/queryCache";
 import { fitsKeepalive } from "@/lib/keepalive";
 import { tripKeys } from "@/lib/queryKeys";
@@ -86,12 +88,113 @@ export async function fetchPages(tripId: string): Promise<ApiResult<NotebookList
   }
 }
 
-export async function fetchPage(tripId: string, pageId: string): Promise<ApiResult<Page>> {
+/** A page and the token of its live public link, which the *Public* chip is drawn from (M58). */
+export interface PageView {
+  page: Page;
+  publicToken: string | null;
+  /** The server's rule: false on the seeded notebooks that can never be public, and from a server that does not say. */
+  publishable: boolean;
+}
+
+/**
+ * Reads a page with its live public token and the server's `publishable` verdict.
+ * Never throws: a refusal or network failure comes back as a failed `ApiResult`.
+ */
+export async function fetchPageView(tripId: string, pageId: string): Promise<ApiResult<PageView>> {
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}`));
     if (!res.ok) return await refusal(res);
-    const data = (await res.json()) as { page: unknown };
-    return { ok: true, value: Page.parse(data.page) };
+    const data = (await res.json()) as { page: unknown; publicToken?: unknown; publishable?: unknown };
+    // A server from before the link existed sends none: not public.
+    return {
+      ok: true,
+      value: {
+        page: Page.parse(data.page),
+        publicToken: typeof data.publicToken === "string" ? data.publicToken : null,
+        publishable: data.publishable === true,
+      },
+    };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+export async function fetchPage(tripId: string, pageId: string): Promise<ApiResult<Page>> {
+  const view = await fetchPageView(tripId, pageId);
+  return view.ok ? { ok: true, value: view.value.page } : view;
+}
+
+// ── Public notebooks (M58) ───────────────────────────────────────────────────
+
+/**
+ * What the publish dialog shows before anything goes live. The document is the
+ * server's public view: the browser draws it and decides nothing about it.
+ */
+export interface PublishPreview {
+  view: PublicDoc & { title: string };
+  plainText: string[];
+  alsoPublic: { pageId: string; title: string }[];
+}
+
+/**
+ * Fetches the stranger's-eye preview the publish dialog shows; the server builds
+ * it, so it matches what the link would serve. Never throws: a 422 for an
+ * unpublishable notebook or a 404 comes back as a failed `ApiResult`.
+ */
+export async function fetchPublishPreview(tripId: string, pageId: string): Promise<ApiResult<PublishPreview>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}/public-preview`));
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: ((await res.json()) as { preview: PublishPreview }).preview };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** The page's links, newest first, revoked ones included. Editor only. */
+export async function fetchPageShares(tripId: string, pageId: string): Promise<ApiResult<PageShare[]>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}/shares`));
+    if (!res.ok) return await refusal(res);
+    const data = (await res.json()) as { shares: unknown[] };
+    return { ok: true, value: data.shares.map((s) => PageShare.parse(s)) };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Every public notebook's links on the trip, for the Share panel. Editor only. */
+export async function fetchTripPageShares(tripId: string): Promise<ApiResult<PageShare[]>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/shares`));
+    if (!res.ok) return await refusal(res);
+    const data = (await res.json()) as { pageShares?: unknown[] };
+    return { ok: true, value: (data.pageShares ?? []).map((s) => PageShare.parse(s)) };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Makes a page public, or answers the link it already has (the server never mints a second). */
+export async function createPageShare(tripId: string, pageId: string): Promise<ApiResult<PageShare>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}/shares`), { method: "POST" });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: PageShare.parse(((await res.json()) as { share: unknown }).share) };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/**
+ * Revokes one share link and returns it with its `revokedAt` set. Idempotent on
+ * the server. Never throws: failures come back as a failed `ApiResult`.
+ */
+export async function revokePageShare(tripId: string, pageId: string, shareId: string): Promise<ApiResult<PageShare>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}/shares/${shareId}`), { method: "DELETE" });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: PageShare.parse(((await res.json()) as { share: unknown }).share) };
   } catch (err) {
     return networkError(err);
   }

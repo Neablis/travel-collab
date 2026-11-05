@@ -80,6 +80,13 @@ export type CommitSession = (
  * its document at once, so a page that goes before that still has it as a
  * draft (CodeRabbit, PR #226).
  *
+ * **`flush` answers when the session has drained**: nothing in flight and
+ * nothing queued, a settle queued behind another included, since it starts only
+ * after the first lands. It resolves `false` if the last commit failed, and,
+ * given `maxWaitMs`, also when that long passes with a commit still out (which
+ * is then reported as `failed`, since a caller that must act on the stored page
+ * cannot wait for ever).
+ *
  * **Only the latest commit started may act on its result.** An older one can
  * still answer after a newer one (past a keepalive), and what it says is
  * history: it may not report a failure or put its document back.
@@ -88,7 +95,11 @@ export function useEditSession(
   editing: boolean,
   commit: CommitSession,
   hold?: (doc: PageDoc) => void,
-): { change: (doc: PageDoc) => void; flush: () => void; failed: boolean } {
+): {
+  change: (doc: PageDoc) => void;
+  flush: (maxWaitMs?: number) => Promise<boolean>;
+  failed: boolean;
+} {
   const pending = useRef<{ doc: PageDoc; commit: CommitSession } | null>(null);
   const idle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commitRef = useRef(commit);
@@ -97,6 +108,9 @@ export function useEditSession(
   holdRef.current = hold;
   const mounted = useRef(true);
   const [failed, setFailed] = useState(false);
+  // `failed` as the latest commit left it, readable from an async `flush`.
+  const failedRef = useRef(false);
+  const waiters = useRef<(() => void)[]>([]);
   // Which commit is the latest started, and whether an ordinary one is in
   // flight with a settle queued behind it. See "at most one" above.
   const started = useRef(0);
@@ -144,6 +158,7 @@ export function useEditSession(
         idle.current = null;
         pending.current = null;
       }
+      if (seq === started.current) failedRef.current = taken === false;
       if (seq === started.current && mounted.current) {
         setFailed(taken === false);
         if (taken === false && pending.current === null) {
@@ -160,6 +175,12 @@ export function useEditSession(
         queued.current = false;
         settle(false);
       }
+      // Last, after a queued settle has had its chance to start.
+      if (!inFlight.current && keepalivesInFlight.current === 0 && !queued.current && !keepaliveQueued.current) {
+        const done = waiters.current;
+        waiters.current = [];
+        for (const resolve of done) resolve();
+      }
     });
   }, []);
 
@@ -172,7 +193,30 @@ export function useEditSession(
     [settle],
   );
 
-  const flush = useCallback(() => settle(false), [settle]);
+  const flush = useCallback(
+    (maxWaitMs?: number): Promise<boolean> => {
+      settle(false);
+      if (!inFlight.current && keepalivesInFlight.current === 0 && !queued.current && !keepaliveQueued.current) {
+        return Promise.resolve(!failedRef.current);
+      }
+      return new Promise<boolean>((resolve) => {
+        const timer: { id?: ReturnType<typeof setTimeout> } = {};
+        const onDrained = () => {
+          clearTimeout(timer.id);
+          resolve(!failedRef.current);
+        };
+        waiters.current.push(onDrained);
+        if (maxWaitMs === undefined) return;
+        timer.id = setTimeout(() => {
+          waiters.current = waiters.current.filter((w) => w !== onDrained);
+          failedRef.current = true;
+          if (mounted.current) setFailed(true);
+          resolve(false);
+        }, maxWaitMs);
+      });
+    },
+    [settle],
+  );
 
   useEffect(() => {
     if (!editing) settle(false);
