@@ -112,6 +112,24 @@ export function pollsIn(doc: unknown, into: PollSpec[] = []): PollSpec[] {
   return into;
 }
 
+/**
+ * A document with an id minted for every poll that has none (M58 D6). The
+ * widget insert mints it, but the assistant and the v1 API write the node
+ * themselves, and a poll with no id cannot be voted on. An id already there is
+ * never replaced, so saving the same page twice is a no-op. `mint` is passed
+ * in: this package draws no randomness of its own in a resolver.
+ */
+export function withPollIds<T>(doc: T, mint: () => string): T {
+  if (Array.isArray(doc)) return doc.map((child) => withPollIds(child, mint)) as T;
+  if (typeof doc !== "object" || doc === null) return doc;
+  const node = doc as { type?: unknown; attrs?: { name?: unknown; params?: unknown }; content?: unknown };
+  const content = Array.isArray(node.content) ? { content: withPollIds(node.content, mint) } : {};
+  if (node.type !== "macro" || node.attrs?.name !== "poll") return { ...node, ...content } as T;
+  const params = typeof node.attrs.params === "object" && node.attrs.params !== null ? node.attrs.params : {};
+  const held = (params as { pollId?: unknown }).pollId;
+  return { ...node, ...content, attrs: { ...node.attrs, params: held === undefined ? { ...params, pollId: mint() } : params } } as T;
+}
+
 /** What a member's vote sends: the option ids picked, one unless the poll lets people pick more. */
 export const PollVoteBody = z.object({ optionIds: z.array(z.string().min(1).max(OPTION_LENGTH)).min(1).max(MOST_OPTIONS) });
 export type PollVoteBody = z.infer<typeof PollVoteBody>;

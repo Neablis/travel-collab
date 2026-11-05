@@ -517,7 +517,8 @@ function OptionRows({
   return (
     <div role="group" aria-label={title} className="flex flex-col gap-1">
       {rows.map((row, index) => (
-        <div key={row.id} className="flex items-center gap-1">
+        // An old poll can hold two options with one id; the nth repeat is told apart so React keeps both rows.
+        <div key={`${row.id}#${rows.slice(0, index).filter((r) => r.id === row.id).length}`} className="flex items-center gap-1">
           <CommittedText
             id={`${id}-${index}`}
             label={`Option ${index + 1}`}

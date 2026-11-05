@@ -824,6 +824,13 @@ export interface MacroDef<P, T> {
    * `renderMacro` answers `absent` without it, before `resolve` runs.
    */
   requires?: ReaderCapability;
+  /**
+   * Never drawn for a public reader (M58 D7, D10): `renderMacro` answers
+   * `absent` for a stranger, before `resolve` runs. For a widget whose answer
+   * has nothing a stranger should read, a trip's people or a forecast the
+   * stranger's page cannot fetch.
+   */
+  hiddenFromPublic?: true;
   // **Anyone adding a widget that reads people, money or location must decide
   // whether it needs a floor in the public view** (`toPublicNotebookView`,
   // ADR-088 Consequences). A widget is public the day it ships unless an

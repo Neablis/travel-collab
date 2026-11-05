@@ -108,3 +108,12 @@ describe("trip.people", () => {
     expect(renderMacro(ctx(undefined), "trip.people", {}).status).toBe("unbound");
   });
 });
+
+// D10 (Mitchell, 2026-11-05): a stranger on a public notebook is not told who
+// is going. Absent, not a row of "Traveler N".
+describe("trip.people for a public reader", () => {
+  it("is absent, and names nobody", () => {
+    const outcome = renderMacro({ ...ctx(tripOf(["u1", "u2"])), reader: "public" }, "trip.people", {});
+    expect(outcome).toEqual({ status: "absent" });
+  });
+});

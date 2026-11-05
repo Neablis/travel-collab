@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Guest, TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { fieldChoices, getMacro, type WidgetInput } from "@tc/pages";
@@ -439,6 +439,17 @@ describe("a list input", () => {
     expect(stored().options).toEqual(rows);
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Remove option" }));
     expect(stored().options).toEqual([rows[1]]);
+  });
+
+  it("draws both rows of an old poll whose options repeat an id, with no duplicate-key warning", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(<Harness name="poll" inputs={OPTIONS} initial={{ options: "A, A" }} />);
+      expect(screen.getAllByRole("textbox", { name: /^Option \d$/ })).toHaveLength(2);
+      expect(error.mock.calls.flat().join(" ")).not.toMatch(/same key/);
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it("adds a blank row with a new id, and drops a blank row without asking", async () => {

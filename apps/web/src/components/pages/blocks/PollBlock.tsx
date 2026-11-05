@@ -62,7 +62,13 @@ function LivePoll({ payload, pollId, tripId }: { payload: PollPayload; pollId: s
       // Closed, or its date passed, under this reader's feet: read it again so the card says so.
       const again = await fetchPoll(tripId, pollId);
       if (again.ok) setResults(again.value);
-      setProblem(r.error.code === "poll-closed" ? "This poll just closed." : r.error.message);
+      // The date note already says why a reopen was refused, so no alert repeats it; but the
+      // Reopen button it replaces held focus, so the heading takes it as after Close and Reopen.
+      if (r.error.code === "poll-closed") setProblem("This poll just closed.");
+      else {
+        setProblem(null);
+        headingRef.current?.focus();
+      }
     } else {
       setProblem(r.error.message);
     }

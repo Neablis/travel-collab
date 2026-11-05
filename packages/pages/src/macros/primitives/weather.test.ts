@@ -429,3 +429,12 @@ describe("day.weather on a page scoped to today, off the trip's dates", () => {
     expect(renderMacro(ctxOn("2026-11-10T09:00:00Z", dayPoints), "day.weather", {})).toEqual({ status: "empty", because: "Nothing planned today" });
   });
 });
+
+// D7 (Mitchell, 2026-11-05): a stranger's page has no weather to read, so the
+// widget is absent there rather than "unavailable".
+describe("day.weather for a public reader", () => {
+  it("is absent", () => {
+    const setUp = setup(["2026-11-12"], [point("2026-11-12")]);
+    expect(renderMacro({ ...ctxOf(setUp, "2026-11-10"), reader: "public" }, "day.weather", {})).toEqual({ status: "absent" });
+  });
+});

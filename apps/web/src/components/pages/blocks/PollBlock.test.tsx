@@ -138,6 +138,9 @@ describe("PollBlock for a member", () => {
     await userEvent.click(reopener);
     expect(await screen.findByText("The close date has passed — move it to reopen the poll.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reopen poll" })).toBeNull();
+    // R3: the pressed button is gone, so focus goes to the heading. R4: the date note says it, so no alert repeats it.
+    expect(screen.getByRole("heading", { name: "Where to eat?" }).matches(":focus")).toBe(true);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("offers no Reopen poll to a viewer or a suggester", async () => {

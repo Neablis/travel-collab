@@ -166,6 +166,7 @@ export function renderMacro(
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
   if (def.requires !== undefined && ctx[def.requires] !== true) return { status: "absent" };
+  if (def.hiddenFromPublic && ctx.reader === "public") return { status: "absent" };
   // What the page's settings take over is read as unset, so they win.
   const params = withoutSuperseded(ctx.page, def, parsed.data as Record<string, unknown>, ctx.now ?? null);
   const page = pageScope(ctx, def, params);

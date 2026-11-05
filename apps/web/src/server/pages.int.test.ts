@@ -1,4 +1,4 @@
-import { OVERVIEW_KIND, newPageDoc } from "@tc/contracts";
+import { OVERVIEW_KIND, newPageDoc, type PageNode } from "@tc/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
@@ -7,6 +7,7 @@ import { db } from "./db/client";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { listPageEntries, listPages, getPage } from "./pages";
 import { executePageCommand } from "./pageCommands";
+import { pollOnTrip } from "./polls/votes";
 import { grantMembership } from "./access/members";
 import { entitleAccounts } from "./test-support/entitledAccount";
 import { mintToken } from "./api-tokens";
@@ -350,6 +351,30 @@ describe("pages repository", () => {
     expect((updated.ok && updated.page!.updatedAt) >= fetched!.updatedAt).toBe(true);
     expect((await executePageCommand({ type: "DeletePage", tripId, pageId }, "user-1")).ok).toBe(true);
     expect(await getPage(pageId)).toBeNull();
+  });
+
+  // M58 D6: the AI tools and the v1 API write a poll they cannot give an id
+  // (the id is minted at insert), and a poll without one cannot be voted on.
+  it("mints a poll's id when the page that holds it is saved, and keeps it on the next save", async () => {
+    const { tripId } = await seedTrip();
+    const pageId = randomUUID();
+    const poll = { type: "macro", attrs: { name: "poll", params: { question: "Where to eat?", options: "Ramen, Sushi" } } };
+    const created = await executePageCommand(
+      { type: "CreatePage", tripId, pageId, title: "Votes", context: { tripId }, content: newPageDoc([poll as unknown as PageNode]) },
+      "user-1",
+    );
+    expect(created.ok).toBe(true);
+    const idOf = async () => {
+      const stored = (await getPage(pageId))!.content.content[0] as unknown as { attrs: { params: { pollId?: string } } };
+      return stored.attrs.params.pollId;
+    };
+    const minted = await idOf();
+    expect(minted).toMatch(/^[0-9a-f-]{36}$/);
+    expect(await pollOnTrip(tripId, minted!)).toMatchObject({ question: "Where to eat?" });
+    // Saved again as the client read it back the id is never replaced.
+    const stored = (await getPage(pageId))!.content;
+    expect((await executePageCommand({ type: "EditPage", tripId, pageId, content: stored }, "user-1")).ok).toBe(true);
+    expect(await idOf()).toBe(minted);
   });
 
   // M43 decision 2: the Overview is a column, and the database holds one per

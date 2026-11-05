@@ -24,7 +24,7 @@ export function PublicCta() {
       </Heading>
       <Text variant="secondary">Lay out the days, drop in the stops, and plan it with the people you are going with.</Text>
       <Link href={SIGNUP_HREF} className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
-        Start planning — free
+        Start planning for free
       </Link>
     </section>
   );

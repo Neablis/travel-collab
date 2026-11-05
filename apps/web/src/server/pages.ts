@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { SYSTEM_ACTOR_ID, migratePageDoc, pageKindOf } from "@tc/contracts";
 import type { Page, PageDoc, PageListEntry, PageSummary, CreatePageInput } from "@tc/contracts";
-import { findWidgetError, instantiateDefaults, isOverviewPage, notebookPreviewOf, overviewDisplayTitle, type SeededPage } from "@tc/pages";
+import { findWidgetError, instantiateDefaults, isOverviewPage, notebookPreviewOf, overviewDisplayTitle, withPollIds, type SeededPage } from "@tc/pages";
 import { db, type Queryable } from "./db/client";
 import { pages, tripSummaries } from "./db/schema";
 import { demoTripDetail } from "./demoTrip";
@@ -67,7 +67,9 @@ export function checkPageDocForWrite(
   }
   const widgetError = findWidgetError(migrated.content, heldContent);
   if (widgetError !== null) return { ok: false, message: widgetError };
-  return { ok: true, doc: migrated };
+  // Every write reaches here, so a poll the assistant or the v1 API wrote without
+  // an id gets one now (M58 D6); an id it already has is kept.
+  return { ok: true, doc: { ...migrated, content: withPollIds(migrated.content, randomUUID) } };
 }
 
 /** A page as the contract reads it: `seedKey` only on a seed, `kind` only on the Overview. */

@@ -187,7 +187,7 @@ describe("SharedTripScreen", () => {
     render(<SharedTripScreen token="featured" />);
     expect(await screen.findByRole("heading", { name: "Nothing to see here" })).toBeTruthy();
     expect(screen.getByText("No trip is published here yet.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Start planning — free" }).getAttribute("href")).toContain("ref=public-notebook");
+    expect(screen.getByRole("link", { name: "Start planning for free" }).getAttribute("href")).toContain("ref=public-notebook");
   });
 
   // M58 decision 7: the same band as `/n/` and `/demo`, at the foot of the trip.
@@ -195,7 +195,7 @@ describe("SharedTripScreen", () => {
     fetchSharedTripMock.mockResolvedValue({ ok: true, value: view() });
     render(<SharedTripScreen token="tok" />);
     await screen.findByRole("heading", { name: "Kyoto in spring" });
-    expect(screen.getByRole("link", { name: "Start planning — free" }).getAttribute("href")).toContain("ref=public-notebook");
+    expect(screen.getByRole("link", { name: "Start planning for free" }).getAttribute("href")).toContain("ref=public-notebook");
     expect(screen.queryByRole("link", { name: "Plan your own" })).toBeNull();
   });
 });

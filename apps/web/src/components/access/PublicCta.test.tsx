@@ -12,7 +12,7 @@ describe("PublicCta", () => {
   it("sends a visitor to sign up as the public-notebook channel, to land in New trip", () => {
     render(<PublicCta />);
 
-    const href = screen.getByRole("link", { name: "Start planning — free" }).getAttribute("href")!;
+    const href = screen.getByRole("link", { name: "Start planning for free" }).getAttribute("href")!;
     const url = new URL(href, "http://caesura.test");
     expect(url.pathname).toBe("/signup");
     expect(normalizeSignupRef(url.searchParams.get("ref"))).toBe("public-notebook");

@@ -100,10 +100,17 @@ describe("toPublicNotebookView", () => {
 
   it("names no member in what a stranger is sent, ids included", () => {
     const trip = tripWithPeople();
-    const view = viewOf(trip, [macro("cost.balances", {}), macro("person.share", { who: "user-alex-secret" }), macro("trip.people", {})]);
+    const view = viewOf(trip, [macro("cost.balances", {}), macro("person.share", { who: "user-alex-secret" })]);
     expect(JSON.stringify(view)).not.toMatch(/secret/);
     // The floor above is vacuous if the widgets said nothing about anyone.
     expect(JSON.stringify(view)).toContain("Traveler 1");
+  });
+
+  // D7, D10 (Mitchell, 2026-11-05): neither is drawn for a stranger, not even as "Traveler N".
+  it("leaves the people and weather widgets out of what a stranger is sent", () => {
+    const view = viewOf(tripWithPeople(), [macro("trip.people", {}), macro("day.weather", {})]);
+    expect([outcomeAt(view, 0), outcomeAt(view, 1)]).toEqual([{ status: "absent" }, { status: "absent" }]);
+    expect(JSON.stringify(view)).not.toContain("Traveler");
   });
 
   it("sends only the attrs a node is drawn with: an unknown type or an extra attr is dropped", () => {

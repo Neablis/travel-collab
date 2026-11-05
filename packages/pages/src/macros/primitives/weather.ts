@@ -275,6 +275,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
   needs: ["weather"],
   description:
     "The weather for each selected day at its stops: the forecast when the day is close, what's typical for the month when it is further out or already gone. Drawn as a temperature bar per day — solid for a forecast, dashed for typical — or as a table whose Source column says Forecast or Typical. Filter it to a day or a city.",
+  hiddenFromPublic: true,
   emptyText: "add a place to a stop to see this",
   // Fixed, never computed (ADR-037 decision 5) — the ADR's own wording.
   preview: "The weather for each day — the forecast when there is one, what's typical when there isn't.",
