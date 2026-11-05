@@ -6,6 +6,7 @@ import { CheckboxField } from "@/components/ui/checkbox";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import {
   createPageShare,
@@ -152,9 +153,10 @@ export function MakePublicDialog({
     <Dialog open={open} onOpenChange={onOpenChange} title={live === null ? `Make “${title}” public` : `“${title}” is public`}>
       <div className="flex flex-col gap-3">
         {loading ? (
-          <Text variant="muted" role="status" aria-live="polite">
-            Loading what a stranger will see…
-          </Text>
+          <SkeletonRegion label="Loading what a stranger will see" className="flex flex-col gap-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-24 w-full" delay={2} />
+          </SkeletonRegion>
         ) : null}
 
         {!loading && live !== null ? (
