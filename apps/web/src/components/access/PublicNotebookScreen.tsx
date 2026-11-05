@@ -1,5 +1,6 @@
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
-import { PublicPageDoc, type PublicDoc } from "@/components/pages/editor/ReadOnlyPageDoc";
+import { PublicPageDoc } from "@/components/pages/editor/ReadOnlyPageDoc";
+import type { PublicDoc } from "@/lib/publicDoc";
 import { Heading } from "@/components/ui/heading";
 import { PageContainer } from "@/components/ui/page-container";
 import { PublicCta } from "./PublicCta";
