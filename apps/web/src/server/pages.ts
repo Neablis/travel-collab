@@ -68,8 +68,8 @@ export function checkPageDocForWrite(
   const widgetError = findWidgetError(migrated.content, heldContent);
   if (widgetError !== null) return { ok: false, message: widgetError };
   // Every write reaches here, so a poll the assistant or the v1 API wrote without
-  // an id gets one now (M58 D6); an id it already has is kept.
-  return { ok: true, doc: { ...migrated, content: withPollIds(migrated.content, randomUUID) } };
+  // an id gets one now (M58 D6); an id it already has is kept, and one a client dropped comes back from the held page.
+  return { ok: true, doc: { ...migrated, content: withPollIds(migrated.content, randomUUID, heldContent) } };
 }
 
 /** A page as the contract reads it: `seedKey` only on a seed, `kind` only on the Overview. */

@@ -806,7 +806,8 @@ describe("hide when public", () => {
   it.each(MACRO_NAMES)("%s: a hidden instance is not resolved for the public reader", (name) => {
     const def = MACRO_REGISTRY[name]!;
     const resolve = vi.spyOn(def, "resolve");
-    expect(renderMacro(publicCtx, name, {}, undefined, true)).toEqual({ status: "not-shared" });
+    // A kind a stranger never sees draws nothing, hidden or not (below).
+    expect(renderMacro(publicCtx, name, {}, undefined, true)).toEqual({ status: def.hiddenFromPublic ? "absent" : "not-shared" });
     expect(resolve).not.toHaveBeenCalled();
     resolve.mockRestore();
   });
@@ -822,5 +823,15 @@ describe("hide when public", () => {
     expect(renderMacro({ ...ctx, reader: "member" }, "attribute", params, undefined, true).status).toBe("ok");
     expect(renderMacro(ctx, "attribute", params, undefined, true).status).toBe("ok");
     expect(renderMacro(publicCtx, "attribute", params).status).toBe("ok");
+  });
+});
+
+// M58 round 4: a hiddenFromPublic widget draws nothing for a stranger, whether
+// or not the instance's "Hide when public" is on (it must not become a chip).
+describe("hiddenFromPublic with Hide when public", () => {
+  const ctx: WidgetContext = { trip: detail, page: { tripId: detail.tripId }, user: null, globals: null, today: null, reader: "public" };
+  it.each(["trip.people", "day.weather"])("%s: absent, not a Not shared chip", (name) => {
+    expect(renderMacro(ctx, name, {}, undefined, true)).toEqual({ status: "absent" });
+    expect(renderMacro(ctx, name, {}, undefined, false)).toEqual({ status: "absent" });
   });
 });

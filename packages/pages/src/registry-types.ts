@@ -829,12 +829,17 @@ export interface MacroDef<P, T> {
    * `absent` for a stranger, before `resolve` runs. For a widget whose answer
    * has nothing a stranger should read, a trip's people or a forecast the
    * stranger's page cannot fetch.
+   *
+   * Unlike an instance's "Hide when public" (`hideWhenPublic`), which draws a
+   * "Not shared" chip, this draws nothing at all, and it wins when both are
+   * set. It is not `requires`: absent-means-false there would blank the
+   * widget in every member context that does not set the capability.
    */
   hiddenFromPublic?: true;
   // **Anyone adding a widget that reads people, money or location must decide
   // whether it needs a floor in the public view** (`toPublicNotebookView`,
   // ADR-088 Consequences). A widget is public the day it ships unless an
-  // instance is hidden (`hideWhenPublic`), and the floors are the only thing
+  // instance is hidden (`hideWhenPublic`) or its kind is `hiddenFromPublic`, and the floors are the only thing
   // that holds whatever an editor set.
   description: string;             // human- AND machine-readable (AI + autocomplete)
   /**

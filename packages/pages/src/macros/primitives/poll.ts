@@ -112,22 +112,56 @@ export function pollsIn(doc: unknown, into: PollSpec[] = []): PollSpec[] {
   return into;
 }
 
-/**
- * A document with an id minted for every poll that has none (M58 D6). The
- * widget insert mints it, but the assistant and the v1 API write the node
- * themselves, and a poll with no id cannot be voted on. An id already there is
- * never replaced, so saving the same page twice is a no-op. `mint` is passed
- * in: this package draws no randomness of its own in a resolver.
- */
-export function withPollIds<T>(doc: T, mint: () => string): T {
-  if (Array.isArray(doc)) return doc.map((child) => withPollIds(child, mint)) as T;
-  if (typeof doc !== "object" || doc === null) return doc;
+/** The `params` of every poll node in a document, in document order (a poll before its children). */
+function pollParamsIn(doc: unknown, into: Record<string, unknown>[] = []): Record<string, unknown>[] {
+  if (Array.isArray(doc)) {
+    for (const child of doc) pollParamsIn(child, into);
+    return into;
+  }
+  if (typeof doc !== "object" || doc === null) return into;
   const node = doc as { type?: unknown; attrs?: { name?: unknown; params?: unknown }; content?: unknown };
-  const content = Array.isArray(node.content) ? { content: withPollIds(node.content, mint) } : {};
-  if (node.type !== "macro" || node.attrs?.name !== "poll") return { ...node, ...content } as T;
-  const params = typeof node.attrs.params === "object" && node.attrs.params !== null ? node.attrs.params : {};
-  const held = (params as { pollId?: unknown }).pollId;
-  return { ...node, ...content, attrs: { ...node.attrs, params: held === undefined ? { ...params, pollId: mint() } : params } } as T;
+  if (node.type === "macro" && node.attrs?.name === "poll" && typeof node.attrs.params === "object" && node.attrs.params !== null) {
+    into.push(node.attrs.params as Record<string, unknown>);
+  }
+  pollParamsIn(node.content, into);
+  return into;
+}
+
+/**
+ * A document with an id for every poll that has none (M58 D6). The widget
+ * insert mints it, but the assistant and the v1 API write the node themselves,
+ * and a poll with no id cannot be voted on. An id already there is never
+ * replaced, so saving the same page twice is a no-op.
+ *
+ * A client that round-trips a page may drop the id (an agent rewriting a poll
+ * from its question and options). Blocks carry no identity, so a poll with no
+ * id takes the unclaimed id of the `held` page's poll with the same question,
+ * else the one at the same position among its polls; only a poll matching
+ * neither is new and gets a minted one. `mint` is passed in: this package
+ * draws no randomness of its own in a resolver.
+ */
+export function withPollIds<T>(doc: T, mint: () => string, held: unknown = null): T {
+  const heldPolls = pollParamsIn(held);
+  const claimed = new Set<string>(pollParamsIn(doc).flatMap((p) => (typeof p.pollId === "string" ? [p.pollId] : [])));
+  const free = (p: Record<string, unknown> | undefined): string | null =>
+    typeof p?.pollId === "string" && !claimed.has(p.pollId) ? p.pollId : null;
+  let position = -1;
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (typeof node !== "object" || node === null) return node;
+    const n = node as { type?: unknown; attrs?: { name?: unknown; params?: unknown }; content?: unknown };
+    const isPoll = n.type === "macro" && n.attrs?.name === "poll";
+    // Counted before the children, as `pollParamsIn` walks, so positions agree.
+    const at = isPoll ? ++position : -1;
+    const content = Array.isArray(n.content) ? { content: walk(n.content) } : {};
+    if (!isPoll) return { ...n, ...content };
+    const params = typeof n.attrs?.params === "object" && n.attrs.params !== null ? (n.attrs.params as Record<string, unknown>) : {};
+    if (params.pollId !== undefined) return { ...n, ...content };
+    const id = free(heldPolls.find((p) => p.question === params.question && free(p) !== null)) ?? free(heldPolls[at]) ?? mint();
+    claimed.add(id);
+    return { ...n, ...content, attrs: { ...n.attrs, params: { ...params, pollId: id } } };
+  };
+  return walk(doc) as T;
 }
 
 /** What a member's vote sends: the option ids picked, one unless the poll lets people pick more. */

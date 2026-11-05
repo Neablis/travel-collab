@@ -7,7 +7,7 @@ import { db } from "./db/client";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { listPageEntries, listPages, getPage } from "./pages";
 import { executePageCommand } from "./pageCommands";
-import { pollOnTrip } from "./polls/votes";
+import { castVote, pollOnTrip, tallyFor } from "./polls/votes";
 import { grantMembership } from "./access/members";
 import { entitleAccounts } from "./test-support/entitledAccount";
 import { mintToken } from "./api-tokens";
@@ -375,6 +375,32 @@ describe("pages repository", () => {
     const stored = (await getPage(pageId))!.content;
     expect((await executePageCommand({ type: "EditPage", tripId, pageId, content: stored }, "user-1")).ok).toBe(true);
     expect(await idOf()).toBe(minted);
+  });
+
+  // M58 round 4: an MCP/v1 client that rewrites a poll from its question and
+  // options drops the pollId; the stored id must survive or the votes orphan.
+  it("keeps a stored poll's id when a write drops it, so its votes still count", async () => {
+    const { tripId } = await seedTrip();
+    const pageId = randomUUID();
+    const poll = { type: "macro", attrs: { name: "poll", params: { question: "Where to eat?", options: "Ramen, Sushi" } } };
+    await executePageCommand(
+      { type: "CreatePage", tripId, pageId, title: "Votes", context: { tripId }, content: newPageDoc([poll as unknown as PageNode]) },
+      "user-1",
+    );
+    const idOf = async () =>
+      ((await getPage(pageId))!.content.content[0] as unknown as { attrs: { params: { pollId?: string } } }).attrs.params.pollId!;
+    const minted = await idOf();
+    const before = (await pollOnTrip(tripId, minted))!;
+    expect(await castVote(tripId, "user-1", before, ["Ramen"], "2026-01-01")).toEqual({ ok: true });
+    const stripped = { ...poll, attrs: { ...poll.attrs, params: { question: "Where to eat?", options: "Ramen, Sushi" } } };
+    const rewrite = await executePageCommand(
+      { type: "EditPage", tripId, pageId, content: newPageDoc([stripped as unknown as PageNode]) },
+      "user-1",
+    );
+    expect(rewrite.ok).toBe(true);
+    expect(await idOf()).toBe(minted);
+    const after = (await pollOnTrip(tripId, minted))!;
+    expect((await tallyFor(tripId, [after], "2026-01-01")).get(minted)?.counts).toMatchObject({ Ramen: 1 });
   });
 
   // M43 decision 2: the Overview is a column, and the database holds one per

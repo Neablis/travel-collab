@@ -160,13 +160,15 @@ export function renderMacro(
 ): RenderOutcome {
   // First of all, so a hidden instance's data is never read for a stranger,
   // and a stale or unknown one tells them only that it is not shared.
-  if (hideWhenPublic && ctx.reader === "public") return { status: "not-shared" };
   const def = getMacro(name);
+  // A kind never drawn for a stranger draws nothing even when the instance is
+  // also hidden: the hide must not turn an absence into a "Not shared" chip.
+  if (def?.hiddenFromPublic && ctx.reader === "public") return { status: "absent" };
+  if (hideWhenPublic && ctx.reader === "public") return { status: "not-shared" };
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
   if (def.requires !== undefined && ctx[def.requires] !== true) return { status: "absent" };
-  if (def.hiddenFromPublic && ctx.reader === "public") return { status: "absent" };
   // What the page's settings take over is read as unset, so they win.
   const params = withoutSuperseded(ctx.page, def, parsed.data as Record<string, unknown>, ctx.now ?? null);
   const page = pageScope(ctx, def, params);
