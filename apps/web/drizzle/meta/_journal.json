@@ -519,6 +519,13 @@
       "when": 1793823551933,
       "tag": "0073_page_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1793829577744,
+      "tag": "0074_poll_votes",
+      "breakpoints": true
     }
   ]
 }

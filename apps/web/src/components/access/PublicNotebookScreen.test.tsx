@@ -86,7 +86,7 @@ describe("PublicNotebookScreen", () => {
     render(<PublicNotebookScreen view={view([para(text("Hello"))])} />);
 
     const main = screen.getByRole("main");
-    expect(within(main).getByRole("link", { name: "Start planning — free" })).toBeTruthy();
+    expect(within(main).getByRole("link", { name: "Start planning for free" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /open in the trip/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /join|request access|invite/i })).toBeNull();
   });

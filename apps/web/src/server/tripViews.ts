@@ -139,7 +139,8 @@ export async function tripPagesView(
 }
 
 /**
- * `GET /api/trips/:id/pages/:pageId`'s body, or `null` for the route's 404: a
+ * `GET /api/trips/:id/pages/:pageId`'s body (the page, its live public token or
+ * `null`, and whether it may be made public), or `null` for the route's 404: a
  * page id that is not a uuid, no such page, or a page of another trip.
  *
  * `pages.id` is a uuid column, so `getPage("not-a-uuid")` is not a miss — it is

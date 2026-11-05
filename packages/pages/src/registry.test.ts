@@ -38,6 +38,8 @@ describe("registry", () => {
       "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
       // M52 decision 15, on `trip.people`'s terms.
       "chat.recent",
+      // M58 decision 8, on the same terms.
+      "poll",
     ].sort());
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -116,6 +118,8 @@ describe("registry", () => {
     target: { kind: "view", view: "Map" },
     url: "https://example.com/tickets",
     text: "Tickets",
+    // Option rows (`poll`): each its own id and label, the shape a vote keeps pointing at.
+    list: [{ id: "a", label: "Ramen" }],
     // A member's `userId` (`PersonRef`) — `detail`'s one member.
     person: "u1",
   };
@@ -323,6 +327,8 @@ describe("every widget renders (ADR-037 decision 2)", () => {
             i.type === "target" ? [[i.name, { kind: "notebook", pageId: LINKED_NOTEBOOK }]] : i.type === "url" ? [[i.name, "https://example.com/tickets"]] : [],
           ),
         ),
+        // A poll's id is minted by the insert, which this sweep does not run; without one it is no poll yet.
+        ...(entry.widget === "poll" ? { pollId: "11111111-1111-4111-8111-111111111111" } : {}),
         // "What one person is in for" lands asking who; the settings panel's
         // member select answers it, so the sweep picks the trip's one member.
         ...Object.fromEntries(
@@ -468,7 +474,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
     expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual([
       "country.facts", "link.external", "link.internal", "trip.description", "trip.flights", "trip.now", "trip.people", "trip.strip",
-      "chat.recent",
+      "chat.recent", "poll",
     ].sort());
   });
 
@@ -800,7 +806,8 @@ describe("hide when public", () => {
   it.each(MACRO_NAMES)("%s: a hidden instance is not resolved for the public reader", (name) => {
     const def = MACRO_REGISTRY[name]!;
     const resolve = vi.spyOn(def, "resolve");
-    expect(renderMacro(publicCtx, name, {}, undefined, true)).toEqual({ status: "not-shared" });
+    // A kind a stranger never sees draws nothing, hidden or not (below).
+    expect(renderMacro(publicCtx, name, {}, undefined, true)).toEqual({ status: def.hiddenFromPublic ? "absent" : "not-shared" });
     expect(resolve).not.toHaveBeenCalled();
     resolve.mockRestore();
   });
@@ -816,5 +823,15 @@ describe("hide when public", () => {
     expect(renderMacro({ ...ctx, reader: "member" }, "attribute", params, undefined, true).status).toBe("ok");
     expect(renderMacro(ctx, "attribute", params, undefined, true).status).toBe("ok");
     expect(renderMacro(publicCtx, "attribute", params).status).toBe("ok");
+  });
+});
+
+// M58 round 4: a hiddenFromPublic widget draws nothing for a stranger, whether
+// or not the instance's "Hide when public" is on (it must not become a chip).
+describe("hiddenFromPublic with Hide when public", () => {
+  const ctx: WidgetContext = { trip: detail, page: { tripId: detail.tripId }, user: null, globals: null, today: null, reader: "public" };
+  it.each(["trip.people", "day.weather"])("%s: absent, not a Not shared chip", (name) => {
+    expect(renderMacro(ctx, name, {}, undefined, true)).toEqual({ status: "absent" });
+    expect(renderMacro(ctx, name, {}, undefined, false)).toEqual({ status: "absent" });
   });
 });

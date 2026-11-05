@@ -766,6 +766,43 @@ export const tripMessages = pgTable(
   ],
 );
 
+// A poll's votes (M58 decision 8, ADR-088 §8): ordinary CRUD beside the event
+// log, never in it. A vote is not a change to the plan, so it is not in
+// History and a revert cannot undo it. `poll_id` is the `pollId` param of a
+// `poll` widget in one of the trip's pages, with no foreign key (the page is a
+// projection); `server/polls/votes.ts` is the sole writer and checks it
+// against the trip's pages. One row per person per poll, changed in place
+// until the poll closes. Keyed by trip as well as poll, so a poll id that
+// turns up on a second trip (a pasted widget) is a poll of its own there and
+// never overwrites a vote on the first. `option_ids` are the option ids the
+// widget stores, kept as text so a removed option's vote just stops counting.
+export const pollVotes = pgTable(
+  "poll_votes",
+  {
+    pollId: uuid("poll_id").notNull(),
+    tripId: uuid("trip_id").notNull(),
+    // A `users.id`, on the same no-foreign-key terms as `trip_memberships`.
+    userId: text("user_id").notNull(),
+    optionIds: jsonb("option_ids").$type<string[]>().notNull(),
+    votedAt: timestamp("voted_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [uniqueIndex("poll_votes_trip_poll_user").on(t.tripId, t.pollId, t.userId)],
+);
+
+// A poll an editor closed by hand. Its own table rather than a column on the
+// votes, because a poll with no votes can be closed too. A closing date is a
+// param of the widget and needs no row.
+export const pollCloses = pgTable(
+  "poll_closes",
+  {
+    pollId: uuid("poll_id").notNull(),
+    tripId: uuid("trip_id").notNull(),
+    closedBy: text("closed_by").notNull(),
+    closedAt: timestamp("closed_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tripId, t.pollId] })],
+);
+
 // Each person's read cursor on a trip's chat (M46 D5): the newest message they
 // have seen, as its `(created_at, id)`, the order the conversation is listed
 // in. The time alone would count a second message stamped the same

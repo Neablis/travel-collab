@@ -13,6 +13,27 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-04 — Polls: `poll_votes`, `poll_closes` and the `poll` widget (M58 part 5)
+- **New tables** (migration 0074; access-style CRUD beside the event log, never events): `poll_votes`
+  (one row per person per poll, unique on `trip_id, poll_id, user_id`) and `poll_closes` (primary key
+  `trip_id, poll_id`). Both are keyed by trip, so a poll id that appears on a second trip is a
+  separate poll there.
+- **New endpoints** (app routes, any seat reads and votes, editor and above closes):
+  `GET`/`PUT /api/trips/{tripId}/polls/{pollId}` and `POST .../polls/{pollId}/close`. Answers
+  `PollResults` (`closed`, `counts`, `votes`, `mine`, `canClose`), named for members; 409
+  `poll-closed` once closed. Not in the public API.
+- **New widget** `poll` (`packages/pages`): params `pollId` (uuid, minted on insert and required for a
+  usable poll: a node without one reads as empty, it is not invented on read), `question`,
+  `options` (a list of `{ id, label }`; a vote stores the id, so renaming keeps votes; the
+  comma-separated text is still read, each label its own id), `multi`, `closesAt`. New widget input
+  type `list` and an optional `MacroDef.seed` hook, run by `insertWidget`. A stranger's public
+  notebook gets counts only (`WidgetContext.pollTallies`).
+- Why: Mitchell, 2026-11-04 (M58 decision 8, ADR-088 §8).
+- Consumers updated: `apps/web` (`server/polls/votes.ts`, the poll routes, `publicNotebook.ts`,
+  `apiClient.ts`, the poll block and the `list` control), `packages/pages`, the assistant's widget
+  input schema (`tools/widgets.ts`).
+- Breaking? no. Additive; 0074 has not shipped.
+
 ## 2026-11-04 — `PageShare`, a public notebook's link (M58 part 2; public API 2.4.0)
 - **New** (`packages/contracts/src/share.ts`): `PageShare` (`shareId`, `tripId`, `pageId`, `token`,
   `createdBy`, `createdAt`, `revokedAt`), beside `TripShare` but with no pin: the link reads the

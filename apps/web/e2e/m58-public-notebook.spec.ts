@@ -63,6 +63,7 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
       dayId,
       title: "Dinner at Sushi Dai",
       timeWindow: { start: "19:00", end: "20:00" },
+      cost: { amountMinor: 4_000, currency: "USD" },
       booking: { confirmation: BOOKING_CODE, provider: "Sushi Dai", url: BOOKING_URL },
       bookedBy: memberId,
       participants: [memberId],
@@ -82,6 +83,8 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
     paragraph(widget("attribute", { field: "trip.name" }, true)),
     widget("day.detail", {}),
     widget("trip.people", {}),
+    // Reads each member by name where a stranger can see it: the non-vacuity guard for the name check below.
+    widget("cost.balances", {}),
     widget("link.internal", { to: { kind: "notebook", pageId: packingId } }),
     widget("link.internal", { to: { kind: "notebook", pageId: surpriseId } }),
     widget("link.internal", { to: { kind: "view", view: "Plan" } }),
@@ -103,8 +106,9 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
     await expect(reader.getByRole("heading", { name: "Our Japan plan", level: 1 })).toBeVisible();
     await expect(reader.getByText("Welcome to the plan")).toBeVisible();
     await expect(reader.getByText("Dinner at Sushi Dai").first()).toBeVisible();
-    // The people widget speaks, so the absent name below is not an absent widget.
-    await expect(reader.getByText("Traveler 1").first()).toBeVisible();
+    // The people widget is left off a stranger's page entirely (D10); the balances table still prints members, as "Traveler N".
+    await expect(reader.getByText(/Traveler \d/).first()).toBeVisible();
+    await expect(reader.getByText(memberName, { exact: true })).toHaveCount(0);
     // The two hidden widgets: told something is here, and nothing about it.
     await expect(reader.getByText("Not shared")).toHaveCount(2);
 
@@ -119,7 +123,7 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
     // No way in, and the band is the page's last word.
     await expect(reader.getByRole("link", { name: /open in the trip/i })).toHaveCount(0);
     await expect(reader.getByRole("button", { name: /join|request access|invite/i })).toHaveCount(0);
-    await expect(reader.getByRole("main").getByRole("link", { name: "Start planning — free" })).toHaveAttribute(
+    await expect(reader.getByRole("main").getByRole("link", { name: "Start planning for free" })).toHaveAttribute(
       "href",
       /^\/signup\?ref=public-notebook&callbackUrl=%2Fhome%3Fnew%3Dtrip$/,
     );
@@ -163,7 +167,7 @@ test("a public notebook shows a stranger the plan, keeps the rest on the server,
     expect(gone!.status()).toBe(404);
     const body = await after.content();
     for (const named of ["Our Japan plan", tripName, "Welcome to the plan"]) expect(body.includes(named), named).toBe(false);
-    await expect(after.getByRole("link", { name: "Start planning — free" })).toBeVisible();
+    await expect(after.getByRole("link", { name: "Start planning for free" })).toBeVisible();
 
     // And a second publish is a new address; the old one stays dead.
     const again = await publish(page, tripId, planId);

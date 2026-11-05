@@ -171,7 +171,7 @@ const InputSchema = z.discriminatedUnion("type", [
     label: z.string(),
     options: z.array(z.object({ value: z.string(), label: z.string() })).readonly(),
   }),
-  z.object({ type: z.literal("text"), name: z.string(), label: z.string(), placeholder: z.string() }),
+  z.object({ type: z.enum(["text", "list"]), name: z.string(), label: z.string(), placeholder: z.string() }),
 ]);
 
 const TargetsSchema = z.object({

@@ -1,4 +1,4 @@
-import { OVERVIEW_KIND, newPageDoc } from "@tc/contracts";
+import { OVERVIEW_KIND, newPageDoc, type PageNode } from "@tc/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
@@ -7,6 +7,7 @@ import { db } from "./db/client";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { listPageEntries, listPages, getPage } from "./pages";
 import { executePageCommand } from "./pageCommands";
+import { castVote, pollOnTrip, tallyFor } from "./polls/votes";
 import { grantMembership } from "./access/members";
 import { entitleAccounts } from "./test-support/entitledAccount";
 import { mintToken } from "./api-tokens";
@@ -350,6 +351,79 @@ describe("pages repository", () => {
     expect((updated.ok && updated.page!.updatedAt) >= fetched!.updatedAt).toBe(true);
     expect((await executePageCommand({ type: "DeletePage", tripId, pageId }, "user-1")).ok).toBe(true);
     expect(await getPage(pageId)).toBeNull();
+  });
+
+  // M58 D6: the AI tools and the v1 API write a poll they cannot give an id
+  // (the id is minted at insert), and a poll without one cannot be voted on.
+  it("mints a poll's id when the page that holds it is saved, and keeps it on the next save", async () => {
+    const { tripId } = await seedTrip();
+    const pageId = randomUUID();
+    const poll = { type: "macro", attrs: { name: "poll", params: { question: "Where to eat?", options: "Ramen, Sushi" } } };
+    const created = await executePageCommand(
+      { type: "CreatePage", tripId, pageId, title: "Votes", context: { tripId }, content: newPageDoc([poll as unknown as PageNode]) },
+      "user-1",
+    );
+    expect(created.ok).toBe(true);
+    const idOf = async () => {
+      const stored = (await getPage(pageId))!.content.content[0] as unknown as { attrs: { params: { pollId?: string } } };
+      return stored.attrs.params.pollId;
+    };
+    const minted = await idOf();
+    expect(minted).toMatch(/^[0-9a-f-]{36}$/);
+    expect(await pollOnTrip(tripId, minted!)).toMatchObject({ question: "Where to eat?" });
+    // Saved again as the client read it back the id is never replaced.
+    const stored = (await getPage(pageId))!.content;
+    expect((await executePageCommand({ type: "EditPage", tripId, pageId, content: stored }, "user-1")).ok).toBe(true);
+    expect(await idOf()).toBe(minted);
+  });
+
+  // M58 round 4: an MCP/v1 client that rewrites a poll from its question and
+  // options drops the pollId; the stored id must survive or the votes orphan.
+  it("keeps a stored poll's id when a write drops it, so its votes still count", async () => {
+    const { tripId } = await seedTrip();
+    const pageId = randomUUID();
+    const poll = { type: "macro", attrs: { name: "poll", params: { question: "Where to eat?", options: "Ramen, Sushi" } } };
+    await executePageCommand(
+      { type: "CreatePage", tripId, pageId, title: "Votes", context: { tripId }, content: newPageDoc([poll as unknown as PageNode]) },
+      "user-1",
+    );
+    const idOf = async () =>
+      ((await getPage(pageId))!.content.content[0] as unknown as { attrs: { params: { pollId?: string } } }).attrs.params.pollId!;
+    const minted = await idOf();
+    const before = (await pollOnTrip(tripId, minted))!;
+    expect(await castVote(tripId, "user-1", before, ["Ramen"], "2026-01-01")).toEqual({ ok: true });
+    const stripped = { ...poll, attrs: { ...poll.attrs, params: { question: "Where to eat?", options: "Ramen, Sushi" } } };
+    const rewrite = await executePageCommand(
+      { type: "EditPage", tripId, pageId, content: newPageDoc([stripped as unknown as PageNode]) },
+      "user-1",
+    );
+    expect(rewrite.ok).toBe(true);
+    expect(await idOf()).toBe(minted);
+    const after = (await pollOnTrip(tripId, minted))!;
+    expect((await tallyFor(tripId, [after], "2026-01-01")).get(minted)?.counts).toMatchObject({ Ramen: 1 });
+  });
+
+  // M58 round 5: ids follow the question, never the position. A stripped
+  // rewrite that puts a new poll first must not shift A's votes onto it.
+  it("keeps each stored poll's id by question when a rewrite drops the ids and adds a poll in front", async () => {
+    const { tripId } = await seedTrip();
+    const pageId = randomUUID();
+    const poll = (question: string) => ({ type: "macro", attrs: { name: "poll", params: { question, options: "Ramen, Sushi" } } });
+    await executePageCommand(
+      { type: "CreatePage", tripId, pageId, title: "Votes", context: { tripId }, content: newPageDoc([poll("A"), poll("B")] as unknown as PageNode[]) },
+      "user-1",
+    );
+    const idsOf = async () =>
+      ((await getPage(pageId))!.content.content as unknown as { attrs: { params: { pollId: string } } }[]).map((n) => n.attrs.params.pollId);
+    const [idA, idB] = await idsOf();
+    const rewrite = await executePageCommand(
+      { type: "EditPage", tripId, pageId, content: newPageDoc([poll("C"), poll("A"), poll("B")] as unknown as PageNode[]) },
+      "user-1",
+    );
+    expect(rewrite.ok).toBe(true);
+    const [idC, afterA, afterB] = await idsOf();
+    expect([afterA, afterB]).toEqual([idA, idB]);
+    expect([idA, idB]).not.toContain(idC);
   });
 
   // M43 decision 2: the Overview is a column, and the database holds one per

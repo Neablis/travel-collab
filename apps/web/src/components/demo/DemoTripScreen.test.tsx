@@ -48,7 +48,7 @@ describe("DemoTripScreen call to action", () => {
   it("ends with the shared band, to sign up as the public-notebook channel", () => {
     render(<DemoTripScreen demo={demo("japan")} summary={demoTripSummary("japan")} />);
 
-    expect(screen.getByRole("link", { name: "Start planning — free" }).getAttribute("href")).toContain("ref=public-notebook");
+    expect(screen.getByRole("link", { name: "Start planning for free" }).getAttribute("href")).toContain("ref=public-notebook");
     expect(screen.queryByRole("link", { name: "Start a trip" })).toBeNull();
   });
 });

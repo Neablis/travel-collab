@@ -7,6 +7,7 @@ import { db } from "@/server/db/client";
 import { pages } from "@/server/db/schema";
 import { grantMembership } from "@/server/access/members";
 import { createInvite } from "@/server/access/invites";
+import { createPageShare } from "@/server/access/pageShares";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { setTripCover } from "@/server/tripCovers";
 import { upsertUser, writePreferences } from "@/server/users";
@@ -46,7 +47,8 @@ const req = (path: string) => new Request(`http://x${path}`);
  * notebooks already seeded. The seeding matters: the first notebook read
  * creates the defaults, which writes to the log, so a comparison straddling it
  * would compare two different trips. The invite and the cover are there so
- * the bodies that depend on who reads have something in them to differ by.
+ * the bodies that depend on who reads have something in them to differ by, and
+ * the Overview is published so its body carries a public token.
  */
 async function seedTrip(): Promise<string> {
   const tripId = randomUUID();
@@ -62,7 +64,13 @@ async function seedTrip(): Promise<string> {
     { ...cover, id: cover.unsplashId, downloadLocation: `${cover.photoPageUrl}/download` },
     OWNER,
   );
-  await GET_PAGES(req(`/api/trips/${tripId}/pages`), ctx(tripId));
+  const listed = (await (await GET_PAGES(req(`/api/trips/${tripId}/pages`), ctx(tripId))).json()) as { pages: { id: string; kind?: string }[] };
+  // The Overview is public, so its body has a live token to carry: with none, a
+  // dropped `publicToken` would still compare null to null.
+  const overview = listed.pages.find((p) => p.kind === OVERVIEW_KIND);
+  if (overview === undefined) throw new Error("expected the trip's Overview");
+  const shared = await createPageShare(tripId, overview.id, OWNER);
+  if (!shared.ok) throw new Error("failed to publish the Overview");
   return tripId;
 }
 
@@ -161,6 +169,7 @@ describe("tripFirstData", () => {
     const overview = first.pages.pages.find((p) => p.kind === "overview");
     if (overview === undefined || first.overview === null) throw new Error("expected the trip's Overview");
     expect(first.overview.page.id).toBe(overview.id);
+    expect(first.overview.publicToken).not.toBeNull();
     const pageRes = await GET_PAGE(req(`${base}/pages/${overview.id}`), {
       params: Promise.resolve({ tripId, pageId: overview.id }),
     });

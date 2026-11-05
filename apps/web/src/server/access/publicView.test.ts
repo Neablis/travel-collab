@@ -100,10 +100,17 @@ describe("toPublicNotebookView", () => {
 
   it("names no member in what a stranger is sent, ids included", () => {
     const trip = tripWithPeople();
-    const view = viewOf(trip, [macro("cost.balances", {}), macro("person.share", { who: "user-alex-secret" }), macro("trip.people", {})]);
+    const view = viewOf(trip, [macro("cost.balances", {}), macro("person.share", { who: "user-alex-secret" })]);
     expect(JSON.stringify(view)).not.toMatch(/secret/);
     // The floor above is vacuous if the widgets said nothing about anyone.
     expect(JSON.stringify(view)).toContain("Traveler 1");
+  });
+
+  // D7, D10 (Mitchell, 2026-11-05): neither is drawn for a stranger, not even as "Traveler N".
+  it("leaves the people and weather widgets out of what a stranger is sent", () => {
+    const view = viewOf(tripWithPeople(), [macro("trip.people", {}), macro("day.weather", {})]);
+    expect([outcomeAt(view, 0), outcomeAt(view, 1)]).toEqual([{ status: "absent" }, { status: "absent" }]);
+    expect(JSON.stringify(view)).not.toContain("Traveler");
   });
 
   it("sends only the attrs a node is drawn with: an unknown type or an extra attr is dropped", () => {
@@ -152,6 +159,29 @@ describe("toPublicNotebookView", () => {
     expect(Object.keys(view).sort()).toEqual(["accents", "content", "title"]);
     expect(view.title).toBe("Plan");
     expect(JSON.stringify(outcomeAt(view, 0))).toContain(trip.name);
+  });
+
+  // A poll's votes are named for the group; a stranger is handed counts only
+  // (M58 decision 8), so the tally reaches the resolver without a voter.
+  describe("a poll", () => {
+    const POLL_ID = "22222222-2222-4222-8222-222222222222";
+    const poll = { pollId: POLL_ID, question: "Where to eat?", options: "Ramen, Sushi" };
+    const tallies = { [POLL_ID]: { counts: { Ramen: 3, Sushi: 1 }, closed: false } };
+
+    it("shows the question and each option's count, with no poll id", () => {
+      const view = viewOf(tripWithPeople(), [macro("poll", poll)], { pollTallies: tallies });
+      expect(outcomeAt(view, 0)).toMatchObject({
+        status: "ok",
+        rendered: { kind: "block", block: { kind: "poll", question: "Where to eat?", pollId: null, counts: { Ramen: 3, Sushi: 1 }, closed: false } },
+      });
+      expect(JSON.stringify(view)).not.toContain(POLL_ID);
+    });
+
+    it("is not shared, and its question and tally are not sent, when hidden", () => {
+      const view = viewOf(tripWithPeople(), [macro("poll", poll, true)], { pollTallies: tallies });
+      expect(outcomeAt(view, 0)).toEqual({ status: "not-shared" });
+      expect(JSON.stringify(view)).not.toContain("Where to eat?");
+    });
   });
 });
 

@@ -172,7 +172,8 @@ export type BlockPayload =
   | MissingNotebookPayload
   | ItineraryPayload
   | TripNowPayload | StopDirectionsPayload | TripFlightsPayload
-  | ChatRecentPayload;
+  | ChatRecentPayload
+  | PollPayload;
 
 // "Trip chat" (`chat.recent`, M52 decision 15): the newest messages, oldest
 // first. Each is the message itself, which the app draws with its chat's own
@@ -185,6 +186,25 @@ export type BlockPayload =
 // (Mitchell, PR 537 walk), and then `lines` is `null`.
 export interface ChatRecentLine { message: Extract<ChatMessage, { removed: false }>; author: string; }
 export interface ChatRecentPayload { kind: "chat-recent"; solo: boolean; lines: ChatRecentLine[] | null; }
+
+// "Poll" (`poll`, M58 decision 8). The question and options are the widget's
+// own words. **What a reader is handed depends on who they are**: a member gets
+// the `pollId` and reads the votes live (named, from the poll route), so
+// `counts` and `closed` are `null`; a stranger gets `counts` and `closed` and a
+// `null` `pollId`, because nothing on their page may name a poll, a person or a
+// way to vote. `options[].id` is what a vote stores.
+export interface PollOption { id: string; label: string; }
+export interface PollPayload {
+  kind: "poll";
+  pollId: string | null;
+  question: string;
+  options: PollOption[];
+  multi: boolean;
+  /** `yyyy-mm-dd`, the last day votes are taken. */
+  closesAt: string | null;
+  counts: Readonly<Record<string, number>> | null;
+  closed: boolean | null;
+}
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
@@ -466,7 +486,11 @@ export type WidgetInput =
   | { name: string; type: "url"; label: string }
   // Free text whose absence is a real answer — the external link's optional
   // label, which falls back to the address's host.
-  | { name: string; type: "text"; label: string; placeholder: string };
+  | { name: string; type: "text"; label: string; placeholder: string }
+  // **A list of `{ id, label }` rows** (`poll`'s options): one text box each,
+  // with add and remove. The id is minted when the row is added and kept when
+  // the label is edited, so whatever points at a row (a vote) keeps pointing.
+  | { name: string; type: "list"; label: string; placeholder: string };
 
 /** The declared input types, derived so nothing can list them a second time. */
 export type WidgetInputType = WidgetInput["type"];
@@ -506,7 +530,7 @@ type Assert<T extends true> = T;
  * has a declared `default`, and absent IS that default. `choices` joins them
  * on decision 2's reasoning: absent is every option.
  */
-type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice" | "choices" | "text";
+type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice" | "choices" | "text" | "list";
 
 export type NeedsCoversEveryBindableInput = Assert<
   Exclude<WidgetInputType, NeverUnbound> extends UnboundNeeds ? true : false
@@ -678,6 +702,13 @@ export interface WidgetContext {
    * store. Absent means no notebook is public.
    */
   publicTokenFor?: (pageId: string) => string | null;
+  /**
+   * For a `public` reader: each poll's per-option counts and whether it is
+   * closed, by poll id (M58 decision 8). **Counts only**: this carries no voter,
+   * so a poll cannot leak one by being forgotten in the public view. Handed in
+   * by the server (`poll_votes`). Absent reads as no votes.
+   */
+  pollTallies?: Readonly<Record<string, { counts: Readonly<Record<string, number>>; closed: boolean }>>;
 }
 
 /** A `WidgetContext` capability a widget can require (`MacroDef.requires`). */
@@ -793,12 +824,30 @@ export interface MacroDef<P, T> {
    * `renderMacro` answers `absent` without it, before `resolve` runs.
    */
   requires?: ReaderCapability;
+  /**
+   * Never drawn for a public reader (M58 D7, D10): `renderMacro` answers
+   * `absent` for a stranger, before `resolve` runs. For a widget whose answer
+   * has nothing a stranger should read, a trip's people or a forecast the
+   * stranger's page cannot fetch.
+   *
+   * Unlike an instance's "Hide when public" (`hideWhenPublic`), which draws a
+   * "Not shared" chip, this draws nothing at all, and it wins when both are
+   * set. It is not `requires`: absent-means-false there would blank the
+   * widget in every member context that does not set the capability.
+   */
+  hiddenFromPublic?: true;
   // **Anyone adding a widget that reads people, money or location must decide
   // whether it needs a floor in the public view** (`toPublicNotebookView`,
   // ADR-088 Consequences). A widget is public the day it ships unless an
-  // instance is hidden (`hideWhenPublic`), and the floors are the only thing
+  // instance is hidden (`hideWhenPublic`) or its kind is `hiddenFromPublic`, and the floors are the only thing
   // that holds whatever an editor set.
   description: string;             // human- AND machine-readable (AI + autocomplete)
+  /**
+   * Fills in what only an insert may decide, after the params parse: an id
+   * minted once, which a parse on every read must not invent. Run by
+   * `insertWidget` and nowhere else.
+   */
+  seed?(params: P): P;
   emptyText: string;               // declarative empty-state copy
   // Nothing to show is the GOOD news (`open`: the trip is settled), so the
   // renderer draws `emptyText` as the design's success line, not the muted
