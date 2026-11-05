@@ -43,3 +43,16 @@ describe("insertRepeatAt — where a repeat lands", () => {
     expect(doc).toEqual([repeatOf("day.rows"), repeatOf("stop.rows"), repeatOf("city.rows", "Hi {name}")]);
   });
 });
+
+// An instance hidden from the public reader (M58) is that flag on the node; a
+// schema that does not declare the attribute drops it on the next autosave.
+describe("a repeat's hideWhenPublic", () => {
+  const saved = (attrs: Record<string, unknown>) =>
+    (schema.nodeFromJSON({ type: "doc", content: [{ type: "repeat", attrs }] }).toJSON() as { content: { attrs: Record<string, unknown> }[] }).content[0]!.attrs;
+
+  it("survives the editor's schema, and writes none when it is off", () => {
+    expect(saved({ name: "day.rows", params: {}, hideWhenPublic: true })).toEqual({ name: "day.rows", params: {}, hideWhenPublic: true });
+    // Saved as JSON, an unset flag is no key at all.
+    expect(JSON.stringify(saved({ name: "day.rows", params: {} }))).not.toContain("hideWhenPublic");
+  });
+});

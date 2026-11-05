@@ -29,6 +29,7 @@ import { tripNowWidget } from "./macros/primitives/nowNext";
 import { NOTHING_TODAY, stopDirections } from "./macros/primitives/directions";
 import { tripFlights } from "./macros/primitives/flights";
 import { chatRecent } from "./macros/primitives/chatRecent";
+import { poll } from "./macros/primitives/poll";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -93,6 +94,9 @@ const DEFS: AnyMacroDef[] = [
   // "Trip chat" (M52 decision 15): no selection, on `trip.people`'s terms,
   // and shown only to a reader who can see the chat (`MacroDef.requires`).
   chatRecent,
+  // "Poll" (M58 decision 8): no selection, on `trip.people`'s terms. The votes
+  // are not in the document (`poll_votes`); see `poll.ts`.
+  poll,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -134,17 +138,33 @@ export type RenderOutcome =
   // Not shown at all (M52 decision 20): the reader lacks what the widget
   // `requires`. Never a chip — SPEC §27, nothing renders disabled.
   | { status: "absent" }
+  // The instance is hidden from a public reader (M58, ADR-088 §4). Not an
+  // absence: the stranger is told something is here and not shared.
+  | { status: "not-shared" }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
 // `item` is the repeat line this widget is being rendered on, when it sits in a
 // repeat's template (ADR-035 decision 4). Render-time only: it never reaches
-// the stored node. Without one, the widget is handed its page's date scope
+// the stored node. `hideWhenPublic` is the instance's own flag (`attrs`, beside
+// its params). Without one, the widget is handed its page's date scope
 // (ADR-080 §4). A day or a stop line already names a day the scope narrowed
 // it to, through `resolveRepeat`, so it wins; a city line names no day, so it
 // carries the page's too.
-export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown, item?: ItemScope): RenderOutcome {
+export function renderMacro(
+  ctx: WidgetContext,
+  name: string,
+  rawParams: unknown,
+  item?: ItemScope,
+  hideWhenPublic = false,
+): RenderOutcome {
+  // First of all, so a hidden instance's data is never read for a stranger,
+  // and a stale or unknown one tells them only that it is not shared.
   const def = getMacro(name);
+  // A kind never drawn for a stranger draws nothing even when the instance is
+  // also hidden: the hide must not turn an absence into a "Not shared" chip.
+  if (def?.hiddenFromPublic && ctx.reader === "public") return { status: "absent" };
+  if (hideWhenPublic && ctx.reader === "public") return { status: "not-shared" };
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };

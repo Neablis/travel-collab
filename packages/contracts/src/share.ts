@@ -26,6 +26,23 @@ export const TripShare = z.object({
 export type TripShare = z.infer<typeof TripShare>;
 
 /**
+ * A public notebook's link (M58, ADR-088): one live page, readable at
+ * `/n/<token>` by anyone holding it. Unlike `TripShare` there is no pin: the
+ * read is the page as it is now. `revokedAt` set means the token is dead for
+ * good; publishing again is a new row and a new token.
+ */
+export const PageShare = z.object({
+  shareId: z.string().guid(),
+  tripId: z.string().guid(),
+  pageId: z.string().guid(),
+  token: z.string().min(1),
+  createdBy: z.string().min(1),
+  createdAt: z.string(),
+  revokedAt: z.string().nullable(),
+});
+export type PageShare = z.infer<typeof PageShare>;
+
+/**
  * What a stranger holding the link is served.
  *
  * Deliberately NOT `TripDetail`. Three things are dropped rather than

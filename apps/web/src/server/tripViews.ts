@@ -16,6 +16,7 @@ import { accountCan } from "@/server/entitlements/resolver";
 import { getTripHistory } from "@/server/history";
 import { isUuid } from "@/server/ids";
 import { getPage, listPageEntries } from "@/server/pages";
+import { isPublishable, listPageShares } from "@/server/access/pageShares";
 import { addTodayPage } from "@/server/pageCommands";
 import { TODAY_SEED_KEY } from "@tc/pages";
 import { buildTripGlobals } from "@/server/tripGlobals";
@@ -138,7 +139,8 @@ export async function tripPagesView(
 }
 
 /**
- * `GET /api/trips/:id/pages/:pageId`'s body, or `null` for the route's 404: a
+ * `GET /api/trips/:id/pages/:pageId`'s body (the page, its live public token or
+ * `null`, and whether it may be made public), or `null` for the route's 404: a
  * page id that is not a uuid, no such page, or a page of another trip.
  *
  * `pages.id` is a uuid column, so `getPage("not-a-uuid")` is not a miss — it is
@@ -146,11 +148,21 @@ export async function tripPagesView(
  * the access check: answering "that is not an id" to somebody with no access to
  * the trip would tell them something the access seam has just decided not to.
  */
-export async function tripPageView(tripId: string, pageId: string): Promise<{ page: Page } | null> {
+export async function tripPageView(tripId: string, pageId: string): Promise<TripPageBody | null> {
   if (!isUuid(pageId)) return null;
   const page = await getPage(pageId);
-  return page && page.tripId === tripId ? { page } : null;
+  if (!page || page.tripId !== tripId) return null;
+  // The page's own *Public* chip (M58): a viewer cannot read the shares list,
+  // and the chip is for them. The link is public by design, so its token is no
+  // more than a member of the trip may be told. `publishable` is the server's
+  // rule for a seeded notebook, so the *Make public* control is never drawn for
+  // the three that are refused and the client keeps no copy of the list.
+  const live = (await listPageShares(tripId, pageId)).find((share) => share.revokedAt === null);
+  return { page, publicToken: live?.token ?? null, publishable: isPublishable(page) };
 }
+
+/** `GET /api/trips/:id/pages/:pageId`'s body. */
+export type TripPageBody = { page: Page; publicToken: string | null; publishable: boolean };
 
 /**
  * `GET /api/trips/:id/globals`'s body. `readerId` is whoever is signed in —

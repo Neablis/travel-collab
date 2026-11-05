@@ -39,6 +39,13 @@ describe("sitemap.xml", () => {
     for (const { slug } of DEMO_TRIPS) expect(urls).toContain(`${deploymentOrigin()}/demo/${slug}`);
   });
 
+  // M58, ADR-088 §3: a public notebook is for the people its link was sent to.
+  // The sitemap reads no `page_shares`, and this holds it to that.
+  it("lists no public notebook", async () => {
+    const paths = (await sitemap()).map((entry) => new URL(entry.url).pathname);
+    expect(paths.filter((path) => path === "/n" || path.startsWith("/n/"))).toEqual([]);
+  });
+
   // Copilot, PR 296: nothing observed the `lastModified = publishedAt` mapping.
   it("dates a day by when it was published, and leaves an undated day undated", async () => {
     sitemapDays.mockResolvedValue([

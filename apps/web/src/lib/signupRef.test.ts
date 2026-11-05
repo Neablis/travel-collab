@@ -22,6 +22,11 @@ describe("normalizeSignupRef", () => {
     expect(normalizeSignupRef(raw)).toBeNull();
   });
 
+  // M58 decision 7: the public pages' band signs people up under this label.
+  it("keeps the channel the public pages' call to action names", () => {
+    expect(normalizeSignupRef("public-notebook")).toBe("public-notebook");
+  });
+
   it("keeps 32 characters", () => {
     expect(normalizeSignupRef("a".repeat(32))).toBe("a".repeat(32));
   });

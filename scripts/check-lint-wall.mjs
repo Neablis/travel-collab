@@ -434,6 +434,29 @@ expectRejectedBy(
   "a file beside the OAuth consent page gets no exemption",
 );
 
+// THE PUBLIC NOTEBOOK PAGE (M58, ADR-088 §3): `(front)/n/[token]/page.tsx`
+// alone may read `src/server`, to resolve a stranger's widgets before anything
+// reaches the browser. Open for that file; shut for the domain, and for the
+// screen it renders.
+const PUBLIC_NOTEBOOK_PAGE = "src/app/(front)/n/[token]/page.tsx";
+
+expectClean(
+  lintFixture("public_notebook_page_server", `import "@/server/access/pageShares";${PAGE_BODY}`, { file: PUBLIC_NOTEBOOK_PAGE }),
+  "the public notebook page may import @/server/* (the exemption is open)",
+);
+expectRejectedBy(
+  lintFixture("public_notebook_page_domain", `import "@tc/domain";${PAGE_BODY}`, { file: PUBLIC_NOTEBOOK_PAGE }),
+  "no-restricted-imports",
+  "the public notebook page still may not import @tc/domain",
+);
+expectRejectedBy(
+  lintFixture("public_notebook_screen_server", `import "@/server/access/pageShares";${PAGE_BODY}`, {
+    file: "src/components/access/PublicNotebookScreen.tsx",
+  }),
+  "no-restricted-imports",
+  "the screen the public notebook page renders gets no exemption",
+);
+
 // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): only
 // src/server/ai/modelSelection.ts may import @/server/ai/gateway. Fixtured
 // under src/server/ai/ itself — a NEW file there, not modelSelection.ts —

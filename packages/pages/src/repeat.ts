@@ -100,10 +100,17 @@ export type RepeatOutcome =
   | { status: "unbound"; over: RepeatOver; needs: UnboundNeeds }
   // A name that is not a repeatable collection, or params its primitive
   // refuses. Only a hand-written or future document can hold one.
-  | { status: "invalid"; message: string };
+  | { status: "invalid"; message: string }
+  // Hidden from a public reader (M58, ADR-088 §4), as `renderMacro` answers it.
+  | { status: "not-shared" };
 
-/** The items a stored repeat iterates, in the order its rows primitive lists them. */
-export function resolveRepeat(ctx: WidgetContext, name: string, rawParams: unknown): RepeatOutcome {
+/**
+ * The items a stored repeat iterates, in the order its rows primitive lists
+ * them. `hideWhenPublic` is the node's own flag: a public reader gets
+ * `not-shared` before anything is read, as from `renderMacro`.
+ */
+export function resolveRepeat(ctx: WidgetContext, name: string, rawParams: unknown, hideWhenPublic = false): RepeatOutcome {
+  if (hideWhenPublic && ctx.reader === "public") return { status: "not-shared" };
   const over = repeatOver(name);
   const def = getMacro(name);
   if (over === null || !def) return { status: "invalid", message: `nothing called "${name}" can be repeated over` };

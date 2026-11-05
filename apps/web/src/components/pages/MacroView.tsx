@@ -3,10 +3,12 @@ import { useContext, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type Item, type ReaderCapability } from "@tc/pages";
+import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type Item, type ReaderCapability, type RenderOutcome } from "@tc/pages";
+import type { AccentFamily } from "@/lib/dayAccent";
+import type { AccentTable } from "@/lib/publicDoc";
 import { cn } from "@/lib/cn";
 import { usePeople, usePersonas, useGuests } from "./people";
-import { cityAccents } from "./cityAccents";
+import { cityAccents, type CityAccents } from "./cityAccents";
 import { Segs } from "./WidgetSegs";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
@@ -53,7 +55,6 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   globals?: TripGlobals | null; external?: ExternalInputs; name: string;
   params: Record<string, unknown>; onBindDay?: () => void; editing?: boolean; compact?: boolean;
 }) {
-  const def = getMacro(name);
   // One derivation per render of one widget, memoised on the trip: `cityAccents`
   // walks every day and probes five buckets, and a page can hold a dozen
   // widgets. It is cheap, but it is not free and the answer cannot change
@@ -81,6 +82,31 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // (`MacroDef.requires`).
   const reader = useReaderCapabilities();
   const outcome = renderMacro({ trip: detail, page: context, user, globals, today, now, external, people, personas, guests, ...reader }, name, params);
+  return <ResolvedMacroView name={name} outcome={outcome} accents={accents} tripId={context.tripId} onBindDay={onBindDay} editing={editing} compact={compact} />;
+}
+
+/**
+ * A widget on a public page, drawn from what the server resolved for the
+ * public reader (`toPublicNotebookView`), never from the trip. Reading only:
+ * a stranger edits nothing, and a link card goes only where its resolver sent it.
+ */
+export function PublicMacroView({ name, outcome, accents }: { name: string; outcome: RenderOutcome; accents: AccentTable }) {
+  const lookup = useMemo<CityAccents>(() => {
+    const at = (table: AccentTable["cities"], key: string | null): AccentFamily =>
+      key !== null && Object.hasOwn(table, key) ? table[key]! : "neutral";
+    return { ofCity: (city) => at(accents.cities, city), ofDayId: (dayId) => at(accents.days, dayId) };
+  }, [accents]);
+  // No trip id: a public link card carries its own `/n/<token>`, and every other target is plain.
+  return <ResolvedMacroView name={name} outcome={outcome} accents={lookup} tripId="" readOnly />;
+}
+
+/** One widget's outcome, drawn; where it came from is the caller's. */
+function ResolvedMacroView({ name, outcome, accents, tripId, onBindDay, editing = false, compact = false, readOnly = false }: {
+  name: string; outcome: RenderOutcome; accents: CityAccents; tripId: string;
+  // `readOnly`: a stranger's page, where the rows that point into the trip (`open`'s) are text.
+  onBindDay?: () => void; editing?: boolean; compact?: boolean; readOnly?: boolean;
+}) {
+  const def = getMacro(name);
   // SPEC §27: nothing renders disabled, so a widget this reader may not use is
   // not here at all. Its author still has to see what they put there, so
   // Editing names it and who it is for, in fixed words: never the payload, so
@@ -88,6 +114,9 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   if (outcome.status === "absent") {
     return editing && def?.requires ? <EmptyChip tone="muted" label={`${def.title}: ${SHOWN_TO[def.requires]}`} /> : null;
   }
+  // The publisher kept this one back (M58). Only the public reader gets this
+  // status, so members see the widget as usual and nothing here is theirs.
+  if (outcome.status === "not-shared") return <EmptyChip tone="not-shared" label="Not shared" />;
   // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
   if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;
@@ -202,7 +231,9 @@ export function MacroView({ detail, context, user = null, globals = null, extern
     case "inline":
       return <Segs segs={rendered.segs} accents={accents} />;
     case "block":
-      return <BlockView block={rendered.block} accents={accents} tripId={context.tripId} interactive={!editing} compact={compact} />;
+      // A stranger's page keeps the link card (its href is the public token's)
+      // but none of the member-only controls the other blocks gate on `interactive`.
+      return <BlockView block={rendered.block} accents={accents} tripId={tripId} interactive={!editing && (!readOnly || rendered.block.kind === "link-card")} compact={compact} />;
     // A repeat's rows.
     //
     // **`span`, not `div`, and that is not a style preference.** A widget node
@@ -428,14 +459,14 @@ export function MacroView({ detail, context, user = null, globals = null, extern
         <a
           href={rendered.href}
           target="_blank"
-          rel="noopener noreferrer"
+          rel={rendered.rel ?? "noopener noreferrer"}
           className="text-brand underline decoration-1 underline-offset-2 hover:text-brand-hover"
         >
           {rendered.text}
         </a>
       );
     case "items":
-      return <ItemRows items={rendered.items} label={def?.title} tripId={context.tripId} interactive={!editing} />;
+      return <ItemRows items={rendered.items} label={def?.title} tripId={tripId} interactive={!editing && !readOnly} />;
     default: {
       // The same enforcement `BlockView` carries, for the same measured reason:
       // `strict` does NOT imply `noImplicitReturns` and this repo sets only

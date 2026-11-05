@@ -10,6 +10,9 @@ import { usePhoneAsk } from "@/components/nav/phoneAsk";
  * screen offers its chat only where the reader can see it (`hasChat` on the
  * board), and says a trip is solo only to its one traveler. A share link's
  * page offers neither, so it is false there with no check of its own.
+ *
+ * Never the public reader's (M58): a stranger's widgets are resolved on the
+ * server (`toPublicNotebookView`), and no browser resolves one.
  */
 export function useReaderCapabilities(): Pick<WidgetContext, "canChat" | "chat" | "soloTrip"> {
   const entry = usePhoneAsk();

@@ -224,6 +224,10 @@ function tripInviteToken(pathname: string): string | null {
 //   - `/invite/:path*`   — the invite landing and its look (M27 link 6).
 //     NOT to send anyone to /signin — both pages are public — but to bank the
 //     token for M11a's gate on the way past (see the handler above).
+//   - NOT `/n/:path*` (M58): a public notebook is read by people with no
+//     account, and matching it would send each of them to /signin, as `/s/`
+//     would be. Like `/s/`, it meets this file only through the `ref` entry
+//     below, which banks a channel and asks nobody who they are.
 //   - `/playbooks/:path*` — the public library, bare prefix included. NOT to
 //     send anyone to /signin (ADR-061: a shared playbook link opens for
 //     somebody with no account; what they may DO there is decided by the API

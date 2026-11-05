@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -3177,5 +3177,170 @@ describe("PageScreen: the trip's access moving under an open page", () => {
       await settled(pair.map((m) => (m.userId === "u1" ? { ...m, role: "owner" as const } : { ...m, role: "viewer" as const })));
       await waitFor(() => expect(runningPollTimers()).toBe(1));
     });
+  });
+});
+
+// M58 decisions 1 and 4: an editor publishes from the notebook's `⋯`, and
+// everyone who can read the notebook sees that it is public, from the page
+// itself, since only an editor can read the shares list.
+describe("PageScreen: publishing a notebook", () => {
+  const SHARE = {
+    shareId: "33333333-3333-4333-8333-333333333333",
+    tripId: "",
+    pageId: "",
+    token: "tok-from-the-server",
+    createdBy: "u1",
+    createdAt: "2026-11-04T00:00:00.000Z",
+    revokedAt: null,
+  };
+
+  function serveWith({ role, publicToken = null, publishable = true }: { role: "owner" | "viewer"; publicToken?: string | null; publishable?: boolean }) {
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID() });
+    const page = pageFixture({ tripId: trip.tripId, title: "Itinerary", actorId: "dev-alice" });
+    server.use(
+      http.get("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ page, publicToken, publishable })),
+      http.get("/api/trips/:tripId/pages/:pageId/shares", () => HttpResponse.json({ shares: [] })),
+      http.get("/api/trips/:tripId/pages/:pageId/public-preview", () =>
+        HttpResponse.json({
+          preview: {
+            view: { title: "Itinerary", content: [{ type: "paragraph", content: [{ type: "text", text: "Seen by a stranger" }] }], accents: { cities: {}, days: {} } },
+            plainText: [],
+            alsoPublic: [],
+          },
+        }),
+      ),
+      http.post("/api/trips/:tripId/pages/:pageId/shares", () =>
+        HttpResponse.json({ share: { ...SHARE, tripId: trip.tripId, pageId: page.id } }, { status: 201 }),
+      ),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json({
+          access: {
+            tripId: params.tripId,
+            myRole: role,
+            members: [{ userId: "u1", role, name: null, email: null, image: null }],
+            invites: [],
+            guests: [],
+            collaboratorsEntitled: true,
+          },
+        }),
+      ),
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    return { trip, page };
+  }
+
+  it("offers an editor Make public behind the ⋯, and the dialog opens on what a stranger sees", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+    const stranger = await screen.findByRole("region", { name: "What a stranger sees" });
+    expect(within(stranger).getByText("Seen by a stranger")).toBeTruthy();
+  });
+
+  it("shows the Public chip once the notebook is published from the dialog", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Itinerary" })).toBeTruthy();
+    expect(screen.queryByText("Public")).toBeNull();
+
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+    await screen.findByRole("textbox", { name: "Public link" });
+    expect(screen.getByText("Public")).toBeTruthy();
+  });
+
+  it("previews only once an edit that was still saving has landed", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let previewReads = 0;
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", async () => {
+        await gate;
+        return HttpResponse.json({ page: { ...page, updatedAt: "2026-11-04T01:00:00.000Z" } });
+      }),
+      http.get("/api/trips/:tripId/pages/:pageId/public-preview", () => {
+        previewReads += 1;
+        return HttpResponse.json({
+          preview: { view: { title: "Itinerary", content: [], accents: { cities: {}, days: {} } }, plainText: [], alsoPublic: [] },
+        });
+      }),
+    );
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(screen.getAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!, "edit");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+
+    // The PATCH is still held: a preview now would be of the page without the edit.
+    expect(previewReads).toBe(0);
+    release();
+    await screen.findByRole("region", { name: "What a stranger sees" });
+    expect(previewReads).toBe(1);
+  });
+
+  // A failed save leaves the stored page without the edit: previewing it would
+  // show a stranger something other than what the editor holds.
+  it("does not open the preview when the edit it waited for failed to save", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    server.use(http.patch("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ error: { code: "boom" } }, { status: 500 })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(screen.getAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!, "edit");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Make public" }));
+
+    expect(await screen.findByTestId("page-save-failure")).toBeTruthy();
+    // Give an opening dialog its turn, so a pass is not just "not yet".
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("ends in the save-failed banner, not silence, when the save never answers", async () => {
+    const { trip, page } = serveWith({ role: "owner" });
+    server.use(http.patch("/api/trips/:tripId/pages/:pageId", () => new Promise(() => {})));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(screen.getAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!, "edit");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More notebook actions" }));
+    const makePublic = await screen.findByRole("button", { name: "Make public" });
+    // Only the wait is faked: the rest of the screen runs on the real clock.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(makePublic);
+      await act(async () => {
+        vi.advanceTimersByTime(5_000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await screen.findByTestId("page-save-failure")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("gives a viewer the chip and Copy link, and no control to publish or unpublish", async () => {
+    const { trip, page } = serveWith({ role: "viewer", publicToken: "viewer-sees-this" });
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    expect(await screen.findByText("Public")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy link" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More notebook actions" })).toBeNull();
+  });
+
+  it("offers no Make public on a notebook the server says cannot be public", async () => {
+    const { trip, page } = serveWith({ role: "owner", publishable: false });
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    expect(await screen.findByRole("button", { name: "Edit page" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More notebook actions" })).toBeNull();
   });
 });

@@ -169,6 +169,62 @@ describe("link.external", () => {
   );
 });
 
+// M58 decision 1 (ADR-088 §6): for a stranger, a link goes only where a stranger
+// can already read. Anything else is its label, and no page id leaves the server.
+describe("links for the public reader", () => {
+  const TOKEN = "tok_abc-123";
+  const publicCtx = (value: NotebookIndex, tokens: Record<string, string> = {}): WidgetContext => ({
+    ...ctx({ state: "ready", value }),
+    reader: "public",
+    publicTokenFor: (pageId) => tokens[pageId] ?? null,
+  });
+  const MONEY_ONLY = list();
+
+  it("sends a notebook with a live public link to its /n/ token", () => {
+    expect(card(publicCtx(MONEY_ONLY, { [MONEY]: TOKEN }), { to: { kind: "notebook", pageId: MONEY } }).to).toEqual({ kind: "public", token: TOKEN });
+  });
+
+  it("follows a seed to the page it names, and links it when that page is public", () => {
+    expect(card(publicCtx(MONEY_ONLY, { [MONEY]: TOKEN }), { to: { kind: "seed", seedKey: "money" } }).to).toEqual({ kind: "public", token: TOKEN });
+  });
+
+  it("draws a private notebook as its title alone: no target, no first line, no page id", () => {
+    const block = card(publicCtx(MONEY_ONLY), { to: { kind: "notebook", pageId: MONEY } });
+    expect(block).toEqual({ kind: "link-card", to: { kind: "plain" }, eyebrow: "Notebook", title: "Money", summary: "" });
+    expect(JSON.stringify(block)).not.toContain(MONEY);
+  });
+
+  it("draws a seed that resolves to a private page the same way", () => {
+    const block = card(publicCtx(MONEY_ONLY), { to: { kind: "seed", seedKey: "money" } });
+    expect(block.to).toEqual({ kind: "plain" });
+    expect(JSON.stringify(block)).not.toContain(MONEY);
+  });
+
+  it("does not offer a stranger the add button for a default notebook the trip lacks", () => {
+    const outcome = renderMacro(publicCtx({ pages: [] }), "link.internal", { to: { kind: "seed", seedKey: "money" } });
+    expect(outcome).toMatchObject({ status: "ok", rendered: { block: { kind: "link-card", to: { kind: "plain" }, title: "Money" } } });
+  });
+
+  it.each([
+    ["a tab", { kind: "view", view: "Plan" }],
+    ["a day", { kind: "day", day: { kind: "index", index: 0 } }],
+  ])("draws %s as text, with nothing to follow", (_, to) => {
+    const block = card(publicCtx(MONEY_ONLY), { to });
+    expect(block.to).toEqual({ kind: "plain" });
+    expect(block.summary).toBe("");
+  });
+
+  it("leaves a member's card exactly as it was", () => {
+    expect(card({ ...ctx({ state: "ready", value: MONEY_ONLY }), reader: "member" }, { to: { kind: "notebook", pageId: MONEY } }).to).toEqual({ kind: "notebook", pageId: MONEY });
+  });
+
+  it("marks an outbound link nofollow ugc for a stranger only", () => {
+    const params = { href: "https://example.com/a", label: "Ex" };
+    expect(renderMacro({ ...ctx(), reader: "public" }, "link.external", params)).toMatchObject({ rendered: { rel: "noopener noreferrer nofollow ugc" } });
+    expect(renderMacro(ctx(), "link.external", params)).toEqual({ status: "ok", rendered: { kind: "link", href: "https://example.com/a", text: "Ex" } });
+  });
+});
+
 describe("notebookPreviewOf", () => {
   it("takes the first line with words in it, and counts every widget", () => {
     const doc = {

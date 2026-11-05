@@ -1,11 +1,17 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs } from "@tc/pages";
+import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs, type RenderOutcome } from "@tc/pages";
 import { withCostRollups } from "@tc/factories";
-import { MacroView } from "./MacroView";
+import { MacroView, PublicMacroView } from "./MacroView";
 import { MacroEditorContext } from "./editor/MacroEditorContext";
+import { EditorHost } from "@/components/trip/context/EditorHost";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
+
+// A board editor, so the member-only controls would draw if the page let them.
+vi.mock("@/components/trip/context/TripProvider", () => ({
+  useOptionalTrip: () => ({ canEditBoard: true }),
+}));
 
 afterEach(cleanup);
 
@@ -423,6 +429,77 @@ describe("a widget for readers who are not this one", () => {
   });
 });
 
+// M58 decision 5 (Mitchell: "a hidden widget's data is not sent to the page"):
+// a stranger's widgets are resolved on the server (`toPublicNotebookView`), and
+// the page draws only those outcomes, never a trip.
+describe("a widget on a public page", () => {
+  const publicCtx = { trip: baseDetail, page: ctx, user: null, globals: null, today: null, reader: "public" as const };
+  const noAccents = { cities: {}, days: {} };
+
+  it("draws Not shared for an instance hidden when public", () => {
+    render(<PublicMacroView name="attribute" outcome={{ status: "not-shared" }} accents={noAccents} />);
+    expect(screen.getByText("Not shared")).toBeTruthy();
+  });
+
+  // M58 decision 8: a poll is counts and a question to a stranger, drawn under
+  // the board's providers (an editor's, mocked above) with no way to vote.
+  it("draws a poll's counts and offers no control to vote or close", () => {
+    const id = "33333333-3333-4333-8333-333333333333";
+    const outcome = renderMacro(
+      { ...publicCtx, pollTallies: { [id]: { counts: { Ramen: 2 }, closed: false } } },
+      "poll",
+      { pollId: id, question: "Where to eat?", options: "Ramen, Sushi" },
+    );
+    render(<PublicMacroView name="poll" outcome={outcome} accents={noAccents} />);
+    expect(screen.getByText("Where to eat?")).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  it("draws what the server resolved", () => {
+    const outcome = renderMacro(publicCtx, "attribute", { field: "trip.name" });
+    render(<PublicMacroView name="attribute" outcome={outcome} accents={noAccents} />);
+    expect(screen.getByText("Test Trip")).toBeTruthy();
+  });
+
+  it("links a card only to a public notebook, by its token", () => {
+    const outcome = renderMacro({ ...publicCtx, publicTokenFor: () => "tok-1", external: {
+      weather: { state: "pending" },
+      notebooks: { state: "ready", value: { pages: [{ id: "11111111-1111-4111-8111-111111111111", seedKey: null, title: "Open", firstLine: null, widgetCount: 0 }] } },
+    } }, "link.internal", { to: { kind: "notebook", pageId: "11111111-1111-4111-8111-111111111111" } });
+    render(<PublicMacroView name="link.internal" outcome={outcome} accents={noAccents} />);
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/n/tok-1");
+  });
+
+  // The member-only controls of the day-of widgets (*Add your flight*, a stop
+  // name's board focus) need the board's providers; a stranger's page must not
+  // draw them even when mounted under those providers.
+  it("offers a stranger no member-only control, even under the board's providers", () => {
+    const outcome: RenderOutcome = {
+      status: "ok",
+      rendered: { kind: "block", block: { kind: "trip-flights", heading: "none", flights: [], dayId: "day-2" } },
+    };
+    render(
+      <EditorHost>
+        <PublicMacroView name="trip.flights" outcome={outcome} accents={noAccents} />
+      </EditorHost>,
+    );
+    expect(screen.getByText("No flights on this trip yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add your flight" })).toBeNull();
+  });
+
+  // `open`'s rows go to Plan, a member's tab: on a stranger's page they are text.
+  it("draws an open widget's rows as text, not links into the trip", () => {
+    const outcome: RenderOutcome = {
+      status: "ok",
+      rendered: { kind: "items", items: [{ label: "Dinner needs a booking", sub: "", right: "Fix in Plan", tone: "warning", act: { kind: "rack" } }] },
+    };
+    render(<PublicMacroView name="open" outcome={outcome} accents={noAccents} />);
+    expect(screen.getByText("Fix in Plan")).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+});
+
 // M52's gate box (decision 10, ADR-080 §4), as a reader sees it: on a page
 // scoped to today, a day.detail left unbound reads today, and since 2026-10-24
 // so does one stored bound to day 1, whose day the page's scope supersedes
@@ -517,6 +594,8 @@ describe("every widget is legal where widgets actually go", () => {
   const LINKED_NOTEBOOK = "0f0f0f0f-0000-4000-8000-000000000001";
   function boundParams(entry: { widget: string; params: Readonly<Record<string, unknown>> }): Record<string, unknown> {
     const params: Record<string, unknown> = { ...entry.params };
+    // A poll's id is minted by the insert, which this sweep does not run; without one it is no poll yet.
+    if (entry.widget === "poll") params.pollId = "33333333-3333-4333-8333-333333333333";
     for (const input of getMacro(entry.widget)?.inputs ?? []) {
       if (input.type === "day") params[input.name] = { kind: "index", index: 0 };
       // A link lands asking where it goes (ADR-056); bind it the way its
@@ -656,6 +735,8 @@ flightNumber: null, booking: null,
     });
     // A screen offering its chat (M52), so "Trip chat" is drawn rather than absent.
     const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } });
+    // A member's poll reads its votes from the server (M58): an empty tally, so the poll is drawn and no request leaves.
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ closed: false, counts: {}, votes: [], mine: [], canClose: false, datePassed: false })));
     try {
       for (const widget of presetCatalog()) {
         const { unmount } = render(
@@ -681,6 +762,7 @@ flightNumber: null, booking: null,
       }
     } finally {
       unregister();
+      vi.unstubAllGlobals();
       spy.mockRestore();
     }
     const nesting = errors.filter((e) => /cannot be a descendant of|cannot contain a nested/i.test(e));

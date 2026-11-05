@@ -7,6 +7,9 @@ import type {
   PageNode,
 } from "@tc/contracts";
 import { getMacro, repeatLabel, repeatOver } from "@tc/pages";
+import { EmptyChip } from "../EmptyChip";
+import { PublicMacroView } from "../MacroView";
+import type { AccentTable, PublicDoc, PublicDocNode, PublicRepeatNode, PublicRepeatOutcome, PublicWidgetNode } from "@/lib/publicDoc";
 
 // The read half of ADR-038 decision 4: what a page looks like when this build
 // is not allowed to mount an editor over it.
@@ -185,6 +188,99 @@ export function ReadOnlyPageDoc({ doc }: { doc: PageDoc }) {
   return (
     <div className="tc-page-editor" data-testid="read-only-page">
       <Blocks nodes={doc.content} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The public reader (M58, ADR-088 §4)
+// ---------------------------------------------------------------------------
+
+// A stranger's page walks the server's answers, not a `PageDoc`: there is no
+// widget to resolve here, and a repeat's lines are written already. A node
+// type this build does not draw is left out rather than named, since a
+// "something newer is here" tells a stranger nothing they can act on.
+function PublicBlocks({ nodes, accents }: { nodes: readonly PublicDocNode[]; accents: AccentTable }) {
+  return (
+    <>
+      {nodes.map((node, i) => (
+        <Fragment key={i}>{renderPublic(node, accents)}</Fragment>
+      ))}
+    </>
+  );
+}
+
+function renderPublic(node: PublicDocNode, accents: AccentTable): ReactNode {
+  const loose = node as { text?: string; attrs?: { level?: unknown; start?: unknown }; content?: readonly PublicDocNode[] };
+  const children = <PublicBlocks nodes={loose.content ?? []} accents={accents} />;
+  switch (node.type) {
+    case "text":
+      return loose.text;
+    case "hardBreak":
+      return <br />;
+    case "macro": {
+      const { name, outcome } = (node as PublicWidgetNode).attrs;
+      return <PublicMacroView name={name} outcome={outcome} accents={accents} />;
+    }
+    case "repeat":
+      return <PublicRepeat outcome={(node as PublicRepeatNode).attrs.outcome} />;
+    case "paragraph":
+      return <p>{children}</p>;
+    case "heading": {
+      const Tag = (["h1", "h2", "h3", "h4", "h5", "h6"] as const)[Number(loose.attrs?.level) - 1] ?? "h6";
+      return <Tag>{children}</Tag>;
+    }
+    case "blockquote":
+      return <blockquote>{children}</blockquote>;
+    case "bulletList":
+      return <ul>{children}</ul>;
+    case "orderedList":
+      return <ol start={Number(loose.attrs?.start) || 1}>{children}</ol>;
+    case "listItem":
+      return <li>{children}</li>;
+    case "codeBlock":
+      return (
+        <pre>
+          <code>{(loose.content ?? []).map((child) => (child as { text?: string }).text ?? "").join("")}</code>
+        </pre>
+      );
+    case "horizontalRule":
+      return <hr />;
+    default:
+      return null;
+  }
+}
+
+// What the server wrote for a repeat. The lines are text nodes, never markup,
+// as in `RepeatNodeView`; the rest are its quiet chips.
+function PublicRepeat({ outcome }: { outcome: PublicRepeatOutcome }) {
+  switch (outcome.status) {
+    case "ok":
+      return (
+        <div className="my-3">
+          {outcome.lines.map((line, i) => (
+            <p key={i} data-repeat-line className="my-1">
+              {line}
+            </p>
+          ))}
+        </div>
+      );
+    case "empty":
+      return <p className="my-1"><EmptyChip tone="muted" label={outcome.emptyText} /></p>;
+    case "unbound":
+      return <p className="my-1"><EmptyChip tone="muted" label={outcome.needs === "trip" ? "needs a trip" : "not set up yet"} /></p>;
+    case "invalid":
+      return <p className="my-1"><EmptyChip tone="error" label="this sentence's settings no longer fit it" /></p>;
+    case "not-shared":
+      return <p className="my-1"><EmptyChip tone="not-shared" label="Not shared" /></p>;
+  }
+}
+
+/** A public notebook's document, drawn from the server's answers and nothing else. */
+export function PublicPageDoc({ doc }: { doc: PublicDoc }) {
+  return (
+    <div className="tc-page-editor" data-testid="public-page">
+      <PublicBlocks nodes={doc.content} accents={doc.accents} />
     </div>
   );
 }

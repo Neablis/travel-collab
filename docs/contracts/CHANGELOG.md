@@ -13,6 +13,58 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-04 — Polls: `poll_votes`, `poll_closes` and the `poll` widget (M58 part 5)
+- **New tables** (migration 0074; access-style CRUD beside the event log, never events): `poll_votes`
+  (one row per person per poll, unique on `trip_id, poll_id, user_id`) and `poll_closes` (primary key
+  `trip_id, poll_id`). Both are keyed by trip, so a poll id that appears on a second trip is a
+  separate poll there.
+- **New endpoints** (app routes, any seat reads and votes, editor and above closes):
+  `GET`/`PUT /api/trips/{tripId}/polls/{pollId}` and `POST .../polls/{pollId}/close`. Answers
+  `PollResults` (`closed`, `counts`, `votes`, `mine`, `canClose`), named for members; 409
+  `poll-closed` once closed. Not in the public API.
+- **New widget** `poll` (`packages/pages`): params `pollId` (uuid, minted on insert and required for a
+  usable poll: a node without one reads as empty, it is not invented on read), `question`,
+  `options` (a list of `{ id, label }`; a vote stores the id, so renaming keeps votes; the
+  comma-separated text is still read, each label its own id), `multi`, `closesAt`. New widget input
+  type `list` and an optional `MacroDef.seed` hook, run by `insertWidget`. A stranger's public
+  notebook gets counts only (`WidgetContext.pollTallies`).
+- Why: Mitchell, 2026-11-04 (M58 decision 8, ADR-088 §8).
+- Consumers updated: `apps/web` (`server/polls/votes.ts`, the poll routes, `publicNotebook.ts`,
+  `apiClient.ts`, the poll block and the `list` control), `packages/pages`, the assistant's widget
+  input schema (`tools/widgets.ts`).
+- Breaking? no. Additive; 0074 has not shipped.
+
+## 2026-11-04 — `PageShare`, a public notebook's link (M58 part 2; public API 2.4.0)
+- **New** (`packages/contracts/src/share.ts`): `PageShare` (`shareId`, `tripId`, `pageId`, `token`,
+  `createdBy`, `createdAt`, `revokedAt`), beside `TripShare` but with no pin: the link reads the
+  page live (ADR-088 §2). A new `page_shares` table (migration 0073) backs it. It is an access row,
+  not an event.
+- **New endpoints**: `GET`/`POST /v1/trips/{tripId}/pages/{pageId}/shares` and
+  `DELETE .../shares/{shareId}`, editor and above. `POST` answers 422 for the seeded Bookings,
+  Money and During-the-trip (`today`) pages. The app's `GET /api/trips/{tripId}/shares` also returns
+  `pageShares`, the trip's public notebooks.
+- Why: Mitchell, 2026-11-04 (M58 decisions 2-4, ADR-088 §1).
+- Consumers updated: `apps/web` (`server/access/pageShares.ts`, the app and v1 routes,
+  `exposure.ts`, `openapi.json`); `API_VERSION` 2.4.0 with a new `API_FINGERPRINT`. The UI that
+  reads the shape arrives in part 4.
+- Breaking? no. Additive.
+
+## 2026-11-04 — A widget instance's `hideWhenPublic` (M58 part 1; public API 2.3.0)
+- **New** (`packages/contracts/src/pageDoc.ts`): `MacroNode.attrs.hideWhenPublic`, an optional
+  boolean beside `params`. Absent means `false` and stays absent, so every stored page parses and
+  saves back unchanged. It is on the attrs rather than in `params` because each widget's params
+  schema strips keys it does not know.
+- Why: Mitchell, 2026-11-04 (M58 decision 5, ADR-088 §4): every widget shows on a public
+  notebook unless its instance is hidden.
+- Consumers updated: `packages/pages` (`renderMacro` takes the flag and answers `not-shared` for a
+  public reader before `resolve` runs); `apps/web` (`MacroView` draws *Not shared*; the editor's
+  node attribute and its control arrive in M58 part 4); `openapi.json`, since `PageNode` carries
+  the widget node.
+- Public API: every widget node in `openapi.json` gains the optional `hideWhenPublic` property;
+  `API_VERSION` 2.3.0, with a new `API_FINGERPRINT`.
+- Breaking? no. Optional on a strict node; an older client that parses a page carrying it would
+  reject the key, so the flag is only ever written by part 4's control.
+
 ## 2026-11-04 — `Location.verified`: a coordinate no geocoder confirmed (public API 2.2.0)
 - **New** (`packages/contracts/src/activity.ts`): `Location.verified`, optional, and only ever
   `false`. It marks coordinates no vendor corroborated. Today that means an assistant's guess that

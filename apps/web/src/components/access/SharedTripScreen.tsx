@@ -1,22 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SharedTripView } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
+import { PublicCta } from "./PublicCta";
 import { formatMoney } from "@/lib/formatMoney";
 import { formatTripDate } from "@/lib/formatDate";
 import { toClockRange } from "@/lib/time";
 import { cloneSharedTrip, fetchSharedTrip } from "@/lib/apiClient";
-import { cn } from "@/lib/cn";
 import { displayPlace } from "@/lib/place";
 
 // The read side of M11 link 4. Read-only by construction rather than by
@@ -98,11 +97,7 @@ export function SharedTripScreen({ token }: { token: string }) {
         <div className="mx-auto flex w-full max-w-155 flex-col gap-4 px-7 pt-14">
           <Heading level={1}>Nothing to see here</Heading>
           <Text variant="secondary">{error}</Text>
-          <div>
-            <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
-              Start a trip
-            </Link>
-          </div>
+          <PublicCta />
         </div>
       </div>
     );
@@ -121,13 +116,7 @@ export function SharedTripScreen({ token }: { token: string }) {
 
   return (
     <div className="min-h-screen bg-paper">
-      <FrontDoorHeader
-        actions={
-          <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
-            Plan your own
-          </Link>
-        }
-      />
+      <FrontDoorHeader />
       <main className="mx-auto flex w-full max-w-285 flex-col gap-5 px-7 pt-8 pb-16">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div className="flex flex-wrap items-baseline gap-3">
@@ -237,6 +226,8 @@ export function SharedTripScreen({ token }: { token: string }) {
             </ul>
           </Card>
         )}
+
+        <PublicCta />
       </main>
     </div>
   );

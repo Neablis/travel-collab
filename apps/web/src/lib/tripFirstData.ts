@@ -42,7 +42,7 @@ export type TripFirstData = {
   /** `GET /api/trips/:id/pages` */
   pages: { pages: PageListEntry[]; viewerId: string };
   /** `GET /api/trips/:id/pages/:overviewId`, or `null` for a trip with no Overview notebook. */
-  overview: { page: Page } | null;
+  overview: { page: Page; publicToken: string | null; publishable: boolean } | null;
   /** `GET /api/trips/:id/globals` */
   globals: { globals: TripGlobals };
 };

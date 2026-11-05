@@ -637,6 +637,17 @@ export default [
     },
   },
   {
+    // THE PUBLIC NOTEBOOK PAGE (M58, ADR-088 §3). `/n/<token>` resolves a
+    // notebook's widgets on the server for the public reader and hands the
+    // browser only the answers, so the page reads `src/server` in-process: a
+    // client that did it would need the trip, which is what must never leave.
+    // That one file only: the screen it renders is UI.
+    files: ["src/app/(front)/n/\\[token\\]/page.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: exemptWallPatterns }],
+    },
+  },
+  {
     // THE ELEMENT WALL (design-system.md): text, controls, and tables render
     // through components/ui primitives; no inline styles. Enumerated inline-
     // style exceptions (drag opacity, map container, computed timeline/calendar

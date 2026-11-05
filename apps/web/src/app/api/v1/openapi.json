@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Caesura API",
-    "version": "2.2.0",
+    "version": "2.4.0",
     "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold.\n- `places:read` — Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day."
   },
   "paths": {
@@ -24001,6 +24001,303 @@
         }
       }
     },
+    "/v1/trips/{tripId}/pages/{pageId}/shares/{shareId}": {
+      "delete": {
+        "summary": "Make a Notebook page private again by revoking one of its public links",
+        "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip.",
+        "security": [
+          {
+            "bearerAuth": [
+              "sharing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shareId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tripId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "pageId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "token": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "shareId",
+                    "tripId",
+                    "pageId",
+                    "token",
+                    "createdBy",
+                    "createdAt",
+                    "revokedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      }
+    },
+    "/v1/trips/{tripId}/pages/{pageId}/shares": {
+      "get": {
+        "summary": "List a Notebook page's public links, newest first, revoked ones included",
+        "description": "Requires the `trips:read` scope. Requires at least the `editor` role on the trip.",
+        "security": [
+          {
+            "bearerAuth": [
+              "trips:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1 to 200. A value outside that range is refused, never clamped.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque. Pass back the `nextCursor` of the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "shareId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "tripId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "pageId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "token": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "createdBy": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "revokedAt": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "shareId",
+                          "tripId",
+                          "pageId",
+                          "token",
+                          "createdBy",
+                          "createdAt",
+                          "revokedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      },
+      "post": {
+        "summary": "Make a Notebook page public: a link anyone can read, showing the page as it stands",
+        "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip. Answers 422 for the seeded Bookings & confirmations, Money and During-the-trip notebooks, and for a deleted trip. A page that is already public is answered with its live link.",
+        "security": [
+          {
+            "bearerAuth": [
+              "sharing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shareId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "tripId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "pageId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "token": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "shareId",
+                    "tripId",
+                    "pageId",
+                    "token",
+                    "createdBy",
+                    "createdAt",
+                    "revokedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      }
+    },
     "/v1/trips/{tripId}/pages": {
       "get": {
         "summary": "List the Notebook pages on a trip",
@@ -31789,6 +32086,9 @@
                               "type": "object",
                               "additionalProperties": {},
                               "default": {}
+                            },
+                            "hideWhenPublic": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
@@ -31965,6 +32265,9 @@
                               "type": "object",
                               "additionalProperties": {},
                               "default": {}
+                            },
+                            "hideWhenPublic": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
@@ -32041,6 +32344,9 @@
                     "type": "object",
                     "additionalProperties": {},
                     "default": {}
+                  },
+                  "hideWhenPublic": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -32075,6 +32381,9 @@
                     "type": "object",
                     "additionalProperties": {},
                     "default": {}
+                  },
+                  "hideWhenPublic": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -32145,6 +32454,9 @@
                               "type": "object",
                               "additionalProperties": {},
                               "default": {}
+                            },
+                            "hideWhenPublic": {
+                              "type": "boolean"
                             }
                           },
                           "required": [

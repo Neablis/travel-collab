@@ -107,6 +107,7 @@ export const tripPeopleWidget: MacroDef<TripPeopleParams, TripPeoplePayload> = {
   selection: undefined,
   description:
     "Who is travelling on the trip: a stack of their chips, then their names in a sentence that ends with the trip's owner. People only helping plan are left out.",
+  hiddenFromPublic: true,
   emptyText: "nobody is going yet",
   // Fixed, never computed (ADR-037 decision 5): nobody named.
   preview: "everyone going, as chips and their names in a sentence",

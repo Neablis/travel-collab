@@ -1,4 +1,4 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -144,5 +144,37 @@ describe("MacroNodeView selected state (KI-2026-09-05-a)", () => {
     // a sentence (SPEC §7); taking it out of the line to draw a ring round it
     // would fix a card by breaking a chip.
     expect(cssFor(inlineClasses)).not.toContain("display: block");
+  });
+});
+
+// M58 decision 5: in Editing a member sees which widgets a stranger will be
+// told are *Not shared*. Reading is the traveller's view and carries no chrome.
+describe("MacroNodeView: the Hidden when public badge", () => {
+  const editor = (editable: boolean, hideWhenPublic: boolean) => (
+    <PageEditor
+      detail={detail}
+      context={{ tripId: detail.tripId }}
+      value={newPageDoc([
+        { type: "paragraph", content: [{ type: "macro", attrs: { name: "cost", params: {}, ...(hideWhenPublic ? { hideWhenPublic: true } : {}) } }] },
+      ])}
+      onChange={() => {}}
+      editable={editable}
+    />
+  );
+
+  it("shows on a hidden widget in Editing, and not in Reading", async () => {
+    const view = render(editor(false, true));
+    // Reading first, then Editing on the same widget: the badge arriving is
+    // the proof that the widget was there to be asked.
+    await waitFor(() => expect(view.container.textContent).not.toBe(""));
+    expect(screen.queryByText("Hidden when public")).toBeNull();
+    view.rerender(editor(true, true));
+    expect(await screen.findByText("Hidden when public")).toBeTruthy();
+  });
+
+  it("is absent on a widget that is shown", async () => {
+    render(editor(true, false));
+    await screen.findByTestId("widget-handle");
+    expect(screen.queryByText("Hidden when public")).toBeNull();
   });
 });

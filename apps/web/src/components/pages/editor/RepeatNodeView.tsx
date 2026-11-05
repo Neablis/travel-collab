@@ -4,7 +4,7 @@ import { repeatLabel, repeatNoun, repeatTemplate, resolveRepeat, sentenceLines, 
 import { cn } from "@/lib/cn";
 import { EmptyChip } from "../EmptyChip";
 import { usePeople } from "../people";
-import { SELECTED_RING } from "./MacroNodeView";
+import { HiddenWhenPublicBadge, SELECTED_RING } from "./MacroNodeView";
 import { useMacroEditorContext, usePageToday } from "./MacroEditorContext";
 import { useSelectionReport } from "./useSelectionReport";
 
@@ -39,6 +39,9 @@ function rail(outcome: RepeatOutcome): { label: string; resolved: boolean } {
       return { label: repeatLabel(outcome.over, null), resolved: false };
     case "invalid":
       return { label: "A sentence that no longer repeats", resolved: false };
+    // A public reader's (M58), which this view's context never is.
+    case "not-shared":
+      return { label: "Not shared", resolved: false };
   }
 }
 
@@ -49,6 +52,8 @@ function Unrepeated({ outcome, onBindDay }: { outcome: Exclude<RepeatOutcome, { 
       return <EmptyChip tone="muted" label={outcome.emptyText} />;
     case "invalid":
       return <EmptyChip tone="error" label="this sentence's settings no longer fit it" />;
+    case "not-shared":
+      return <EmptyChip tone="not-shared" label="Not shared" />;
     case "unbound":
       if (outcome.needs === "day") {
         return <EmptyChip tone={onBindDay ? "action" : "muted"} label="that day was removed" onClick={onBindDay} />;
@@ -74,7 +79,7 @@ export function RepeatNodeView({ node, selected, editor }: ReactNodeViewProps) {
   const { editing } = value;
   const { label, resolved } = rail(outcome);
   const template = repeatTemplate(params);
-  const over = outcome.status === "invalid" ? undefined : outcome.over;
+  const over = "over" in outcome ? outcome.over : undefined;
 
   return (
     <NodeViewWrapper
@@ -99,6 +104,7 @@ export function RepeatNodeView({ node, selected, editor }: ReactNodeViewProps) {
           {label}
         </span>
       ) : null}
+      {editing && node.attrs.hideWhenPublic === true ? <HiddenWhenPublicBadge /> : null}
       {template === "" ? (
         editing ? (
           <p className="my-1 text-slate select-none">

@@ -155,7 +155,12 @@ test("passes against the checked-in config, and every rejection names the rule t
   // `src/app/oauth/authorize/page.tsx`, may import `@/server/*` to check the
   // authorize request before it renders, still may not import `@tc/domain`, and
   // a file beside it gets no exemption.
-  assert.equal(stdout.trim().split("\n").length, 79,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **79 → 82 on 2026-11-04**: M58's public notebook page,
+  // `src/app/(front)/n/[token]/page.tsx`, may import `@/server/*` to resolve a
+  // stranger's widgets before they reach the browser, still may not import
+  // `@tc/domain`, and the screen it renders gets no exemption.
+  assert.equal(stdout.trim().split("\n").length, 82,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule

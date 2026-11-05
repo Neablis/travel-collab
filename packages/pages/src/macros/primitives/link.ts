@@ -121,50 +121,71 @@ export const internalLink: MacroDef<InternalLinkParams, LinkCardPayload | Missin
   // Fixed (ADR-037 decision 5), and generic on purpose: which notebook the
   // reader will point it at is theirs to choose.
   preview: "a card for another notebook, a day or a tab — its name and a line about it",
-  resolve: ({ trip, globals, external }: WidgetContext, params): MacroResult<LinkCardPayload | MissingNotebookPayload> => {
-    if (!trip) return needsTrip();
-    const to = params.to;
-    if (to === undefined) return unbound("target", [ghost("text", "where it goes")]);
-    switch (to.kind) {
-      case "view":
-        return ok({ kind: "link-card", to, eyebrow: "Trip tab", ...viewCard(to.view, trip, globals) });
-      case "day": {
-        const index = dayIndexOf(trip, to.day);
-        if (index === null) return unbound("day");
-        const day = trip.days[index]!;
-        const cities = globals?.days[index]?.cities ?? [];
-        const date = formatShortDate(day.date);
-        return ok({
-          kind: "link-card",
-          // By id whatever was stored, so the href the card builds survives a
-          // reorder between this render and the click.
-          to: { kind: "day", day: { kind: "dayId", dayId: day.dayId } },
-          eyebrow: date === null ? dayLabel(index) : `${dayLabel(index)} · ${date}`,
-          title: cities.length > 0 ? cities.join(" – ") : dayLabel(index),
-          summary: day.activityIds.length === 0 ? "Nothing planned yet" : plural(day.activityIds.length, "stop"),
-        });
-      }
-      case "notebook": {
-        const slot = readSlot(external, "notebooks");
-        if (slot.status !== "ok") return slot;
-        const page = slot.value.pages.find((p) => p.id === to.pageId);
-        if (page !== undefined) return ok(notebookCard(page));
-        // An Overview reset before 2026-10-03, on a trip without the sibling,
-        // stored a placeholder id where the link is now a seed key. Read as
-        // the seed it stood for, so that Overview needs no second reset.
-        const legacySeed = LEGACY_PLACEHOLDER_SEEDS[to.pageId];
-        if (legacySeed !== undefined) return seedCard(slot.value.pages, legacySeed);
-        return empty("this notebook was deleted");
-      }
-      case "seed": {
-        const slot = readSlot(external, "notebooks");
-        if (slot.status !== "ok") return slot;
-        return seedCard(slot.value.pages, to.seedKey);
-      }
-    }
+  resolve: (ctx: WidgetContext, params): MacroResult<LinkCardPayload | MissingNotebookPayload> => {
+    const result = resolveInternal(ctx, params);
+    return ctx.reader === "public" && result.status === "ok" ? ok(forStranger(result.value, ctx)) : result;
   },
   render: blockOf,
 };
+
+/**
+ * A card as a stranger gets it (M58 decision 1, ADR-088 §6): a notebook with a
+ * live public link goes to it; every other target is its label and nothing to
+ * follow. The private card's own line is dropped with its target, since it is
+ * text from a page the publisher never chose to share, and the missing-default
+ * offer is a control only a member can use.
+ */
+function forStranger(card: LinkCardPayload | MissingNotebookPayload, ctx: WidgetContext): LinkCardPayload {
+  if (card.kind === "link-missing") return { kind: "link-card", to: { kind: "plain" }, eyebrow: "Notebook", title: card.title, summary: "" };
+  if (card.to.kind === "notebook") {
+    const token = ctx.publicTokenFor?.(card.to.pageId) ?? null;
+    if (token !== null) return { ...card, to: { kind: "public", token } };
+  }
+  return { ...card, to: { kind: "plain" }, summary: "" };
+}
+
+function resolveInternal({ trip, globals, external }: WidgetContext, params: InternalLinkParams): MacroResult<LinkCardPayload | MissingNotebookPayload> {
+  if (!trip) return needsTrip();
+  const to = params.to;
+  if (to === undefined) return unbound("target", [ghost("text", "where it goes")]);
+  switch (to.kind) {
+    case "view":
+      return ok({ kind: "link-card", to, eyebrow: "Trip tab", ...viewCard(to.view, trip, globals) });
+    case "day": {
+      const index = dayIndexOf(trip, to.day);
+      if (index === null) return unbound("day");
+      const day = trip.days[index]!;
+      const cities = globals?.days[index]?.cities ?? [];
+      const date = formatShortDate(day.date);
+      return ok({
+        kind: "link-card",
+        // By id whatever was stored, so the href the card builds survives a
+        // reorder between this render and the click.
+        to: { kind: "day", day: { kind: "dayId", dayId: day.dayId } },
+        eyebrow: date === null ? dayLabel(index) : `${dayLabel(index)} · ${date}`,
+        title: cities.length > 0 ? cities.join(" – ") : dayLabel(index),
+        summary: day.activityIds.length === 0 ? "Nothing planned yet" : plural(day.activityIds.length, "stop"),
+      });
+    }
+    case "notebook": {
+      const slot = readSlot(external, "notebooks");
+      if (slot.status !== "ok") return slot;
+      const page = slot.value.pages.find((p) => p.id === to.pageId);
+      if (page !== undefined) return ok(notebookCard(page));
+      // An Overview reset before 2026-10-03, on a trip without the sibling,
+      // stored a placeholder id where the link is now a seed key. Read as
+      // the seed it stood for, so that Overview needs no second reset.
+      const legacySeed = LEGACY_PLACEHOLDER_SEEDS[to.pageId];
+      if (legacySeed !== undefined) return seedCard(slot.value.pages, legacySeed);
+      return empty("this notebook was deleted");
+    }
+    case "seed": {
+      const slot = readSlot(external, "notebooks");
+      if (slot.status !== "ok") return slot;
+      return seedCard(slot.value.pages, to.seedKey);
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // link.external
@@ -193,6 +214,8 @@ export const WebAddress = z
     }
   }, "a web address starting http:// or https://");
 
+const PUBLIC_REL = "noopener noreferrer nofollow ugc";
+
 const ExternalLinkParams = z
   .object({
     href: WebAddress.optional(),
@@ -216,7 +239,7 @@ export function hostOf(href: string): string {
  * made on the reader's behalf to anywhere, which is a different feature with a
  * different ADR.
  */
-export const externalLink: MacroDef<ExternalLinkParams, { href: string; text: string }> = {
+export const externalLink: MacroDef<ExternalLinkParams, { href: string; text: string; rel?: string }> = {
   name: "link.external", title: "Link to a website", shape: "single",
   params: ExternalLinkParams,
   inputs: [
@@ -226,10 +249,13 @@ export const externalLink: MacroDef<ExternalLinkParams, { href: string; text: st
   description: "A link to a website, inline in a sentence. Opens in a new tab. Only http and https addresses.",
   emptyText: "add a web address",
   preview: "a link to a website, in your own words",
-  resolve: (_ctx: WidgetContext, params) => {
+  resolve: (ctx: WidgetContext, params) => {
     if (params.href === undefined) return unbound("url", [ghost("text", "web address")]);
     const label = params.label?.trim();
-    return ok({ href: params.href, text: label ? label : hostOf(params.href) });
+    // A stranger's page carries a publisher's links, which this site does not
+    // vouch for (ADR-088 §6).
+    const rel = ctx.reader === "public" ? PUBLIC_REL : undefined;
+    return ok({ href: params.href, text: label ? label : hostOf(params.href), rel });
   },
-  render: ({ href, text }) => linkOf(href, text),
+  render: ({ href, text, rel }) => linkOf(href, text, rel),
 };

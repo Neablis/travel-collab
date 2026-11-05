@@ -23,7 +23,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tripId:
   const g = await guard(tripId, "viewer", { allowDemo: true });
   if ("error" in g) return g.error;
   const view = await tripPageView(tripId, pageId);
-  return view === null ? notFound() : Response.json(view);
+  if (view === null) return notFound();
+  return Response.json(view);
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {

@@ -1,18 +1,31 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripShare } from "@tc/contracts";
+import type { PageShare, TripShare } from "@tc/contracts";
 
 const fetchTripSharesMock = vi.fn();
 const createTripShareMock = vi.fn();
 const revokeTripShareMock = vi.fn();
+const fetchTripAccessMock = vi.fn();
+const fetchTripPageSharesMock = vi.fn();
+const fetchPagesMock = vi.fn();
+const revokePageShareMock = vi.fn();
 
 vi.mock("@/lib/apiClient", () => ({
   fetchTripShares: (...args: unknown[]) => fetchTripSharesMock(...args),
   createTripShare: (...args: unknown[]) => createTripShareMock(...args),
   revokeTripShare: (...args: unknown[]) => revokeTripShareMock(...args),
+  fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
   shareLink: (token: string) => `http://test/s/${token}`,
 }));
+
+vi.mock("@/lib/pagesClient", () => ({
+  fetchTripPageShares: (...args: unknown[]) => fetchTripPageSharesMock(...args),
+  fetchPages: (...args: unknown[]) => fetchPagesMock(...args),
+  revokePageShare: (...args: unknown[]) => revokePageShareMock(...args),
+}));
+
+vi.mock("@/lib/publicNotebookLink", () => ({ publicNotebookLink: (token: string) => `http://test/n/${token}` }));
 
 import { ShareButton } from "./ShareButton";
 
@@ -25,6 +38,16 @@ const share: TripShare = {
   seq: 12,
   createdBy: "dev-alice",
   createdAt: "2026-08-01T00:00:00.000Z",
+  revokedAt: null,
+};
+
+const pageShare: PageShare = {
+  shareId: "44444444-4444-4444-8444-444444444444",
+  tripId,
+  pageId: "55555555-5555-4555-8555-555555555555",
+  token: "pub-tok",
+  createdBy: "dev-alice",
+  createdAt: "2026-08-01T10:00:00.000Z",
   revokedAt: null,
 };
 
@@ -50,6 +73,13 @@ beforeEach(() => {
   fetchTripSharesMock.mockReset().mockResolvedValue({ ok: true, value: [share] });
   createTripShareMock.mockReset().mockResolvedValue({ ok: true, value: { ...share, token: "fresh" } });
   revokeTripShareMock.mockReset().mockResolvedValue({ ok: true, value: { ...share, revokedAt: "now" } });
+  fetchTripAccessMock.mockReset().mockResolvedValue({
+    ok: true,
+    value: { tripId, myRole: "owner", members: [{ userId: "dev-alice", role: "owner", name: "Alice", email: null, image: null }], invites: [] },
+  });
+  fetchTripPageSharesMock.mockReset().mockResolvedValue({ ok: true, value: [] });
+  fetchPagesMock.mockReset().mockResolvedValue({ ok: true, value: { pages: [{ id: pageShare.pageId, title: "Kyoto notes" }], viewerId: null } });
+  revokePageShareMock.mockReset().mockResolvedValue({ ok: true, value: { ...pageShare, revokedAt: "now" } });
   writeText.mockClear();
   Object.assign(navigator, { clipboard: { writeText } });
 });
@@ -201,5 +231,56 @@ describe("ShareButton", () => {
     render(<ShareButton tripId={tripId} />);
     await openPanel();
     expect(await screen.findByRole("button", { name: "Copy referral link" })).toBeTruthy();
+  });
+
+  // M58 decision 4: nothing is public without the group seeing it, and an
+  // editor can end it from here without finding the notebook.
+  describe("public notebooks", () => {
+    it("lists each live one by title, with who made it public and when", async () => {
+      fetchTripPageSharesMock.mockResolvedValue({
+        ok: true,
+        value: [pageShare, { ...pageShare, shareId: "66666666-6666-4666-8666-666666666666", token: "old", revokedAt: "2026-08-02T00:00:00.000Z" }],
+      });
+      render(<ShareButton tripId={tripId} />);
+      await openPanel();
+      const list = await screen.findByRole("list", { name: "Public notebooks" });
+      const rows = within(list).getAllByRole("listitem");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.textContent).toContain("Kyoto notes");
+      expect(rows[0]!.textContent).toContain("Made public by Alice on Aug 1, 2026");
+    });
+
+    it("copies the notebook's public link", async () => {
+      fetchTripPageSharesMock.mockResolvedValue({ ok: true, value: [pageShare] });
+      render(<ShareButton tripId={tripId} />);
+      await openPanel();
+      await userEvent.click(await screen.findByRole("button", { name: "Copy link to Kyoto notes" }));
+      expect(writeText).toHaveBeenCalledWith("http://test/n/pub-tok");
+    });
+
+    it("makes one private by revoking that notebook's link, then re-reads", async () => {
+      fetchTripPageSharesMock.mockResolvedValueOnce({ ok: true, value: [pageShare] }).mockResolvedValue({ ok: true, value: [] });
+      render(<ShareButton tripId={tripId} />);
+      await openPanel();
+      await userEvent.click(await screen.findByRole("button", { name: "Make Kyoto notes private" }));
+      await waitFor(() => expect(revokePageShareMock).toHaveBeenCalledWith(tripId, pageShare.pageId, pageShare.shareId));
+      await waitFor(() => expect(screen.queryByRole("list", { name: "Public notebooks" })).toBeNull());
+    });
+
+    it("drops a notebook made private at once, even if the re-read then fails", async () => {
+      fetchTripPageSharesMock.mockResolvedValueOnce({ ok: true, value: [pageShare] }).mockResolvedValue({ ok: false, error: { status: 500, message: "down" } });
+      render(<ShareButton tripId={tripId} />);
+      await openPanel();
+      await userEvent.click(await screen.findByRole("button", { name: "Make Kyoto notes private" }));
+      await waitFor(() => expect(revokePageShareMock).toHaveBeenCalled());
+      await waitFor(() => expect(screen.queryByRole("list", { name: "Public notebooks" })).toBeNull());
+    });
+
+    it("shows no list when none is public", async () => {
+      render(<ShareButton tripId={tripId} />);
+      await openPanel();
+      await screen.findByText("Pinned at change 12");
+      expect(screen.queryByRole("list", { name: "Public notebooks" })).toBeNull();
+    });
   });
 });
