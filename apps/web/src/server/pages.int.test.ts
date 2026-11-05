@@ -403,6 +403,29 @@ describe("pages repository", () => {
     expect((await tallyFor(tripId, [after], "2026-01-01")).get(minted)?.counts).toMatchObject({ Ramen: 1 });
   });
 
+  // M58 round 5: ids follow the question, never the position. A stripped
+  // rewrite that puts a new poll first must not shift A's votes onto it.
+  it("keeps each stored poll's id by question when a rewrite drops the ids and adds a poll in front", async () => {
+    const { tripId } = await seedTrip();
+    const pageId = randomUUID();
+    const poll = (question: string) => ({ type: "macro", attrs: { name: "poll", params: { question, options: "Ramen, Sushi" } } });
+    await executePageCommand(
+      { type: "CreatePage", tripId, pageId, title: "Votes", context: { tripId }, content: newPageDoc([poll("A"), poll("B")] as unknown as PageNode[]) },
+      "user-1",
+    );
+    const idsOf = async () =>
+      ((await getPage(pageId))!.content.content as unknown as { attrs: { params: { pollId: string } } }[]).map((n) => n.attrs.params.pollId);
+    const [idA, idB] = await idsOf();
+    const rewrite = await executePageCommand(
+      { type: "EditPage", tripId, pageId, content: newPageDoc([poll("C"), poll("A"), poll("B")] as unknown as PageNode[]) },
+      "user-1",
+    );
+    expect(rewrite.ok).toBe(true);
+    const [idC, afterA, afterB] = await idsOf();
+    expect([afterA, afterB]).toEqual([idA, idB]);
+    expect([idA, idB]).not.toContain(idC);
+  });
+
   // M43 decision 2: the Overview is a column, and the database holds one per
   // trip. Raw, under the command pipeline, because the index is the guard that
   // still holds when a code path gets the rule wrong.

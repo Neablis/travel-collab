@@ -112,52 +112,80 @@ export function pollsIn(doc: unknown, into: PollSpec[] = []): PollSpec[] {
   return into;
 }
 
-/** The `params` of every poll node in a document, in document order (a poll before its children). */
-function pollParamsIn(doc: unknown, into: Record<string, unknown>[] = []): Record<string, unknown>[] {
+type PollNode = { type?: unknown; attrs?: { name?: unknown; params?: unknown }; content?: unknown };
+
+const isPollNode = (n: PollNode): boolean => n.type === "macro" && n.attrs?.name === "poll";
+
+/** A poll node's params; `{}` for a node that has none, which is still a poll (it can be minted an id). */
+const paramsOfNode = (n: PollNode): Record<string, unknown> =>
+  typeof n.attrs?.params === "object" && n.attrs.params !== null ? (n.attrs.params as Record<string, unknown>) : {};
+
+/** Every poll node in a document, nested ones too: the one place that decides what counts as a poll. */
+function pollNodesIn(doc: unknown, into: PollNode[] = []): PollNode[] {
   if (Array.isArray(doc)) {
-    for (const child of doc) pollParamsIn(child, into);
+    for (const child of doc) pollNodesIn(child, into);
     return into;
   }
   if (typeof doc !== "object" || doc === null) return into;
-  const node = doc as { type?: unknown; attrs?: { name?: unknown; params?: unknown }; content?: unknown };
-  if (node.type === "macro" && node.attrs?.name === "poll" && typeof node.attrs.params === "object" && node.attrs.params !== null) {
-    into.push(node.attrs.params as Record<string, unknown>);
-  }
-  pollParamsIn(node.content, into);
+  const node = doc as PollNode;
+  if (isPollNode(node)) into.push(node);
+  pollNodesIn(node.content, into);
   return into;
+}
+
+/** A question as a match key; `null` when there is none to match on. */
+function questionKey(params: Record<string, unknown>): string | null {
+  const q = typeof params.question === "string" ? params.question.trim() : "";
+  return q === "" ? null : q;
 }
 
 /**
  * A document with an id for every poll that has none (M58 D6). The widget
  * insert mints it, but the assistant and the v1 API write the node themselves,
  * and a poll with no id cannot be voted on. An id already there is never
- * replaced, so saving the same page twice is a no-op.
+ * replaced, so saving the same page twice is a no-op. An id already used by
+ * another poll is kept too: a pasted copy is the same poll, by design (D4, D13).
  *
  * A client that round-trips a page may drop the id (an agent rewriting a poll
  * from its question and options). Blocks carry no identity, so a poll with no
- * id takes the unclaimed id of the `held` page's poll with the same question,
- * else the one at the same position among its polls; only a poll matching
- * neither is new and gets a minted one. `mint` is passed in: this package
- * draws no randomness of its own in a resolver.
+ * id takes the `held` page's id only when the match is unambiguous: exactly one
+ * held poll and exactly one id-less incoming poll have that (trimmed) question,
+ * and the id is not already carried by another incoming poll. Every other case
+ * mints. Position is never used: a lost vote is better than one that lands on
+ * a different question. `mint` is passed in: this package draws no randomness
+ * of its own in a resolver.
  */
 export function withPollIds<T>(doc: T, mint: () => string, held: unknown = null): T {
-  const heldPolls = pollParamsIn(held);
-  const claimed = new Set<string>(pollParamsIn(doc).flatMap((p) => (typeof p.pollId === "string" ? [p.pollId] : [])));
-  const free = (p: Record<string, unknown> | undefined): string | null =>
-    typeof p?.pollId === "string" && !claimed.has(p.pollId) ? p.pollId : null;
-  let position = -1;
+  const claimed = new Set<string>();
+  const stripped = new Map<string, number>();
+  for (const node of pollNodesIn(doc)) {
+    const params = paramsOfNode(node);
+    if (params.pollId !== undefined) {
+      if (typeof params.pollId === "string") claimed.add(params.pollId);
+      continue;
+    }
+    const key = questionKey(params);
+    if (key !== null) stripped.set(key, (stripped.get(key) ?? 0) + 1);
+  }
+  const heldIds = new Map<string, string[]>();
+  for (const node of pollNodesIn(held)) {
+    const params = paramsOfNode(node);
+    const key = questionKey(params);
+    if (key === null || typeof params.pollId !== "string") continue;
+    heldIds.set(key, [...(heldIds.get(key) ?? []), params.pollId]);
+  }
   const walk = (node: unknown): unknown => {
     if (Array.isArray(node)) return node.map(walk);
     if (typeof node !== "object" || node === null) return node;
-    const n = node as { type?: unknown; attrs?: { name?: unknown; params?: unknown }; content?: unknown };
-    const isPoll = n.type === "macro" && n.attrs?.name === "poll";
-    // Counted before the children, as `pollParamsIn` walks, so positions agree.
-    const at = isPoll ? ++position : -1;
+    const n = node as PollNode;
     const content = Array.isArray(n.content) ? { content: walk(n.content) } : {};
-    if (!isPoll) return { ...n, ...content };
-    const params = typeof n.attrs?.params === "object" && n.attrs.params !== null ? (n.attrs.params as Record<string, unknown>) : {};
+    if (!isPollNode(n)) return { ...n, ...content };
+    const params = paramsOfNode(n);
     if (params.pollId !== undefined) return { ...n, ...content };
-    const id = free(heldPolls.find((p) => p.question === params.question && free(p) !== null)) ?? free(heldPolls[at]) ?? mint();
+    const key = questionKey(params);
+    const candidates = key === null ? [] : (heldIds.get(key) ?? []);
+    const only = candidates.length === 1 && stripped.get(key as string) === 1 ? candidates[0]! : null;
+    const id = only !== null && !claimed.has(only) ? only : mint();
     claimed.add(id);
     return { ...n, ...content, attrs: { ...n.attrs, params: { ...params, pollId: id } } };
   };

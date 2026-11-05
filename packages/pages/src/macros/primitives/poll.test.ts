@@ -4,7 +4,7 @@ import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { PollPayload, WidgetContext } from "../../registry-types";
 import { insertWidget } from "../../insert";
-import { pollClosed, pollSpecOf, pollsIn } from "./poll";
+import { pollClosed, pollSpecOf, pollsIn, withPollIds } from "./poll";
 
 // "Poll" (M58 decision 8). What a reader cannot check from the screen is what
 // a stranger is handed (counts, never a poll id or a voter), how the option
@@ -113,5 +113,46 @@ describe("poll", () => {
     expect(pollsIn(doc)).toEqual([
       { pollId: POLL_ID, question: "Where to eat?", options: expect.any(Array), multi: true, closesAt: "2026-11-10", hideWhenPublic: false },
     ]);
+  });
+
+  // M58 round 5: lost votes beat wrong votes. A poll that lost its id takes the
+  // stored one only on an unambiguous question match, never by position.
+  describe("withPollIds on a write that dropped the ids", () => {
+    const node = (question: string, pollId?: string) => ({
+      type: "macro",
+      attrs: { name: "poll", params: { question, options: "a, b", ...(pollId ? { pollId } : {}) } },
+    });
+    const page = (...polls: unknown[]) => ({ type: "doc", content: polls });
+    const idsOf = (doc: unknown) => (doc as { content: { attrs: { params: { pollId: string } } }[] }).content.map((n) => n.attrs.params.pollId);
+    const ID_A = "00000000-0000-4000-8000-00000000000a";
+    const ID_B = "00000000-0000-4000-8000-00000000000b";
+    const ID_X = "00000000-0000-4000-8000-0000000000f0";
+    let n = 0;
+    const mint = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "1")}`;
+
+    it("keeps each stored id by question when a new poll is added in front", () => {
+      const out = idsOf(withPollIds(page(node("C"), node("A"), node("B")), mint, page(node("A", ID_A), node("B", ID_B))));
+      expect(out[1]).toBe(ID_A);
+      expect(out[2]).toBe(ID_B);
+      expect([ID_A, ID_B]).not.toContain(out[0]);
+    });
+
+    it("gives a new poll a new id when the poll before it was deleted, never the deleted one's", () => {
+      const out = idsOf(withPollIds(page(node("C")), mint, page(node("A", ID_A))));
+      expect(out[0]).not.toBe(ID_A);
+    });
+
+    it("moves no id between different questions when the stored page differs from the one the writer read", () => {
+      const out = idsOf(withPollIds(page(node("A2"), node("B2")), mint, page(node("X", ID_X), node("A", ID_A), node("B", ID_B))));
+      expect([ID_X, ID_A, ID_B]).not.toContain(out[0]);
+      expect([ID_X, ID_A, ID_B]).not.toContain(out[1]);
+    });
+
+    it("mints for two polls with the same question, so a reorder swaps nothing", () => {
+      const out = idsOf(withPollIds(page(node("Same"), node("Same")), mint, page(node("Same", ID_A), node("Same", ID_B))));
+      expect([ID_A, ID_B]).not.toContain(out[0]);
+      expect([ID_A, ID_B]).not.toContain(out[1]);
+      expect(out[0]).not.toBe(out[1]);
+    });
   });
 });
