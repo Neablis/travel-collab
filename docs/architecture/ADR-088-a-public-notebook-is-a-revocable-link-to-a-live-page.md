@@ -80,6 +80,32 @@ one.
    - On a public page, a poll that isn't hidden shows its question and per-option counts, with no
      names and no vote control.
 
+### Amendments (Mitchell, 2026-11-05)
+
+9. **Exposure stays as answered.** Every widget shows by default, each instance has *Hide when
+   public*, and the three floors in 5 hold. Money widgets keep that default (re-confirmed).
+10. **Weather and people are always absent for a public reader.** A `MacroDef` field,
+    `hiddenFromPublic`, makes a widget draw nothing (not the *Not shared* chip), whatever the
+    instance's setting. `day.weather` and `trip.people` carry it.
+11. **The call to action reads "Start planning for free"** (no em dash), to
+    `/signup?ref=public-notebook`, then New trip. This replaces the wording in 7 and the milestone
+    file.
+12. **Polls have no 402 lapse gate**: voting, closing and reopening work on a lapsed trip.
+    Removing an option keeps its votes but stops counting them; adding the same text back brings
+    them back. A poll pasted twice in one trip is the same poll, and votes validate against the
+    first copy's options. Repeated options are keyed by id plus their nth repeat.
+13. **A poll written without a `pollId`** (the AI, the v1 API, MCP) gets one minted in
+    `checkPageDocForWrite` through `withPollIds`. A returning poll whose id was stripped keeps its
+    stored id only on an unambiguous exact-question match; otherwise a new id is minted, because
+    lost votes are better than wrong votes. Accepted: an invalid carried `pollId` stays
+    unvotable, and the same question with edited options keeps its id.
+14. **Reopen is for an editor or the owner.** Reopening an open poll is an idempotent 200. A
+    closing date already past answers 409 asking the editor to move the date; the page is never
+    edited by the server.
+
+Accepted as built: a published Overview's title (the trip name) shows in `<title>` and the OG
+card, and internal day ids reach the public client.
+
 ## Consequences
 
 - A new widget is public the day it ships unless its data falls under a floor. **Anyone adding

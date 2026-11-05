@@ -10,7 +10,7 @@ decision 8. **Placed ahead of M53 the same day, so it is current** (*"Can we mak
 milestone, not last"*; see `docs/milestones/README.md`, *2026-11-04 — minted: M58, public
 notebooks and a poll*). **Scoped 2026-11-04 with Mitchell: all eight decisions answered**
 (*Answered* below; it overrides *As proposed* wherever they differ), with the mechanisms in
-ADR-088. Plan: `docs/plans/2026-11-04-M58-public-notebooks-and-polls.md`.
+ADR-088. The plan was deleted at the gate close.
 
 ## Why this exists
 
@@ -232,34 +232,112 @@ Five parts, as one stack. The files are in the plan.
 
 ## Exit gate
 
-- [ ] **Hide when public:** every widget in `MACRO_REGISTRY` accepts `hideWhenPublic` (a registry
+- [x] **Hide when public:** every widget in `MACRO_REGISTRY` accepts `hideWhenPublic` (a registry
   test over every entry, seen to fail with the setting removed from one), and a hidden widget
   draws *Not shared* on the public page while members still see it with its badge.
-- [ ] **Hidden data stays on the server:** with a notebook holding a hidden cost chart, a booked
+      Evidence: `packages/pages/src/registry.test.ts:803-814` (`it.each(MACRO_NAMES)`, a hidden instance never reaches `resolve`, over every registry entry) and `:822-827`; PR 689 body records it red before the code (33 of 34 entries failed with `expected { status: 'empty' } to deeply equal { status: 'not-shared' }`). The member side: `MacroView.test.tsx` and `editor/MacroNodeView.test.tsx` (the badge) and `apps/web/e2e/m58-public-notebook.spec.ts:203` (hide a widget, member still sees it). CI run 41970724615 (https://github.com/Neablis/travel-collab/actions/runs/41970724615) at f2b7574a7669277b384f021bbe375250f35bf3bd, the head PR 693 merged with as aac7246: e2e 1/2 and 2/2, unit, integration, lint, typecheck, scripts and `ci-ok` all success, CodeQL success. Round 4 made `weather` and `people` `hiddenFromPublic`, so they draw nothing rather than the chip (ADR-088 amendment).
+- [x] **Hidden data stays on the server:** with a notebook holding a hidden cost chart, a booked
   stop, a stop with `addedBy` and a `chat.recent`, the public page's HTML and RSC payload contain
   no cost figure from the hidden chart, confirmation code, booking URL, `addedBy` name or chat
   text (an e2e, `test:e2e:ci-like`, or CI on the PR).
-- [ ] **Links:** on a public page, a link to another public notebook opens its `/n/` URL while
+      Evidence: `apps/web/e2e/m58-public-notebook.spec.ts:39-160` plants a hidden cost chart, a booked stop, a member `addedBy` and a hidden widget's param, then asserts none of them is in the page's HTML or RSC payload (`wire.html`, `wire.rsc`, :93-103 of the test body); unit half `apps/web/src/server/access/publicView.test.ts` (each floor seen red by editing the source, PR 689 body). CI run 41970724615 (https://github.com/Neablis/travel-collab/actions/runs/41970724615) at f2b7574a7669277b384f021bbe375250f35bf3bd, the head PR 693 merged with as aac7246: e2e 1/2 and 2/2, unit, integration, lint, typecheck, scripts and `ci-ok` all success, CodeQL success.
+- [x] **Links:** on a public page, a link to another public notebook opens its `/n/` URL while
   signed out, and links to a private notebook, a day and a view render as their text with no
   `href` (the same e2e).
-- [ ] **URL:** the token is 43 base64url characters, and the URL contains no trip id, page id or
+      Evidence: `apps/web/e2e/m58-public-notebook.spec.ts` (link cards: first has `href=/n/<token>` signed out, the private notebook and the tab render as text with no `href`); `packages/pages/src/macros/primitives/link.test.ts`. CI run 41970724615 (https://github.com/Neablis/travel-collab/actions/runs/41970724615) at f2b7574a7669277b384f021bbe375250f35bf3bd, the head PR 693 merged with as aac7246: e2e 1/2 and 2/2, unit, integration, lint, typecheck, scripts and `ci-ok` all success, CodeQL success.
+- [x] **URL:** the token is 43 base64url characters, and the URL contains no trip id, page id or
   title. The page answers with `noindex` and `Referrer-Policy: no-referrer`, and no `/n/` path is
   in the sitemap.
-- [ ] **Private again:** after *Make private*, the same URL answers 404 on the next request, with
+      Evidence: The e2e asserts the 43-character base64url token, no trip id, page id or title in the path, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, `<meta name="robots" content="noindex` and no token in `/sitemap.xml` (`m58-public-notebook.spec.ts`); `apps/web/src/app/sitemap.test.ts:44` ("lists no public notebook"); `apps/web/next.config.test.ts:224` region. CI run 41970724615 (https://github.com/Neablis/travel-collab/actions/runs/41970724615) at f2b7574a7669277b384f021bbe375250f35bf3bd, the head PR 693 merged with as aac7246: e2e 1/2 and 2/2, unit, integration, lint, typecheck, scripts and `ci-ok` all success, CodeQL success.
+- [x] **Private again:** after *Make private*, the same URL answers 404 on the next request, with
   no title in the response. Making it public again gives a different token, and the old one stays
   404 (an integration test, and once on the preview).
-- [ ] **Undo can't publish:** reverting the trip to before the link was revoked leaves the link
+      Evidence: `apps/web/e2e/m58-public-notebook.spec.ts` (after revoke the URL is a 404 with no title; a second publish gives a different token and the old one stays 404; a deleted notebook and an unknown token are the same 404); `apps/web/src/server/access/pageShares.int.test.ts:148`. CI run 41970724615 (https://github.com/Neablis/travel-collab/actions/runs/41970724615) at f2b7574a7669277b384f021bbe375250f35bf3bd, the head PR 693 merged with as aac7246: e2e 1/2 and 2/2, unit, integration, lint, typecheck, scripts and `ci-ok` all success, CodeQL success. The "once on the preview" half rests on the e2e, which runs against a production build; the preview walk was not reported.
+- [x] **Undo can't publish:** reverting the trip to before the link was revoked leaves the link
   revoked (an integration test).
-- [ ] **Who:** a viewer and a suggester get 403 creating a link, and an editor gets 201. The
+      Evidence: `apps/web/src/server/access/pageShares.int.test.ts:162` ("reverting the trip's history to before the revoke leaves the link revoked"). Integration green in CI run 41970724615 at f2b7574.
+- [x] **Who:** a viewer and a suggester get 403 creating a link, and an editor gets 201. The
   seeded *Bookings & confirmations*, *Money* and *During the trip* notebooks have no *Make
   public* control.
-- [ ] **No way in:** the public page has no join, invite, request-access or *Open in the trip*
+      Evidence: `apps/web/src/app/api/trips/[tripId]/pages/[pageId]/shares/route.int.test.ts:63` (editor 201), `:73` (viewer and suggester 403, nothing created), `:94` (the three seeded notebooks 422); the control: `apps/web/src/app/api/trips/[tripId]/pages/[pageId]/route.int.test.ts:58` (`publishable` is false for them) and `PageScreen.test.tsx:3340` (an owner on an unpublishable page gets no *Make public*). Integration and unit green in CI run 41970724615 at f2b7574.
+- [x] **No way in:** the public page has no join, invite, request-access or *Open in the trip*
   control, signed out or signed in as a member.
-- [ ] **Call to action:** the band is at the foot of `/n/`, `/s/` and `/demo/<slug>`, and its
+      Evidence: `apps/web/e2e/m58-public-notebook.spec.ts` (no `open in the trip` link, no join, request-access or invite button, signed out and as a signed-in member); `PublicNotebookScreen.test.tsx`. CI run 41970724615 (https://github.com/Neablis/travel-collab/actions/runs/41970724615) at f2b7574a7669277b384f021bbe375250f35bf3bd, the head PR 693 merged with as aac7246: e2e 1/2 and 2/2, unit, integration, lint, typecheck, scripts and `ci-ok` all success, CodeQL success.
+- [x] **Call to action:** the band is at the foot of `/n/`, `/s/` and `/demo/<slug>`, and its
   sign-up records `ref=public-notebook` and lands in New trip.
-- [ ] **Poll:** two members vote, one changes their vote, an editor closes the poll and a third
+      Evidence: `apps/web/src/components/access/SharedTripScreen.test.tsx:190,198` and `DemoTripScreen.test.tsx:51` (the band's link carries `ref=public-notebook`), `PublicCta.test.tsx`, and the `/n/` e2e asserting the band's `href` is `/signup?ref=public-notebook&callbackUrl=%2Fhome%3Fnew%3Dtrip` (`m58-public-notebook.spec.ts`), the `/home?new=trip` New trip landing. CI run 41970724615 (https://github.com/Neablis/travel-collab/actions/runs/41970724615) at f2b7574a7669277b384f021bbe375250f35bf3bd, the head PR 693 merged with as aac7246: e2e 1/2 and 2/2, unit, integration, lint, typecheck, scripts and `ci-ok` all success, CodeQL success. The copy reads "Start planning for free" (ADR-088 amendment, Mitchell 2026-11-05).
+- [x] **Poll:** two members vote, one changes their vote, an editor closes the poll and a third
   member can't vote after it closes. On the same notebook's public page the poll shows its
   question and counts with no names and no vote control.
+      Evidence: `apps/web/e2e/m58-poll.spec.ts:39-180`: two members vote, one changes theirs, an editor closes (and reopens, round 1), a late vote is 409, and a stranger's page shows the question and counts (`Ramen 2`) with no buttons and no *Not voted yet*, at two widths without overflow; `apps/web/src/server/polls/votes.int.test.ts:51-93`. CI run 41970724615 (https://github.com/Neablis/travel-collab/actions/runs/41970724615) at f2b7574a7669277b384f021bbe375250f35bf3bd, the head PR 693 merged with as aac7246: e2e 1/2 and 2/2, unit, integration, lint, typecheck, scripts and `ci-ok` all success, CodeQL success.
 - [ ] **[walk]** Mitchell publishes a real trip's Overview, opens the link in a private window
   on his phone, follows a link to a second public notebook, sees a hidden widget's *Not shared*
   state, signs up from the band, then makes the first notebook private and sees the link go dead.
+      Not ticked: walk not reported. There are no toolbar threads or walk comments on the preview, and Mitchell merged PR 693 without reporting results. Tick it on his word, or amend the gate (his call).
+
+## Retro — written 2026-11-05 (10 of 11 boxes ticked)
+
+All five code parts are on `main`: PRs 689 to 692 in `2729315`, PR 693 in `aac7246` (merged 2026-11-05 13:02Z from head `f2b7574a7669277b384f021bbe375250f35bf3bd`). The one box left open is the **[walk]**: walk not reported.
+
+**Migrations.** `0073_page_shares` is applied in production (`migrate-production` ran on `2729315`). `0074_poll_votes` (with `poll_closes`) landed with `aac7246` and is **not applied**. The `migration-pending` check on `aac7246` is red for exactly that reason, which is what the detector (`.github/workflows/migration-pending.yml`) is for, not a defect. Applying it is Mitchell's: dispatch `migrate-production` from `main`.
+
+### What went well
+
+- **The one full CI run was green on the merged head.** `f2b7574` passed lint, typecheck, unit, integration, scripts, e2e 1/2 and 2/2, `ci-ok` and CodeQL (run 41970724615, https://github.com/Neablis/travel-collab/actions/runs/41970724615); ten of eleven gate boxes cite it.
+- **Red-first held on the contract that mattered.** The every-widget `hideWhenPublic` test failed 33 of 34 entries before the code, and each floor of the public view was seen red by editing the source (PR 689 body).
+- **Five fix rounds after part 5's first approval, each reviewed by a fresh `part-reviewer`**: W1 reopen a closed poll; the CI unit fix (`reopenPoll` added to the `apiClient` `FETCHING_HELPERS`); Mitchell's decisions round; round 4 (hidden widgets render nothing; the e2e name check can fail); round 5 (a stripped `pollId` keeps its stored id only on an unambiguous exact-question match, otherwise a new id is minted: lost votes beat wrong votes). The final review of `a957ccc..f2b7574` found no blockers.
+- **Round 4's e2e name check can now fail**, and the public e2e plants a member's name and a hidden widget's param so the "carries no secret" assertions are not vacuous (`apps/web/e2e/m58-public-notebook.spec.ts`).
+- **Zero GitHub wakes** in all measured sessions.
+
+### What could be better
+
+- **Part 5 needed five rounds after its first approval.** Most came from decisions that were not settled before the build (reopen, a poll pasted twice, a poll written without an id by the AI, the v1 API or MCP, option removal and the 402 lapse gate). They are now ADR-088 decisions 9 to 14. Asking those at plan time, with an interaction sketch for the poll, would have saved most of the rounds.
+- **The orchestrator's share of the spend missed its target in both measured sessions** (21.6% and 43.3%; see the spend block). Session 3 held the orchestrator at 83 calls with a 168k average context across the fix rounds.
+- **A CI-only unit failure** (`reopenPoll` missing from `FETCHING_HELPERS`) was found by the full run, not by the part's scoped subset. The subset recipe did not include `apiClient.test.ts`, which enumerates every helper.
+- **The walk was never reported.** Mitchell merged PR 693 with no toolbar threads, so the [walk] box cannot be ticked from evidence.
+
+### Leftovers
+
+- **[walk] box (line 273)**: Mitchell's call, tick on his report or amend the gate.
+- **`0074` not applied**: Mitchell dispatches `migrate-production` from `main`.
+- **KI-20261105-a**: every poll request reads all of the trip's pages.
+- **KI-20261105-b**: read-only pages drop bold, italic and links.
+- **Accepted minors from the final review**: an invalid carried `pollId` stays unvotable; the same question with edited options keeps its id.
+- **Accepted as built**: a published Overview's title (the trip name) shows in `<title>` and the OG card; internal day ids reach the public client.
+
+## Spend
+
+Three sessions worked this milestone. Lines added: 16265 (`3a66fb1..aac7246`, without `docs/`, generated JSON and the lockfile). Dollars are not measurable: no `--cost-usd` was recorded, so units are the comparable figure. **Build session 1 is summary-only** (no generated block) and is excluded from the unit sums below. Sessions 2 and 3 together: 22 agents, 686 calls, 8.27M units.
+
+**Build session 1 (2026-11-04 20:37Z to 22:27Z), summary only:** 86 orchestrator requests, 81 tool calls, cache read 15.4M, cache write 201k, about 27 subagents (14 implementer, 13 reviewer).
+
+**Build session 2 (2026-11-04 22:29Z to 2026-11-05 00:40Z):** 10 agents, 332 API calls, 3.63M units. `phase-implementer` 5 agents, 194 calls, 1.91M (52.5%); orchestrator 1 agent, 49 calls, 798k (22.0%); `part-reviewer` 3 agents, 69 calls, 619k (17.0%); `ci-triage` (haiku) 1 agent, 20 calls, 309k (8.5%).
+
+**Build session 3 (the close and walk-fix rounds, 2026-11-05 00:23Z to 13:22Z), generated:**
+
+<!-- session-metrics:milestone v1 -->
+
+12 agents, 354 API calls, 4.64M units. One call is one assistant `message.id`; units = input + 1.25 x cache write + 0.1 x cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | Share |
+|---|---|---|---|---|---|---|
+| `orchestrator` | 1 | 83 | 168k | 223k | 2.02M | 43.6% |
+| `phase-implementer` | 6 | 191 | 66k | 113k | 1.77M | 38.2% |
+| `part-reviewer` | 5 | 80 | 62k | 118k | 845k | 18.2% |
+
+**Orchestrator turns, by what started them:** subagent reports and finishes 80%, human 20%, GitHub / trigger notification 0. One `implementer-brief-check` deny.
+
+### Spend against the last milestone
+
+The last milestone with a full measurement is M44 (orchestrator 37.1% overall, implementer worst peak 52k in its second session, wakes 0).
+
+| Target | Session 2 | Session 3 | M44 |
+|---|---|---|---|
+| Dollars per 1,000 lines added, under 20 | not measurable | not measurable | $5.04 (close session only) |
+| Orchestrator share, under 15% | 21.6%, **missed** | 43.3%, **missed** | 37.1%, missed |
+| A builder's average context, none over 250k | met (worst 113k) | met (worst 81k) | met |
+| GitHub wakes per merged part, under 5 | 0, met | 0 of 5, met | 0, met |
+
+The orchestrator miss in session 3 is the fix rounds: the orchestrator carried the walk-fix and decision conversation itself while six implementers did the edits, so its context stayed near 170k across 83 calls.
