@@ -555,6 +555,9 @@ export const votePoll = (tripId: string, pollId: string, optionIds: string[]): P
 /** Close the poll (an editor). */
 export const closePoll = (tripId: string, pollId: string): Promise<ApiResult<PollResults>> => callPoll(tripId, pollId, { method: "POST" }, "/close");
 
+/** Reopen a closed poll (an editor); refused 409 `poll-date-passed` while its closing date is past. */
+export const reopenPoll = (tripId: string, pollId: string): Promise<ApiResult<PollResults>> => callPoll(tripId, pollId, { method: "POST" }, "/reopen");
+
 // ── Access & Membership (M11 link 3) ─────────────────────────────────────────
 
 async function readJson<T>(res: Response, parse: (data: unknown) => T): Promise<ApiResult<T>> {

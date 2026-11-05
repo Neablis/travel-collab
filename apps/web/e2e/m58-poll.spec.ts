@@ -9,8 +9,9 @@ import { e2eTripName } from "./tripNames";
 
 // M58 part 5: the poll widget, the gate's *Poll* box.
 //
-// Two members vote and one changes their vote, an editor closes the poll, and
-// a member can't vote after it closes. On the same notebook's public page a
+// Two members vote and one changes their vote, an editor closes the poll and
+// reopens it (a member votes again), closes it again, and a member can't vote
+// after it closes. On the same notebook's public page a
 // stranger sees the question and the counts, with no names and no control. As in
 // `m58-public-notebook.spec.ts`, the stranger's claim is about what the server
 // SENDS, so it is read from the HTML, the RSC payload and the hydrated DOM.
@@ -106,6 +107,24 @@ test("two members vote and one changes theirs, an editor closes the poll, and a 
     await expect(poll(page).getByText("Poll closed")).toBeVisible();
     await expect(poll(page).getByRole("button", { name: "Close poll" })).toHaveCount(0);
     await expect(poll(page).getByRole("button", { name: /^Ramen/ })).toBeDisabled();
+
+    // An editor can take the close back: the votes are kept and a member can vote again.
+    await Promise.all([
+      page.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith(`/polls/${pollId}/reopen`) && r.ok()),
+      poll(page).getByRole("button", { name: "Reopen poll" }).click(),
+    ]);
+    await expect(poll(page).getByText("Poll closed")).toHaveCount(0);
+    await expect(poll(page).getByRole("button", { name: /^Ramen/ })).toContainText("2");
+    await bob.reload();
+    await expect(poll(bob).getByRole("button", { name: /^Tempura/ })).toBeEnabled();
+    await choose(bob, /^Tempura/);
+    await expect(poll(bob).getByRole("button", { name: /^Tempura/ })).toHaveAttribute("aria-pressed", "true");
+    await choose(bob, /^Ramen/);
+    await Promise.all([
+      page.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith(`/polls/${pollId}/close`) && r.ok()),
+      poll(page).getByRole("button", { name: "Close poll" }).click(),
+    ]);
+    await expect(poll(page).getByText("Poll closed")).toBeVisible();
 
     // Bob, a member, cannot vote after it closes: no live control, and the server refuses.
     await bob.reload();

@@ -4,7 +4,7 @@ import { newPageDoc, type PageNode } from "@tc/contracts";
 import type { PollSpec } from "@tc/pages";
 import { executeTripCommand } from "@/server/commands";
 import { executePageCommand } from "@/server/pageCommands";
-import { castVote, closePoll, pollOnTrip, tallyFor, writeVote } from "./votes";
+import { castVote, closePoll, pollOnTrip, reopenPoll, tallyFor, writeVote } from "./votes";
 
 // The poll store (M58 decision 8): one vote per person per poll, changeable
 // until the poll closes, counted by option, and a poll id only ever means a
@@ -88,6 +88,45 @@ describe("poll votes", () => {
     const tally = await countsOf(tripId, spec);
     expect(tally.closed).toBe(true);
     expect(tally.counts).toEqual({ Ramen: 1, Sushi: 0, Tempura: 0 });
+  });
+
+  it("reopens a closed poll: the close goes, the votes stay, and voting works again", async () => {
+    const tripId = await seedTrip();
+    const spec = await specOf(tripId, await seedPoll(tripId));
+    await castVote(tripId, "ann", spec, ["Ramen"], TODAY);
+    await closePoll(tripId, spec, OWNER, new Date());
+    expect((await countsOf(tripId, spec)).closed).toBe(true);
+    expect(await reopenPoll(tripId, spec, TODAY)).toEqual({ ok: true });
+    const tally = await countsOf(tripId, spec);
+    expect(tally.closed).toBe(false);
+    expect(tally.counts).toEqual({ Ramen: 1, Sushi: 0, Tempura: 0 });
+    expect(await castVote(tripId, "bob", spec, ["Sushi"], TODAY)).toEqual({ ok: true });
+    // Reopening an open poll is the same answer, not an error.
+    expect(await reopenPoll(tripId, spec, TODAY)).toEqual({ ok: true });
+    expect((await countsOf(tripId, spec)).closed).toBe(false);
+  });
+
+  it("reopens only that trip's close, not the same poll id's on another trip", async () => {
+    const [tripA, tripB] = [await seedTrip(), await seedTrip()];
+    const pollId = randomUUID();
+    await seedPoll(tripA, {}, pollId);
+    await seedPoll(tripB, {}, pollId);
+    const [specA, specB] = [await specOf(tripA, pollId), await specOf(tripB, pollId)];
+    await closePoll(tripA, specA, OWNER, new Date());
+    await closePoll(tripB, specB, OWNER, new Date());
+    await reopenPoll(tripA, specA, TODAY);
+    expect((await countsOf(tripA, specA)).closed).toBe(false);
+    expect((await countsOf(tripB, specB)).closed).toBe(true);
+  });
+
+  it("will not reopen a poll whose closing date has passed, and leaves the close in place", async () => {
+    const tripId = await seedTrip();
+    const spec = await specOf(tripId, await seedPoll(tripId, { closesAt: "2026-11-04" }));
+    await closePoll(tripId, spec, OWNER, new Date());
+    expect(await reopenPoll(tripId, spec, "2026-11-05")).toEqual({ ok: false, error: "date-passed" });
+    // The day itself is still open, so there the reopen goes through.
+    expect(await reopenPoll(tripId, spec, "2026-11-04")).toEqual({ ok: true });
+    expect((await countsOf(tripId, spec)).closed).toBe(false);
   });
 
   it("closes on its own the day after its closing date", async () => {

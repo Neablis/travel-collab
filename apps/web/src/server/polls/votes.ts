@@ -96,7 +96,7 @@ export async function writeVote(tripId: string, userId: string, spec: PollSpec, 
   return written.rows.length > 0;
 }
 
-/** Close the poll by hand. Closing a closed poll changes nothing; there is no reopening in the first cut. */
+/** Close the poll by hand. Closing a closed poll changes nothing. */
 export async function closePoll(tripId: string, spec: PollSpec, closedBy: string, at: Date): Promise<void> {
   await db
     .insert(pollCloses)
@@ -104,11 +104,25 @@ export async function closePoll(tripId: string, spec: PollSpec, closedBy: string
     .onConflictDoNothing({ target: [pollCloses.tripId, pollCloses.pollId] });
 }
 
+/**
+ * Take back a hand close: the votes stay, and voting resumes. Reopening an open
+ * poll changes nothing. A poll whose closing date has passed would still be
+ * closed, and reopening never edits the notebook to move the date, so it is
+ * refused and the close is left in place.
+ */
+export async function reopenPoll(tripId: string, spec: PollSpec, today: string): Promise<{ ok: true } | { ok: false; error: "date-passed" }> {
+  if (datePassed(spec, today)) return { ok: false, error: "date-passed" };
+  await db.delete(pollCloses).where(and(eq(pollCloses.tripId, tripId), eq(pollCloses.pollId, spec.pollId)));
+  return { ok: true };
+}
+
+const datePassed = (spec: PollSpec, today: string): boolean => spec.closesAt !== null && today > spec.closesAt;
+
 /** The calendar day votes are judged against: the server's, UTC. A closing date is a day, not an instant. */
 export const pollToday = (now: Date = new Date()): string => now.toISOString().slice(0, 10);
 
-/** The poll as one member reads it back after a read, a vote or a close. Closing is the notebook editors' (`canEditNotebook`). */
+/** The poll as one member reads it back after a read, a vote, a close or a reopen. Closing and reopening are the notebook editors' (`canEditNotebook`). */
 export async function resultsFor(tripId: string, spec: PollSpec, reader: { userId: string; role: TripRole }, today: string): Promise<PollResults> {
   const tally = (await tallyFor(tripId, [spec], today)).get(spec.pollId)!;
-  return { ...tally, mine: tally.votes.find((v) => v.userId === reader.userId)?.optionIds ?? [], canClose: canEditNotebook(reader.role) };
+  return { ...tally, mine: tally.votes.find((v) => v.userId === reader.userId)?.optionIds ?? [], canClose: canEditNotebook(reader.role), datePassed: datePassed(spec, today) };
 }

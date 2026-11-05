@@ -65,6 +65,18 @@ function mount(onChange = vi.fn(), onOpenChange = vi.fn()) {
 }
 
 describe("MakePublicDialog", () => {
+  it("says it is loading, in a polite live region, until the preview arrives", async () => {
+    let release: (value: unknown) => void = () => {};
+    fetchPageShares.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+    mount();
+    const status = await screen.findByRole("status");
+    expect(status.textContent).toBe("Loading what a stranger will see…");
+    expect(status.getAttribute("aria-live")).toBe("polite");
+    release({ ok: true, value: [] });
+    await screen.findByRole("region", { name: "What a stranger sees" });
+    expect(screen.queryByText(/Loading what a stranger/)).toBeNull();
+  });
+
   it("shows what a stranger reads, what turns to plain text, and ticks nothing", async () => {
     mount();
     const stranger = await screen.findByRole("region", { name: "What a stranger sees" });

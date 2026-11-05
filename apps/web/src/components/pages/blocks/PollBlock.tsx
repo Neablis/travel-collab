@@ -4,7 +4,7 @@ import { Check } from "lucide-react";
 import { FORMER_MEMBER, formatShortDate, type PollPayload, type PollResults } from "@tc/pages";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { closePoll, fetchPoll, votePoll, type ApiResult } from "@/lib/apiClient";
+import { closePoll, fetchPoll, reopenPoll, votePoll, type ApiResult } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { usePersonas } from "../people";
 
@@ -32,6 +32,9 @@ export function PollBlock({ payload, tripId, interactive = true }: { payload: Po
 function LivePoll({ payload, pollId, tripId }: { payload: PollPayload; pollId: string; tripId: string }) {
   const [results, setResults] = useState<PollResults | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // What a screen reader is told after a close or a reopen: the card's text
+  // changes, but a change nobody is looking at is not announced by itself.
+  const [announcement, setAnnouncement] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -45,11 +48,12 @@ function LivePoll({ payload, pollId, tripId }: { payload: PollPayload; pollId: s
     };
   }, [tripId, pollId]);
 
-  const settle = useCallback(async (call: Promise<ApiResult<PollResults>>) => {
+  const settle = useCallback(async (call: Promise<ApiResult<PollResults>>, announce = "") => {
     const r = await call;
     if (r.ok) {
       setResults(r.value);
       setProblem(null);
+      setAnnouncement(announce);
     } else if (r.error.code === "poll-closed") {
       // Closed under this reader's feet: read it again so the card says so.
       const again = await fetchPoll(tripId, pollId);
@@ -68,18 +72,32 @@ function LivePoll({ payload, pollId, tripId }: { payload: PollPayload; pollId: s
     if (next.length === 0) return;
     void settle(votePoll(tripId, pollId, next));
   };
-  const close = () => void settle(closePoll(tripId, pollId));
+  const close = () => void settle(closePoll(tripId, pollId), "You closed the poll.");
+  const reopen = () => void settle(reopenPoll(tripId, pollId), "You reopened the poll.");
+  const mayClose = results?.canClose === true;
 
-  return <PollCard payload={payload} results={results} onVote={vote} onClose={results?.canClose === true ? close : undefined} problem={problem} />;
+  return (
+    <PollCard
+      payload={payload}
+      results={results}
+      onVote={vote}
+      onClose={mayClose ? close : undefined}
+      onReopen={mayClose ? reopen : undefined}
+      problem={problem}
+      announcement={announcement}
+    />
+  );
 }
 
-function PollCard({ payload, results, onVote, onClose, problem = null }: {
+function PollCard({ payload, results, onVote, onClose, onReopen, problem = null, announcement = "" }: {
   payload: PollPayload;
   /** A member's live read; `null` for the static card. */
   results: PollResults | null;
   onVote?: (optionId: string) => void;
   onClose?: () => void;
+  onReopen?: () => void;
   problem?: string | null;
+  announcement?: string;
 }) {
   const personas = usePersonas();
   const counts = results?.counts ?? payload.counts;
@@ -151,7 +169,23 @@ function PollCard({ payload, results, onVote, onClose, problem = null }: {
             Close poll
           </Button>
         )}
+        {/* Reopening never edits the notebook, so a passed date is the editor's to move, not a button's. */}
+        {onReopen !== undefined && closed && results?.datePassed !== true && (
+          <Button variant="secondary" size="sm" onClick={onReopen}>
+            Reopen poll
+          </Button>
+        )}
+        {onReopen !== undefined && closed && results?.datePassed === true && (
+          <Text as="span" variant="muted">
+            The close date has passed — move it to reopen the poll.
+          </Text>
+        )}
       </span>
+      {onVote !== undefined && (
+        <span role="status" className="sr-only">
+          {announcement}
+        </span>
+      )}
       {problem !== null && (
         <Text as="span" variant="muted" role="alert">
           {problem}

@@ -19,7 +19,7 @@ const stranger: PollPayload = { ...member, pollId: null, counts: { Ramen: 3, Sus
 const person = (name: string) => ({ name, travelling: true, avatar: null, color: null, colorShifted: false });
 const people = { ann: person("Ann"), bob: person("Bob"), cat: person("Cat") };
 
-const open: PollResults = { closed: false, counts: { Ramen: 1, Sushi: 1, Tempura: 0 }, votes: [{ userId: "ann", optionIds: ["Ramen"] }, { userId: "bob", optionIds: ["Sushi"] }], mine: [], canClose: true };
+const open: PollResults = { closed: false, counts: { Ramen: 1, Sushi: 1, Tempura: 0 }, votes: [{ userId: "ann", optionIds: ["Ramen"] }, { userId: "bob", optionIds: ["Sushi"] }], mine: [], canClose: true, datePassed: false };
 
 const answer = (body: PollResults, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const fetchMock = vi.fn();
@@ -92,6 +92,44 @@ describe("PollBlock for a member", () => {
     expect(screen.getByRole("button", { name: /Ramen/ }).hasAttribute("disabled")).toBe(true);
   });
 
+  it("offers the editor Reopen poll on a closed poll, announces it, and takes votes again", async () => {
+    fetchMock.mockResolvedValueOnce(answer({ ...open, closed: true }));
+    draw(member);
+    const reopener = await screen.findByRole("button", { name: "Reopen poll" });
+    expect(screen.queryByRole("button", { name: "Close poll" })).toBeNull();
+    fetchMock.mockResolvedValueOnce(answer(open));
+    await userEvent.click(reopener);
+    await screen.findByRole("button", { name: "Close poll" });
+    expect(fetchMock.mock.calls[1]![0]).toContain(`/polls/${POLL_ID}/reopen`);
+    expect(fetchMock.mock.calls[1]![1]).toMatchObject({ method: "POST" });
+    expect(screen.getByRole("status").textContent).toBe("You reopened the poll.");
+    expect(screen.queryByRole("button", { name: "Reopen poll" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Ramen/ }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("announces that the poll closed", async () => {
+    fetchMock.mockResolvedValueOnce(answer(open));
+    draw(member);
+    fetchMock.mockResolvedValueOnce(answer({ ...open, closed: true }));
+    await userEvent.click(await screen.findByRole("button", { name: "Close poll" }));
+    await screen.findByRole("button", { name: "Reopen poll" });
+    expect(screen.getByRole("status").textContent).toBe("You closed the poll.");
+  });
+
+  it("offers no Reopen poll to a viewer or a suggester", async () => {
+    fetchMock.mockResolvedValueOnce(answer({ ...open, closed: true, canClose: false }));
+    draw(member);
+    await screen.findByText("Poll closed");
+    expect(screen.queryByRole("button", { name: "Reopen poll" })).toBeNull();
+  });
+
+  it("says the date must move, instead of offering Reopen poll, when the close date has passed", async () => {
+    fetchMock.mockResolvedValueOnce(answer({ ...open, closed: true, datePassed: true }));
+    draw({ ...member, closesAt: "2026-11-01" });
+    expect(await screen.findByText("The close date has passed — move it to reopen the poll.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Reopen poll" })).toBeNull();
+  });
+
   it("offers a viewer the vote and no way to close", async () => {
     fetchMock.mockResolvedValueOnce(answer({ ...open, canClose: false }));
     draw(member);
@@ -117,6 +155,7 @@ describe("PollBlock for a stranger", () => {
   it("says when the poll is closed", () => {
     draw({ ...stranger, closed: true }, false);
     expect(screen.getByText("Poll closed")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Reopen poll" })).toBeNull();
   });
 });
 

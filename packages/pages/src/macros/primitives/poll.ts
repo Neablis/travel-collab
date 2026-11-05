@@ -117,7 +117,7 @@ export const PollVoteBody = z.object({ optionIds: z.array(z.string().min(1).max(
 export type PollVoteBody = z.infer<typeof PollVoteBody>;
 
 /**
- * What the poll route answers a member (GET, and after a vote or a close):
+ * What the poll route answers a member (GET, and after a vote, a close or a reopen):
  * **named**, since the group knows each other. A stranger never gets this: the
  * public page is handed counts through `WidgetContext.pollTallies` instead.
  * `votes` has one entry per person who voted; `mine` is the reader's own pick.
@@ -127,8 +127,10 @@ export const PollResults = z.object({
   counts: z.record(z.string(), z.number()),
   votes: z.array(z.object({ userId: z.string(), optionIds: z.array(z.string()) })),
   mine: z.array(z.string()),
-  /** Whether the reader may close it: the server's answer, since the notebook screen holds no role to ask. */
+  /** Whether the reader may close or reopen it: the server's answer, since the notebook screen holds no role to ask. */
   canClose: z.boolean(),
+  /** Whether its `closesAt` day is past, so a reopen would change nothing until the date is moved. */
+  datePassed: z.boolean(),
 });
 export type PollResults = z.infer<typeof PollResults>;
 

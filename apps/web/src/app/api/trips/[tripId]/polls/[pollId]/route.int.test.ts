@@ -21,6 +21,7 @@ vi.mock("@/server/auth", () => ({
 
 const { GET, PUT } = await import("./route");
 const { POST: CLOSE } = await import("./close/route");
+const { POST: REOPEN } = await import("./reopen/route");
 
 async function join(tripId: string, role: "viewer" | "suggester" | "editor", userId: string): Promise<void> {
   const invite = await createInvite(tripId, OWNER, { email: null, role });
@@ -105,6 +106,7 @@ describe("/api/trips/:id/polls/:pollId", () => {
     expect((await GET(get(), params(mine.tripId, other.pollId))).status).toBe(404);
     expect((await GET(get(), params(mine.tripId, "nope"))).status).toBe(404);
     expect((await CLOSE(post(), params(mine.tripId, other.pollId))).status).toBe(404);
+    expect((await REOPEN(post(), params(mine.tripId, other.pollId))).status).toBe(404);
   });
 
   it("400s a pick that is not an option, or a body that is not a pick", async () => {
@@ -141,5 +143,45 @@ describe("POST /api/trips/:id/polls/:pollId/close", () => {
     expect(((await refused.json()) as { code: string }).code).toBe("poll-closed");
     const results = (await (await GET(get(), params(tripId, pollId))).json()) as PollResults;
     expect(results).toMatchObject({ closed: true, counts: { Ramen: 1, Sushi: 0, Tempura: 0 }, mine: ["Ramen"] });
+  });
+});
+
+describe("POST /api/trips/:id/polls/:pollId/reopen", () => {
+  it("401s nobody-signed-in, 403s a stranger, a viewer and a suggester, and lets an editor reopen with the votes kept", async () => {
+    const { tripId, pollId } = await seed();
+    currentUserId = VIEWER;
+    await PUT(put({ optionIds: ["Ramen"] }), params(tripId, pollId));
+    currentUserId = OWNER;
+    await CLOSE(post(), params(tripId, pollId));
+    currentUserId = "";
+    expect((await REOPEN(post(), params(tripId, pollId))).status).toBe(401);
+    for (const user of [STRANGER, VIEWER, SUGGESTER]) {
+      currentUserId = user;
+      expect((await REOPEN(post(), params(tripId, pollId))).status, user).toBe(403);
+    }
+    currentUserId = EDITOR;
+    const res = await REOPEN(post(), params(tripId, pollId));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ closed: false, counts: { Ramen: 1, Sushi: 0, Tempura: 0 } });
+    // And the next vote is taken.
+    currentUserId = VIEWER;
+    expect((await PUT(put({ optionIds: ["Sushi"] }), params(tripId, pollId))).status).toBe(200);
+  });
+
+  it("answers an open poll with a 200 and no change", async () => {
+    const { tripId, pollId } = await seed();
+    const res = await REOPEN(post(), params(tripId, pollId));
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as PollResults).closed).toBe(false);
+  });
+
+  it("409s a poll whose closing date has passed, and it stays closed", async () => {
+    const { tripId, pollId } = await seed({ closesAt: "2000-01-01" });
+    await CLOSE(post(), params(tripId, pollId));
+    const refused = await REOPEN(post(), params(tripId, pollId));
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { code: string }).code).toBe("poll-date-passed");
+    const results = (await (await GET(get(), params(tripId, pollId))).json()) as PollResults;
+    expect(results).toMatchObject({ closed: true, datePassed: true });
   });
 });

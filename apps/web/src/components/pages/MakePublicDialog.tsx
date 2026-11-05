@@ -151,6 +151,12 @@ export function MakePublicDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={live === null ? `Make “${title}” public` : `“${title}” is public`}>
       <div className="flex flex-col gap-3">
+        {loading ? (
+          <Text variant="muted" role="status" aria-live="polite">
+            Loading what a stranger will see…
+          </Text>
+        ) : null}
+
         {!loading && live !== null ? (
           <>
             <Text variant="secondary">Anyone with this link can read the notebook, without an account.</Text>

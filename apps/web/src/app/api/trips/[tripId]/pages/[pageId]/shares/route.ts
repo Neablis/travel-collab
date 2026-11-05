@@ -16,7 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
 
 /**
  * Mints a public link for a page; editor only. Answers 201 with the new share,
- * 422 if the page can't be public, 404 if it or the trip is gone.
+ * 404 if the page or the trip is gone, and 422 if the page can't be public.
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {
   const { tripId, pageId } = await params;

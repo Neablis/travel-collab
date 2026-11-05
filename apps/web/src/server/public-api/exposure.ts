@@ -286,7 +286,7 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   },
   "trips/[tripId]/pages/[pageId]/public-preview": {
     status: "never",
-    why: "The publish dialog's preview of what a stranger would read; v1 has no publish action to preview",
+    why: "The publish dialog's preview of what a stranger would read; publishing a notebook is an in-app action, not on the v1 API",
     reaches: [{ module: "@/server/access/publicNotebook", symbols: ["publishPreviewFor"] }],
   },
   "trips/[tripId]/polls/[pollId]": {
@@ -298,6 +298,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     status: "never",
     why: "Closing a notebook poll is an in-app action; v1 does not publish notebooks' interactive blocks",
     reaches: [{ module: "@/server/polls/votes", symbols: ["closePoll"] }],
+  },
+  "trips/[tripId]/polls/[pollId]/reopen": {
+    status: "never",
+    why: "Reopening a notebook poll is an in-app action; v1 does not publish notebooks' interactive blocks",
+    reaches: [{ module: "@/server/polls/votes", symbols: ["reopenPoll"] }],
   },
   "trips/[tripId]/pages/[pageId]/reset": {
     status: "never",

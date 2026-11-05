@@ -736,7 +736,7 @@ flightNumber: null, booking: null,
     // A screen offering its chat (M52), so "Trip chat" is drawn rather than absent.
     const unregister = registerPhoneAsk({ open: false, onOpen: () => {}, chat: { onOpen: () => {}, messages: [], unread: 0 } });
     // A member's poll reads its votes from the server (M58): an empty tally, so the poll is drawn and no request leaves.
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ closed: false, counts: {}, votes: [], mine: [], canClose: false })));
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ closed: false, counts: {}, votes: [], mine: [], canClose: false, datePassed: false })));
     try {
       for (const widget of presetCatalog()) {
         const { unmount } = render(
