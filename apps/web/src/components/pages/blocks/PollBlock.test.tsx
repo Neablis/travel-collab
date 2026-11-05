@@ -116,6 +116,30 @@ describe("PollBlock for a member", () => {
     expect(screen.getByRole("status").textContent).toBe("You closed the poll.");
   });
 
+  it("keeps focus on the poll after Close and after Reopen, rather than dropping it to the page", async () => {
+    fetchMock.mockResolvedValueOnce(answer(open));
+    draw(member);
+    fetchMock.mockResolvedValueOnce(answer({ ...open, closed: true }));
+    await userEvent.click(await screen.findByRole("button", { name: "Close poll" }));
+    await screen.findByRole("button", { name: "Reopen poll" });
+    expect(screen.getByRole("heading", { name: "Where to eat?" }).matches(":focus")).toBe(true);
+    fetchMock.mockResolvedValueOnce(answer(open));
+    await userEvent.click(screen.getByRole("button", { name: "Reopen poll" }));
+    await screen.findByRole("button", { name: "Close poll" });
+    expect(screen.getByRole("heading", { name: "Where to eat?" }).matches(":focus")).toBe(true);
+  });
+
+  it("re-reads when Reopen is refused because the date passed, so the note replaces the button at once", async () => {
+    fetchMock.mockResolvedValueOnce(answer({ ...open, closed: true }));
+    draw({ ...member, closesAt: "2026-11-01" });
+    const reopener = await screen.findByRole("button", { name: "Reopen poll" });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "The close date has passed. Move it to reopen the poll.", code: "poll-date-passed" }), { status: 409, headers: { "Content-Type": "application/json" } }));
+    fetchMock.mockResolvedValueOnce(answer({ ...open, closed: true, datePassed: true }));
+    await userEvent.click(reopener);
+    expect(await screen.findByText("The close date has passed — move it to reopen the poll.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Reopen poll" })).toBeNull();
+  });
+
   it("offers no Reopen poll to a viewer or a suggester", async () => {
     fetchMock.mockResolvedValueOnce(answer({ ...open, closed: true, canClose: false }));
     draw(member);

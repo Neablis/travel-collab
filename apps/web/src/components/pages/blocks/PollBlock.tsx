@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Check } from "lucide-react";
 import { FORMER_MEMBER, formatShortDate, type PollPayload, type PollResults } from "@tc/pages";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,9 @@ function LivePoll({ payload, pollId, tripId }: { payload: PollPayload; pollId: s
   // What a screen reader is told after a close or a reopen: the card's text
   // changes, but a change nobody is looking at is not announced by itself.
   const [announcement, setAnnouncement] = useState("");
+  // Close and Reopen swap one button for the other, so the pressed one unmounts
+  // and focus would drop to the page; the heading stays and takes it instead.
+  const headingRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,11 +57,12 @@ function LivePoll({ payload, pollId, tripId }: { payload: PollPayload; pollId: s
       setResults(r.value);
       setProblem(null);
       setAnnouncement(announce);
-    } else if (r.error.code === "poll-closed") {
-      // Closed under this reader's feet: read it again so the card says so.
+      if (announce !== "") headingRef.current?.focus();
+    } else if (r.error.code === "poll-closed" || r.error.code === "poll-date-passed") {
+      // Closed, or its date passed, under this reader's feet: read it again so the card says so.
       const again = await fetchPoll(tripId, pollId);
       if (again.ok) setResults(again.value);
-      setProblem("This poll just closed.");
+      setProblem(r.error.code === "poll-closed" ? "This poll just closed." : r.error.message);
     } else {
       setProblem(r.error.message);
     }
@@ -85,11 +89,12 @@ function LivePoll({ payload, pollId, tripId }: { payload: PollPayload; pollId: s
       onReopen={mayClose ? reopen : undefined}
       problem={problem}
       announcement={announcement}
+      headingRef={headingRef}
     />
   );
 }
 
-function PollCard({ payload, results, onVote, onClose, onReopen, problem = null, announcement = "" }: {
+function PollCard({ payload, results, onVote, onClose, onReopen, problem = null, announcement = "", headingRef }: {
   payload: PollPayload;
   /** A member's live read; `null` for the static card. */
   results: PollResults | null;
@@ -98,6 +103,7 @@ function PollCard({ payload, results, onVote, onClose, onReopen, problem = null,
   onReopen?: () => void;
   problem?: string | null;
   announcement?: string;
+  headingRef?: RefObject<HTMLSpanElement | null>;
 }) {
   const personas = usePersonas();
   const counts = results?.counts ?? payload.counts;
@@ -112,7 +118,7 @@ function PollCard({ payload, results, onVote, onClose, onReopen, problem = null,
 
   return (
     <span role="group" aria-label={payload.question} aria-busy={onVote !== undefined && results === null ? true : undefined} className="my-1 flex w-full flex-col gap-3 rounded-md border border-hairline bg-surface p-3 text-left">
-      <span role="heading" aria-level={SECTION_LEVEL} className="text-sm font-semibold text-ink">
+      <span ref={headingRef} tabIndex={-1} role="heading" aria-level={SECTION_LEVEL} className="text-sm font-semibold text-ink">
         {payload.question}
       </span>
       <span role="list" className="flex flex-col gap-2">
