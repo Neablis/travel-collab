@@ -31,6 +31,21 @@ describe("playbooksReaderFor", () => {
     expect(playbooksReaderFor(false, "/playbooks", query("?ref=x"))).toBe("cached");
   });
 
+  // The link off a place, tag or length page to a day: its back link is
+  // Discover either way, so it reads the cache (2026-11-06).
+  it("caches a bare from=playbooks, which asks for the default back link", () => {
+    expect(playbooksReaderFor(false, "/playbooks/city/kyoto", query("?from=playbooks"))).toBe("cached");
+    expect(playbooksReaderFor(false, "/playbooks/city/kyoto", query("?from=playbooks&utm_source=x"))).toBe("cached");
+  });
+
+  it("keeps from=playbooks live when it names a Discover search to go back to", () => {
+    expect(playbooksReaderFor(false, "/playbooks/city/kyoto", query("?from=playbooks&discover=scope%3Dyours"))).toBe("live");
+  });
+
+  it.each(["?from=board", "?from=day&day=x", "?from=profile&profile=y"])("keeps %s live", (search) => {
+    expect(playbooksReaderFor(false, "/playbooks/profile/u1", query(search))).toBe("live");
+  });
+
   it("is live when a read parameter rides with an ignored one", () => {
     expect(playbooksReaderFor(false, "/playbooks", query("?utm_source=x&city=Kyoto"))).toBe("live");
   });

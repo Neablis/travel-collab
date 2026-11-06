@@ -26,6 +26,13 @@ export type PlaybooksReader = "live" | "cached";
 // feed. A URL carrying only these is still the plain page.
 const IGNORED_PARAM = /^(?:_rsc|utm_[a-z_]+|fbclid|gclid|ref)$/;
 
+// And `from=playbooks` with no `discover` beside it: the back link it asks for
+// is Discover, which is the back link a day has with no `from` at all
+// (`backTarget`). Every day card on a place, tag or length page carried it
+// until 2026-11-06, so every day opened from one, a crawler's included, was
+// rendered per request instead of read from the cache. Links no longer write
+// it (`backQuery`); this keeps the URLs already crawled cached too.
+
 // A day segment that can be a canonical one: a slug, then a lower-case id
 // (`daySegment`). Anything else — a bare id, an upper-cased id, a doubled
 // hyphen — is a 308 to the canonical URL, and those are answered live. Under
@@ -42,7 +49,11 @@ const CANONICAL_DAY = /^\/playbooks\/day\/[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{8}-[
 /** The copy a request is served: `cached` only with no session, nothing in the query a page reads, and no day segment that must redirect. */
 export function playbooksReaderFor(signedIn: boolean, pathname: string, searchParams: URLSearchParams): PlaybooksReader {
   if (signedIn) return "live";
-  for (const key of searchParams.keys()) if (!IGNORED_PARAM.test(key)) return "live";
+  for (const [key, value] of searchParams) {
+    if (IGNORED_PARAM.test(key)) continue;
+    if (key === "from" && value === "playbooks" && !searchParams.has("discover")) continue;
+    return "live";
+  }
   if (pathname.startsWith("/playbooks/day/") && !CANONICAL_DAY.test(pathname)) return "live";
   return "cached";
 }
