@@ -138,13 +138,17 @@ describe("the browser-visible sample rates", () => {
     expect(mod[rate]).toBe(0.5);
   });
 
-  it.each(["tracesSampleRate", "profileSessionSampleRate"] as const)(
-    "%s defaults to 1 when neither is set",
-    async (rate) => {
-      const mod = await moduleWith({});
-      expect(mod[rate]).toBe(1);
-    },
-  );
+  it("tracesSampleRate defaults to 1 when neither is set", async () => {
+    const mod = await moduleWith({});
+    expect(mod.tracesSampleRate).toBe(1);
+  });
+
+  // Off by default since 2026-11-06: the free team's Active CPU ran out, and
+  // the profiler ran on every crawler render.
+  it("profileSessionSampleRate defaults to 0 when neither is set", async () => {
+    const mod = await moduleWith({});
+    expect(mod.profileSessionSampleRate).toBe(0);
+  });
 
   // The precedence must not swallow a typo in the public name — it would land
   // on the SERVER value and look like the public one worked.
@@ -177,7 +181,7 @@ describe("the fixture controls the environment it does not name", () => {
     for (const name of MODULE_ENV_NAMES) vi.stubEnv(name, "0.4");
     const mod = await moduleWith({});
     expect(mod.tracesSampleRate).toBe(1);
-    expect(mod.profileSessionSampleRate).toBe(1);
+    expect(mod.profileSessionSampleRate).toBe(0);
   });
 });
 
@@ -630,5 +634,40 @@ describe("the fixture's environment registry", () => {
     // as a description of it. An empty `read` (a broken scan) fails this too,
     // so the assertion cannot pass vacuously.
     expect([...new Set(read)].sort()).toEqual([...MODULE_ENV_NAMES].sort());
+  });
+});
+
+/**
+ * What the server keeps a trace of. The AI turns are the reason tracing is on
+ * (ADR-032); a crawler's render of a library page is not, and on Active CPU
+ * pricing each traced render costs (2026-11-06).
+ */
+describe("serverTraceRate", () => {
+  it.each([
+    "POST /api/ask",
+    "POST /api/mcp",
+    "POST /api/trips/[tripId]/ask",
+    "POST /api/trips/[tripId]/ask/apply",
+    "POST /api/trips/[tripId]/chat",
+  ])("keeps the configured rate for %s", async (name) => {
+    const { serverTraceRate } = await moduleWith({});
+    expect(serverTraceRate(name, 0.8)).toBe(0.8);
+  });
+
+  it.each([
+    "GET /playbooks/[copy]/day/[savedDayId]",
+    "GET /playbooks/live/city/[slug]",
+    "GET /sitemap.xml",
+    "GET /api/og/playbooks/day/[savedDayId]",
+    "GET /api/asked",
+    undefined,
+  ])("caps %s at the other-routes rate", async (name) => {
+    const { serverTraceRate, OTHER_SERVER_TRACES_RATE } = await moduleWith({});
+    expect(serverTraceRate(name, 1)).toBe(OTHER_SERVER_TRACES_RATE);
+  });
+
+  it("never raises a rate set lower than the cap", async () => {
+    const { serverTraceRate } = await moduleWith({});
+    expect(serverTraceRate("GET /playbooks/live", 0.01)).toBe(0.01);
   });
 });
