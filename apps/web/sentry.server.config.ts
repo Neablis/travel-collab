@@ -2,7 +2,7 @@
 // Loaded by `src/instrumentation.ts` when NEXT_RUNTIME is "nodejs".
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 import * as Sentry from "@sentry/nextjs";
-import { profileSessionSampleRate, sharedSentryOptions } from "./sentry.shared";
+import { profileSessionSampleRate, serverTraceRate, sharedSentryOptions, tracesSampleRate } from "./sentry.shared";
 
 // **Server profiling needs a native module, and a native module can be absent.**
 //
@@ -68,6 +68,12 @@ Sentry.init({
   // for. `manual` would mean profiling an idle, frozen lambda.
   profileLifecycle: "trace",
   profileSessionSampleRate,
+
+  // The AI routes keep `tracesSampleRate`; everything else, mostly crawler
+  // renders of the public library, is kept at most 1 in 20
+  // (`serverTraceRate`). A sampler wins over `tracesSampleRate` on this
+  // runtime only: the browser and edge keep the plain rate.
+  tracesSampler: ({ name }) => serverTraceRate(name, tracesSampleRate),
 
   dataCollection: {
     // **The one setting standing between Sentry and every prompt this app
