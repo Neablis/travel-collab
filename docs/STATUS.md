@@ -21,6 +21,13 @@ general setup.
 
 ## Where the work is right now
 
+**M58 built 2026-11-05, gate 10 of 11** (*A notebook anyone can read, and a poll for the people
+going*; decisions in `docs/milestones/M58-a-notebook-anyone-can-read.md`, mechanisms and
+amendments in ADR-088). Not closed: the [walk] box is open (walk not reported) and
+`pnpm milestone close M58` has not been run. All five code parts are on `main`
+(`2729315`, `aac7246`); migration `0073` is applied, `0074` is not. Evidence, retro and spend
+(session 1 summary-only) are in the milestone file; the plan is deleted.
+
 **M44 closed 2026-11-03, gate 7 of 7** (*A stop knows what was booked, and what it sits inside*;
 decisions in `docs/milestones/M44-a-stop-knows-what-was-booked.md`, mechanisms in ADR-086), by
 `pnpm milestone close M44 --confirm` on part 0 (PR 679, `claude/next-milestone-5o3kip`, prose
@@ -101,10 +108,16 @@ confirmed fixed"*). Evidence, retro and spend are in
 **Next action:**
 1. Mitchell merges PR 679 (M44's part 0, prose only). Parts 1 to 5 are merged, so close no lower
    drafts. `migrate-production` is not needed: M44 added no migration.
-2. Then the order in `TODO.md` is M53 (*A search engine reads every public page the way a person
-   does*), proposed 2026-10-25 and not scoped: scope it with Mitchell (`plan-a-milestone`;
-   `docs/milestones/M53-search-reads-every-public-page.md`, seven open decisions). M48 stays
-   parked.
+2. **M58 is built and waits on one gate box and Mitchell** (2026-11-05, 10 of 11 boxes ticked).
+   All five parts are on `main` (PRs 689 to 692 in `2729315`, PR 693 in `aac7246`, `ci` run
+   41970724615 green at `f2b7574`). Part 0 is PR 688 (draft), holding the retro, ADR-088's
+   amendments 9 to 14 and the plan's deletion. **Open:** the [walk] box, walk not reported (no
+   toolbar threads, PR 693 merged without a report); `pnpm milestone close M58` refuses until
+   Mitchell reports the walk or amends the gate. **Mitchell's hand tasks:** dispatch
+   `migrate-production` from `main` for `0074_poll_votes` (not applied; the red `migration-pending`
+   check on `aac7246` is the detector doing its job), then close the lower drafts (PRs 689 to 692)
+   with one line naming `aac7246`. Follow-ups: KI-20261105-a and -b. After it, M53 (seven open
+   decisions). M48 stays parked.
 3. Open follow-ups from M44: KI-2026-11-03-a, KI-2026-11-02-a (the flaky `TripProvider.suggest`
    test) and the candidate *The share page shows a stop is booked*.
 Then remove the orchestrator's `tc-orchestrator` guard file from the build session's git dir.
@@ -120,7 +133,7 @@ KI-20261026-x and -y, and KI-20261013-a's first-load gap. Open follow-ups from M
 KI-20261025-w, and the candidate *Reposition a playbook day's cover*.
 Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Outside M52:
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
-3 moderate). The order is M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
+3 moderate). The order is M58 (scoped 2026-11-04, building) → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
 
 **M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
 and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
@@ -170,7 +183,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 **M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
 `docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
 
-Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 ✓ → M44 → M53`; the M51 reorder is in
+Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 ✓ → M44 → M58 → M53`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
 narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
 
