@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.12
 #
 # The image Coolify builds and runs (M59; docs/ops/coolify-vps.md). Build from
 # the repo root: `docker build --platform linux/amd64 .`

@@ -37,7 +37,15 @@ none is in a layer, an `ENV`, `docker history` or a build log. Keep Coolify's
 "Use Docker Build Secrets" on for the application. Verified against Coolify
 4.6.0 (`ApplicationDeploymentJob.php`, lines 5440-5441): with it on, Coolify
 calls `generate_build_secrets` and sets `build_args` to empty, so each variable
-arrives only as `--secret id=<NAME>` and no `ARG` has a value. The build log
+arrives only as `--secret id=<NAME>,env=<NAME>` and no `ARG` has a value. It
+also rewrites **every** `RUN` in the Dockerfile (even `RUN corepack enable`) to
+prepend `--mount=type=secret,id=<NAME>,env=<NAME>` for each variable, and `env=`
+on a secret mount needs Dockerfile frontend 1.10 or newer, so the `# syntax=`
+pin is `1.12` (the first real build failed on 1.7 with `unexpected key 'env'`).
+The Dockerfile's own `--mount=type=secret,id=<NAME>,required=false` lines on the
+build `RUN` repeat those ids; BuildKit accepts that (tested), and the own mount
+is what supplies the `/run/secrets/<NAME>` file the loop reads, and what a
+laptop `--secret` build needs. The build log
 prints one `[docker] <NAME>: from build secret | from build arg | unset` line per
 name (never a value), so a first build shows which path each took. A new
 build-time variable needs a `--mount` line and a name in the loop in the
