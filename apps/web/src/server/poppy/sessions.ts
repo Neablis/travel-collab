@@ -5,7 +5,7 @@ import { agentSessions } from "@/server/db/schema";
 import { clientIp } from "@/server/og/limit";
 import { clientIsBlocked } from "@/server/oauth/clients";
 import { bearerToken } from "@/server/public-api/actor";
-import { agentSessionOpenQuota, consumeQuota, quotaRefusal } from "@/server/quota";
+import { agentSessionOpenQuota, consumeQuota, type QuotaDecision } from "@/server/quota";
 import { poppyError } from "./errors";
 import { POPPY_PROTOCOL_VERSION } from "./discovery";
 import { verifySessionHeader, type SessionClaims, type SessionDeps } from "./sessionHeader";
@@ -16,8 +16,9 @@ import { verifySessionHeader, type SessionClaims, type SessionDeps } from "./ses
 // a request that is refused for its credential leaves nothing behind. Idle for
 // 30 days it ends, and the row is kept so the `sid` does not quietly start
 // again, for a further 30 days (`SESSION_RETENTION_MS`), after which a sweep
-// deletes it. Opening one is charged per `client_id`, so an agent cannot write
-// rows faster than `agentSessionOpenQuota` however many `sid`s it invents.
+// deletes it. Opening one is charged per `(client_id, account)`, or `(client_id,
+// caller IP)` signed out, so no one can write rows faster than
+// `agentSessionOpenQuota` through an agent however many `sid`s it invents.
 
 export const SESSION_IDLE_MS = 30 * 24 * 60 * 60 * 1000;
 /** How long an idle or ended Session's row is kept, from its last request: its idle month, then a month in which its `sid` is still refused. */
@@ -27,8 +28,8 @@ const LAST_SEEN_COARSENING_MS = 5 * 60 * 1000;
 /** One new Session in a hundred starts a sweep, as `og/limit.ts`'s: no cron for one DELETE. */
 const SWEEP_PROBABILITY = 0.01;
 
-/** `limited` is the 429 (or 503) to answer when the client has opened its share of Sessions. */
-export type SessionOpened = { ok: true; id: string } | { ok: false; limited?: Response };
+/** `limited` is why the caller has opened its share of Sessions; the route answers it in its own envelope. */
+export type SessionOpened = { ok: true; id: string } | { ok: false; limited?: Extract<QuotaDecision, { allowed: false }> };
 
 /** Delete the rows idle past `SESSION_RETENTION_MS`; returns how many. */
 export async function sweepAgentSessions(now: Date): Promise<number> {
@@ -48,9 +49,11 @@ export async function sweepAgentSessions(now: Date): Promise<number> {
 export async function openOrContinueSession(input: {
   claims: SessionClaims;
   accountId: string | null;
+  /** Who is calling, which a signed-out request's new-Session share is charged to. */
+  caller: string;
   now: Date;
 }): Promise<SessionOpened> {
-  const { claims, accountId, now } = input;
+  const { claims, accountId, caller, now } = input;
   const where = and(
     eq(agentSessions.clientId, claims.clientId),
     eq(agentSessions.sid, claims.sid),
@@ -59,8 +62,9 @@ export async function openOrContinueSession(input: {
   const [existing] = await db.select({ id: agentSessions.id }).from(agentSessions).where(where);
   if (existing === undefined) {
     // Only a new row is charged: a Session that continues costs nothing.
-    const decision = await consumeQuota(agentSessionOpenQuota(), claims.clientId);
-    if (!decision.allowed) return { ok: false, limited: quotaRefusal(decision) };
+    const subject = `${claims.clientId}:${accountId === null ? `ip:${caller}` : `account:${accountId}`}`;
+    const decision = await consumeQuota(agentSessionOpenQuota(), subject);
+    if (!decision.allowed) return { ok: false, limited: decision };
     // Two first requests with one sid race to insert; the unique index picks one
     // and the other reads its row.
     await db
@@ -119,6 +123,23 @@ function versionServed(header: string | null): boolean {
 }
 
 /**
+ * The refusal for a spent Session-open share, in the `{ error: { code, message } }` envelope
+ * `/api/v1/*` and `/api/mcp` both answer in (and `route()`'s 429 and 503 for a spent token's
+ * share): a Poppy error is a bare code, and this is not one of the three.
+ */
+function limitedResponse(decision: Extract<QuotaDecision, { allowed: false }>): Response {
+  const unavailable = decision.reason === "unavailable";
+  return Response.json(
+    {
+      error: unavailable
+        ? { code: "service-unavailable", message: "Try again shortly." }
+        : { code: "rate-limited", message: "Too many new Sessions. Try again later." },
+    },
+    { status: unavailable ? 503 : 429, headers: { "Retry-After": String(decision.retryAfterSeconds) } },
+  );
+}
+
+/**
  * What `route()` and `/api/mcp` ask first of a request that carries
  * `Poppy-Session`: `refused`, the 400 to answer with, or `open`, to call once
  * the actor has accepted the request's credential. A request without the header
@@ -140,7 +161,8 @@ export async function poppyGate(
 > {
   if (request.headers.get("poppy-session") === null) return { claims: null, open: async () => null };
   const token = bearerToken(request) ?? undefined;
-  const verified = await verifySessionHeader(request, token, { chargeTo: `poppy:${clientIp(request)}`, ...deps });
+  const caller = clientIp(request);
+  const verified = await verifySessionHeader(request, token, { chargeTo: `poppy:${caller}`, ...deps });
   if (!verified.ok) return { refused: poppyError("invalid_session", verified.reason) };
   // The operator's kill switch (ADR-089 decision 3). Poppy 7 answers a refused
   // `client_id` as `invalid_session`, and a Session that verified is the first
@@ -150,9 +172,9 @@ export async function poppyGate(
   return {
     claims: verified.claims,
     open: async (accountId) => {
-      const opened = await openOrContinueSession({ claims: verified.claims, accountId, now: deps.now ?? new Date() });
+      const opened = await openOrContinueSession({ claims: verified.claims, accountId, caller, now: deps.now ?? new Date() });
       if (opened.ok) return null;
-      return opened.limited ?? poppyError("session_ended");
+      return opened.limited === undefined ? poppyError("session_ended") : limitedResponse(opened.limited);
     },
   };
 }

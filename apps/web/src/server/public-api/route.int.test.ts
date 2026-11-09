@@ -612,6 +612,10 @@ describe("a request that carries Poppy-Session", () => {
     // fetch quota, once however many requests a test sends; and an address of its own, so the
     // other suites that sign Sessions do not share this one's per-address share.
     const cache = (agentCaches.get(agent) ?? agentCaches.set(agent, createRedisCache(createMemoryClient())).get(agent))!;
+    // Someone has allowed it: a Session header naming a client with no row is refused without a fetch.
+    const { resolveClient, storeClient } = await import("@/server/oauth/clients");
+    const known = await resolveClient(agent.clientId, { fetch: agent.fetch, resolve: publicResolve, cache, userId: "route-test-owner" });
+    if (known.ok) await storeClient(known.client, new Date());
     poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
     const jwt = await agent.session({
       htu: `${deploymentOrigin()}${path}`,

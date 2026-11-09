@@ -83,6 +83,17 @@ export interface ClientDeps {
   cache?: CachePort;
   /** The fetch quota to charge, `oauthCimdQuota()` by default: a caller with no account is charged to a smaller one of its own. */
   quota?: QuotaPolicy[];
+  /**
+   * Read what the cache holds past `CIMD_CACHE_TTL_SECONDS`, up to
+   * `CIMD_LAST_KNOWN_TTL_SECONDS`, when the host cannot be reached (a transport
+   * failure, a timeout or a 5xx): for a Personal Agent already known, whose last
+   * good key set is better evidence than nothing. **Never when the host
+   * answered**: a 404, a 410 or a set without the key is the agent taking it
+   * away, and a spent quota is not an answer at all, so neither lets a removed
+   * key through. Only the token endpoint and Session verification ask;
+   * authorize never does, so a changed document is read as it is now.
+   */
+  staleOk?: boolean;
 }
 
 /**
@@ -93,10 +104,48 @@ export interface ClientDeps {
  */
 export const CIMD_CACHE_TTL_SECONDS = 300;
 
+/**
+ * How long a Personal Agent's document and key set are kept past the point they
+ * are served as fresh, for `ClientDeps.staleOk`: the longest a host that is down
+ * can keep a key it has since removed working. Only a `private_key_jwt` client's
+ * copies live this long; a public client's keep `CIMD_CACHE_TTL_SECONDS`.
+ * Freshness is judged by `fetchedAt`, so keeping it longer changes nothing for
+ * anyone else.
+ */
+export const CIMD_LAST_KNOWN_TTL_SECONDS = 24 * 60 * 60;
+
 /** A cached metadata document: the fields we read of it, and when it was fetched (epoch ms). */
 interface CachedDocument {
   document: unknown;
   fetchedAt: number;
+}
+
+/** A fetch that got an answer, with its status: `RemoteImageRefused` alone does not keep it. */
+class UpstreamStatus extends RemoteImageRefused {
+  readonly status: number;
+  constructor(status: number) {
+    super("upstream-status", String(status));
+    this.status = status;
+  }
+}
+
+/**
+ * The cached copy a failed fetch may fall back to: only for a host that could not
+ * be reached (a timeout, a connection that failed, a 5xx), and only while the
+ * copy is under `CIMD_LAST_KNOWN_TTL_SECONDS` old. A 404, a 410, another status or
+ * a body that is not what was asked for is the host answering, and what it says
+ * stands, so a key the agent has removed does not come back from the cache.
+ */
+function lastKnownOf(cached: CachedDocument | null, error: unknown, deps: ClientDeps, now: Date): unknown {
+  if (deps.staleOk !== true || cached === null) return undefined;
+  if (now.getTime() - cached.fetchedAt >= CIMD_LAST_KNOWN_TTL_SECONDS * 1000) return undefined;
+  const hostDown =
+    error instanceof UpstreamStatus
+      ? error.status >= 500
+      : error instanceof RemoteImageRefused
+        ? error.reason === "timeout" || error.reason === "unreachable"
+        : !(error instanceof SyntaxError);
+  return hostDown ? cached.document : undefined;
 }
 
 const ROW_ID = z.uuid();
@@ -256,21 +305,22 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
   const cached = await cache.get<CachedDocument>(cimdDocumentKey(url));
   const fresh = cached !== null && now.getTime() - cached.fetchedAt < CIMD_CACHE_TTL_SECONDS * 1000;
   let body: unknown;
+  // Served from the cache, fresh or (the host down, `staleOk`) the last known copy: not written back.
+  let reused = fresh;
   if (fresh) {
     body = cached.document;
   } else {
     if (deps.userId === undefined) return refused("no account to charge the fetch to");
     if (!(await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId)).allowed) return { ok: false, reason: "too-many-lookups" };
-    let text: string;
     try {
-      text = await fetchDocument(parsed, deps);
+      body = JSON.parse(await fetchDocument(parsed, deps));
     } catch (error) {
-      return refused(error instanceof RemoteImageRefused ? error.reason : String(error));
-    }
-    try {
-      body = JSON.parse(text);
-    } catch {
-      return refused("not JSON");
+      const lastKnown = lastKnownOf(cached, error, deps, now);
+      if (lastKnown === undefined) {
+        return refused(error instanceof SyntaxError ? "not JSON" : error instanceof RemoteImageRefused ? error.reason : String(error));
+      }
+      body = lastKnown;
+      reused = true;
     }
   }
   // A cached document is checked as if it had just arrived: the cache is a
@@ -284,10 +334,11 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
   if (badRedirect !== undefined) return refused(`redirect ${badRedirect} is not allowed`);
   // Only a document that passed, and only what was read of it, so a refused
   // URL is fetched (and charged) again rather than refused from the cache.
-  if (!fresh) {
-    await cache.set(cimdDocumentKey(url), { document: document.data, fetchedAt: now.getTime() }, CIMD_CACHE_TTL_SECONDS);
-  }
   const confidential = document.data.token_endpoint_auth_method === "private_key_jwt";
+  if (!reused) {
+    const keptSeconds = confidential ? CIMD_LAST_KNOWN_TTL_SECONDS : CIMD_CACHE_TTL_SECONDS;
+    await cache.set(cimdDocumentKey(url), { document: document.data, fetchedAt: now.getTime() }, keptSeconds);
+  }
   return {
     ok: true,
     client: {
@@ -343,6 +394,7 @@ export async function fetchClientKeys(
   const maxAgeSeconds = opts.again === true ? KEY_SET_REFETCH_SECONDS : CIMD_CACHE_TTL_SECONDS;
   const fresh = cached !== null && now.getTime() - cached.fetchedAt < maxAgeSeconds * 1000;
   let body: unknown;
+  let reused = fresh;
   if (fresh) {
     body = cached.document;
   } else {
@@ -351,12 +403,18 @@ export async function fetchClientKeys(
     try {
       body = JSON.parse(await fetchDocument(url, deps, KEY_SET_MAX_BYTES));
     } catch (error) {
-      return { ok: false, detail: error instanceof RemoteImageRefused ? error.reason : "not a key set" };
+      // Not for a key set asked for again, which exists to find a key the copy lacks.
+      const lastKnown = opts.again === true ? undefined : lastKnownOf(cached, error, deps, now);
+      if (lastKnown === undefined) {
+        return { ok: false, detail: error instanceof RemoteImageRefused ? error.reason : "not a key set" };
+      }
+      body = lastKnown;
+      reused = true;
     }
   }
   const keySet = KeySet.safeParse(body);
   if (!keySet.success) return { ok: false, detail: keySet.error.issues[0]?.message ?? "not a key set" };
-  if (!fresh) await cache.set(key, { document: keySet.data, fetchedAt: now.getTime() }, CIMD_CACHE_TTL_SECONDS);
+  if (!reused) await cache.set(key, { document: keySet.data, fetchedAt: now.getTime() }, CIMD_LAST_KNOWN_TTL_SECONDS);
   return { ok: true, keys: keySet.data.keys as JWK[] };
 }
 
@@ -411,7 +469,7 @@ async function fetchDocument(url: URL, deps: ClientDeps, maxBytes: number = CIMD
   if (response.status !== 200) {
     await response.body?.cancel();
     // A redirect included: following one is a second fetch of a URL nobody checked.
-    throw new RemoteImageRefused("upstream-status", String(response.status));
+    throw new UpstreamStatus(response.status);
   }
   return new TextDecoder().decode(await readCapped(response, maxBytes));
 }

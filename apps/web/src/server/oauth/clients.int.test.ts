@@ -19,6 +19,7 @@ import type { Resolve } from "@/server/external/remoteImage/guard";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import {
   CIMD_CACHE_TTL_SECONDS,
+  CIMD_LAST_KNOWN_TTL_SECONDS,
   fetchClientKeys,
   markClientUsed,
   registerClient,
@@ -408,6 +409,25 @@ describe("a private_key_jwt client metadata document", () => {
     expect(await fetchClientKeys(client, { ...deps, fetch: keys })).toEqual({ ok: true, keys: [expect.objectContaining({ kid: "k1" })] });
     await fetchClientKeys(client, { ...deps, fetch: keys });
     expect(keys).toHaveBeenCalledTimes(1);
+  });
+
+  // The long-lived copy is for the host-down fallback of a Personal Agent only; a public
+  // client's document, which anyone can serve from any domain, is kept five minutes as before.
+  it("keeps its document and key set a day, and a public client's document five minutes", async () => {
+    const ttls = async (body: Record<string, unknown>, url: string) => {
+      const cache = createRedisCache(createMemoryClient());
+      const set = vi.spyOn(cache, "set");
+      const deps = asked({ fetch: serving(body), cache });
+      const client = await resolved(url, deps);
+      if (client.authMethod === "private_key_jwt") {
+        await fetchClientKeys(client, { ...deps, fetch: serving({ keys: [{ kty: "EC", crv: "P-256", x: "x", y: "y", kid: "k1" }] }) });
+      }
+      return set.mock.calls.map((call) => call[2]);
+    };
+    const agentUrl = cimdUrl();
+    expect(await ttls(confidential(agentUrl), agentUrl)).toEqual([CIMD_LAST_KNOWN_TTL_SECONDS, CIMD_LAST_KNOWN_TTL_SECONDS]);
+    const publicUrl = cimdUrl();
+    expect(await ttls(documentFor(publicUrl), publicUrl)).toEqual([CIMD_CACHE_TTL_SECONDS]);
   });
 
   it("refuses a key set that holds a private member, or is not one", async () => {
