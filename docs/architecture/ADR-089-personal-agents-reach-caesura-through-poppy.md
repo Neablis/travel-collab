@@ -59,7 +59,9 @@ outside MCP dispatch with `audience`).
    walked on the preview before this merges.
 8. **A Session is one row.** `agent_sessions (client_id, sid, agent_user_id, agent_id?,
    account_id?, created_at, last_seen_at, ended_at)`, unique on `(client_id, sid, agent_user_id)`,
-   created by the first verified request with a new `sid`. Idle for 30 days, it ends; a request on
+   created by the first request with a new `sid` **whose access token the actor has accepted**: a
+   request refused for its credential, and a signed-out request, write nothing (part 4's signed-out
+   Discover surface calls `open(null)` itself). Idle for 30 days, it ends; a request on
    an ended row answers `session_ended`. A signed-in request records the account; a later request
    on another account answers `session_ended` (§5.4). `agent_user_id` is the agent's pairwise ID
    and is joined to nothing but `account_id`. Verified delegations are cached until their `exp`
@@ -96,16 +98,35 @@ outside MCP dispatch with `audience`).
   is down or `CACHE_DRIVER=off` (ADR-059), a replayed `jti` passes; the assertion must still be
   unexpired and signed. The kit validator's `assertion.jti-reuse` check cannot pass where the
   cache is off.
-- **A key set that cannot be read does not lock an agent out.** The last known good document and
-  key set are kept for 7 days (fresh for 5 minutes), and the token endpoint verifies against them
-  when a refetch is refused by a spent quota or fails, so a known `kid` never fails because of a
-  fetch. A key set asked for again (an unknown `kid`) gets no fallback and is read at most once a
-  minute per cached copy. Assertion-time fetches are charged to the signed-out fetch quota (30 per
-  caller, 300 an hour global), never to the authorize share, so a stranger naming an agent's
-  `client_id` can spend that quota but cannot stop a real refresh. A rotated refresh token or
-  spent code cuts a grant off only when presented under the grant's own `client_id`.
-- **Sessions are kept 60 days idle.** A 1% sweep on insert deletes older ones, and a `client_id`
-  may open 600 new sessions an hour (only the insert is charged).
+- **A client with no stored row is never fetched for.** Only `/oauth/authorize` creates an
+  `oauth_clients` row (at Allow, under its own quota). The token endpoint, revocation and Session
+  verification answer a `client_id` with no row `invalid_client` / `invalid_session` without a
+  fetch, so inventing URLs costs an attacker nothing and spends no pool. For a stored client,
+  fetches made before an account is known are charged to the caller's IP on the signed-out fetch
+  quota (120 per caller, 3,000 an hour global), never to a `client_id` the caller names and never
+  to the authorize share. Sizing: a busy agent refetches its document and key set every 5 minutes,
+  about 24 units an hour, so 3,000 carries over a hundred of them; the 429 a stranger could cause
+  is bounded by how many known agents there are, since each costs at most that.
+- **A key set that cannot be read does not lock an agent out, and a removed key does not outlive
+  the removal.** The last known good document and key set of a `private_key_jwt` client are kept
+  for 24 hours (fresh for 5 minutes; a public client's copies keep the 5 minutes), and the token
+  endpoint and Session verification fall back to them **only when the host cannot be reached**: a
+  transport failure, a timeout or a 5xx. Never on a 404, a 410 or another answer, on a set that
+  omits the key, or on a spent quota. The longest a key an agent has removed can still be
+  accepted is therefore 5 minutes when its host answers (the cache), and 24 hours when it is down.
+  A key set asked for again (an unknown `kid`) gets no fallback and is read at most once a minute
+  per cached copy. A rotated refresh token or spent code cuts a grant off only when presented
+  under the grant's own `client_id`.
+- **A grant's auth method is sticky.** A grant stored as `private_key_jwt` always needs an
+  assertion, whatever its document says now, at refresh, code exchange and revocation; one stored
+  as `none` never reads its document.
+- **Sessions are kept 60 days from their last request.** A Session ends after 30 idle days, and
+  its row is deleted 60 days after its last request (a month in which its `sid` is still refused),
+  by a 1% sweep on insert. Opening a new one is charged per `(client_id, account)` when signed
+  in and `(client_id, caller IP)` when not, 60 an hour each (`AGENT_SESSION_OPEN_RATE_LIMIT_PER_ACCOUNT_HOURLY`),
+  with 20,000 an hour global; only the insert is charged. The refusal is a 429 in the
+  `{ error: { code, message } }` envelope with `Retry-After`, as `/api/v1` and `/api/mcp` answer
+  everything else.
 - **A refresh that asks for fewer scopes is refused** with `invalid_scope`; the scope must name
   exactly what the grant holds. Poppy 4.4 allows an agent to ask for less, but no scope is stored
   per token, and answering with the full set would breach 4.7's "never beyond requested". A
