@@ -82,12 +82,13 @@ Neon branch whose password you can rotate.
 | `DATABASE_URL` | build and runtime | build and runtime | Needed by **every** build: `next build` throws without it. Build secret, see above. Preview: set it explicitly on the **Preview scope** to the shared preview Neon branch, never production's (see Previews) |
 | `APP_ENV` | `production` | `preview` | Build and runtime. Gates the build-time migrate |
 | `PREVIEW_DB_IS_DISPOSABLE` | never set | `true` | Build. Preview scope only, after checking the database is a throwaway branch |
-| `PUBLIC_ORIGIN`, `APP_VERSION` | runtime | runtime | `lib/deployment/env.ts` |
-| `AUTH_URL` | runtime | runtime | **Must equal the public origin** (`https://caesura.today` in production, the same value as `PUBLIC_ORIGIN`). Without it Auth.js builds the origin from the container's bind address and sends `https://0.0.0.0:3000/api/auth/callback/google` as the OAuth callback, which Google refuses. Found at the cutover, 2026-11-09 |
+| `PUBLIC_ORIGIN` | `https://caesura.today`, build and runtime | build and runtime | `lib/deployment/env.ts`. **Build too**: prerendered pages bake `metadataBase` from it, and without it they name `http://localhost:3001` as their canonical (found 2026-11-09). `scripts/check-public-origin.mjs` fails a production build that lacks it |
+| `APP_VERSION` | runtime | runtime | `lib/deployment/env.ts` |
 | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`, `NEXT_PUBLIC_PLAUSIBLE_SRC` | build | build | Plausible |
 | `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE` | build | build | Sentry, browser side |
 | `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_PROFILE_SESSION_SAMPLE_RATE` | runtime | runtime | Sentry, server side |
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | runtime | runtime | Google sign-in |
+| `AUTH_SECRET`, `AUTH_URL` | runtime | runtime | Auth.js. Off Vercel, Auth.js trusts no host unless `AUTH_URL` (the public origin) or `AUTH_TRUST_HOST=true` is set, and every visitor then reads as signed out. **`AUTH_URL` must equal the public origin** (`https://caesura.today` in production, the same as `PUBLIC_ORIGIN`): without it Auth.js builds its origin from the container's bind address and sends `https://0.0.0.0:3000/api/auth/callback/google` as the OAuth callback, which Google refuses (found at the cutover). With `AUTH_URL` set, `proxy.ts` must build its rewrites from the request's own URL, not Auth.js's copy of it (fixed 2026-11-09) |
 | `API_TOKEN_PEPPER`, `API_TOKEN_PEPPER_PREVIOUS`, `COVER_PROXY_SECRET`, `INVITE_SUPER_CODE`, `CRON_SECRET` | runtime | runtime | Secrets the app signs or checks with |
 | `ADMIN_USER_IDS` | runtime | runtime | |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `AI_LIVE`, `AI_MODEL`, `AI_MODEL_CHEAP`, `AI_MODEL_MID`, `AI_MODEL_STRONG`, `AI_CLASSIFIER_MODEL`, `AI_EMBEDDING_MODEL` | runtime | runtime | The assistant |
@@ -115,6 +116,29 @@ database. There is no Upstash Vector, and no index to move.
 `main` deploys to production. Production's build never migrates (ADR-004): the
 schema changes by dispatching `migrate-production`, and `build-migrate.mjs`
 prints `skipped (APP_ENV=production)`.
+
+### Traefik labels are hand-edited (2026-11-09)
+
+Next's standalone server copies a rewrite's target into the response as
+`x-middleware-rewrite` (`resolve-routes.js`, after `proxy.ts` has returned), so
+every library page told its visitor `x-middleware-rewrite: /playbooks/cached`.
+`proxy.ts` cannot drop it: it is the header the rewrite itself travels on. The
+App Router client reads `x-nextjs-rewritten-path`, so Traefik strips it:
+
+```
+traefik.http.middlewares.strip-next-internal.headers.customresponseheaders.X-Middleware-Rewrite=
+```
+
+with `strip-next-internal` appended to the `middlewares=` of each `https-*`
+router. To keep those labels, **Readonly labels is off** on `caesura-web`
+(Advanced), and Coolify no longer regenerates them. So after adding or changing
+a domain: switch Readonly labels on, save, copy the regenerated labels, switch
+it off, and put the middleware back. Check: `curl -sI https://caesura.today/playbooks`
+shows no `x-middleware-rewrite`.
+
+`ClientHost` `10.0.1.1` in `/data/coolify/proxy/access.log` is the app calling
+its own public URL from inside the container (Docker's bridge gateway), not a
+visitor whose address was lost: visitors log their own address.
 
 ## Previews
 

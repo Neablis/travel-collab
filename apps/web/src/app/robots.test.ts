@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import robots from "./robots";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import robots, * as route from "./robots";
 
 describe("robots.txt", () => {
   it("allows the site and the public Playbooks cards, and keeps the rest of /api/ out", () => {
@@ -26,5 +26,22 @@ describe("robots.txt", () => {
     for (const path of ["/playbooks", "/playbooks/city/kyoto", "/playbooks/day/a-b", "/playbooks/length/weekend"]) {
       for (const skipped of ["/playbooks/profile/", "/playbooks/board"]) expect(path.startsWith(skipped)).toBe(false);
     }
+  });
+
+  // Production said `Sitemap: http://localhost:3001/sitemap.xml` (2026-11-09):
+  // a static robots.txt is written by `next build`, and the Coolify build had
+  // no PUBLIC_ORIGIN. Rendered per request, it names the origin the running
+  // server was given.
+  describe("the sitemap line", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("is rendered per request, not frozen at build time", () => {
+      expect(route.dynamic).toBe("force-dynamic");
+    });
+
+    it("names the configured public origin", () => {
+      vi.stubEnv("PUBLIC_ORIGIN", "https://caesura.today");
+      expect(robots().sitemap).toBe("https://caesura.today/sitemap.xml");
+    });
   });
 });

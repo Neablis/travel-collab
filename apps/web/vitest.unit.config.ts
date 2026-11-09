@@ -115,6 +115,7 @@ export default defineConfig({
             "scripts/landing-plans.test.ts",
             "scripts/assistant-live-set.test.ts",
             "scripts/build-migrate.test.ts",
+            "scripts/check-public-origin.test.ts",
           ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,

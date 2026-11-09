@@ -58,8 +58,22 @@ export function playbooksReaderFor(signedIn: boolean, pathname: string, searchPa
   return "cached";
 }
 
-/** `/playbooks/<rest>` as the route that renders it, `/playbooks/<reader>/<rest>`; null for any other path. */
+/**
+ * A path under one of the copies' own folders, `/playbooks/live/…` or
+ * `/playbooks/cached/…`. Those are routes, not URLs: no public path starts
+ * with either word.
+ */
+export function isInternalPlaybooksPath(pathname: string): boolean {
+  return /^\/playbooks\/(?:live|cached)(?:\/|$)/.test(pathname);
+}
+
+/**
+ * `/playbooks/<rest>` as the route that renders it, `/playbooks/<reader>/<rest>`;
+ * null for any other path, and for one already under a copy: prefixed again it
+ * became `/playbooks/cached/cached/…`, a fresh 404 for every URL asked.
+ */
 export function playbooksRoute(pathname: string, reader: PlaybooksReader): string | null {
+  if (isInternalPlaybooksPath(pathname)) return null;
   const rest = /^\/playbooks(\/.*)?$/.exec(pathname);
   if (rest === null) return null;
   return `/playbooks/${reader}${rest[1] ?? ""}`;

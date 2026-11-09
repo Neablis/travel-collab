@@ -23,6 +23,13 @@ import { deploymentOrigin } from "@/lib/deploymentOrigin";
  */
 export const CRAWL_SKIPPED = ["/playbooks/profile/", "/playbooks/board", "/*?*from="] as const;
 
+// Read per request, like the sitemap: a static robots.txt is written by `next
+// build`, and a build that was not given PUBLIC_ORIGIN froze
+// `Sitemap: http://localhost:3001/sitemap.xml` into production (Coolify,
+// 2026-11-09). The running server always has it. A crawler asks for this file a
+// few times a day, so rendering it costs nothing worth caching.
+export const dynamic = "force-dynamic";
+
 /** `/robots.txt`: everything allowed except `/api/` (bar the public Playbooks cards) and `CRAWL_SKIPPED`, and where the sitemap is. */
 export default function robots(): MetadataRoute.Robots {
   return {
