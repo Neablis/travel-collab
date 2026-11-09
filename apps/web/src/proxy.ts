@@ -61,8 +61,17 @@ const { auth } = NextAuth(authConfig);
 // `req.auth` is populated by the wrapper from the session JWT; no database
 // read happens here (this project uses JWT sessions with no adapter — see
 // server/auth.ts), so the check costs no round trip.
-const guarded = auth((req) => {
-  const response = bankSignupRef(req, route(req));
+//
+// It is built per request around the URL the server was asked for (`own`),
+// because the `req` Auth.js hands in may not carry it: with `AUTH_URL` set,
+// Auth.js rebuilds the request on that origin (`reqWithEnvURL`). A redirect
+// can go there, but a rewrite cannot: Next serves a rewrite itself only when
+// its origin is the server's own, and proxies anything else out over the
+// network. On the Coolify box that sent every library page to
+// `https://caesura.today/playbooks/cached/…` and answered "Internal Server
+// Error" (`Failed to proxy`), 2026-11-09. Building the wrapper costs a closure.
+const guard = (own: URL) => auth((req) => {
+  const response = bankSignupRef(req, route(req, own));
   // ADR-078: **this file only ever deletes the hint; it never sets it.** The
   // app shell sets it from the browser once it knows a session user
   // (`SessionUserProvider`), and every matched page a signed-in person reads —
@@ -83,13 +92,13 @@ const guarded = auth((req) => {
 });
 
 /** The request seam: the library picks its copy, an invite banks its token, anything else matched goes to sign-in, a signed-out request sheds the signed-in hint, and a `?ref=` link banks its channel. */
-export default function proxy(...args: Parameters<typeof guarded>) {
+export default function proxy(...args: Parameters<ReturnType<typeof guard>>) {
   const [req] = args;
   // ADR-079: a path matched only by the `?ref=` entry (the landing, a place
   // page) gets its cookie and nothing else. No `auth()`: the ref is not about
   // a session, and paying for one there would undo what ADR-078 bought.
   if (!isGuardedPath(req.nextUrl.pathname)) return bankSignupRef(req, NextResponse.next());
-  return guarded(...args);
+  return guard(req.nextUrl)(...args);
 }
 
 /**
@@ -133,8 +142,9 @@ function isGuardedPath(pathname: string): boolean {
 // while this module's top level runs.
 let guardedEntries: ReturnType<typeof getPathMatch>[] | undefined;
 
-// What the request gets before a stale hint is taken off it.
-function route(req: NextAuthRequest): NextResponse {
+// What the request gets before a stale hint is taken off it. `own` is the URL
+// as the server received it, which a rewrite must keep (see `guard`).
+function route(req: NextAuthRequest, own: URL): NextResponse {
   // The public library, for everyone: a reader with no session and no query
   // gets the cached copy, anyone else the per-request one (`playbooksReader.ts`).
   // `req.auth` rather than the cookie's presence: a cookie whose session has
@@ -144,7 +154,7 @@ function route(req: NextAuthRequest): NextResponse {
     playbooksReaderFor(Boolean(req.auth), req.nextUrl.pathname, req.nextUrl.searchParams),
   );
   if (library !== null) {
-    const target = new URL(req.nextUrl);
+    const target = new URL(own);
     target.pathname = library;
     return NextResponse.rewrite(target);
   }

@@ -7,15 +7,23 @@ import { SIGNUP_REF_COOKIE } from "@/lib/signupRef";
 // The Auth.js wrapper is replaced by one that only counts, so a test decides
 // what `req.auth` holds and can see whether a request reached `auth()` at all.
 // What is under test is this file's own branching, not Auth.js's JWT reading.
-const authCalls = vi.hoisted(() => ({ count: 0 }));
-vi.mock("next-auth", () => ({
-  default: () => ({
-    auth: (handler: (req: unknown) => unknown) => (req: unknown) => {
-      authCalls.count += 1;
-      return handler(req);
-    },
-  }),
-}));
+// `envOrigin` stands in for `AUTH_URL`: like Auth.js's `reqWithEnvURL`, the
+// handler is then handed the request rebuilt on that origin.
+const authCalls = vi.hoisted(() => ({ count: 0, envOrigin: null as string | null }));
+vi.mock("next-auth", async () => {
+  const { NextRequest } = await import("next/server");
+  return {
+    default: () => ({
+      auth: (handler: (req: unknown) => unknown) => (req: NextRequest & { auth?: unknown }) => {
+        authCalls.count += 1;
+        if (authCalls.envOrigin === null) return handler(req);
+        const { href, origin } = req.nextUrl;
+        const moved = new NextRequest(href.replace(origin, authCalls.envOrigin), req);
+        return handler(Object.assign(moved, { auth: req.auth }));
+      },
+    }),
+  };
+});
 
 const { default: proxy, config } = await import("./proxy");
 const handle = proxy as unknown as (req: NextRequest) => Response;
@@ -129,6 +137,40 @@ describe("proxy", () => {
     const res = handle(request("/playbooks", { session: true, hint: false, dest: "document" }));
     expect(res.headers.get("x-middleware-rewrite")).toBe("https://caesura.test/playbooks/live");
     expect(hintSetCookie(res)).toBeUndefined();
+  });
+
+  // 2026-11-09, on the Coolify box: with `AUTH_URL` set, Auth.js hands the
+  // handler the request on that origin, and a rewrite built from it named
+  // another host, which Next proxies out instead of serving. Every library page
+  // answered "Internal Server Error". A redirect may use that origin; a rewrite
+  // must stay on the one the server was asked on.
+  describe("with AUTH_URL on another origin than the server's own", () => {
+    function onServer(path: string, session: boolean) {
+      const req = new NextRequest(new URL(path, "http://0.0.0.0:3000"));
+      return Object.assign(req, { auth: session ? { user: { id: "u1" }, expires: "2099-01-01T00:00:00.000Z" } : null });
+    }
+    function withAuthUrl(run: () => Response): Response {
+      authCalls.envOrigin = "https://caesura.today";
+      try {
+        return run();
+      } finally {
+        authCalls.envOrigin = null;
+      }
+    }
+
+    it.each([
+      [false, "/playbooks/country/peru", "http://0.0.0.0:3000/playbooks/cached/country/peru"],
+      [true, "/playbooks/country/peru", "http://0.0.0.0:3000/playbooks/live/country/peru"],
+      [false, "/playbooks?sort=new", "http://0.0.0.0:3000/playbooks/live?sort=new"],
+    ])("rewrites the library on the server's own origin (signed in %s, %s)", (session, path, rewrite) => {
+      const res = withAuthUrl(() => handle(onServer(path, session)));
+      expect(res.headers.get("x-middleware-rewrite")).toBe(rewrite);
+    });
+
+    it("still sends a signed-out /home to sign in", () => {
+      const res = withAuthUrl(() => handle(onServer("/home", false)));
+      expect(res.headers.get("location")).toBe("https://caesura.today/signin?callbackUrl=%2Fhome");
+    });
   });
 
   // ADR-079: a launch link's `?ref=` is banked for signup, first touch only.
