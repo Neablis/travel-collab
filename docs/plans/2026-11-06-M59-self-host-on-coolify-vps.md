@@ -73,6 +73,8 @@ is the one CI run and the one merge (`docs/guidelines/stacked-prs.md`).
 
 ## Part 1 — one deployment-env module (~25 files)
 
+Built at `lib/deployment/env.ts`, not `server/`: the lint wall bars pages from `@/server`, and pages import `devLogin` and `siteMetadata` (PR 702).
+
 **Theme.** Decisions 7 and 9's groundwork. One module answers *which environment am I*
 (`production` | `preview` | `development`) and *what is my public origin*, from new
 `APP_ENV` and `PUBLIC_ORIGIN` env vars, falling back to `VERCEL_ENV` / `VERCEL_*_URL`. Every
@@ -80,13 +82,14 @@ is the one CI run and the one merge (`docs/guidelines/stacked-prs.md`).
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
-| **New** `server/deployment/env.ts` | `deployEnv()`, `publicOrigin()`, `deploymentVersion()` | the one reader of `APP_ENV`, `PUBLIC_ORIGIN`, `APP_VERSION`, with `VERCEL_*` fallbacks | **New** `server/deployment/env.test.ts` |
+| **New** `lib/deployment/env.ts` | `deployEnv()`, `publicOrigin()`, `deploymentVersion()` | the one reader of `APP_ENV`, `PUBLIC_ORIGIN`, `APP_VERSION`, with `VERCEL_*` fallbacks | **New** `lib/deployment/env.test.ts` |
 | `lib/deploymentOrigin.ts` | :44-52 | delegate to `publicOrigin()` (or delete and move callers) | `lib/deploymentOrigin.test.ts` |
 | `lib/authConfig.ts` | :127 | `deployEnv()` | `lib/authConfig.test.ts` |
 | `lib/siteMetadata.ts` | :52 | `deployEnv()` (NOINDEX unless production) | `lib/siteMetadata.test.ts` |
 | `lib/devLogin.ts`, `lib/demoDataReset.ts` | :29, :20 | `deployEnv()` | `lib/demoDataReset.test.ts` |
 | `server/config.ts`, `server/cache/keys.ts`, `server/cache/redis.ts` | :138; :16,39; :150 | `deployEnv()`; `redis.ts`'s auto picks `upstash` whenever `KV_REST_API_URL` is set, not only on Vercel | `server/cache/keys.test.ts`, `server/cache/redis.test.ts` |
 | `server/libraryCache.ts` | :52 | `deploymentVersion()` | `server/libraryCache.test.ts` |
+| `apps/web/sentry.shared.ts` | :34, :71 | Sentry environment and release from the env module (review of PR 702; fixed on part 1) | — |
 | `app/api/health/ai-mode/route.ts` | :62 | `deployEnv()` | — (add a case to `env.test.ts`) |
 | `apps/web/next.config.ts` | :22 `isPreview` | read `APP_ENV` first | `next.config.test.ts` |
 | `apps/web/.env.example` | — | document `APP_ENV`, `PUBLIC_ORIGIN`, `APP_VERSION` | — |
@@ -109,7 +112,7 @@ left in `apps/web/src`.
 | File | Entry point | Change | Test |
 |---|---|---|---|
 | `server/libraryCache.ts` | :2 `waitUntil`, `dangerouslyDeleteByTag` | Next's `after()` and `revalidateTag()`; same semantics | `server/libraryCache.test.ts`, `server/entitlements/consoleCache.test.ts` |
-| `server/flags.ts` | `vercelAdapter()` :12, :57, :104 | flags read `FLAG_AI_LIVE` / `FLAG_ADMIN_CONSOLE` (decision 6); `defaultValue: false` fail-closed stays | `server/flags.test.ts`, `server/entitlements/adminFlag.int.test.ts` |
+| `server/flags.ts` | `vercelAdapter()` :12, :57, :104 | `ai-live` reads `FLAG_AI_LIVE` (decision 6); `admin-console` must stay per-user: an allowlist env (`ADMIN_CONSOLE_USERS`, ids or emails), never a global boolean that makes every signed-in user an operator; fail-closed stays | `server/flags.test.ts`, `server/entitlements/adminFlag.int.test.ts` |
 | `app/.well-known/vercel/flags/route.ts` | — | deleted (no Flags Explorer) | `server/flags.test.ts` |
 | `app/layout.tsx` | :2-3, :182-183 | remove `Analytics` and `SpeedInsights`; add a Plausible `next/script` only when `NEXT_PUBLIC_PLAUSIBLE_SRC` and `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` are set | `app/layout.test.ts` |
 | `apps/web/next.config.ts` | :14-23, :61-110 CSP; :130; :304 | drop the Toolbar and `va.vercel-scripts.com` origins; allow the Plausible origin from env; add HSTS (`max-age=63072000; includeSubDomains; preload`) in production only; `automaticVercelMonitors: false` | `next.config.test.ts` |
