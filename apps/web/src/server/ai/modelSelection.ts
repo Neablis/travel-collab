@@ -138,7 +138,7 @@ export function resolvedTierMap(): Record<ModelTier | "classifier", string> {
 // Built EAGERLY on the live branch rather than lazily, and that is deliberate:
 // *"never constructs a gateway client, of either kind, when the flag is off"*
 // is a promise about what this function DOES, and a lazy map would satisfy that
-// test by doing nothing at all on either branch. Three `createGateway` calls
+// test by doing nothing at all on either branch. Three `createAnthropic` calls
 // where there was one is an object each, no network and no key read beyond the
 // one `aiModel` already performs.
 function tierModels(build: (modelId: string) => LanguageModel): TierModels {
@@ -206,7 +206,7 @@ export function deniedResponse(reason: string): Response {
 export type AiEntitlementCheck = EntitlementResolver;
 
 // `aiModel()`/`aiClassifierModel()` are called ONLY on the live branch — they
-// construct the gateway client that carries AI_GATEWAY_API_KEY, and throw when
+// construct the provider client that carries ANTHROPIC_API_KEY, and throw when
 // that key is unset. Calling either eagerly would both spend-enable the off
 // path and break simulated mode on a deployment that has no key at all.
 // Enforced by a test.

@@ -67,7 +67,6 @@ import {
   type UIMessageChunk,
   uiMessageChunkSchema,
 } from "ai";
-import { GatewayError } from "@ai-sdk/gateway";
 import { WIDGET_SHAPE_WORDS } from "@/server/assistant/tools/widgets";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
@@ -825,16 +824,15 @@ export async function handleAskRequest(
     // 21,600 were that prefix sent again — ~85% of a step's fixed cost is tool
     // schemas (askIntent.ts's measurement), and the loop pays for it per step.
     //
-    // `caching: "auto"` is the GATEWAY's option, not a provider's, which is
-    // why it belongs here and not in `gateway.ts` beside a model id: the
-    // gateway applies each provider's own strategy, so this stays correct when
-    // the tier map points at a different provider tomorrow. That is the same
-    // "model identity is an input" rule the tier map itself follows.
+    // `cacheControl` is Anthropic's request-level option (M59 part 4: the
+    // Gateway's `caching: "auto"` went with the Gateway). It sits here and not
+    // in `gateway.ts` beside a model id because it is a per-call setting; the
+    // resolver refuses every other chat provider, so there is one to name.
     //
     // Cached reads are roughly a tenth of input price across the catalogue
     // (our current model lists $0.028/MTok against $0.13 input), so this is
     // worth more the stronger the tier gets, not less.
-    providerOptions: { gateway: { caching: "auto" } },
+    providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     // The admitted tier's thinking budget (`REASONING_FOR`). A step escalated
     // to another tier keeps it: escalation is about the tool set, and the
     // stronger model does not need licence to over-think a bounded edit.
@@ -1572,7 +1570,7 @@ export async function handleBeyondTripAskRequest(
 
   const agent = new ToolLoopAgent({
     model: grant.model,
-    providerOptions: { gateway: { caching: "auto" } },
+    providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     reasoning: REASONING_FOR[grant.tier],
     maxOutputTokens: MAX_STEP_OUTPUT_TOKENS,
     repairToolCall: repairToolCallFor(meter),
@@ -1875,8 +1873,6 @@ function notAppliedMetadata(
  *     `@ai-sdk/provider-utils` wraps a dropped or refused connection in, so it
  *     is the network case too.
  *   * `RetryError` — the SDK retried a retryable `APICallError` and ran out.
- *   * `GatewayError` — the base of every typed AI Gateway failure (rate limit,
- *     auth, model not found, upstream 5xx).
  *   * `StreamProviderError` — the provider reported an error inside an open
  *     stream ("overloaded").
  *   * `EmptyResponseBodyError`, `InvalidResponseDataError` — the provider
@@ -1895,7 +1891,6 @@ function notAppliedMetadata(
 const MODEL_SIDE_ERRORS = [
   APICallError,
   RetryError,
-  GatewayError,
   StreamProviderError,
   EmptyResponseBodyError,
   InvalidResponseDataError,

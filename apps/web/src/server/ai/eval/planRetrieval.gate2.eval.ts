@@ -46,7 +46,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { generateText } from "ai";
-import { createGateway } from "@ai-sdk/gateway";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { resolveChatModel } from "@/server/ai/modelId";
 import { serverConfig } from "@/server/config";
 import { renderPrompt } from "@/server/assistant/prompt";
 import { getPlanExamples, formatExampleBlocks } from "@/server/ai/planExamples";
@@ -93,7 +94,8 @@ describe("gate 2: quality parity at lower cost", () => {
         throw new Error(`${plan}\nNothing was sent. Set GATE2_CONFIRM=1 to spend it.`);
       }
 
-      const gateway = createGateway({ apiKey: serverConfig.aiGatewayApiKey });
+      const anthropic = createAnthropic({ apiKey: serverConfig.anthropicApiKey });
+      const chat = (id: string) => anthropic(resolveChatModel(id).model);
       const reportDir = join(process.cwd(), "eval-results");
       mkdirSync(reportDir, { recursive: true });
 
@@ -130,17 +132,17 @@ describe("gate 2: quality parity at lower cost", () => {
 
         // Arm A: baseline — no examples.
         const resultA = await generateText({
-          model: gateway(STRONG_MODEL),
+          model: chat(STRONG_MODEL),
           prompt: buildPlanPrompt(query, null),
         });
         // Arm B: same tier, with examples.
         const resultB = await generateText({
-          model: gateway(STRONG_MODEL),
+          model: chat(STRONG_MODEL),
           prompt: buildPlanPrompt(query, exampleText),
         });
         // Arm C: cheaper tier, with examples (tier-drop test).
         const resultC = await generateText({
-          model: gateway(MID_MODEL),
+          model: chat(MID_MODEL),
           prompt: buildPlanPrompt(query, exampleText),
         });
 
@@ -155,7 +157,7 @@ describe("gate 2: quality parity at lower cost", () => {
         // bias). Deterministic per query id so reruns are comparable.
         const swapAB = hashForOrder(id) % 2 === 1;
         const judgeAB = await generateText({
-          model: gateway(CHEAP_MODEL),
+          model: chat(CHEAP_MODEL),
           prompt: swapAB
             ? buildJudgePrompt(query, resultB.text, resultA.text)
             : buildJudgePrompt(query, resultA.text, resultB.text),
@@ -169,7 +171,7 @@ describe("gate 2: quality parity at lower cost", () => {
         // Judge C vs A (tier drop), same position randomization.
         const swapAC = hashForOrder(id + ":c") % 2 === 1;
         const judgeAC = await generateText({
-          model: gateway(CHEAP_MODEL),
+          model: chat(CHEAP_MODEL),
           prompt: swapAC
             ? buildJudgePrompt(query, resultC.text, resultA.text)
             : buildJudgePrompt(query, resultA.text, resultC.text),

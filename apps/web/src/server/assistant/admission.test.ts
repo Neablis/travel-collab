@@ -218,14 +218,14 @@ describe("the admission pipeline's ORDER", () => {
 
 describe("a refusal costs the caller nothing it should not", () => {
   // **The incident this pipeline is shaped around.** A missing
-  // AI_GATEWAY_API_KEY made `selectAiModel` throw, and the quota had already
+  // ANTHROPIC_API_KEY made `selectAiModel` throw, and the quota had already
   // been charged — so a caller retrying against an outage that produced zero
   // provider calls burned their whole hourly and daily allowance.
   it("does not charge the quota when model selection fails", async () => {
     const { ports, calls } = spyPorts({
       selectModel: async () => {
         calls.push("selectModel");
-        throw new Error("AI_GATEWAY_API_KEY is not set");
+        throw new Error("ANTHROPIC_API_KEY is not set");
       },
     });
     const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
@@ -240,7 +240,7 @@ describe("a refusal costs the caller nothing it should not", () => {
 
   // The person is told the assistant failed; the audit line is told why. The
   // thrown message used to be the 503 body verbatim ("model selection failed:
-  // AI_GATEWAY_API_KEY is not set"), which is operator detail on a user's screen.
+  // ANTHROPIC_API_KEY is not set"), which is operator detail on a user's screen.
   it("sends the fixed failure sentence, and keeps the thrown detail on the audit record", async () => {
     const { ports, records } = spyPorts({
       selectModel: async () => {

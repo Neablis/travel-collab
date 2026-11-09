@@ -517,6 +517,18 @@ describe("which provider served each step", () => {
     ]);
   });
 
+  // Direct Anthropic (M59 part 4) sends no Gateway routing metadata, so the
+  // row would lose its provider; the model id names it instead.
+  it("names Anthropic as the provider of a live Anthropic step that carried no routing metadata", () => {
+    const { recorder, ledgers } = recorderWith({ model: "anthropic/claude-haiku-5.5", simulated: false });
+    recorder.observeStep({ usage: { inputTokens: 10, outputTokens: 1 } });
+    FINISHES(recorder);
+
+    expect(ledgers[0]!.stepSpend.map((step) => [step.provider, step.gatewayGenerationId])).toEqual([
+      ["anthropic", null],
+    ]);
+  });
+
   it("reads a malformed or missing value as null, never a guess", () => {
     expect(gatewayRoutingOf(undefined)).toEqual({ provider: null, gatewayGenerationId: null });
     expect(gatewayRoutingOf({ gateway: "nope" })).toEqual({ provider: null, gatewayGenerationId: null });

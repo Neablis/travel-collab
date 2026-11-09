@@ -6,14 +6,14 @@ import path from "node:path";
 // `/ask` pipeline, on a private Postgres. `pnpm --filter web eval`.
 //
 // It is not in CI and not in `pnpm check`: every turn is a paid model call.
-// It refuses to start without `TRAVEL_COLLAB_EVAL_KEY`, a Gateway key kept for
+// It refuses to start without `TRAVEL_COLLAB_EVAL_KEY`, an Anthropic key kept for
 // evals so their spend never lands on production's key.
 const envLocalPath = path.resolve(__dirname, ".env.local");
 if (existsSync(envLocalPath)) process.loadEnvFile(envLocalPath);
 
 const evalKey = process.env.TRAVEL_COLLAB_EVAL_KEY ?? "";
 if (!evalKey) {
-  throw new Error("TRAVEL_COLLAB_EVAL_KEY is not set. The eval calls a real model and uses its own Gateway key.");
+  throw new Error("TRAVEL_COLLAB_EVAL_KEY is not set. The eval calls a real model and uses its own Anthropic key.");
 }
 
 // Production's models, per tier, from `models.json` (read from what production
@@ -40,7 +40,7 @@ export default defineConfig({
     reporters: ["default"],
     env: {
       AI_LIVE: "true",
-      AI_GATEWAY_API_KEY: evalKey,
+      ANTHROPIC_API_KEY: evalKey,
       AI_MODEL_CHEAP: modelFor("cheap"),
       AI_MODEL_MID: modelFor("mid"),
       AI_MODEL_STRONG: modelFor("strong"),

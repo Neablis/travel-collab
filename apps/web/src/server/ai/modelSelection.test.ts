@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const aiLiveFlag = vi.fn<() => Promise<boolean>>();
 vi.mock("@/server/flags", () => ({ aiLiveFlag: () => aiLiveFlag() }));
 
-// aiModel() throws without AI_GATEWAY_API_KEY; stub both so the live branch is
+// aiModel() throws without ANTHROPIC_API_KEY; stub both so the live branch is
 // testable without a key, and so a stray call is visible. They are separate
 // spies on purpose: the whole risk of a second model id is that it becomes a
 // second way to reach a provider, and "the classifier was not constructed

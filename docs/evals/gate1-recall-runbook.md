@@ -136,7 +136,7 @@ Postgres, and the database is a throwaway the lane provisions and drops.
 
 - `TRAVEL_COLLAB_EVAL_KEY` — a Vercel AI Gateway key kept for evals, so eval
   spend never lands on production's key (the eval lane's convention;
-  `vitest.eval.config.ts` maps it to `AI_GATEWAY_API_KEY` for the run).
+  `vitest.eval.config.ts` maps it to `ANTHROPIC_API_KEY` for the run).
 
 ### Step 1 — install
 

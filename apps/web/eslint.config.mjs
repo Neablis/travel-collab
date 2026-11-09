@@ -236,7 +236,7 @@ export default [
     // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): every AI
     // feature reaches a model by asking `selectAiModel()`, never by
     // constructing one directly. `@/server/ai/gateway` (the only place
-    // AI_GATEWAY_API_KEY is used) is importable ONLY from
+    // ANTHROPIC_API_KEY is used) is importable ONLY from
     // `modelSelection.ts` and its own test. Unlike the walls above, this one
     // is NOT scoped to UI — it covers the whole `src/server` tree too, because
     // the threat this closes is a second SERVER-SIDE entry point (M16's `/ask`

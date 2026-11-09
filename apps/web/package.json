@@ -44,7 +44,8 @@
     "openapi:generate": "UPDATE_OPENAPI=1 vitest run -c vitest.unit.config.ts src/server/public-api/openapi.test.ts"
   },
   "dependencies": {
-    "@ai-sdk/gateway": "^4.0.136",
+    "@ai-sdk/anthropic": "^4.0.99",
+    "@ai-sdk/openai": "^4.0.111",
     "@atlaskit/pragmatic-drag-and-drop": "^3.1.0",
     "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "3.2.0",
     "@modelcontextprotocol/server": "2.4.0",
