@@ -1690,7 +1690,7 @@ describe("POST /api/trips/:id/ask", () => {
     // for caching — its prompt is a few hundred tokens and mostly the question
     // itself, so there is no stable prefix worth paying a cache write for.
     // Asserting every call would encode the opposite decision by accident.
-    it("asks the gateway to cache the turn's prefix", async () => {
+    it("asks the provider to cache the turn's prefix", async () => {
       const tripId = await seedTrip();
       const { model, providerOptions } = recordingModel();
       const res = await handleAskRequest(
@@ -1701,7 +1701,7 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
 
-      expect(providerOptions()).toContainEqual({ gateway: { caching: "auto" } });
+      expect(providerOptions()).toContainEqual({ anthropic: { cacheControl: { type: "ephemeral" } } });
     });
 
     // Left at the provider's default, a reasoning model spent ~8,000 output
