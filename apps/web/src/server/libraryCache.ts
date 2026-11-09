@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { dangerouslyDeleteByTag, waitUntil } from "@vercel/functions";
 import { DATABASE_URL } from "./config";
+import { deploymentVersion } from "@/lib/deployment/env";
 
 // `next/cache` is imported where it is used, never at the top. `savedDays.ts`
 // and `reports.ts` import this module, and `scripts/import-content-production.ts`
@@ -48,8 +49,7 @@ const DATABASE_KEY = createHash("sha256").update(DATABASE_URL).digest("hex").sli
 // cost is a cold cache on every deploy. Read per call, not at import, so it is
 // the running deployment's id. Off Vercel there is one build per database in
 // the test lanes, which `DATABASE_KEY` already separates.
-const deploymentKey = (): string =>
-  process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA || "local";
+const deploymentKey = (): string => deploymentVersion();
 
 /**
  * The key parts every data-cache entry in this app starts with: the database

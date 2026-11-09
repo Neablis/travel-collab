@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { deployEnv } from "@/lib/deployment/env";
 
 // Every key this app writes to the shared Redis, in one file (ADR-059). One
 // free-tier database serves Preview and Production, so each key starts with
@@ -13,7 +14,7 @@ import { createHash } from "node:crypto";
 // key gives back nothing that can be used.
 
 function prefix(): string {
-  return `${process.env.VERCEL_ENV ?? "dev"}:og`;
+  return `${deployEnv() ?? "dev"}:og`;
 }
 
 function digest(value: string): string {
@@ -36,7 +37,7 @@ export function referralCardKey(code: string): string {
  * `server/oauth/clients.ts`.
  */
 export function cimdDocumentKey(url: string): string {
-  return `${process.env.VERCEL_ENV ?? "dev"}:oauth:cimd:${digest(url)}`;
+  return `${deployEnv() ?? "dev"}:oauth:cimd:${digest(url)}`;
 }
 
 /** An hour: a pending invite's card, which is also deleted on revoke and accept. */

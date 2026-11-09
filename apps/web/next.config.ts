@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
+import { deployEnv } from "./src/lib/deployment/env";
 
 // `next build` sets NODE_ENV=production; `next dev --turbopack` sets
 // development. The dev-only relaxations below exist because the dev server's
@@ -8,7 +9,7 @@ import type { NextConfig } from "next";
 // console unreadable without protecting anything that ships.
 const isDev = process.env.NODE_ENV !== "production";
 
-// Vercel sets VERCEL_ENV at build time, and a preview build is the only place
+// Vercel sets VERCEL_ENV (or we set APP_ENV) at build time, and a preview build is the only place
 // the Vercel Toolbar is ever injected. It is not cosmetic here: the Toolbar is
 // how the Flags Explorer flips `ai-live` for one reviewer's session, which
 // `docs/guidelines/environments-and-deploys.md` documents as the way to try
@@ -19,7 +20,7 @@ const isDev = process.env.NODE_ENV !== "production";
 // own comment records as unobserved. Preview only: production never loads
 // vercel.live, and widening its policy for a tool it does not serve would be
 // paying for nothing.
-const isPreview = process.env.VERCEL_ENV === "preview";
+const isPreview = deployEnv() === "preview";
 const toolbar = (...origins: string[]) => (isPreview ? ` ${origins.join(" ")}` : "");
 
 // Project review M2: the app shipped with no security headers at all — no

@@ -12,12 +12,14 @@
 //
 // Both env vars, both required, fails closed on anything else — same shape
 // as aiLive()'s AI_LIVE check (src/server/ai/modelSelection.ts): a typo or
-// an unset var resolves to false, never true. VERCEL_ENV is set by Vercel
+// an unset var resolves to false, never true. The deployment environment is set by the platform
 // itself (never by us), so production can never satisfy this — only
 // "preview" does, and only with the operator's own SEED_DEMO_DATA opt-in on
 // top of it.
+
+import { deployEnv } from "@/lib/deployment/env";
 export function isDemoDataResetEnabled(): boolean {
-  return process.env.VERCEL_ENV === "preview" && process.env.SEED_DEMO_DATA === "true";
+  return deployEnv() === "preview" && process.env.SEED_DEMO_DATA === "true";
 }
 
 /**

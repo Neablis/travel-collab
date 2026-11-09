@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { deployEnv } from "@/lib/deployment/env";
 
 // The site-wide strings the <head> metadata is built from, and the one
 // helper page-level metadata goes through.
@@ -49,7 +50,7 @@ export const NOINDEX_FOLLOW = { index: false, follow: true } as const;
  * because a disallowed URL is never crawled and so its `noindex` is never read.
  */
 export function siteRobots(): typeof NOINDEX | undefined {
-  return process.env.VERCEL_ENV === "production" ? undefined : NOINDEX;
+  return deployEnv() === "production" ? undefined : NOINDEX;
 }
 
 /** The `Metadata` for one page: title, description, share card, and optionally canonical and robots. */

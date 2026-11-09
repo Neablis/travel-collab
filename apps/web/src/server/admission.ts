@@ -44,7 +44,7 @@ export type AdmissionGrant =
   // (ADR-063); it credits nobody.
   | "open-signup"
   // Granted by `recordSignIn`, never by anything in this file: dev login is an
-  // ENVIRONMENT fact (AUTH_DEV_LOGIN + a non-production VERCEL_ENV), not a
+  // ENVIRONMENT fact (AUTH_DEV_LOGIN + a non-production deployment environment), not a
   // credential, so there is nothing here to check or to spend.
   | "dev-login";
 

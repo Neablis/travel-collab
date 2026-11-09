@@ -2,6 +2,8 @@
 // (DATABASE_URL must not end up in a client bundle).
 // No fallback: a missing DATABASE_URL should fail loudly, not silently
 // connect to a local default that doesn't exist in preview/production.
+
+import { deployEnv } from "@/lib/deployment/env";
 if (!process.env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL is not set. Copy .env.example to apps/web/.env.local for local dev.",
@@ -135,7 +137,7 @@ export const serverConfig = {
 export function coverProxySecret(): string {
   const value = process.env.COVER_PROXY_SECRET ?? "";
   if (value !== "") return value;
-  if (process.env.VERCEL_ENV === "production") {
+  if (deployEnv() === "production") {
     throw new Error("COVER_PROXY_SECRET is not set. URL covers are signed with it, and production has no default.");
   }
   return "dev-cover-proxy-secret-not-for-production";

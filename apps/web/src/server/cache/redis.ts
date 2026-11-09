@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { serverConfig } from "../config";
+import { deployEnv } from "@/lib/deployment/env";
 import { createMemoryClient } from "./memory";
 
 // **The shared Redis, as an expendable cache and nothing more** (ADR-059).
@@ -93,14 +94,14 @@ const DRIVERS: readonly string[] = ["upstash", "memory", "off"];
 // many instances, each with its own Map: instance A caches a pending invite's
 // card, instance B handles the revoke and deletes from ITS Map, and A goes on
 // naming the sender for up to the hour's TTL. A revoke must reach every copy,
-// and only a shared store can do that, so on Vercel (`VERCEL_ENV` set) the
+// and only a shared store can do that, so on a deployment (`APP_ENV` or `VERCEL_ENV` set) the
 // choices are Upstash or nothing. Local dev is one `next dev` process, which is
 // where `memory` is right.
 /**
  * `CACHE_DRIVER`, resolved (ADR-059). Blank means auto: `upstash` when both
- * credentials are set; otherwise `memory` locally and `off` on Vercel. An
+ * credentials are set; otherwise `memory` locally and `off` on a deployment. An
  * explicit valid value wins, except `upstash` without both credentials (falls
- * back as auto would) and `memory` on Vercel (`off`). An unknown value is auto.
+ * back as auto would) and `memory` on a deployment (`off`). An unknown value is auto.
  * `warning` is set whenever the request was not honoured as written. Pure, for
  * the resolution table's test.
  */
@@ -108,10 +109,10 @@ export function resolveCacheDriver(input: {
   requested: string;
   url: string;
   token: string;
-  onVercel: boolean;
+  deployed: boolean;
 }): { driver: CacheDriver; warning: string | null } {
   const hasCredentials = input.url !== "" && input.token !== "";
-  const withoutShared: CacheDriver = input.onVercel ? "off" : "memory";
+  const withoutShared: CacheDriver = input.deployed ? "off" : "memory";
   const auto: CacheDriver = hasCredentials ? "upstash" : withoutShared;
   const requested = input.requested.trim();
   if (requested === "") return { driver: auto, warning: null };
@@ -124,7 +125,7 @@ export function resolveCacheDriver(input: {
       warning: `CACHE_DRIVER=upstash but KV_REST_API_URL/KV_REST_API_TOKEN are not both set; using ${withoutShared}`,
     };
   }
-  if (requested === "memory" && input.onVercel) {
+  if (requested === "memory" && input.deployed) {
     return {
       driver: "off",
       warning: "CACHE_DRIVER=memory is per-instance, so a revoke on one instance would not clear another; using off",
@@ -147,8 +148,8 @@ let cache: CachePort | null = null;
 export function getCache(): CachePort {
   if (cache !== null) return cache;
   const { cacheDriver, kvRestApiUrl: url, kvRestApiToken: token } = serverConfig;
-  const onVercel = (process.env.VERCEL_ENV ?? "") !== "";
-  const { driver, warning } = resolveCacheDriver({ requested: cacheDriver, url, token, onVercel });
+  const deployed = deployEnv() !== undefined;
+  const { driver, warning } = resolveCacheDriver({ requested: cacheDriver, url, token, deployed });
   // Once, because the singleton means this branch runs once per instance.
   if (warning !== null) console.warn(`[cache] ${warning}`);
   cache =

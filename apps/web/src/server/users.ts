@@ -443,8 +443,8 @@ export async function recordSignIn(
   const returning = await hasUserRow(identity.id);
   // DEV LOGIN IS ITS OWN ADMISSION, and claims no code. The invite gate
   // existed to control who reaches a real deployment; dev login cannot reach one. `isDevLoginEnabled()`
-  // requires AUTH_DEV_LOGIN=true AND VERCEL_ENV !== "production", and Vercel
-  // sets VERCEL_ENV itself, so production cannot satisfy it however the opt-in
+  // requires AUTH_DEV_LOGIN=true AND the deployment environment !== "production", and the
+  // platform sets that itself (APP_ENV / VERCEL_ENV), so production cannot satisfy it however the opt-in
   // was scoped — the provider is not even registered there
   // (`lib/authConfig.ts`). Requiring an invite code on top of that gated a door
   // that is already locked, and locked out every fresh dev user on preview and

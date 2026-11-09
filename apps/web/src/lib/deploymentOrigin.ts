@@ -38,17 +38,13 @@
 // the canonical and OG URLs, and pointing those at a per-deployment host makes
 // every preview share a link nobody else can open.
 //
+// The precedence itself now lives in `lib/deployment/env.ts` (`PUBLIC_ORIGIN`
+// first, then the `VERCEL_*` hierarchy described here).
+//
 // Every branch is pinned by `deploymentOrigin.test.ts`, which this function did
 // not have when the precedence bug shipped.
+
+import { publicOrigin } from "@/lib/deployment/env";
 export function deploymentOrigin(): string {
-  if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  }
-  // The branch alias: stable per branch, and the host a preview is actually
-  // served on, so a forwarded protection cookie still matches.
-  if (process.env.VERCEL_BRANCH_URL) return `https://${process.env.VERCEL_BRANCH_URL}`;
-  // A deployment with no branch alias (a direct `vercel deploy`) still answers
-  // on its own URL.
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return `http://localhost:${process.env.WEB_PORT ?? "3001"}`;
+  return publicOrigin();
 }
