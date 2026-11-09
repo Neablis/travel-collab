@@ -116,7 +116,7 @@ export function ConsentScreen({
             // eslint-disable-next-line @next/next/no-img-element -- an agent's own https logo, which next/image would proxy through our optimizer
             <img
               src={personalAgent.logoUri}
-              alt={`${clientName} logo`}
+              alt=""
               className="size-12 rounded-md"
               onError={() => setLogoFailed(true)}
             />

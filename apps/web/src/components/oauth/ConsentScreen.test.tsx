@@ -52,7 +52,7 @@ describe("ConsentScreen", () => {
   it("names a Personal Agent with its domain and logo, and still marks the name unverified", () => {
     render(<ConsentScreen {...props({ clientName: "Muse", cimdHost: "meta.ai", personalAgent: { logoUri: "https://meta.ai/logo.png" } })} />);
     expect(screen.getByRole("heading", { level: 1, name: "Muse (meta.ai) wants to act for you on Caesura" })).toBeTruthy();
-    expect(screen.getByRole("img", { name: "Muse logo" }).getAttribute("src")).toBe("https://meta.ai/logo.png");
+    expect(screen.getByRole("presentation").getAttribute("src")).toBe("https://meta.ai/logo.png");
     expect(screen.getByText("Unverified")).toBeTruthy();
   });
 

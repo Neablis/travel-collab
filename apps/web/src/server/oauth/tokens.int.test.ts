@@ -13,6 +13,7 @@ import { createRedisCache } from "@/server/cache/redis";
 import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
 import { makeTestAgent, publicResolve } from "@/server/poppy/testAgent";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
+import { consumeQuota, signedOutFetchQuota } from "@/server/quota";
 import { registerClient, resolveClient, type OAuthClient } from "./clients";
 import { createGrant, grantOf, issueCode, mintSecret } from "./grants";
 import { mcpResource, oauthIssuer } from "./metadata";
@@ -331,6 +332,47 @@ describe("a private_key_jwt client", () => {
     const own = await refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
     expect(errorOf(own)).toBe("invalid_grant");
     expect((await grantOf(grant.id))!.revokedAt).not.toBeNull();
+  });
+
+  // A stranger needs only the agent's public client_id to spend what an assertion-time
+  // fetch is charged to: its share, and the signed-out global ceiling.
+  it("still refreshes, with its known key, after a stranger has spent every fetch quota its assertions are charged to", async () => {
+    const { exchange, signed, agent, deps } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    vi.stubEnv("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_PER_CALLER_HOURLY", "2");
+    vi.stubEnv("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_GLOBAL_HOURLY", "1");
+    try {
+      for (let spent = 0; spent < 10; spent += 1) {
+        await consumeQuota(signedOutFetchQuota(), `cimd-client:${agent.clientId}`);
+      }
+      expect((await consumeQuota(signedOutFetchQuota(), `cimd-client:${agent.clientId}`)).allowed).toBe(false);
+      // Ten minutes on: the cached document and key set are stale, so each wants a fetch.
+      const now = new Date(Date.now() + 600_000);
+      const second = Math.floor(now.getTime() / 1000);
+      const clientAssertion = await agent.assertion({ iat: second - 10, exp: second + 50 });
+      const real = await refresh({ refreshToken: refresh_token, clientId: agent.clientId, clientAssertion, clientAssertionType: ASSERTION_TYPE }, now, deps);
+      expect(errorOf(real)).toBe("ok");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("leaves the grant live when a rotated refresh token is presented under another client_id", async () => {
+    const { exchange, signed, agent, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    await refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
+    // A thief's own agent, signing properly as itself.
+    const thief = await makeTestAgent({ issuer: oauthIssuer() });
+    const both = {
+      ...deps,
+      fetch: ((url, init) => (url.host === new URL(thief.clientId).host ? thief.fetch(url, init) : agent.fetch(url, init))) as Fetcher,
+    };
+    const signedAsThief = { clientAssertion: await thief.assertion(), clientAssertionType: ASSERTION_TYPE };
+    for (const as of [{ clientId: "x" }, { clientId: thief.clientId, ...signedAsThief }]) {
+      const replay = await refresh({ refreshToken: refresh_token, ...as }, new Date(), both);
+      expect(errorOf(replay)).toBe("invalid_grant");
+      expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+    }
   });
 
   it("is read again, at most once a minute, when its assertion names a key not yet cached", async () => {
