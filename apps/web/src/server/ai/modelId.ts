@@ -23,7 +23,7 @@ function splitId(id: string): { provider: string; model: string } {
  * its form so no setting changes, but only Anthropic is wired.
  *
  * @returns `id` is the cleaned Gateway-form id, which the ledger and rate table
- *   key on; `model` is the bare name the provider takes.
+ *   key on; `model` is the bare, hyphenated name Anthropic takes.
  */
 export function resolveChatModel(rawId: string): { provider: "anthropic"; model: string; id: string } {
   const id = cleanId(rawId);
@@ -31,7 +31,9 @@ export function resolveChatModel(rawId: string): { provider: "anthropic"; model:
   if (provider !== "anthropic" || model === "") {
     throw new Error(`Unsupported chat model "${id}": only anthropic/<model> ids are served`);
   }
-  return { provider, model, id };
+  // Anthropic spells a version with hyphens (`claude-haiku-5-5`); the Gateway form
+  // the env keeps uses a dot. `id` stays dotted: the rate table keys on it.
+  return { provider, model: model.replace(/(\d)\.(?=\d)/g, "$1-"), id };
 }
 
 /**

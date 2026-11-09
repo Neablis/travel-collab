@@ -17,7 +17,8 @@ recall on the corpus that will actually serve.
 ## Production mode (recommended)
 
 Prerequisites: branch `sunny/rag-part3-gate1`, Node 22, pnpm, and
-`TRAVEL_COLLAB_EVAL_KEY` (a Vercel AI Gateway key).
+`TRAVEL_COLLAB_EVAL_KEY` (an Anthropic key) and, for the embedding calls,
+`TRAVEL_COLLAB_EVAL_OPENAI_KEY` (an OpenAI key).
 
 **Step 0 — backfill the corpus.** The eval measures against `day_embeddings`;
 production mode does not embed anything itself. Two steps, because the
@@ -134,9 +135,11 @@ Postgres, and the database is a throwaway the lane provisions and drops.
   the repo's default port). The lane refuses non-local hosts — this never
   touches Neon.
 
-- `TRAVEL_COLLAB_EVAL_KEY` — a Vercel AI Gateway key kept for evals, so eval
+- `TRAVEL_COLLAB_EVAL_KEY` — an Anthropic key kept for evals, so eval
   spend never lands on production's key (the eval lane's convention;
   `vitest.eval.config.ts` maps it to `ANTHROPIC_API_KEY` for the run).
+  `TRAVEL_COLLAB_EVAL_OPENAI_KEY` is the same for embeddings (`OPENAI_API_KEY`);
+  unset, the embedding calls fail rather than use your real key.
 
 ### Step 1 — install
 

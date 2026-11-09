@@ -41,6 +41,9 @@ export default defineConfig({
     env: {
       AI_LIVE: "true",
       ANTHROPIC_API_KEY: evalKey,
+      // Embeddings are OpenAI's: its own eval key, or empty so an embedding eval
+      // fails loudly instead of spending the developer's real key from .env.local.
+      OPENAI_API_KEY: process.env.TRAVEL_COLLAB_EVAL_OPENAI_KEY ?? "",
       AI_MODEL_CHEAP: modelFor("cheap"),
       AI_MODEL_MID: modelFor("mid"),
       AI_MODEL_STRONG: modelFor("strong"),

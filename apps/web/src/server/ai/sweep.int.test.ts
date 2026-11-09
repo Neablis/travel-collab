@@ -402,6 +402,16 @@ describe("runEmbedSweep", () => {
     expect(rows.every((r) => r.status === "pending" && r.attempts === 0)).toBe(true);
   });
 
+  it("claims nothing and burns no attempts when the OpenAI key is not set", async () => {
+    await drainQueue();
+    const owner = `sweep-jan-${run}`;
+    const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0)], 1);
+    // No injected embed: the production path, whose key the lane leaves unset.
+    const summary = await runEmbedSweep();
+    expect(summary).toMatchObject({ claimed: 0, dead: 0, pending: 1 });
+    expect((await pendingRows("playbook", playbook.savedDayId))[0]).toMatchObject({ status: "pending", attempts: 0 });
+  });
+
   it("retries a failed row and dead-letters it after 5 attempts", async () => {
     await drainQueue();
     const owner = `sweep-heidi-${run}`;

@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import { resolveChatModel, resolveEmbeddingModel } from "./modelId";
 
 describe("resolveChatModel", () => {
-  it("maps a Gateway-form Anthropic id to the Anthropic provider and its bare name", () => {
+  it("maps a Gateway-form Anthropic id to Anthropic's hyphenated name, keeping the dotted id for the ledger", () => {
     expect(resolveChatModel("anthropic/claude-haiku-5.5")).toEqual({
       provider: "anthropic",
-      model: "claude-haiku-5.5",
+      model: "claude-haiku-5-5",
       id: "anthropic/claude-haiku-5.5",
     });
+  });
+
+  it("passes an already-hyphenated id through unchanged", () => {
+    expect(resolveChatModel("anthropic/claude-haiku-4-5").model).toBe("claude-haiku-4-5");
   });
 
   it("throws for a chat model from any other provider", () => {
@@ -16,7 +20,7 @@ describe("resolveChatModel", () => {
   });
 
   it("trims whitespace and a literal trailing backslash-n a pasted value carried", () => {
-    expect(resolveChatModel("anthropic/claude-haiku-5.5\\n").model).toBe("claude-haiku-5.5");
+    expect(resolveChatModel("anthropic/claude-haiku-5.5\\n").model).toBe("claude-haiku-5-5");
     expect(resolveChatModel("  anthropic/claude-haiku-5.5 \n").id).toBe("anthropic/claude-haiku-5.5");
   });
 });

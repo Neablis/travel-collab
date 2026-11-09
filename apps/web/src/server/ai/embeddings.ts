@@ -1,6 +1,6 @@
 // Server-only: never import from UI code (would ship the gateway client to
-// the client bundle). One embedding call through the Vercel AI Gateway,
-// for the plan-retrieval RAG stack.
+// the client bundle). One embedding call straight to OpenAI, for the
+// plan-retrieval RAG stack.
 import { createOpenAI } from "@ai-sdk/openai";
 import { embed } from "ai";
 import { serverConfig } from "@/server/config";
