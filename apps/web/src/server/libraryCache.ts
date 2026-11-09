@@ -49,8 +49,7 @@ const DATABASE_KEY = createHash("sha256").update(DATABASE_URL).digest("hex").sli
 // cost is a cold cache on every deploy. Read per call, not at import, so it is
 // the running deployment's id. Off Vercel there is one build per database in
 // the test lanes, which `DATABASE_KEY` already separates.
-const deploymentKey = (): string =>
-  deploymentVersion();
+const deploymentKey = (): string => deploymentVersion();
 
 /**
  * The key parts every data-cache entry in this app starts with: the database
