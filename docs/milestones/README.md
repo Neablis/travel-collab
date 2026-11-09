@@ -140,6 +140,7 @@ for collaboration later landing on a product people already want to join.
 | M57 | The assistant is a graph of personas, and you can watch it work | **Minted, scoped and placed ahead of M44 2026-11-01 by Mitchell; current.** From the candidate and its design (`docs/specs/2026-10-30-assistant-personas-design.md`); see *2026-11-01 — minted and placed: M57*. Six personas in a typed graph with a reachability baseline, persona and outcome columns in the ledger, `switch_persona` once a turn, the trip planner split, and an operator Debug mode in the Ask panel plus a Personas tab in the console (ADR-085): `M57-assistant-personas.md` |
 | M58 | A notebook anyone can read, and a poll for the people going | **Closed 2026-11-06, gate 11 of 11** ([walk] on Mitchell's word, after `0074` was applied). A notebook made public at `/n/<token>` for people without an account. Every widget shows unless its instance is hidden, behind three floors. Make-private answers 404, and the page ends in a sign-up band with no way to join. Adds a `poll` widget for members (ADR-088): `M58-a-notebook-anyone-can-read.md` |
 | M59 | Self-host Caesura on a Coolify VPS | **Proposed 2026-11-06 by Mitchell, not scoped; placed last, after M53, until he places it.** From his ask to follow the Coolify VPS guide (Saqib Shah, Medium, Feb 2026) off Vercel Pro: decouple from Vercel runtime APIs, provision the VPS and deploy pipeline, cron, migrations and backups on the new host, cutover with dual-run and rollback. Nine open decisions, each with a recommendation: `M59-self-host-on-coolify-vps.md` |
+| M60 | A personal agent can find Caesura, and act for you within what you allow | **Proposed 2026-11-09 by Mitchell, not scoped; placed last, after M59, until he places it.** From the Personal Agent Protocol (Poppy, draft 0.4, Sierra and Meta; Meta's Muse speaks it), read from its source repository; see *2026-11-09 — minted: M60, Personal Agent Protocol*. `poppy.json`, signed client assertions for agents, the Session header on v1 and MCP, v1 accepting OAuth tokens, tasks and feedback, on top of M55's OAuth server. Fourteen open decisions, each with a recommendation: `M60-personal-agents-act-for-you.md` |
 
 *A closed milestone's row is its gate, one line and its file. The longer rows
 they carried until 2026-11-01 are verbatim in `decisions-archive.md`, under
@@ -252,6 +253,17 @@ of this file.
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
 - **Table rows for closed milestones**, as they stood before the 2026-11-01 pass: *Moved out of README.md on 2026-11-01*, at the end
+
+### 2026-11-09 — minted: M60, Personal Agent Protocol
+
+**Asked 2026-11-09.** Mitchell: *"Can you read through this new AI agent protocol
+https://personalagentprotocol.org/ and make a new milestone to add the ability for Caesura to be
+consumed by ai agents such as muse and gemini."* The site's host is unreachable from a cloud
+session, so the spec (draft 0.4) was read from its source repository at `a2f16ec`. Meta's Muse is
+a Poppy client; nothing public says Gemini is, so D12 recommends serving it through the MCP server
+and OpenAPI M55 already built, which `poppy.json` lists. **M60 is minted, not scoped**, and placed
+last, after M59, since he named no place for it. Fourteen recommended decisions are in
+`M60-personal-agents-act-for-you.md`. Order: M53 → M59 → M60, with M48 parked.
 
 ### 2026-11-04 — minted: M58, public notebooks and a poll
 
