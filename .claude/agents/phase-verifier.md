@@ -58,9 +58,9 @@ M10 Phases 5 and 6 skipped it. Phase 7 ran it and immediately found a crash
 
 You do not need local infra: Coolify builds a preview of every PR on the box, at
 `https://<pr number>.preview.caesura.today` (`environments-and-deploys.md`, *Previews*). It is
-public and NOINDEX, so no secret is needed. A push rebuilds it, so before walking check that
-`GET /api/health` on it answers and that the build is of the head you are verifying (Coolify's
-PR comment names the commit; the app reports `APP_VERSION`).
+public and NOINDEX, so no secret is needed. A push rebuilds it, so before walking, poll
+`GET /api/health` on it until its `version` equals the PR head sha (`git rev-parse HEAD` of the PR
+branch). Until then the previous push's build is still answering.
 
 **In a cloud session the walk is `pnpm --filter web walk:preview <url> [path ...]`**
 (`docs/guidelines/cloud-agent-sessions.md`, *The Coolify preview is reachable from here*):

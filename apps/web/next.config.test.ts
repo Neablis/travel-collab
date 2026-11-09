@@ -129,6 +129,25 @@ describe("Strict-Transport-Security", () => {
   });
 });
 
+describe("X-Robots-Tag", () => {
+  const robots = async (appEnv: string | undefined) => {
+    vi.stubEnv("APP_ENV", appEnv);
+    return (await headersFor(undefined, "production"))
+      .find((r) => r.source === "/:path*")
+      ?.headers.find((h) => h.key === "X-Robots-Tag")?.value;
+  };
+
+  // Previews are public URLs of a real app with sign-in pages; nothing else
+  // stops a crawler indexing them.
+  it("keeps a preview out of search indexes, on every path", async () => {
+    expect(await robots("preview")).toBe("noindex, nofollow");
+  });
+
+  it.each(["production", undefined])("is not sent when APP_ENV is %o", async (appEnv) => {
+    expect(await robots(appEnv)).toBeUndefined();
+  });
+});
+
 /**
  * What a response for `pathname` carries: every `headers()` entry whose source
  * matches, applied in order so a later entry's value for a key wins, which is

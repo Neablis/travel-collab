@@ -179,7 +179,7 @@ gate is gone and no label or token is needed.
 
 ## Testing against a preview deployment
 
-Previews are **public and NOINDEX**: no login, no bypass header, no share link.
+Previews are **public and NOINDEX** (the app sends `X-Robots-Tag: noindex, nofollow` when `APP_ENV=preview`): no login, no bypass header, no share link.
 That was a decision (2026-11-08): the Vercel Authentication wall cost three lost
 runs to agents reading its 302 as the app's answer, and a preview holds only a
 disposable database and test keys. Nothing on a preview is secret; do not put

@@ -137,6 +137,9 @@ const securityHeaders = [
   ...(deployEnv() === "production"
     ? [{ key: "Strict-Transport-Security", value: "max-age=63072000" }]
     : []),
+  // A preview is a public URL of the real app, sign-in pages included. Read at
+  // build time like the HSTS gate, so `APP_ENV` must be a build variable.
+  ...(deployEnv() === "preview" ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] : []),
 ];
 
 const nextConfig: NextConfig = {

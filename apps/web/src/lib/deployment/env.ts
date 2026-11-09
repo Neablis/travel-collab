@@ -49,3 +49,13 @@ export function publicOrigin(): string {
 export function deploymentVersion(): string {
   return read("APP_VERSION") ?? read("VERCEL_DEPLOYMENT_ID") ?? read("VERCEL_GIT_COMMIT_SHA") ?? "local";
 }
+
+/**
+ * The commit this build was made from: Coolify's `SOURCE_COMMIT` (set in the
+ * container's runtime environment), else Vercel's, else `undefined`. The
+ * health route reports it so a preview check can tell the head's build from
+ * the previous push's, which is still answering until the new one swaps in.
+ */
+export function sourceCommit(): string | undefined {
+  return read("SOURCE_COMMIT") ?? read("VERCEL_GIT_COMMIT_SHA");
+}

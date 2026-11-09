@@ -9,8 +9,8 @@ manager, not here.
 
 ## The box
 
-- Provider and size: Hetzner, 8 GB, `linux/amd64`, Ubuntu 24.04. Address `5.161.224.156`.
-- Coolify answers on `http://5.161.224.156:8000` (the dashboard, `coolify.caesura.today`
+- Provider and size: Hetzner, 8 GB, `linux/amd64`, Ubuntu 24.04. The address is in Coolify, not here.
+- Coolify answers on `http://<the box>:8000` (the dashboard, `coolify.caesura.today`
   once its DNS record is up). Concurrent builds are set to 1: a `next build` of this
   app needs about 4 GB, and a stack of PRs builds one after another.
 - Firewall: 22, 80, 443, 8000.
@@ -116,8 +116,17 @@ one shared preview Neon branch, without `--prune`
 (`apps/web/scripts/lib/build-steps.mjs`). With the second variable missing the
 build refuses and goes red, by design.
 
-A preview is public at `https://<pr number>.preview.caesura.today` and carries a
-NOINDEX header. It has no password and holds nothing secret.
+The app reports the build's commit as `version` in `GET /api/health`, read from
+`SOURCE_COMMIT`, which Coolify sets in the container's runtime environment (no
+Dockerfile change: it is read per request). If `version` reads `unknown`, that
+variable is missing; switch on **Include Source Commit in Build** on the
+application (Advanced) and redeploy. `phase-verifier` and `preview-link-check`
+wait for `version` to equal the PR head sha.
+
+A preview is public at `https://<pr number>.preview.caesura.today` and carries
+`X-Robots-Tag: noindex, nofollow` on every response. The app sends it itself
+(`next.config.ts`) when `APP_ENV` is `preview`, read at build time, so `APP_ENV=preview`
+must be a build variable in the Preview scope; no Traefik label is needed. It has no password and holds nothing secret.
 
 **A preview must not inherit production's `DATABASE_URL`.** Coolify keeps a preview
 copy of **every** environment variable and fills it from the production value

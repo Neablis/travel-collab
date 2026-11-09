@@ -533,7 +533,7 @@ function render(d) {
       "`pnpm candidates` (unscheduled ideas) · `pnpm lanes` (what this box can verify)",
   );
   out.push(
-    "VERIFY: dispatch phase-verifier — it drives the PR's Vercel preview, so the browser walk needs no local infra.",
+    "VERIFY: dispatch phase-verifier — it drives the PR's Coolify preview, so the browser walk needs no local infra.",
   );
   return out.join("\n");
 }

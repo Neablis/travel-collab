@@ -9,7 +9,7 @@ name: preview-link-check
 # `pull_request` because Coolify builds the preview from the PR and serves it
 # at `https://<pr number>.preview.caesura.today`; the job waits for the preview
 # to answer its health route rather than being told when it is built. Previews
-# are public and NOINDEX, so no secret is involved. Not a required check:
+# are public and NOINDEX (`X-Robots-Tag`), so no secret is involved. Not a required check:
 # `ci-ok` stays the only one.
 on:
   pull_request:
@@ -28,12 +28,14 @@ jobs:
     # the check waits for the ready PR.
     if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    # Room for the preview's build (up to 10 min of waiting) plus a preview that
+    # Room for the preview's build (up to 15 min of waiting) plus a preview that
     # answers nothing: the script's per-request timeout is sized to finish
     # inside this and still name every href.
     timeout-minutes: 25
     env:
       PREVIEW_URL: https://${{ github.event.pull_request.number }}.preview.caesura.today
+      # `github.sha` is the merge commit on `pull_request`; Coolify builds the head.
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -45,13 +47,23 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-      - name: Wait for the preview to answer
+      # On `synchronize` the previous push's build keeps answering until the new
+      # one swaps in, so answering is not enough: `/api/health`'s `version` (the
+      # build's commit sha) must be the head. A preview that never appears (PR
+      # previews off, build queued behind concurrency 1, build failed) is a
+      # warning, not a red check: only a broken link is a failure.
+      - name: Wait for the preview to be of the head
+        id: wait
         run: |
-          for _ in $(seq 1 60); do
-            if curl -fsS -o /dev/null --max-time 10 "$PREVIEW_URL/api/health"; then exit 0; fi
+          for _ in $(seq 1 90); do
+            version=$(curl -fsS --max-time 10 "$PREVIEW_URL/api/health" 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).version??"")}catch{}})') || true
+            if [ "$version" = "$HEAD_SHA" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; fi
             sleep 10
           done
-          echo "::error::$PREVIEW_URL/api/health did not answer in 10 minutes"
-          exit 1
+          msg="$PREVIEW_URL/api/health did not report version $HEAD_SHA in 15 minutes (last: ${version:-no answer}); sea links not checked"
+          echo "::warning::$msg"
+          echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+          echo "ready=false" >> "$GITHUB_OUTPUT"
       - name: Request every sea link on the preview
+        if: steps.wait.outputs.ready == 'true'
         run: node scripts/check-preview-links.mjs
