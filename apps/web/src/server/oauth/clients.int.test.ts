@@ -19,6 +19,7 @@ import type { Resolve } from "@/server/external/remoteImage/guard";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import {
   CIMD_CACHE_TTL_SECONDS,
+  fetchClientKeys,
   markClientUsed,
   registerClient,
   resolveClient,
@@ -326,3 +327,60 @@ describe("dynamic client registration", () => {
     expect(await resolveClient("not-a-uuid")).toEqual({ ok: false, reason: "unknown-client" });
   });
 });
+
+// **A Personal Agent's document** (Poppy 4.1): `private_key_jwt` with keys and a
+// logo on its own domain. Anything else would let a document borrow another
+// client's keys, or make the consent page load an image from anywhere.
+describe("a private_key_jwt client metadata document", () => {
+  const confidential = (url: string, over: Record<string, unknown> = {}) =>
+    documentFor(url, {
+      token_endpoint_auth_method: "private_key_jwt",
+      jwks_uri: "https://app.example/jwks.json",
+      logo_uri: "https://app.example/logo.png",
+      ...over,
+    });
+
+  it("is read with its key set and logo, both on the document's own domain", async () => {
+    const url = cimdUrl();
+    const client = await resolved(url, asked({ fetch: serving(confidential(url)) }));
+    expect(client).toMatchObject({
+      authMethod: "private_key_jwt",
+      jwksUri: "https://app.example/jwks.json",
+      logoUri: "https://app.example/logo.png",
+    });
+  });
+
+  it("is refused with no jwks_uri, or a key set or logo on another domain or over http", async () => {
+    for (const over of [
+      { jwks_uri: undefined },
+      { jwks_uri: "https://other.example/jwks.json" },
+      { jwks_uri: "http://app.example/jwks.json" },
+      { logo_uri: "https://other.example/logo.png" },
+    ]) {
+      const url = cimdUrl();
+      expect((await resolveClient(url, asked({ fetch: serving(confidential(url, over)) }))).ok, JSON.stringify(over)).toBe(false);
+    }
+  });
+
+  it("has its key set fetched once through the fetcher and then served from the cache", async () => {
+    const url = cimdUrl();
+    const cache = createRedisCache(createMemoryClient());
+    const deps = asked({ fetch: serving(confidential(url)), cache });
+    const client = await resolved(url, deps);
+    const keys = serving({ keys: [{ kty: "EC", crv: "P-256", x: "x", y: "y", kid: "k1" }] });
+    expect(await fetchClientKeys(client, { ...deps, fetch: keys })).toEqual({ ok: true, keys: [expect.objectContaining({ kid: "k1" })] });
+    await fetchClientKeys(client, { ...deps, fetch: keys });
+    expect(keys).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a key set that holds a private member, or is not one", async () => {
+    const url = cimdUrl();
+    const deps = asked({ fetch: serving(confidential(url)), cache: createRedisCache(createMemoryClient()) });
+    const client = await resolved(url, deps);
+    for (const body of [{ keys: [{ kty: "EC", d: "secret" }] }, { keys: [] }, { nope: 1 }]) {
+      const outcome = await fetchClientKeys(client, { ...deps, cache: createRedisCache(createMemoryClient()), fetch: serving(body) });
+      expect(outcome, JSON.stringify(body)).toMatchObject({ ok: false });
+    }
+  });
+});
+

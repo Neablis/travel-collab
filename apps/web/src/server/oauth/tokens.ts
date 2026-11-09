@@ -2,11 +2,13 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { OAUTH_ACCESS_PREFIX, OAUTH_CODE_PREFIX, OAUTH_REFRESH_PREFIX } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { oauthCodes, oauthTokens } from "@/server/db/schema";
+import { oauthClients, oauthCodes, oauthTokens } from "@/server/db/schema";
 import { keyedDigest, keyedDigestCandidates } from "@/server/secrets/keyedDigest";
-import { storedClientRowId } from "./clients";
+import { getCache } from "@/server/cache/redis";
+import { fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps } from "./clients";
+import { verifyClientAssertion } from "./clientAssertion";
 import { cutOffGrant, grantIsLive, grantOf, grantScopes, mintSecret, type GrantRow } from "./grants";
-import { mcpResource } from "./metadata";
+import { mcpResource, oauthIssuer } from "./metadata";
 import { verifyS256 } from "./pkce";
 
 // **The token endpoint's two grants, and revocation** (ADR-083 §4, RFC 6749
@@ -31,7 +33,23 @@ export const ACCESS_LIFETIME_MS = 60 * 60 * 1000;
 /** Sliding: each rotation starts a new 90 days, never past the grant's year. */
 export const REFRESH_LIFETIME_MS = 90 * DAY_MS;
 
-export type TokenErrorCode = "invalid_request" | "invalid_grant" | "invalid_target" | "unsupported_grant_type";
+export type TokenErrorCode =
+  | "invalid_request"
+  | "invalid_client"
+  | "invalid_grant"
+  | "invalid_scope"
+  | "invalid_target"
+  | "unsupported_grant_type";
+
+/** RFC 7523 section 2.2: the only assertion type there is here. */
+export const CLIENT_ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
+
+/** What a request carries to prove it is the client it names. */
+export interface ClientCredentials {
+  clientId?: string;
+  clientAssertion?: string;
+  clientAssertionType?: string;
+}
 
 export interface TokenResponse {
   access_token: string;
@@ -95,10 +113,44 @@ async function grantFor(
   return { ok: true, grant };
 }
 
+/**
+ * Poppy 4.1: a CIMD client whose document says `private_key_jwt` is only itself
+ * with a client assertion. The document is read again here (cached for five
+ * minutes, fetched on the grant owner's share), so a client that went back to
+ * `none` is a public client again, and nothing about the method is stored.
+ */
+async function authenticateClient(
+  creds: ClientCredentials & { clientId: string },
+  grant: Pick<GrantRow, "ownerId">,
+  deps: ClientDeps,
+): Promise<{ ok: true } | { ok: false; outcome: TokenOutcome }> {
+  if (!creds.clientId.startsWith("https://")) return { ok: true };
+  const bad = (description: string) => ({ ok: false as const, outcome: refuse("invalid_client", description) });
+  const asked = { userId: grant.ownerId, ...deps };
+  const resolved = await resolveClient(creds.clientId, asked);
+  if (!resolved.ok) return bad("the client's metadata document could not be read");
+  const { client } = resolved;
+  if (client.authMethod === "none") return { ok: true };
+  if (creds.clientAssertionType !== CLIENT_ASSERTION_TYPE || !creds.clientAssertion) {
+    return bad("this client authenticates with a client_assertion");
+  }
+  const keys = await fetchClientKeys(client, asked);
+  if (!keys.ok) return bad(`the client's keys could not be read: ${keys.detail}`);
+  const verified = await verifyClientAssertion(creds.clientAssertion, {
+    clientId: client.clientId,
+    issuer: oauthIssuer(),
+    keys: keys.keys,
+    now: deps.now ?? new Date(),
+    cache: deps.cache ?? getCache(),
+  });
+  return verified.ok ? { ok: true } : bad(`the client assertion was refused: ${verified.reason}`);
+}
+
 /** `grant_type=authorization_code`. */
 export async function exchangeCode(
-  input: { code?: string; codeVerifier?: string; redirectUri?: string; clientId?: string; resource?: string },
+  input: ClientCredentials & { code?: string; codeVerifier?: string; redirectUri?: string; resource?: string },
   now: Date = new Date(),
+  deps: ClientDeps = {},
 ): Promise<TokenOutcome> {
   if (!input.code || !input.redirectUri || !input.clientId) {
     return refuse("invalid_request", "code, redirect_uri and client_id are required");
@@ -113,6 +165,8 @@ export async function exchangeCode(
   if (code.expiresAt.getTime() <= now.getTime()) return refuse("invalid_grant", "the code has expired");
   const checked = await grantFor(code.grantId, input.clientId, input.resource, now);
   if (!checked.ok) return checked.outcome;
+  const authenticated = await authenticateClient({ ...input, clientId: input.clientId }, checked.grant, { ...deps, now });
+  if (!authenticated.ok) return authenticated.outcome;
   if (code.resource !== checked.grant.resource) {
     return refuse("invalid_target", `the only resource here is ${mcpResource()}`);
   }
@@ -135,10 +189,16 @@ export async function exchangeCode(
   return { ok: true, body: await issueTokens(checked.grant, now) };
 }
 
-/** `grant_type=refresh_token`. `scope` is not read: scopes live on the grant, and a refresh cannot change them. */
+/**
+ * `grant_type=refresh_token`. Scopes live on the grant, so a `scope` may only
+ * name what the grant holds: Poppy 4.7 forbids granting beyond what was asked,
+ * and narrowing a token (4.4's MAY) would need a per-token scope this does not
+ * store, so asking for fewer is refused rather than answered with more.
+ */
 export async function refresh(
-  input: { refreshToken?: string; clientId?: string; resource?: string },
+  input: ClientCredentials & { refreshToken?: string; resource?: string; scope?: string },
   now: Date = new Date(),
+  deps: ClientDeps = {},
 ): Promise<TokenOutcome> {
   if (!input.refreshToken || !input.clientId) return refuse("invalid_request", "refresh_token and client_id are required");
   if (!input.refreshToken.startsWith(OAUTH_REFRESH_PREFIX)) return refuse("invalid_grant", "unknown refresh token");
@@ -156,6 +216,15 @@ export async function refresh(
   }
   const checked = await grantFor(token.grantId, input.clientId, input.resource, now);
   if (!checked.ok) return checked.outcome;
+  const authenticated = await authenticateClient({ ...input, clientId: input.clientId }, checked.grant, { ...deps, now });
+  if (!authenticated.ok) return authenticated.outcome;
+  if (input.scope !== undefined) {
+    const asked = [...new Set(input.scope.split(" ").filter((scope) => scope !== "" && scope !== "offline_access"))].sort();
+    const held = [...grantScopes(checked.grant)].sort();
+    if (asked.length === 0 || asked.join(" ") !== held.join(" ")) {
+      return refuse("invalid_scope", `scope must name exactly what the grant holds: ${held.join(" ")}`);
+    }
+  }
   const [rotated] = await db
     .update(oauthTokens)
     .set({ rotatedAt: now })
@@ -168,19 +237,53 @@ export async function refresh(
   return { ok: true, body: await issueTokens(checked.grant, now) };
 }
 
+/** Whether a revocation that authenticated as `authenticatedRowId` (or as no CIMD client) may touch this grant's tokens. */
+async function mayRevoke(grant: GrantRow, authenticatedRowId: string | null, deps: ClientDeps): Promise<boolean> {
+  if (authenticatedRowId !== null) return grant.clientId === authenticatedRowId;
+  const [row] = await db.select({ cimdUrl: oauthClients.cimdUrl }).from(oauthClients).where(eq(oauthClients.id, grant.clientId));
+  if (row?.cimdUrl == null) return true;
+  // A CIMD client that signs in with a key is not revoked by a request that does not sign.
+  const resolved = await resolveClient(row.cimdUrl, { userId: grant.ownerId, ...deps });
+  return !(resolved.ok && resolved.client.authMethod === "private_key_jwt");
+}
+
 /**
  * RFC 7009. An access token stops on its own; a refresh token takes its grant
- * with it (RFC 7009 §2.1), since a client revoking one is disconnecting. A
- * secret we do not know is not an error: the answer is the same either way, so
+ * with it (RFC 7009 section 2.1), since a client revoking one is disconnecting.
+ * A secret we do not know is not an error: the answer is the same either way, so
  * it says nothing about which secrets exist.
+ *
+ * **A `private_key_jwt` client's tokens are revoked by that client alone**
+ * (Poppy 4.6). A request naming such a client is authenticated, and refused as
+ * `invalid_client` if it does not prove itself; a request that names none
+ * leaves its tokens where they are and still answers 200. Both only once a
+ * token is found, since the owner of its grant is who the document fetch is
+ * charged to.
  */
-export async function revokeSecret(secret: string, now: Date = new Date()): Promise<void> {
-  if (!secret.startsWith(OAUTH_ACCESS_PREFIX) && !secret.startsWith(OAUTH_REFRESH_PREFIX)) return;
+export async function revokeSecret(
+  secret: string,
+  now: Date = new Date(),
+  creds: ClientCredentials = {},
+  deps: ClientDeps = {},
+): Promise<{ ok: true } | { ok: false; error: "invalid_client"; description: string }> {
+  if (!secret.startsWith(OAUTH_ACCESS_PREFIX) && !secret.startsWith(OAUTH_REFRESH_PREFIX)) return { ok: true };
   const [token] = await db.select().from(oauthTokens).where(inArray(oauthTokens.tokenHash, hashesOf(secret)));
-  if (token === undefined) return;
+  if (token === undefined) return { ok: true };
+  const grant = await grantOf(token.grantId);
+  if (grant === null) return { ok: true };
+  let authenticated: string | null = null;
+  if (creds.clientId?.startsWith("https://")) {
+    const checked = await authenticateClient({ ...creds, clientId: creds.clientId }, grant, { ...deps, now });
+    if (!checked.ok) {
+      return { ok: false, error: "invalid_client", description: checked.outcome.ok ? "" : checked.outcome.description };
+    }
+    authenticated = await storedClientRowId(creds.clientId);
+  }
+  if (!(await mayRevoke(grant, authenticated, { ...deps, now }))) return { ok: true };
   await db
     .update(oauthTokens)
     .set({ revokedAt: now })
     .where(and(eq(oauthTokens.id, token.id), isNull(oauthTokens.revokedAt)));
   if (token.kind === "refresh") await cutOffGrant(token.grantId, "owner", now);
+  return { ok: true };
 }

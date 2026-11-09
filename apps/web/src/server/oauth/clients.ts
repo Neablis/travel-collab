@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
+import type { JWK } from "jose";
 import { z } from "zod";
 import { cimdDocumentKey } from "@/server/cache/keys";
 import { getCache, type CachePort } from "@/server/cache/redis";
@@ -38,6 +39,12 @@ export interface OAuthClient {
   redirectUris: string[];
   /** The CIMD URL's host, which the consent page shows beside the redirect's (amendment G). */
   cimdHost: string | null;
+  /** `private_key_jwt` for a Personal Agent (Poppy 4.1): the token endpoint then wants its client assertion. */
+  authMethod: "none" | "private_key_jwt";
+  /** Where its public keys are, on the document's own domain; set when `authMethod` is `private_key_jwt`. */
+  jwksUri: string | null;
+  /** On the document's own domain, so the consent page loads nothing from anywhere else. */
+  logoUri: string | null;
 }
 
 export type ClientRefusal =
@@ -105,14 +112,50 @@ const ClientName = z
   .max(100)
   .refine((name) => !/["\p{Cc}\p{Cf}]/u.test(name), "client_name may not contain quotes or control characters");
 
-/** A metadata document, as far as we read one. Anything else in it is ignored. */
-const ClientMetadataDocument = z.object({
-  client_id: z.string(),
-  client_name: ClientName.optional(),
-  redirect_uris: z.array(z.string()).min(1).max(10),
-  // No confidential clients here, so a document asking for one is not for us.
-  token_endpoint_auth_method: z.literal("none").optional(),
-});
+/** An https URL on `clientId`'s domain (or a subdomain of it), no credentials, no port (Poppy 4.1; ADR-081's port rule). */
+function onClientsDomain(clientId: string, value: string): boolean {
+  try {
+    const url = new URL(value);
+    const home = new URL(clientId).hostname;
+    return (
+      url.protocol === "https:" &&
+      url.username === "" &&
+      url.password === "" &&
+      url.port === "" &&
+      (url.hostname === home || url.hostname.endsWith(`.${home}`))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A metadata document, as far as we read one. Anything else in it is ignored.
+ * `private_key_jwt` is the one confidential method, and only with a key set on
+ * the document's own domain: a document naming someone else's keys would let
+ * its author borrow another client's identity.
+ */
+const ClientMetadataDocument = z
+  .object({
+    client_id: z.string(),
+    client_name: ClientName.optional(),
+    redirect_uris: z.array(z.string()).min(1).max(10),
+    token_endpoint_auth_method: z.enum(["none", "private_key_jwt"]).optional(),
+    jwks_uri: z.string().optional(),
+    logo_uri: z.string().optional(),
+  })
+  .superRefine((doc, ctx) => {
+    const bad = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
+    if (doc.token_endpoint_auth_method === "private_key_jwt" && doc.jwks_uri === undefined) {
+      bad("jwks_uri", "private_key_jwt needs a jwks_uri");
+    }
+    if (doc.jwks_uri !== undefined && !onClientsDomain(doc.client_id, doc.jwks_uri)) {
+      bad("jwks_uri", "jwks_uri must be an https URL on the client_id's domain");
+    }
+    if (doc.logo_uri !== undefined && !onClientsDomain(doc.client_id, doc.logo_uri)) {
+      bad("logo_uri", "logo_uri must be an https URL on the client_id's domain");
+    }
+  });
 
 function toClient(row: typeof oauthClients.$inferSelect): OAuthClient {
   return {
@@ -122,6 +165,9 @@ function toClient(row: typeof oauthClients.$inferSelect): OAuthClient {
     clientName: row.clientName,
     redirectUris: row.redirectUris,
     cimdHost: row.cimdUrl === null ? null : new URL(row.cimdUrl).host,
+    authMethod: "none",
+    jwksUri: null,
+    logoUri: null,
   };
 }
 
@@ -227,8 +273,7 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
   if (!fresh) {
     await cache.set(cimdDocumentKey(url), { document: document.data, fetchedAt: now.getTime() }, CIMD_CACHE_TTL_SECONDS);
   }
-  // `logo_uri` and `jwks_uri` are never read: the page shows no logo, and there
-  // are no confidential clients to need keys.
+  const confidential = document.data.token_endpoint_auth_method === "private_key_jwt";
   return {
     ok: true,
     client: {
@@ -238,8 +283,57 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
       clientName: document.data.client_name ?? parsed.host,
       redirectUris: document.data.redirect_uris,
       cimdHost: parsed.host,
+      authMethod: confidential ? "private_key_jwt" : "none",
+      jwksUri: confidential ? document.data.jwks_uri! : null,
+      logoUri: document.data.logo_uri ?? null,
     },
   };
+}
+
+/** The public keys of a Personal Agent's `jwks_uri`: a bounded list, never a private member. */
+const KeySet = z.object({
+  keys: z
+    .array(z.record(z.string(), z.unknown()))
+    .min(1)
+    .max(10)
+    .refine((keys) => keys.every((key) => !["d", "p", "q", "dp", "dq", "qi", "k"].some((member) => member in key)), "a key set holds public keys only"),
+});
+
+/** A key set is a few small keys; more than this is not one. */
+const KEY_SET_MAX_BYTES = 16 * 1024;
+
+export type KeySetOutcome = { ok: true; keys: JWK[] } | { ok: false; detail: string };
+
+/**
+ * The keys a `private_key_jwt` client signs with, fetched from its `jwks_uri`
+ * the way its document was: charged to `deps.userId`, through the guarded
+ * fetcher, cached for `CIMD_CACHE_TTL_SECONDS`. Never `createRemoteJWKSet`,
+ * whose own fetch would bypass the address guard and the quota.
+ */
+export async function fetchClientKeys(client: OAuthClient, deps: ClientDeps = {}): Promise<KeySetOutcome> {
+  if (client.jwksUri === null) return { ok: false, detail: "the client has no jwks_uri" };
+  const url = new URL(client.jwksUri);
+  const now = deps.now ?? new Date();
+  const cache = deps.cache ?? getCache();
+  const key = cimdDocumentKey(client.jwksUri);
+  const cached = await cache.get<CachedDocument>(key);
+  const fresh = cached !== null && now.getTime() - cached.fetchedAt < CIMD_CACHE_TTL_SECONDS * 1000;
+  let body: unknown;
+  if (fresh) {
+    body = cached.document;
+  } else {
+    if (deps.userId === undefined) return { ok: false, detail: "no account to charge the fetch to" };
+    if (!(await consumeQuota(oauthCimdQuota(), deps.userId)).allowed) return { ok: false, detail: "too many lookups" };
+    try {
+      body = JSON.parse(await fetchDocument(url, deps, KEY_SET_MAX_BYTES));
+    } catch (error) {
+      return { ok: false, detail: error instanceof RemoteImageRefused ? error.reason : "not a key set" };
+    }
+  }
+  const keySet = KeySet.safeParse(body);
+  if (!keySet.success) return { ok: false, detail: keySet.error.issues[0]?.message ?? "not a key set" };
+  if (!fresh) await cache.set(key, { document: keySet.data, fetchedAt: now.getTime() }, CIMD_CACHE_TTL_SECONDS);
+  return { ok: true, keys: keySet.data.keys as JWK[] };
 }
 
 /**
@@ -267,7 +361,7 @@ export async function storeClient(client: OAuthClient, now: Date): Promise<strin
   return row!.id;
 }
 
-async function fetchDocument(url: URL, deps: ClientDeps): Promise<string> {
+async function fetchDocument(url: URL, deps: ClientDeps, maxBytes: number = CIMD_LIMITS.maxBytes): Promise<string> {
   // Like every outside fetch, none while external data is offline (the e2e server).
   if (process.env.EXTERNAL_DATA_OFFLINE === "true") throw new RemoteImageRefused("offline");
   const resolve = deps.resolve ?? resolveHost;
@@ -288,7 +382,7 @@ async function fetchDocument(url: URL, deps: ClientDeps): Promise<string> {
     // A redirect included: following one is a second fetch of a URL nobody checked.
     throw new RemoteImageRefused("upstream-status", String(response.status));
   }
-  return new TextDecoder().decode(await readCapped(response, CIMD_LIMITS.maxBytes));
+  return new TextDecoder().decode(await readCapped(response, maxBytes));
 }
 
 /** RFC 7591 registration, as `/api/oauth/register` reads it. Unknown fields are ignored. */

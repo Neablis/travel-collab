@@ -86,7 +86,7 @@ describe("/oauth/authorize", () => {
     entitled = false;
     parsed = {
       request: {
-        client: { id: "r", clientId: "r", kind: "dcr", clientName: "Test", redirectUris: [], cimdHost: null },
+        client: { id: "r", clientId: "r", kind: "dcr", clientName: "Test", redirectUris: [], cimdHost: null, authMethod: "none", jwksUri: null, logoUri: null },
         redirectUri: "https://example.com/cb",
         scopes: ["trips:read"],
         state: "s",

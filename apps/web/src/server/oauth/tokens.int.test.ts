@@ -8,10 +8,13 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/server/db/client";
 import { oauthCodes, oauthTokens } from "@/server/db/schema";
+import { createMemoryClient } from "@/server/cache/memory";
+import { createRedisCache } from "@/server/cache/redis";
+import { makeTestAgent, publicResolve } from "@/server/poppy/testAgent";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { registerClient, resolveClient, type OAuthClient } from "./clients";
 import { createGrant, grantOf, issueCode, mintSecret } from "./grants";
-import { mcpResource } from "./metadata";
+import { mcpResource, oauthIssuer } from "./metadata";
 import { exchangeCode, refresh, revokeSecret, type TokenOutcome } from "./tokens";
 
 // The real `storedClientRowId`, behind a gate the race tests close.
@@ -240,5 +243,84 @@ describe("revoking", () => {
       .where(eq(oauthTokens.tokenHash, keyedDigest(body.access_token).digest));
     expect(access!.revokedAt).not.toBeNull();
     expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+  });
+});
+
+// **A Personal Agent signs in as itself** (Poppy 4.1, 4.2, 4.4, 4.6): a CIMD
+// client whose document says `private_key_jwt` is only itself with an
+// assertion, at the code exchange, at refresh and at revocation.
+const ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
+
+async function agentConsented() {
+  const agent = await makeTestAgent({ issuer: oauthIssuer() });
+  const ownerId = `dev-${randomUUID()}`;
+  // One cache per agent: a `jti` is spent in it, as in the shared one.
+  const deps = { fetch: agent.fetch, resolve: publicResolve, userId: ownerId, cache: createRedisCache(createMemoryClient()) };
+  const resolved = await resolveClient(agent.clientId, deps);
+  if (!resolved.ok) throw new Error(`agent did not resolve: ${JSON.stringify(resolved)}`);
+  const now = new Date();
+  const grant = await createGrant({
+    ownerId,
+    client: resolved.client,
+    redirectUri: String(agent.document.redirect_uris && (agent.document.redirect_uris as string[])[0]),
+    scopes: ["trips:read"],
+    resource: mcpResource(),
+    now,
+  });
+  const redirectUri = grant.redirectUri;
+  const code = async () =>
+    issueCode({ grantId: grant.id, codeChallenge: CHALLENGE, redirectUri, resource: mcpResource(), now });
+  const signed = async () => ({ clientAssertion: await agent.assertion(), clientAssertionType: ASSERTION_TYPE });
+  const exchange = async (over: Partial<Parameters<typeof exchangeCode>[0]> = {}) =>
+    exchangeCode(
+      { code: await code(), codeVerifier: VERIFIER, redirectUri, clientId: agent.clientId, ...over },
+      new Date(),
+      deps,
+    );
+  return { agent, deps, grant, signed, exchange, redirectUri };
+}
+
+describe("a private_key_jwt client", () => {
+  it("is refused at the code exchange without an assertion, and with one that is not its own", async () => {
+    const { exchange, signed, agent } = await agentConsented();
+    expect(errorOf(await exchange())).toBe("invalid_client");
+    const stranger = await makeTestAgent({ issuer: oauthIssuer(), host: new URL(agent.clientId).host });
+    const forged = { clientAssertion: await stranger.assertion(), clientAssertionType: ASSERTION_TYPE };
+    expect(errorOf(await exchange(forged))).toBe("invalid_client");
+    // A refusal spends nothing: the same client, signed properly, gets in.
+    expect(errorOf(await exchange(await signed()))).toBe("ok");
+  });
+
+  it("is refused at refresh without an assertion, and an assertion works once", async () => {
+    const { exchange, signed, agent, deps } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const again = (over: Partial<Parameters<typeof refresh>[0]> = {}) =>
+      refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...over }, new Date(), deps);
+    expect(errorOf(await again())).toBe("invalid_client");
+    const once = await signed();
+    const rotated = tokensOf(await again(once));
+    // The same assertion again, for the new token: a `jti` is single-use (RFC 7523).
+    expect(errorOf(await again({ ...once, refreshToken: rotated.refresh_token }))).toBe("invalid_client");
+  });
+
+  it("is refused a scope beyond what the grant holds, and a refusal rotates nothing", async () => {
+    const { exchange, signed, agent, deps } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const again = async (scope: string) =>
+      refresh({ refreshToken: refresh_token, clientId: agent.clientId, scope, ...(await signed()) }, new Date(), deps);
+    expect(errorOf(await again("trips:read library:write"))).toBe("invalid_scope");
+    expect(errorOf(await again("no:such"))).toBe("invalid_scope");
+    expect(errorOf(await again("trips:read"))).toBe("ok");
+  });
+
+  it("is not signed out by a revocation that carries no assertion", async () => {
+    const { exchange, signed, agent, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    expect(await revokeSecret(refresh_token, new Date(), {}, deps)).toMatchObject({ ok: true });
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+    expect(await revokeSecret(refresh_token, new Date(), { clientId: agent.clientId }, deps)).toMatchObject({ ok: false });
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+    expect(await revokeSecret(refresh_token, new Date(), { clientId: agent.clientId, ...(await signed()) }, deps)).toEqual({ ok: true });
+    expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedReason: "owner" }));
   });
 });

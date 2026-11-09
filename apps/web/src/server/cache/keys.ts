@@ -40,6 +40,15 @@ export function cimdDocumentKey(url: string): string {
   return `${deployEnv() ?? "dev"}:oauth:cimd:${digest(url)}`;
 }
 
+/**
+ * A client assertion's `jti` seen (RFC 7523 section 3), keyed by the digest of
+ * client and `jti` together, since a `jti` is only unique per issuer. Lives as
+ * long as the assertion could still verify.
+ */
+export function clientAssertionJtiKey(clientId: string, jti: string): string {
+  return `${deployEnv() ?? "dev"}:oauth:jti:${digest(`${clientId}\n${jti}`)}`;
+}
+
 /** An hour: a pending invite's card, which is also deleted on revoke and accept. */
 export const INVITE_CARD_TTL_SECONDS = 3600;
 

@@ -117,6 +117,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(@upstash/redis@1.41.0)(pg@8.23.1)
+      jose:
+        specifier: ^6.2.16
+        version: 6.2.16
       lucide-react:
         specifier: ^1.69.0
         version: 1.69.0(@types/react@19.3.0)(react@19.3.1)
@@ -4802,8 +4805,8 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  jose@6.2.12:
-    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
+  jose@6.2.16:
+    resolution: {integrity: sha512-4LSJpbuBuPdGrONCdZUy0xnxtLf8eEz+EY0SMXdHQEBU7bgUHDVblU/JAjryv3wID9/LK7/YuwFwq+AQNfMscQ==}
 
   js-base64@3.9.4:
     resolution: {integrity: sha512-PtOMXpEGuP0RRiRXsjzHzl44dMHxSu2CPvAhinupR1tBa88me+1DPqsobl7eupn5UukjLkln1ZnAOAOXOrYG0Q==}
@@ -6818,7 +6821,7 @@ snapshots:
   '@auth/core@0.41.3':
     dependencies:
       '@panva/hkdf': 1.2.1
-      jose: 6.2.12
+      jose: 6.2.16
       oauth4webapi: 3.8.8
       preact: 10.24.3
       preact-render-to-string: 6.5.11(preact@10.24.3)
@@ -11634,7 +11637,7 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  jose@6.2.12: {}
+  jose@6.2.16: {}
 
   js-base64@3.9.4: {}
 

@@ -118,6 +118,11 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
   if (requested !== undefined && requested.some((scope) => !OAUTH_SCOPES.includes(scope))) {
     return back("invalid_scope", "a requested scope is not offered here");
   }
+  // Poppy 4.7: a Personal Agent says what it needs. The default of every scope
+  // is for the clients that predate that, and an agent's user approved only what was asked.
+  if (client.authMethod === "private_key_jwt" && (requested === undefined || requested.every((scope) => scope === "offline_access"))) {
+    return back("invalid_scope", "scope is required");
+  }
   // `offline_access` alone names no v1 scope, so it asks for what no scope does.
   const scopes =
     requested === undefined || requested.every((scope) => scope === "offline_access")

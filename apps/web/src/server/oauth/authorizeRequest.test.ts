@@ -19,6 +19,9 @@ const CLIENT: OAuthClient = {
   clientName: "Test",
   redirectUris: ["https://example.com/cb"],
   cimdHost: null,
+  authMethod: "none",
+  jwksUri: null,
+  logoUri: null,
 };
 // RFC 7636 appendix B's challenge: the right shape for S256.
 const CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
@@ -133,6 +136,27 @@ describe("after the redirect is proven", () => {
 
   // Amendment M: registration is open, so a proven redirect can be an
   // attacker's own site. Only Claude's callback is followed without a click.
+  // Poppy 4.7: a Personal Agent names what it needs. Without `scope` a client
+  // gets every v1 scope offered to consent, which for an agent is the ask nobody made.
+  it("requires scope from a private_key_jwt client, and still defaults it for a public one", async () => {
+    const agent: OAuthClient = {
+      ...CLIENT,
+      kind: "cimd",
+      clientId: "https://agent.example/agent.json",
+      authMethod: "private_key_jwt",
+      jwksUri: "https://agent.example/jwks.json",
+    };
+    resolveClient.mockResolvedValue({ ok: true, client: agent });
+    const missing = backTo(await parseAuthorizeRequest(valid({ client_id: agent.clientId })));
+    expect(missing.get("error")).toBe("invalid_scope");
+    const onlyOffline = backTo(await parseAuthorizeRequest(valid({ client_id: agent.clientId, scope: "offline_access" })));
+    expect(onlyOffline.get("error")).toBe("invalid_scope");
+    const named = await parseAuthorizeRequest(valid({ client_id: agent.clientId, scope: "trips:read" }));
+    expect(named).toEqual({ request: expect.objectContaining({ scopes: ["trips:read"] }) });
+    resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
+    expect(await parseAuthorizeRequest(valid())).toEqual({ request: expect.objectContaining({ scopes: [...API_SCOPES] }) });
+  });
+
   it("follows an error back without a click only to a recognised redirect", async () => {
     resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
     const unverified = await parseAuthorizeRequest(valid({ response_type: "token" }));

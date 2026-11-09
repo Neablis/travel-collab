@@ -47,6 +47,20 @@ describe("ConsentScreen", () => {
     expect(screen.queryByText("Recognised: Claude")).toBeNull();
   });
 
+  // Poppy 4.1: a Personal Agent is named by its own document, and its domain is
+  // the part of that name that is proven (it holds the keys the document lists).
+  it("names a Personal Agent with its domain and logo, and still marks the name unverified", () => {
+    render(<ConsentScreen {...props({ clientName: "Muse", cimdHost: "meta.ai", personalAgent: { logoUri: "https://meta.ai/logo.png" } })} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Muse (meta.ai) wants to act for you on Caesura" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Muse logo" }).getAttribute("src")).toBe("https://meta.ai/logo.png");
+    expect(screen.getByText("Unverified")).toBeTruthy();
+  });
+
+  it("shows no logo for an app that is not a Personal Agent, however its document asks", () => {
+    render(<ConsentScreen {...props({ cimdHost: "app.example" })} />);
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
   it("shows the host that published a CIMD client's document", () => {
     render(<ConsentScreen {...props({ cimdHost: "app.example" })} />);
     expect(screen.getByText("app.example")).toBeTruthy();

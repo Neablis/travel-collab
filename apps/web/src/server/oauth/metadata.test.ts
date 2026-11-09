@@ -35,10 +35,13 @@ describe("the metadata documents", () => {
     ]);
   });
 
-  it("offers S256 only, public clients only, CIMD and the iss parameter", () => {
+  it("offers S256 only, public clients and signed assertions, CIMD and the iss parameter", () => {
     const metadata = authorizationServerMetadata();
     expect(metadata.code_challenge_methods_supported).toEqual(["S256"]);
-    expect(metadata.token_endpoint_auth_methods_supported).toEqual(["none"]);
+    expect(metadata.token_endpoint_auth_methods_supported).toEqual(["none", "private_key_jwt"]);
+    expect(metadata.token_endpoint_auth_signing_alg_values_supported).toEqual(["ES256", "PS384"]);
+    expect(metadata.revocation_endpoint_auth_methods_supported).toEqual(["none", "private_key_jwt"]);
+    expect(metadata.revocation_endpoint_auth_signing_alg_values_supported).toEqual(["ES256", "PS384"]);
     expect(metadata.client_id_metadata_document_supported).toBe(true);
     expect(metadata.authorization_response_iss_parameter_supported).toBe(true);
     expect(metadata.scopes_supported).toContain("offline_access");

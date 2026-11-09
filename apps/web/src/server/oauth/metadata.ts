@@ -54,9 +54,12 @@ export function authorizationServerMetadata() {
     grant_types_supported: ["authorization_code", "refresh_token"],
     // S256 alone: `plain` would hand the verifier to anyone who saw the request.
     code_challenge_methods_supported: ["S256"],
-    // Public clients only; there is no secret to authenticate with.
-    token_endpoint_auth_methods_supported: ["none"],
-    revocation_endpoint_auth_methods_supported: ["none"],
+    // Public clients, and a Personal Agent that signs in as itself (Poppy 4.1)
+    // with a client assertion, which is never a shared secret.
+    token_endpoint_auth_methods_supported: ["none", "private_key_jwt"],
+    token_endpoint_auth_signing_alg_values_supported: ["ES256", "PS384"],
+    revocation_endpoint_auth_methods_supported: ["none", "private_key_jwt"],
+    revocation_endpoint_auth_signing_alg_values_supported: ["ES256", "PS384"],
     // Amendment E: a client's metadata document is the first way in, DCR the fallback.
     client_id_metadata_document_supported: true,
     // Amendment A: every redirect back carries `iss`.
