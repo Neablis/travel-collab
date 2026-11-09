@@ -22,7 +22,7 @@
 import { asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { CONFERRING_STATUSES, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { adminConsoleFlag } from "@/server/flags";
+import { isBootstrapAdmin } from "@/lib/adminBootstrap";
 import { aiUsage, entitlementGrants, events, subscriptions, users } from "@/server/db/schema";
 import { consoleCached } from "./consoleCache";
 import { activeGrantHolders } from "./grants";
@@ -42,14 +42,13 @@ import { GRACE_WINDOW_DAYS, standingOf, type SubscriptionStanding } from "@/serv
 import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./usage";
 
 /**
- * **The STORED fact, about any account.** Never consults the flag.
+ * **The STORED fact, about any account.** Never consults `ADMIN_USER_IDS`.
  *
  * This is what the console displays in its accounts table, and the distinction
  * from `callerIsAdmin` below is a correctness one rather than a tidiness one:
- * the `admin-console` flag is global, so asking it about somebody else's id
- * would answer with the flag's value and paint every row as an operator the
- * moment it was on. Use this whenever the
- * question is *"is that account an operator"*.
+ * the list is consulted for whoever is asking, so reading it for every
+ * row would paint listed accounts as operators on the stored fact's behalf. Use this
+ * whenever the question is *"is that account an operator"*.
  */
 export async function isAdmin(userId: string): Promise<boolean> {
   const rows = await db
@@ -61,36 +60,26 @@ export async function isAdmin(userId: string): Promise<boolean> {
 }
 
 /**
- * The `admin-console` flag, failing closed. It is `FLAG_ADMIN_CONSOLE` and
- * nothing else, so it is global: when it is on, every signed-in caller may open
- * the console. A throw is answered as **not an operator**, the same answer as
- * unset, which is the ordinary case locally and in CI where `ADMIN_USER_IDS` is
- * the path instead.
+ * **May THIS CALLER open the console** — the stored fact, or a listing in
+ * `ADMIN_USER_IDS` (`lib/adminBootstrap.ts`), matched exactly on the id. The
+ * one question the route group and every admin endpoint ask.
+ *
+ * The list is read per request here, so an id added to it works without a
+ * sign-in and without a database write; sign-in still promotes the column from
+ * the same list. `callerId` must be the id of whoever is making this request;
+ * `isAdmin` above is the function for asking about somebody else.
+ *
+ * **The column is read first.** An operator whose bit is stored stays an
+ * operator whatever the list says: the list is a second way to say yes and
+ * never a way to say no (revoking is clearing the column, and removing the id).
+ * A failed read answers **not an operator**, the same answer as an unset list.
  */
-async function adminConsoleFlagForCaller(): Promise<boolean> {
+export async function callerIsAdmin(callerId: string): Promise<boolean> {
   try {
-    return await adminConsoleFlag();
+    return (await isAdmin(callerId)) || isBootstrapAdmin(callerId);
   } catch {
     return false;
   }
-}
-
-/**
- * **May THIS CALLER open the console** — the stored fact, or the global
- * `admin-console` flag. The one question the route group and every admin
- * endpoint ask.
- *
- * `callerId` must be the id of whoever is making this request: the flag is
- * global, so for anyone else's id it would answer yes about an account it never
- * looked at; `isAdmin` above is the function for asking about somebody else.
- *
- * **The column is read first**, and not only because it is the cheaper hop: an
- * operator whose bit is stored stays an operator whatever the flag says. The flag is a second way to say yes and never a way to
- * say no — revoking is clearing the column.
- */
-export async function callerIsAdmin(callerId: string): Promise<boolean> {
-  if (await isAdmin(callerId)) return true;
-  return adminConsoleFlagForCaller();
 }
 
 /** How far back every "cost over a trailing window" number here looks. */

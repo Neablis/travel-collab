@@ -183,3 +183,20 @@ found a per-instance store could not do.
   open a day's card URL twice (the second response's `x-vercel-cache` is `HIT`), unpublish the
   day, and fetch the card again: it must be the generic card, and `MISS`. Also unverified: that
   a purge by tag from the dashboard or CLI clears Next's data cache on Vercel, as its docs say.
+
+## Amendment — 2026-11-08: no CDN in front (M59)
+
+The app is self-hosted now and nothing caches in front of it, so decisions 1 to 3 read
+differently:
+
+- The app purges **only Next's data cache** (`revalidateTag`, expiring the tagged entries in
+  the one process). There is no `dangerouslyDeleteByTag`, no `PURGE_TIMEOUT_MS` and no
+  `waitUntil`: the only thing deferred was the CDN half.
+- An unpublish, hide or rename is therefore live as soon as the data cache is expired, which
+  is what ADR-061 requires of the reads. The preview card's `s-maxage=86400` binds only a
+  shared cache, so it is inert today; if one is ever put in front, an unpublished day's card
+  can linger there for up to a day.
+- The `Vercel-Cache-Tag` header is still sent, harmlessly, and honoured by nothing.
+- During a rolling deploy the old and new containers overlap briefly with separate caches, so
+  a publish handled by the old one does not clear the new one's. The window is seconds, and
+  the day's `readAt` bounds the stale read.

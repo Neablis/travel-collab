@@ -146,8 +146,10 @@ async function clear(tags: string[]): Promise<void> {
 const MAX_TAG_BYTES = 256;
 
 /**
- * The `Vercel-Cache-Tag` header that lets `invalidatePublicDay` purge a CDN
- * response. A tag built from a typed URL segment can hold a comma, which
+ * The `Vercel-Cache-Tag` header. Nothing purges a CDN now (M59: none fronts
+ * the app), so it is inert here; it is kept because it is harmless (author ids
+ * are already public in `/playbooks/[copy]/profile/[userId]`) and a CDN put in
+ * front later would honour it. A tag built from a typed URL segment can hold a comma, which
  * Vercel would read as two tags, or run past its length; those are left off.
  */
 export function cacheTagHeader(...tags: string[]): Record<string, string> {

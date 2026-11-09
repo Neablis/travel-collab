@@ -23,8 +23,8 @@ import { dayLabel, shortDate, spokenRef } from "./accountFormat";
 //       - 409 `no-active-grant`: the endpoint found no unrevoked grant by that
 //         id, so it was already gone; the card goes and the page re-reads.
 //       - 404 `not-found`: the admin gate's answer — the session ended, or the
-//         caller stopped being an operator (role or `admin-console` flag
-//         removed). Nothing was revoked, so the card stays and nothing re-reads.
+//         caller stopped being an operator (role or `ADMIN_USER_IDS`
+//         entry removed). Nothing was revoked, so the card stays and nothing re-reads.
 //     A 404 with any other body (a proxy, a missing route) is a plain refusal.
 //
 // **Revoking marks, it never deletes** — the endpoint stamps `revoked_at`, the

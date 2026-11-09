@@ -450,3 +450,21 @@ as evidence that grounding landed. It is not a reason to hold the flip.
   geocoder call happens on the simulated path regardless. Flagging it
   separately would have added a second control for no additional spend
   protection.
+
+## Amendment — 2026-11-08: flags are environment variables (M59)
+
+M59 moved the app off Vercel, and the Flags service went with it. What changes:
+
+- **A flag is an environment variable**, read per call: `FLAG_AI_LIVE`. `"true"` is the only
+  value that turns it on, so an unset variable, an empty string or a typo is off, which for
+  `ai-live` is the simulated model. Changing it is a restart or a redeploy.
+- **The per-user targeting of the 2026-09-08 amendment is gone**, along with the override
+  cookie, the Flags Explorer and the dashboard rules. `ai-live` is global to the process, and
+  `AI_LIVE` still overrides it for local and CI, with a warning when it does so in any deployed
+  environment (`deployEnv()` set and not `development`).
+- **`admin-console` is no longer a flag.** A global boolean would make every signed-in account
+  an operator, and sign-up is open. Operators are the stored `users.is_admin` column, or an
+  id listed in `ADMIN_USER_IDS`, which is now also read on every request (exact match on the
+  user id, unset or empty is nobody). It only ever widens; revoking is clearing the column and
+  removing the id.
+- Nothing else here changes: entitlement is still a database fact, never a flag.

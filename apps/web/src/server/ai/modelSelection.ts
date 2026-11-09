@@ -2,6 +2,7 @@
 // model to use; it does not know a flag exists.
 import type { LanguageModel } from "ai";
 import { aiLiveFlag } from "@/server/flags";
+import { deployEnv } from "@/lib/deployment/env";
 import { serverConfig } from "@/server/config";
 import { aiClassifierModel, aiModel } from "@/server/ai/gateway";
 import { simulatedModel } from "@/server/ai/simulatedModel";
@@ -40,7 +41,7 @@ export type AiLiveMode = { live: boolean; source: "env" | "flag" };
 // is the sole source of truth. See .env.example.
 export async function aiLiveMode(): Promise<AiLiveMode> {
   if (process.env.AI_LIVE !== undefined) {
-    warnIfVercelOverride();
+    warnIfDeployedOverride();
     return { live: process.env.AI_LIVE === "true", source: "env" };
   }
   // Never throws today, but a flag read must not be the thing that turns a
@@ -54,17 +55,19 @@ export async function aiLiveMode(): Promise<AiLiveMode> {
   }
 }
 
-// Warn every time AI_LIVE decides the outcome on Vercel — this escape hatch
-// is local/CI-only (see aiLive()'s doc comment above and .env.example); on
-// Vercel it silently makes the ai-live flag's dashboard and Toolbar controls
-// inert, which is easy to miss without a loud signal.
+// Warn every time AI_LIVE decides the outcome in a deployment — this escape
+// hatch is local/CI-only (see aiLive()'s doc comment above and .env.example);
+// in a deployment it silently makes `FLAG_AI_LIVE` inert, which is easy to miss
+// without a loud signal. A deployment is any `deployEnv()` that is set and is
+// not "development": it is unset locally and in CI.
 //
 // KI-24: this used to be a module-load check, which fires at most once per
 // cold start. A Vercel serverless function stays warm across many
-// invocations after that, so a single import-time line is exactly the kind
-// of evidence that has usually scrolled out of log retention by the time
-// anyone investigates a spend spike this override caused — the container
-// could go on serving live traffic for hours with nothing further logged.
+// invocations after that, and a long-lived container is the same: a single
+// import-time line is exactly the kind of evidence that has usually scrolled
+// out of log retention by the time anyone investigates a spend spike this
+// override caused — it could go on serving live traffic for hours with
+// nothing further logged.
 // Called from `aiLiveMode()` instead, so every resolution the override
 // actually decides leaves its own line, tied to the request that used it.
 // Deliberately still a warning, not a throw: turning this into a hard
@@ -72,10 +75,11 @@ export async function aiLiveMode(): Promise<AiLiveMode> {
 // owner may still want (see this file's module doc and KI-24's own record of
 // that decision) — this only makes the existing warning survive as long as
 // the override does, it does not change what the override is allowed to do.
-function warnIfVercelOverride(): void {
-  if (process.env.VERCEL) {
+function warnIfDeployedOverride(): void {
+  const env = deployEnv();
+  if (env !== undefined && env !== "development") {
     console.warn(
-      "AI_LIVE is set in a Vercel environment — this overrides the ai-live flag entirely. " +
+      "AI_LIVE is set in a deployed environment — this overrides the ai-live flag entirely. " +
         "This should never happen outside local dev/CI. See .env.example.",
     );
   }
