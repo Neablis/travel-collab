@@ -49,6 +49,11 @@ COPY . .
 # skipped and the build carries on, which is what a production build does.
 ARG APP_ENV
 ARG PREVIEW_DB_IS_DISPOSABLE
+# The public origin, read by `app/layout.tsx`'s `metadataBase` when `next build`
+# prerenders a page: without it every static page names http://localhost:3001
+# as its canonical address. `scripts/check-public-origin.mjs` refuses a
+# production build that lacks it.
+ARG PUBLIC_ORIGIN
 ARG NEXT_PUBLIC_PLAUSIBLE_DOMAIN
 ARG NEXT_PUBLIC_PLAUSIBLE_SRC
 ARG NEXT_PUBLIC_SENTRY_DSN
@@ -80,6 +85,7 @@ ENV NODE_OPTIONS=--max-old-space-size=4096 \
 RUN --mount=type=secret,id=DATABASE_URL,required=false \
     --mount=type=secret,id=APP_ENV,required=false \
     --mount=type=secret,id=PREVIEW_DB_IS_DISPOSABLE,required=false \
+    --mount=type=secret,id=PUBLIC_ORIGIN,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_PLAUSIBLE_DOMAIN,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_PLAUSIBLE_SRC,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_SENTRY_DSN,required=false \
@@ -90,7 +96,7 @@ RUN --mount=type=secret,id=DATABASE_URL,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_VERCEL_ENV,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,required=false \
     set -eu; \
-    for name in DATABASE_URL APP_ENV PREVIEW_DB_IS_DISPOSABLE NEXT_PUBLIC_PLAUSIBLE_DOMAIN NEXT_PUBLIC_PLAUSIBLE_SRC NEXT_PUBLIC_SENTRY_DSN NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE NEXT_PUBLIC_VERCEL_ENV NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA; do \
+    for name in DATABASE_URL APP_ENV PREVIEW_DB_IS_DISPOSABLE PUBLIC_ORIGIN NEXT_PUBLIC_PLAUSIBLE_DOMAIN NEXT_PUBLIC_PLAUSIBLE_SRC NEXT_PUBLIC_SENTRY_DSN NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE NEXT_PUBLIC_VERCEL_ENV NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA; do \
       if [ -s "/run/secrets/$name" ]; then export "$name=$(cat "/run/secrets/$name")"; echo "[docker] $name: from build secret"; \
       elif [ -n "$(printenv "$name" || true)" ]; then echo "[docker] $name: from build arg"; \
       else echo "[docker] $name: unset"; fi; \
