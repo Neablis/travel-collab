@@ -37,7 +37,7 @@ Facts the parts share (the survey, 2026-11-09):
   are fetched with `clients.ts`'s guarded fetcher (`fetchDocument` :270, `assertPublicAddress`
   from `server/external/remoteImage/guard`), never `createRemoteJWKSet`.
 - **One migration, `0075`, in part 3**: `agent_sessions`, `oauth_client_blocks`,
-  `agent_feedback`. Newest today is `apps/web/drizzle/0074_poll_votes.sql`; schema in
+  `agent_feedback`, and each grant's token-endpoint auth method (replacing part 2's cache marker). Newest today is `apps/web/drizzle/0074_poll_votes.sql`; schema in
   `server/db/schema.ts` (`oauthClients` :316, `oauthGrants` :346, `oauthTokens` :411).
 - **The issuer and every URL we publish** come from `deploymentOrigin()` (`lib/deploymentOrigin`),
   never the request (ADR-083 amendment B). `htu` is compared against it too.
@@ -73,7 +73,7 @@ Gate boxes: *The metadata agrees with itself*; half of *`poppy.json` passes* (`c
 `/api/mcp` protected-resource documents, and the AS metadata; then add the preview as a custom
 connector in claude.ai and confirm Claude still signs in (D7 gate box).
 
-## Part 2 — The agent signs in as itself (~14 files)
+## Part 2 — The agent signs in as itself (~13 files)
 
 **Theme.** D3 (identity half), D10: `private_key_jwt` at the token and revocation endpoints for a
 CIMD client that declares it; no beyond-requested scopes; the consent page and Connected apps name
@@ -89,10 +89,14 @@ the agent from its document. Spec §4.1, §4.2, §4.4, §4.6, §4.7. Not the kil
 | `server/oauth/metadata.ts` | `authorizationServerMetadata` | `token_endpoint_auth_methods_supported: ["none","private_key_jwt"]`, `token_endpoint_auth_signing_alg_values_supported: ["ES256","PS384"]`, same for revocation | `server/oauth/metadata.test.ts` |
 | `server/oauth/authorizeRequest.ts` | `parseAuthorizeRequest` :73 | `scope` required for a `private_key_jwt` client (`invalid_scope`) | `server/oauth/authorizeRequest.test.ts` |
 | `components/oauth/ConsentScreen.tsx` | `ConsentScreen` :61 | the agent's `client_name`, `logo_uri` and domain | `components/oauth/ConsentScreen.test.tsx` |
-| `components/account/ConnectedAppsSection.tsx` | default export | a Personal Agent row shows its name, logo and *Personal agent* | `components/account/ConnectedAppsSection.test.tsx` |
 | **new** `server/poppy/testAgent.ts` | `makeTestAgent()` | keys, CIMD document, `jwks`, assertions and delegations for tests | used by the above |
 
 Gate boxes: *A client assertion is required and checked*; *No scope beyond what was asked*.
+
+**Decided in review:** a refresh asking for fewer scopes is refused with `invalid_scope` (no
+per-token scope is stored; ADR-089). The Connected apps Personal Agent row moved to part 3. The
+agent's logo is hidden on the consent page and Connected apps while CSP `img-src` blocks it: an
+open decision with Mitchell, no CSP change in M60.
 
 **Interaction model (consent and Connected apps).** The consent page reads *"**Muse** (meta.ai)
 wants to act for you on Caesura"*, the agent's logo beside it; the Read and Write groups and the
@@ -112,7 +116,8 @@ route's behaviour changes yet for a request without it. Spec §3.4, §5.1–§5.
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
-| `apps/web/drizzle/0075_agent_sessions.sql` (**new**), `server/db/schema.ts` | — | `agent_sessions`, `oauth_client_blocks`, `agent_feedback` | `server/poppy/sessions.int.test.ts` |
+| `apps/web/drizzle/0075_agent_sessions.sql` (**new**), `server/db/schema.ts` | — | `agent_sessions`, `oauth_client_blocks`, `agent_feedback`, and a column on the grant for its token-endpoint auth method, which replaces part 2's cache marker (the token and revoke endpoints read it) | `server/poppy/sessions.int.test.ts` |
+| `components/account/ConnectedAppsSection.tsx` | default export | a Personal Agent row (moved from part 2) shows its name, logo and *Personal agent* | `components/account/ConnectedAppsSection.test.tsx` |
 | **new** `server/poppy/sessionHeader.ts` | `verifySessionHeader(request, accessToken?)` | delegation (§5.2 order), `typ`, `aud`, `htm`/`htu`, `iat` ±60s, `ath`, same `client_id` as the token | **new** `server/poppy/sessionHeader.test.ts` |
 | **new** `server/poppy/sessions.ts` | `openOrContinueSession()` | the row by `(client_id, sid, agent_user_id)`; 30-day idle end; account change → `session_ended` | **new** `server/poppy/sessions.int.test.ts` |
 | **new** `server/poppy/errors.ts` | `poppyError()` | the 400 bodies | covered by the above |

@@ -93,6 +93,17 @@ outside MCP dispatch with `audience`).
 - **Client assertions:** `aud` must equal `oauthIssuer()` character for character (the token
   endpoint's URL is refused); `exp` at most 5 minutes after `iat`; `jti` remembered in the cache
   until `exp`, and a reuse is `invalid_client`.
+- **A refresh that asks for fewer scopes is refused** with `invalid_scope`; the scope must name
+  exactly what the grant holds. Poppy 4.4 allows an agent to ask for less, but no scope is stored
+  per token, and answering with the full set would breach 4.7's "never beyond requested". A
+  deliberate choice, not an oversight: narrowing would need a per-token scope column.
+- **The agent's token-endpoint auth method is stored on its grant** (part 3's migration `0075`),
+  so the token and revoke endpoints read the database instead of a cache marker, and a public
+  client (Claude) never depends on a document fetch at refresh. Part 2 carries a cache marker
+  until then.
+- **The agent's logo is hidden** on the consent page and in Connected apps while the CSP
+  `img-src` blocks the agent's own domain. Open decision with Mitchell: proxy it through a
+  same-origin route or widen `img-src`. No CSP change in M60.
 - **Session JWTs:** `iat` within ±60 seconds; `htu` compared without query or fragment against
   the deployment origin plus the request path, never the forwarded `Host`; `jti` replay is not
   refused (the spec makes it optional and the window is one minute).
