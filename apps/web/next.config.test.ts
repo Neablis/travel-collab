@@ -104,19 +104,28 @@ describe("the self-hosted Plausible origin", () => {
 });
 
 describe("Strict-Transport-Security", () => {
-  const hsts = async (nodeEnv: "production" | "development") =>
-    (await headersFor(undefined, nodeEnv))
+  const hsts = async (vercelEnv: string | undefined, appEnv?: string) => {
+    vi.stubEnv("APP_ENV", appEnv);
+    return (await headersFor(vercelEnv, "production"))
       .find((r) => r.source === "/:path*")
       ?.headers.find((h) => h.key === "Strict-Transport-Security")?.value;
+  };
 
-  // The app serves it itself now that nothing in front of it does (M59). Not in
-  // dev: a browser that honours it would pin localhost to https for a year.
-  it("is served by a production build, for a year", async () => {
-    expect(await hsts("production")).toBe("max-age=31536000");
+  // The app serves it itself now that nothing in front of it does (M59), and
+  // only on production: every `next build` has NODE_ENV=production, previews
+  // included, so the gate is the deployment environment.
+  it("is served on the production deployment, without includeSubDomains (previews share the apex)", async () => {
+    expect(await hsts(undefined, "production")).toBe("max-age=63072000");
+    expect(await hsts("production")).toBe("max-age=63072000");
   });
 
-  it("is not served by the dev server", async () => {
-    expect(await hsts("development")).toBeUndefined();
+  it("is not served on a preview build, even though NODE_ENV is production", async () => {
+    expect(await hsts(undefined, "preview")).toBeUndefined();
+    expect(await hsts("production", "preview")).toBeUndefined();
+  });
+
+  it("is not served when no deployment environment is set", async () => {
+    expect(await hsts(undefined)).toBeUndefined();
   });
 });
 

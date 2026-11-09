@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
+import { deployEnv } from "./src/lib/deployment/env";
 
 // `next build` sets NODE_ENV=production; `next dev --turbopack` sets
 // development. The dev-only relaxations below exist because the dev server's
@@ -117,10 +118,14 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 // Strict-Transport-Security is served by the app now that nothing in front of
-// it does (M59), in a built app only: set on the local http dev server, a
-// browser that honours it would pin localhost to https for a year. No
-// `includeSubDomains` and no `preload`: neither can be taken back quickly, and
-// nothing here needs them.
+// it does (M59), on the production deployment only: not on a preview, whose
+// host may later be served with a self-signed certificate a browser could no
+// longer click through, and not on the local http server. `NODE_ENV` cannot say
+// which, since every `next build` is "production"; `deployEnv()` is read at
+// build time, so `APP_ENV` must be a build variable. No `includeSubDomains` or
+// `preload`: previews live under `*.preview.caesura.today`, so a pin on the
+// apex would give a fresh preview, still on Traefik's default certificate while
+// its Let's Encrypt order is pending, the very hard failure this gate avoids.
 const securityHeaders = [
   { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -129,7 +134,9 @@ const securityHeaders = [
   // URL-borne tokens off cross-origin Referer headers; /s/** below goes
   // further for the ones that are the whole secret.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  ...(isDev ? [] : [{ key: "Strict-Transport-Security", value: "max-age=31536000" }]),
+  ...(deployEnv() === "production"
+    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000" }]
+    : []),
 ];
 
 const nextConfig: NextConfig = {

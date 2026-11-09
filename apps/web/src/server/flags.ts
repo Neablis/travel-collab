@@ -2,8 +2,7 @@
 // Flag values reach the UI as props from a server component, never by a client
 // component importing this module.
 //
-// DECLARATIONS ONLY: every export is a flag, and `flags.test.ts` enumerates the
-// module to check each one fails closed. The `aiLive()` accessor therefore lives
+// DECLARATIONS ONLY: every export is a flag. The `aiLive()` accessor therefore lives
 // in ai/modelSelection.ts. Import it from there; never re-export it from here.
 //
 // A flag is an environment variable (M59: no Flags service, no per-user
@@ -13,15 +12,18 @@
 // restart sees the current value.
 
 /** A flag, as a function that answers for this process. */
-type EnvFlag = (() => Promise<boolean>) & { readonly key: string; readonly defaultValue: false };
+type EnvFlag = (() => Promise<boolean>) & { readonly key: string };
 
-// `defaultValue: false` is deliberate and fails CLOSED, and "true" is the only
-// value that turns a flag on: a typo, an empty string or an unset variable all
-// land on off. For `ai-live` off is the simulated model and nobody spends; for
-// `admin-console` off is "not an operator". `flags.test.ts` pins both.
+// Fails CLOSED, and "true" is the only value that turns a flag on: a typo, an
+// empty string or an unset variable all land on off, which for `ai-live` is the
+// simulated model, where nobody spends. `flags.test.ts` pins it.
+//
+// Who may open the operator console is deliberately NOT a flag here: a global
+// boolean would make every signed-in caller an operator. It is per caller, from
+// `ADMIN_USER_IDS` (`server/entitlements/admin.ts`).
 function envFlag(key: string, variable: string): EnvFlag {
   const read = async () => process.env[variable] === "true";
-  return Object.assign(read, { key, defaultValue: false as const });
+  return Object.assign(read, { key });
 }
 
 // When off, POST /api/trips/:id/ask answers from the SIMULATED model: it
@@ -31,18 +33,3 @@ function envFlag(key: string, variable: string): EnvFlag {
 // `x-tc-ai-simulated: true` so the client can badge it. Global to the process,
 // and `AI_LIVE` (ai/modelSelection.ts) still overrides it for local and CI.
 export const aiLiveFlag = envFlag("ai-live", "FLAG_AI_LIVE");
-
-// **Who may open the operator console without a stored bit** (M20 link 7). Now
-// global rather than per user: when on, every signed-in caller is an operator,
-// so it is a break-glass setting, not a way to name one person. Naming people
-// is `ADMIN_USER_IDS` or the `users.is_admin` column, which is what the console
-// shows.
-//
-// **This does not make entitlement a flag.** ADR-019's 2026-08-25 amendment
-// declines that: a paid tier is a database fact (plan version, pinned purchase,
-// audit trail). `is_admin` is none of those. A capability a customer pays for
-// still may not live here.
-//
-// It only ever WIDENS. `users.is_admin` stays the durable fact; taking admin
-// away is clearing the column and leaving this off.
-export const adminConsoleFlag = envFlag("admin-console", "FLAG_ADMIN_CONSOLE");

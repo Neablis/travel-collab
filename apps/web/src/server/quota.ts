@@ -562,8 +562,8 @@ export function turnOutcomeQuota(): QuotaPolicy[] {
  *
  * FAILS CLOSED. A counter-store error refuses the request rather than waving it
  * through, matching the posture the rest of the server already takes on spend
- * and permission: `aiLiveFlag`'s `defaultValue: false` degrades an unreachable
- * flag service to simulated rather than to spending, `isDemoDataResetEnabled()`
+ * and permission: `aiLiveFlag` reads "true" or nothing, so an unset flag is
+ * simulated rather than spending, `isDemoDataResetEnabled()`
  * resolves anything that is not exactly the opt-in to false, and
  * `requireTripAccess` lets a database error propagate (a 500, i.e. denied)
  * rather than assuming access. It also costs nothing this deployment has not

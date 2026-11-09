@@ -1,4 +1,3 @@
-import { publicOrigin } from "@/lib/deployment/env";
 // **Where this deployment answers**, from configuration rather than from a
 // request header.
 //
@@ -44,6 +43,8 @@ import { publicOrigin } from "@/lib/deployment/env";
 //
 // Every branch is pinned by `deploymentOrigin.test.ts`, which this function did
 // not have when the precedence bug shipped.
+
+import { publicOrigin } from "@/lib/deployment/env";
 export function deploymentOrigin(): string {
   return publicOrigin();
 }

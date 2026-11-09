@@ -1,4 +1,3 @@
-import { deployEnv } from "@/lib/deployment/env";
 // Preview-only "Reset to demo data" gate, shared by the route
 // (POST /api/dev/reset-demo-data) and AppHeader (the menu item's visibility).
 // A hidden menu item is not a permission — the route re-checks this itself
@@ -13,10 +12,12 @@ import { deployEnv } from "@/lib/deployment/env";
 //
 // Both env vars, both required, fails closed on anything else — same shape
 // as aiLive()'s AI_LIVE check (src/server/ai/modelSelection.ts): a typo or
-// an unset var resolves to false, never true. the deployment environment is set by the platform
+// an unset var resolves to false, never true. The deployment environment is set by the platform
 // itself (never by us), so production can never satisfy this — only
 // "preview" does, and only with the operator's own SEED_DEMO_DATA opt-in on
 // top of it.
+
+import { deployEnv } from "@/lib/deployment/env";
 export function isDemoDataResetEnabled(): boolean {
   return deployEnv() === "preview" && process.env.SEED_DEMO_DATA === "true";
 }
