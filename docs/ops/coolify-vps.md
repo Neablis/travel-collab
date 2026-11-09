@@ -109,6 +109,29 @@ database. There is no Upstash Vector, and no index to move.
 schema changes by dispatching `migrate-production`, and `build-migrate.mjs`
 prints `skipped (APP_ENV=production)`.
 
+### Traefik labels are hand-edited (2026-11-09)
+
+Next's standalone server copies a rewrite's target into the response as
+`x-middleware-rewrite` (`resolve-routes.js`, after `proxy.ts` has returned), so
+every library page told its visitor `x-middleware-rewrite: /playbooks/cached`.
+`proxy.ts` cannot drop it: it is the header the rewrite itself travels on. The
+App Router client reads `x-nextjs-rewritten-path`, so Traefik strips it:
+
+```
+traefik.http.middlewares.strip-next-internal.headers.customresponseheaders.X-Middleware-Rewrite=
+```
+
+with `strip-next-internal` appended to the `middlewares=` of each `https-*`
+router. To keep those labels, **Readonly labels is off** on `caesura-web`
+(Advanced), and Coolify no longer regenerates them. So after adding or changing
+a domain: switch Readonly labels on, save, copy the regenerated labels, switch
+it off, and put the middleware back. Check: `curl -sI https://caesura.today/playbooks`
+shows no `x-middleware-rewrite`.
+
+`ClientHost` `10.0.1.1` in `/data/coolify/proxy/access.log` is the app calling
+its own public URL from inside the container (Docker's bridge gateway), not a
+visitor whose address was lost: visitors log their own address.
+
 ## Previews
 
 A pull request gets a preview from Coolify. Its build, with `APP_ENV=preview`
