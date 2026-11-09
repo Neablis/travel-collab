@@ -146,6 +146,35 @@ export const SCOPE_CATALOGUE: Readonly<Record<ApiScope, ApiScopeDescription>> = 
   },
 });
 
+/** How much a scope can change, as the Personal Agent Protocol words it (spec 4.7). */
+export type ScopeChanges = "none" | "reversible" | "irreversible";
+
+/** What the most consequential action under one scope does, for `poppy.json`'s `scope_hints`. */
+export interface ScopeHint {
+  readonly changes: ScopeChanges;
+  /** Whether any action under the scope shows or changes the person's own data. */
+  readonly personal_data: boolean;
+}
+
+/**
+ * A hint for every scope (ADR-089 decision 9), exhaustive for the same reason
+ * `SCOPE_CATALOGUE` is. The spec asks for the **most consequential** action
+ * under a scope, so a scope that can delete anything is `irreversible` even
+ * where undo covers the rest: the hint is the worst case, not the usual one.
+ * Publishing to Discover is why `library:write` is `irreversible`.
+ */
+export const SCOPE_HINTS: Readonly<Record<ApiScope, ScopeHint>> = Object.freeze({
+  "trips:read": { changes: "none", personal_data: true },
+  "trips:write": { changes: "irreversible", personal_data: true },
+  "notebook:read": { changes: "none", personal_data: true },
+  "notebook:write": { changes: "irreversible", personal_data: true },
+  "library:read": { changes: "none", personal_data: true },
+  "library:write": { changes: "irreversible", personal_data: true },
+  "sharing:write": { changes: "irreversible", personal_data: true },
+  "account:read": { changes: "none", personal_data: true },
+  "places:read": { changes: "none", personal_data: false },
+});
+
 /**
  * Every way a `v1` request can fail, as a wire code.
  *

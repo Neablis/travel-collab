@@ -128,6 +128,12 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     status: "front-door",
     why: "The consent decision for the MCP connector; session-only, never a credential",
   },
+  // Poppy spec 3: the protocol fixes this URL. Keyed by its path under `app/`
+  // because it is not an `app/api` route (ADR-089).
+  ".well-known/poppy.json": {
+    status: "front-door",
+    why: "The Personal Agent Protocol's discovery document; the same bytes for everyone, no data",
+  },
   // The MCP connector: v1's own declared handlers, under another protocol.
   mcp: {
     status: "front-door",

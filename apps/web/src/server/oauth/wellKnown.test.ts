@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET as resourceMetadata } from "@/app/.well-known/oauth-protected-resource/[[...path]]/route";
+import { GET as poppy } from "@/app/.well-known/poppy.json/route";
 import { GET as serverMetadata } from "@/app/.well-known/oauth-authorization-server/[[...path]]/route";
 
 // The two discovery routes, as a client reaches them. The Host-header case is
@@ -26,6 +27,29 @@ describe("/.well-known/oauth-protected-resource", () => {
     }
     const other = await resourceMetadata(forged("/.well-known/oauth-protected-resource/api/v1"), at("api", "v1"));
     expect(other.status).toBe(404);
+  });
+
+  it("names the origin bare and the MCP endpoint on the MCP path, whatever Host says", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_BRANCH_URL", PREVIEW.replace("https://", ""));
+    const bare = await (await resourceMetadata(forged("/.well-known/oauth-protected-resource"), at())).json();
+    const mcp = await (
+      await resourceMetadata(forged("/.well-known/oauth-protected-resource/api/mcp"), at("api", "mcp"))
+    ).json();
+    expect(bare.resource).toBe(PREVIEW);
+    expect(mcp.resource).toBe(`${PREVIEW}/api/mcp`);
+  });
+});
+
+describe("/.well-known/poppy.json", () => {
+  it("serves the document for the configured origin, never the request's Host", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_BRANCH_URL", PREVIEW.replace("https://", ""));
+    const res = poppy(forged("/.well-known/poppy.json"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.protocol_version).toBe("0.4");
+    expect(body.organization.domain).toBe(PREVIEW.replace("https://", ""));
   });
 });
 

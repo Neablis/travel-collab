@@ -26,10 +26,15 @@ export function mcpResource(): string {
   return `${deploymentOrigin()}/api/mcp`;
 }
 
-/** RFC 9728: where a client learns which server issues tokens for `/api/mcp`. */
-export function protectedResourceMetadata() {
+/**
+ * RFC 9728: where a client learns which server issues tokens. The bare form
+ * speaks for the domain, which Poppy (spec 3.2) requires to be the `resource`
+ * exactly; the `api/mcp` form keeps naming the MCP endpoint, as the MCP 401's
+ * `resource_metadata` and every connector expect (ADR-089 decision 7).
+ */
+export function protectedResourceMetadata(path: "" | "api/mcp" = "") {
   return {
-    resource: mcpResource(),
+    resource: path === "api/mcp" ? mcpResource() : oauthIssuer(),
     authorization_servers: [oauthIssuer()],
     scopes_supported: OAUTH_SCOPES,
     bearer_methods_supported: ["header"],
@@ -57,5 +62,8 @@ export function authorizationServerMetadata() {
     // Amendment A: every redirect back carries `iss`.
     authorization_response_iss_parameter_supported: true,
     scopes_supported: OAUTH_SCOPES,
+    // RFC 9728 section 4, and Poppy spec 3.2: the issuer confirms the domain
+    // from its side, so a document copied to another domain cannot claim us.
+    protected_resources: [issuer, mcpResource()],
   };
 }

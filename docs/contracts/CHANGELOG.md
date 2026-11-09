@@ -13,6 +13,14 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-09 — `SCOPE_HINTS`: what each scope can change (M60 part 1)
+- **New export** `SCOPE_HINTS` (`packages/contracts/src/publicApi.ts`), exhaustive over `ApiScope` like
+  `SCOPE_CATALOGUE`: `{ changes: "none" | "reversible" | "irreversible", personal_data: boolean }` per
+  scope, plus the `ScopeHint` and `ScopeChanges` types. Published as `scope_hints` in
+  `/.well-known/poppy.json` (ADR-089 decision 9).
+- Consumers updated: `apps/web` (`server/poppy/discovery.ts`). No schema or wire type changed.
+- Breaking? no — additive.
+
 ## 2026-11-04 — Polls: `poll_votes`, `poll_closes` and the `poll` widget (M58 part 5)
 - **New tables** (migration 0074; access-style CRUD beside the event log, never events): `poll_votes`
   (one row per person per poll, unique on `trip_id, poll_id, user_id`) and `poll_closes` (primary key

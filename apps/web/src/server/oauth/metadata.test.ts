@@ -10,13 +10,29 @@ describe("the metadata documents", () => {
   it("names the MCP endpoint as the resource, exactly, under the configured origin", () => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "caesura.today");
-    expect(protectedResourceMetadata()).toMatchObject({
+    expect(protectedResourceMetadata("api/mcp")).toMatchObject({
       resource: "https://caesura.today/api/mcp",
       authorization_servers: ["https://caesura.today"],
       bearer_methods_supported: ["header"],
     });
     expect(mcpResource()).toBe("https://caesura.today/api/mcp");
     expect(oauthIssuer()).toBe("https://caesura.today");
+  });
+
+  // ADR-089 decision 7 (Poppy spec 3.2): the domain's own document names the
+  // domain, and the MCP form keeps naming the MCP endpoint so Claude is untouched.
+  it("names the origin as the bare document's resource, and the issuer lists both resources", () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "caesura.today");
+    expect(protectedResourceMetadata()).toMatchObject({
+      resource: "https://caesura.today",
+      authorization_servers: ["https://caesura.today"],
+    });
+    expect(protectedResourceMetadata("api/mcp").resource).toBe("https://caesura.today/api/mcp");
+    expect(authorizationServerMetadata().protected_resources).toEqual([
+      "https://caesura.today",
+      "https://caesura.today/api/mcp",
+    ]);
   });
 
   it("offers S256 only, public clients only, CIMD and the iss parameter", () => {

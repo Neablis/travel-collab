@@ -7,16 +7,20 @@ import { protectedResourceMetadata } from "@/server/oauth/metadata";
 // name, and a client following MCP's fallback asks the bare one. Anything else
 // is not a resource here.
 //
+// The bare form names the domain and the `/api/mcp` form the MCP endpoint
+// (ADR-089 decision 7).
+//
 // The body never reads the request (ADR-083 amendment B): a forged `Host`
 // cannot change the resource or the issuer it names.
 
-const SERVED = new Set(["", "api/mcp"]);
+const SERVED = new Set<string>(["", "api/mcp"]);
 
 /** The protected resource metadata, at the bare well-known path or with `/api/mcp` after it. */
 export async function GET(_request: Request, { params }: { params: Promise<{ path?: string[] }> }) {
   const { path = [] } = await params;
-  if (!SERVED.has(path.join("/"))) return new Response(null, { status: 404 });
-  return metadataJson(protectedResourceMetadata());
+  const which = path.join("/");
+  if (!SERVED.has(which)) return new Response(null, { status: 404 });
+  return metadataJson(protectedResourceMetadata(which as "" | "api/mcp"));
 }
 
 export const OPTIONS = preflight;
