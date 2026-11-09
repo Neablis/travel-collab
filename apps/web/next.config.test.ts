@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
+import { resolve } from "node:path";
 import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 
 /**
@@ -303,5 +304,20 @@ describe("the four counter-probed CSP surfaces (KI-2026-09-12-d)", () => {
       routes.find((r) => r.source === source)?.headers.find((h) => h.key === "Content-Security-Policy")?.value;
     expect(cspOf("/:path*")).toBeDefined();
     expect(cspOf("/:prefix(s|invite|n)/:path*")).toBe(cspOf("/:path*"));
+  });
+});
+
+// The Dockerfile copies `.next/standalone` and runs `apps/web/server.js` out of
+// it. Without `output: "standalone"` there is no such directory; with the
+// tracing root left at `apps/web`, the workspace packages and the hoisted
+// `node_modules` are not traced and the server starts without them (M59).
+describe("the container build's output", () => {
+  it("is a standalone server traced from the repo root", async () => {
+    vi.resetModules();
+    const { default: config } = await import("./next.config");
+    expect({ output: config.output, root: config.outputFileTracingRoot }).toEqual({
+      output: "standalone",
+      root: resolve(__dirname, "../.."),
+    });
   });
 });

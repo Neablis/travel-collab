@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
@@ -132,6 +133,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The container runs `.next/standalone/apps/web/server.js` (Dockerfile). The
+  // tracing root is the repo root because this is a pnpm workspace: from
+  // `apps/web` alone the trace would miss `@tc/*` and the hoisted
+  // `node_modules`, and the server would start without them.
+  output: "standalone",
+  outputFileTracingRoot: resolve(import.meta.dirname, "../.."),
   transpilePackages: ["@tc/contracts", "@tc/domain"],
   // Next 16.3 auto-generates `apps/web/AGENTS.md` and `apps/web/CLAUDE.md`
   // when `next dev` detects an AI coding agent in the environment

@@ -1,0 +1,24 @@
+# apps/web/e2e stays: `next build` type-checks playwright.config.ts, which imports it.
+# Keeps the build context to what the build reads, and keeps a host's
+# node_modules (wrong platform) and .next out of the image.
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/*.tsbuildinfo
+.git
+.claude
+.agents
+.github
+.design-sync
+.turbo
+.vercel
+.playwright-mcp
+.auth
+**/playwright-report
+**/test-results
+docs
+.env
+.env.*
+!.env.example
+**/.DS_Store
