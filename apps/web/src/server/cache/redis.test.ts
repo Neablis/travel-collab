@@ -17,8 +17,8 @@ afterEach(() => {
 describe("resolveCacheDriver", () => {
   // `local` is one `next dev` process; `vercel` is many instances, where a
   // per-process Map cannot see another instance's revoke.
-  const local = { onVercel: false };
-  const vercel = { onVercel: true };
+  const local = { deployed: false };
+  const vercel = { deployed: true };
   const creds = { url: "https://example.upstash.io", token: "t" };
   const none = { url: "", token: "" };
 

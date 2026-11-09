@@ -173,6 +173,14 @@ describe("the preview CSP admits the Vercel Toolbar", () => {
     expect(await cspFor(undefined)).toBe(await cspFor("production"));
   });
 
+  it("APP_ENV=preview admits the Toolbar origins with no VERCEL_ENV, and wins over VERCEL_ENV", async () => {
+    vi.resetModules();
+    vi.stubEnv("APP_ENV", "preview");
+    expect(directive(await cspFor(undefined), "script-src")).toContain("https://vercel.live");
+    vi.stubEnv("APP_ENV", "production");
+    expect(directive(await cspFor("preview"), "script-src")).not.toContain("https://vercel.live");
+  });
+
   it.each(["", "preview-", "PREVIEW", "prod", "development", " preview", "Preview"])(
     "%o is not preview — only the exact value is",
     async (value) => {

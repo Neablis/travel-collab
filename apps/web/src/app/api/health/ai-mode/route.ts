@@ -1,4 +1,5 @@
 import { aiLiveMode, resolvedTierMap } from "@/server/ai/modelSelection";
+import { deployEnv } from "@/lib/deployment/env";
 
 // KI-25: whether an e2e run is actually simulated depends on how the dev
 // server was started (playwright.config.ts's webServer.env only applies
@@ -45,7 +46,7 @@ import { aiLiveMode, resolvedTierMap } from "@/server/ai/modelSelection";
 // a simulated deployment's configured ids are exactly what an operator needs to
 // check BEFORE switching the flag on.
 //
-// `environment` is which Vercel environment answered: `VERCEL_ENV` exactly,
+// `environment` is which Vercel environment answered: `APP_ENV` / `VERCEL_ENV` exactly,
 // or null when it is unset — off Vercel, or on a project that does not expose
 // system environment variables. Null is never guessed into "development": the
 // live-set script treats that word as permission, and a production deployment
@@ -59,6 +60,6 @@ export async function GET() {
     live,
     source,
     tiers: resolvedTierMap(),
-    environment: process.env.VERCEL_ENV ?? null,
+    environment: deployEnv() ?? null,
   });
 }

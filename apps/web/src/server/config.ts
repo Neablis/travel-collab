@@ -1,3 +1,4 @@
+import { deployEnv } from "@/lib/deployment/env";
 // Server/tooling half of the dev config — never import from UI code
 // (DATABASE_URL must not end up in a client bundle).
 // No fallback: a missing DATABASE_URL should fail loudly, not silently
@@ -135,7 +136,7 @@ export const serverConfig = {
 export function coverProxySecret(): string {
   const value = process.env.COVER_PROXY_SECRET ?? "";
   if (value !== "") return value;
-  if (process.env.VERCEL_ENV === "production") {
+  if (deployEnv() === "production") {
     throw new Error("COVER_PROXY_SECRET is not set. URL covers are signed with it, and production has no default.");
   }
   return "dev-cover-proxy-secret-not-for-production";
