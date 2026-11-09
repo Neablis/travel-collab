@@ -1,7 +1,9 @@
 # M60 — A personal agent can find Caesura, and act for you within what you allow
 
-**Status:** **Proposed 2026-11-09, placed last, after M59. Not scoped yet**: decisions D1–D14
-are open with recommendations, and none has been answered. Proposed on Mitchell's ask; see
+**Status:** **Scoped 2026-11-09 by Mitchell, placed next after M59 (current), ahead of M53.**
+All fourteen decisions are answered as recommended (below). The design is **ADR-089**, and the plan
+is `docs/plans/2026-11-09-M60-personal-agents.md` (deleted at gate close). Five parts as one stack,
+plus part 0 on `claude/relaxed-pascal-i6125m`. Minted the same day; see
 `docs/milestones/README.md`, *2026-11-09 — minted: M60, Personal Agent Protocol*.
 
 ## Why this exists
@@ -61,7 +63,15 @@ it moved from 0.1 to 0.4 in five weeks.
 
 ## Decisions
 
-**Open (recommendations; none answered):**
+**Answered 2026-11-09, all as recommended.** Mitchell: *"Let's scope M60, go with your
+recommendations. D4 - Premium + free like you suggested, D3 - Recommended, D14 - Next in queue."*
+ADR-089 records each one with its mechanism. Three were sharpened by the scoping survey, without
+changing the recommendation: D5's signed-out surface is Discover only, because the survey found
+every other tripless v1 read is the caller's own data (library, cities, account) or spends a paid
+quota (geocode); D14's *next in queue* is after M59, which became current on 2026-11-08; and the
+survey found no JOSE library in the repo, so ADR-089 adds `jose` as an implementation choice.
+
+The decisions as they were put:
 
 1. **Which version to build to.** *Recommended:* draft **0.4**, pinned, with
    `supported_versions` left empty. Record the spec commit read at scoping in the ADR, re-read
@@ -121,7 +131,7 @@ it moved from 0.1 to 0.4 in five weeks.
     (`keygen`) hosted on a non-production origin, and the sign-in milestone checked by hand from
     the checklist. The validator's output goes in this file as evidence.
 14. **Placement.** *Recommended:* last, after M59, since nothing is hurting and Muse traffic does
-    not exist yet. Mitchell's call.
+    not exist yet. Mitchell's call. **Answered: next in queue**, so after M59 and ahead of M53.
 
 ## Scope
 
@@ -136,7 +146,7 @@ it moved from 0.1 to 0.4 in five weeks.
 - The tasks and feedback endpoints (D11), and the feedback list in the operator console.
 - Connected apps shows a Personal Agent by its CIMD `client_name` and `logo_uri`, and Disconnect
   revokes its refresh tokens (§5.5).
-- An ADR (the next free number) recording the decisions, and `docs/guidelines/using-the-api.md`
+- ADR-089 recording the decisions, and `docs/guidelines/using-the-api.md`
   gaining a *Personal agents* section.
 
 ## Out of scope
@@ -149,7 +159,7 @@ it moved from 0.1 to 0.4 in five weeks.
 - `skill_index` (D11), DPoP-bound tokens, Web Bot Auth operator signatures.
 - Any new product behaviour: an agent can do exactly what the v1 API and MCP already allow.
 
-## Parts (a sketch; final at scoping)
+## Parts (the plan has each part's files)
 
 0. **The gate**: decisions, the ADR, the plan, the validator run and the walk.
 1. **Discovery**: `poppy.json`, scope hints in contracts, the metadata changes (D7, D9).
@@ -163,7 +173,7 @@ it moved from 0.1 to 0.4 in five weeks.
 
 ## Exit gate
 
-- [ ] **Decisions D1–D14 are answered and recorded here**, and the ADR is written.
+- [x] **Decisions D1–D14 are answered and recorded here**, and the ADR is written (ADR-089, 2026-11-09).
 - [ ] **`poppy.json` passes** the kit validator's `check --file` and `--milestone foundation`
       against the preview, with the run's output recorded here.
 - [ ] **The metadata agrees with itself**: the bare protected-resource document names
