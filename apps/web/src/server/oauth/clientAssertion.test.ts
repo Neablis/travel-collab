@@ -33,6 +33,11 @@ describe("verifyClientAssertion", () => {
     }
   });
 
+  it("accepts PS384, which Poppy 4.1 says a Company SHOULD", async () => {
+    const { agent, verify } = await setup();
+    expect(await verify(await agent.assertion({ alg: "PS384" }))).toEqual({ ok: true });
+  });
+
   it("refuses an algorithm that is neither ES256 nor PS384", async () => {
     const { agent, verify } = await setup();
     expect(await verify(await agent.assertion({ alg: "ES384" }))).toMatchObject({ ok: false });
@@ -42,6 +47,8 @@ describe("verifyClientAssertion", () => {
     const { agent, verify } = await setup();
     expect(await verify(await agent.assertion({ exp: nowSeconds + 3600 }))).toMatchObject({ ok: false });
     expect(await verify(await agent.assertion({ iat: nowSeconds - 600, exp: nowSeconds - 300 }))).toMatchObject({ ok: false });
+    // A future `iat` keeps a 5 minute `exp - iat` valid for as long as it is dated ahead.
+    expect(await verify(await agent.assertion({ iat: nowSeconds + 86400, exp: nowSeconds + 86400 + 60 }))).toMatchObject({ ok: false });
     expect(await verify(await agent.assertion({ iss: "https://other.test/agent.json" }))).toMatchObject({ ok: false });
     expect(await verify(await agent.assertion({ sub: "https://other.test/agent.json" }))).toMatchObject({ ok: false });
   });

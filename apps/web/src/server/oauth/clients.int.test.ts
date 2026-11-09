@@ -350,16 +350,53 @@ describe("a private_key_jwt client metadata document", () => {
     });
   });
 
-  it("is refused with no jwks_uri, or a key set or logo on another domain or over http", async () => {
+  it("is refused with no jwks_uri, or a key set on another domain or over http, or a redirect on another domain", async () => {
     for (const over of [
       { jwks_uri: undefined },
       { jwks_uri: "https://other.example/jwks.json" },
       { jwks_uri: "http://app.example/jwks.json" },
-      { logo_uri: "https://other.example/logo.png" },
+      { redirect_uris: ["https://other.example/callback"] },
     ]) {
       const url = cimdUrl();
       expect((await resolveClient(url, asked({ fetch: serving(confidential(url, over)) }))).ok, JSON.stringify(over)).toBe(false);
     }
+  });
+
+  it("allows a loopback redirect, and drops a logo on another domain instead of refusing the document", async () => {
+    const url = cimdUrl();
+    const client = await resolved(
+      url,
+      asked({
+        fetch: serving(confidential(url, { redirect_uris: ["http://127.0.0.1/cb"], logo_uri: "https://cdn.other.example/logo.png" })),
+      }),
+    );
+    expect(client).toMatchObject({ authMethod: "private_key_jwt", redirectUris: ["http://127.0.0.1/cb"], logoUri: null });
+  });
+
+  it("does not hold a public client to any of it: a CDN logo and a foreign jwks_uri are ignored", async () => {
+    const url = cimdUrl();
+    const client = await resolved(
+      url,
+      asked({
+        fetch: serving(
+          documentFor(url, {
+            token_endpoint_auth_method: "none",
+            logo_uri: "https://cdn.other.example/logo.png",
+            jwks_uri: "https://other.example/jwks.json",
+          }),
+        ),
+      }),
+    );
+    expect(client).toMatchObject({ authMethod: "none", jwksUri: null, logoUri: null });
+  });
+
+  it("keeps its key set apart from the metadata documents, so one JSON at both URLs reads both ways", async () => {
+    const url = cimdUrl();
+    const combined = { ...confidential(url, { jwks_uri: url }), keys: [{ kty: "EC", crv: "P-256", x: "x", y: "y", kid: "k1" }] };
+    const deps = asked({ fetch: serving(combined), cache: createRedisCache(createMemoryClient()) });
+    const client = await resolved(url, deps);
+    expect(await fetchClientKeys(client, deps)).toMatchObject({ ok: true });
+    expect(await resolveClient(url, deps)).toMatchObject({ ok: true });
   });
 
   it("has its key set fetched once through the fetcher and then served from the cache", async () => {

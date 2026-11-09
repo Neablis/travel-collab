@@ -4,6 +4,7 @@ import { OAUTH_ACCESS_PREFIX, OAUTH_CODE_PREFIX, OAUTH_REFRESH_PREFIX } from "@t
 import { db } from "@/server/db/client";
 import { oauthClients, oauthCodes, oauthTokens } from "@/server/db/schema";
 import { keyedDigest, keyedDigestCandidates } from "@/server/secrets/keyedDigest";
+import { clientPublicKey } from "@/server/cache/keys";
 import { getCache } from "@/server/cache/redis";
 import { fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps } from "./clients";
 import { verifyClientAssertion } from "./clientAssertion";
@@ -113,24 +114,38 @@ async function grantFor(
   return { ok: true, grant };
 }
 
+/** How long a CIMD client stays known as public; a day, so a document that turns confidential is read again then at the latest. */
+const CLIENT_PUBLIC_TTL_SECONDS = 24 * 60 * 60;
+
+async function knownPublic(clientId: string, deps: ClientDeps): Promise<boolean> {
+  return (await (deps.cache ?? getCache()).get<true>(clientPublicKey(clientId))) !== null;
+}
+
 /**
  * Poppy 4.1: a CIMD client whose document says `private_key_jwt` is only itself
- * with a client assertion. The document is read again here (cached for five
- * minutes, fetched on the grant owner's share), so a client that went back to
- * `none` is a public client again, and nothing about the method is stored.
+ * with a client assertion. Such a client's document is read again here (cached
+ * for five minutes, fetched on the grant owner's share), so one that went back
+ * to `none` is a public client again, and a document that cannot be read fails
+ * closed. A client last read as public is not read again for a day: its tokens
+ * never depended on its document, and a host that is down or a spent quota must
+ * not sign people out of it. Nothing about the method is stored in the database.
  */
 async function authenticateClient(
   creds: ClientCredentials & { clientId: string },
   grant: Pick<GrantRow, "ownerId">,
   deps: ClientDeps,
-): Promise<{ ok: true } | { ok: false; outcome: TokenOutcome }> {
-  if (!creds.clientId.startsWith("https://")) return { ok: true };
+): Promise<{ ok: true; confidential: boolean } | { ok: false; outcome: TokenOutcome }> {
+  if (!creds.clientId.startsWith("https://")) return { ok: true, confidential: false };
+  if (await knownPublic(creds.clientId, deps)) return { ok: true, confidential: false };
   const bad = (description: string) => ({ ok: false as const, outcome: refuse("invalid_client", description) });
   const asked = { userId: grant.ownerId, ...deps };
   const resolved = await resolveClient(creds.clientId, asked);
   if (!resolved.ok) return bad("the client's metadata document could not be read");
   const { client } = resolved;
-  if (client.authMethod === "none") return { ok: true };
+  if (client.authMethod === "none") {
+    await (deps.cache ?? getCache()).set(clientPublicKey(creds.clientId), true, CLIENT_PUBLIC_TTL_SECONDS);
+    return { ok: true, confidential: false };
+  }
   if (creds.clientAssertionType !== CLIENT_ASSERTION_TYPE || !creds.clientAssertion) {
     return bad("this client authenticates with a client_assertion");
   }
@@ -143,7 +158,7 @@ async function authenticateClient(
     now: deps.now ?? new Date(),
     cache: deps.cache ?? getCache(),
   });
-  return verified.ok ? { ok: true } : bad(`the client assertion was refused: ${verified.reason}`);
+  return verified.ok ? { ok: true, confidential: true } : bad(`the client assertion was refused: ${verified.reason}`);
 }
 
 /** `grant_type=authorization_code`. */
@@ -218,7 +233,8 @@ export async function refresh(
   if (!checked.ok) return checked.outcome;
   const authenticated = await authenticateClient({ ...input, clientId: input.clientId }, checked.grant, { ...deps, now });
   if (!authenticated.ok) return authenticated.outcome;
-  if (input.scope !== undefined) {
+  // A Personal Agent only (Poppy 4.7); a public client's `scope` was always ignored here.
+  if (input.scope !== undefined && authenticated.confidential) {
     const asked = [...new Set(input.scope.split(" ").filter((scope) => scope !== "" && scope !== "offline_access"))].sort();
     const held = [...grantScopes(checked.grant)].sort();
     if (asked.length === 0 || asked.join(" ") !== held.join(" ")) {
@@ -241,10 +257,12 @@ export async function refresh(
 async function mayRevoke(grant: GrantRow, authenticatedRowId: string | null, deps: ClientDeps): Promise<boolean> {
   if (authenticatedRowId !== null) return grant.clientId === authenticatedRowId;
   const [row] = await db.select({ cimdUrl: oauthClients.cimdUrl }).from(oauthClients).where(eq(oauthClients.id, grant.clientId));
-  if (row?.cimdUrl == null) return true;
-  // A CIMD client that signs in with a key is not revoked by a request that does not sign.
+  if (row?.cimdUrl == null || (await knownPublic(row.cimdUrl, deps))) return true;
+  // A CIMD client that signs in with a key is not revoked by a request that does not
+  // sign, and a document that cannot be read is not taken to say it does not: otherwise
+  // anyone holding a token could revoke it by waiting out the document's cache.
   const resolved = await resolveClient(row.cimdUrl, { userId: grant.ownerId, ...deps });
-  return !(resolved.ok && resolved.client.authMethod === "private_key_jwt");
+  return resolved.ok && resolved.client.authMethod === "none";
 }
 
 /**
@@ -273,11 +291,15 @@ export async function revokeSecret(
   if (grant === null) return { ok: true };
   let authenticated: string | null = null;
   if (creds.clientId?.startsWith("https://")) {
+    // Not the grant's client: nothing to authenticate and nothing to fetch, so a
+    // client_id the caller makes up cannot spend the token owner's fetch quota.
+    const named = await storedClientRowId(creds.clientId);
+    if (named !== grant.clientId) return { ok: true };
     const checked = await authenticateClient({ ...creds, clientId: creds.clientId }, grant, { ...deps, now });
     if (!checked.ok) {
       return { ok: false, error: "invalid_client", description: checked.outcome.ok ? "" : checked.outcome.description };
     }
-    authenticated = await storedClientRowId(creds.clientId);
+    authenticated = named;
   }
   if (!(await mayRevoke(grant, authenticated, { ...deps, now }))) return { ok: true };
   await db

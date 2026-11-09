@@ -10,6 +10,7 @@ import { db } from "@/server/db/client";
 import { oauthCodes, oauthTokens } from "@/server/db/schema";
 import { createMemoryClient } from "@/server/cache/memory";
 import { createRedisCache } from "@/server/cache/redis";
+import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
 import { makeTestAgent, publicResolve } from "@/server/poppy/testAgent";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { registerClient, resolveClient, type OAuthClient } from "./clients";
@@ -251,8 +252,8 @@ describe("revoking", () => {
 // assertion, at the code exchange, at refresh and at revocation.
 const ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
 
-async function agentConsented() {
-  const agent = await makeTestAgent({ issuer: oauthIssuer() });
+async function agentConsented(document?: Record<string, unknown>) {
+  const agent = await makeTestAgent({ issuer: oauthIssuer(), document });
   const ownerId = `dev-${randomUUID()}`;
   // One cache per agent: a `jti` is spent in it, as in the shared one.
   const deps = { fetch: agent.fetch, resolve: publicResolve, userId: ownerId, cache: createRedisCache(createMemoryClient()) };
@@ -322,5 +323,55 @@ describe("a private_key_jwt client", () => {
     expect((await grantOf(grant.id))!.revokedAt).toBeNull();
     expect(await revokeSecret(refresh_token, new Date(), { clientId: agent.clientId, ...(await signed()) }, deps)).toEqual({ ok: true });
     expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedReason: "owner" }));
+  });
+});
+
+// A public CIMD client (`none`) is served as it was before Personal Agents: the
+// token endpoint does not read its document again, so a host that is down, or a
+// spent fetch quota, cannot sign people out of Claude Code.
+describe("a public CIMD client", () => {
+  const publicAgent = () => agentConsented({ token_endpoint_auth_method: "none", jwks_uri: undefined });
+  const down = vi.fn<Fetcher>(async () => new Response("", { status: 503 }));
+  const later = () => new Date(Date.now() + 10 * 60 * 1000);
+
+  it("refreshes while its document cannot be fetched", async () => {
+    const { exchange, agent, deps } = await publicAgent();
+    const { refresh_token } = tokensOf(await exchange());
+    const outcome = await refresh({ refreshToken: refresh_token, clientId: agent.clientId }, later(), { ...deps, fetch: down });
+    expect(errorOf(outcome)).toBe("ok");
+  });
+
+  it("is not held to the grant's exact scope on refresh, as before", async () => {
+    const { exchange, agent, deps } = await publicAgent();
+    const { refresh_token } = tokensOf(await exchange());
+    const outcome = await refresh({ refreshToken: refresh_token, clientId: agent.clientId, scope: "trips:read library:write" }, new Date(), deps);
+    expect(errorOf(outcome)).toBe("ok");
+  });
+});
+
+describe("revoking a private_key_jwt client's token", () => {
+  const spying = (fetch: Fetcher) => vi.fn<Fetcher>(fetch);
+
+  it("fetches nothing for a client_id that is not the grant's", async () => {
+    const { exchange, signed, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const fetch = spying(async () => new Response("{}", { status: 200 }));
+    const outcome = await revokeSecret(
+      refresh_token,
+      new Date(),
+      { clientId: `https://other-${randomUUID()}.test/client.json` },
+      { ...deps, fetch, cache: createRedisCache(createMemoryClient()) },
+    );
+    expect(outcome).toEqual({ ok: true });
+    expect(fetch).not.toHaveBeenCalled();
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+  });
+
+  it("leaves the grant live when the document cannot be read and the request does not sign", async () => {
+    const { exchange, signed, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const fetch = spying(async () => new Response("", { status: 503 }));
+    expect(await revokeSecret(refresh_token, new Date(), {}, { ...deps, fetch, cache: createRedisCache(createMemoryClient()) })).toEqual({ ok: true });
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
   });
 });

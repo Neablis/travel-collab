@@ -37,6 +37,9 @@ export async function verifyClientAssertion(
       subject: deps.clientId,
       currentDate: deps.now,
       clockTolerance: CLOCK_TOLERANCE_SECONDS,
+      // Also refuses an `iat` ahead of now: without it `exp - iat` alone would let a
+      // far-future assertion stay valid for as long as it is dated ahead.
+      maxTokenAge: CLIENT_ASSERTION_MAX_LIFETIME_SECONDS,
       requiredClaims: ["iss", "sub", "aud", "exp", "iat", "jti"],
     }));
   } catch (error) {
