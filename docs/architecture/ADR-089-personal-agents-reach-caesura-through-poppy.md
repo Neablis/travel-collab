@@ -37,20 +37,25 @@ outside MCP dispatch with `audience`).
    document declares `token_endpoint_auth_method: "private_key_jwt"` and a same-domain `jwks_uri`
    is a Personal Agent. There is no allowlist. A refused `client_id` (a new
    `oauth_client_blocks` row, set in the operator console) answers `invalid_client` at the token
-   and revocation endpoints and `invalid_session` at every resource.
+   and revocation endpoints and `invalid_session` at every resource, and a blocked client's authorize
+   request is refused before consent. A block revokes no grant, so unblocking restores it. **One
+   recorded exception:** a blocked *public* client's revocation request that names no client
+   is not authenticated and still revokes, which RFC 7009 permits because it only reduces access.
 4. **Signed out is free; the account is Premium.** A request with a verified Session header and
    no access token reaches only the signed-out surface (decision 5), on any plan or none. Account
    access stays behind `api.tokens`, resolved per request, exactly as M55 D6.
 5. **The signed-out surface is Discover, read-only.** `GET /v1/discover/playbooks` (today
    `library:read`) and the discovery documents (`/v1`, `/v1/openapi`). Nothing that writes,
    nothing that spends a paid quota (geocode is excluded), under a per-`(client_id, sid)` rate
-   limit with `429` and `Retry-After`. A route opts in by declaring `signedOut: true` in
+   limit with `429` and `Retry-After`, and a per-`client_id` ceiling across its Sessions so one agent
+   cannot spend the global one. A route opts in by declaring `signedOut: true` in
    `declare()`; the default is no.
 6. **The v1 API accepts OAuth access tokens** whose audience is the domain
    (`https://caesura.today`), through every gate `route()` already applies (scope, trip
    confinement, role, entitlement). An `/api/mcp`-audience token is still refused outside MCP
-   (`audience`), and a domain-audience token is refused inside it. A Poppy sign-in without a
-   `resource` gets a domain-audience token; MCP clients keep sending `resource=…/api/mcp`.
+   (`audience`), and a domain-audience token is refused inside it. A Personal Agent
+   that names no `resource` gets a domain-audience token; every other client that names none keeps
+   `/api/mcp`, since nothing guarantees an older connector sends one.
 7. **The bare protected-resource document names the domain.**
    `/.well-known/oauth-protected-resource` answers `resource: https://caesura.today` with our
    issuer; `/.well-known/oauth-protected-resource/api/mcp` keeps answering the MCP resource; the
