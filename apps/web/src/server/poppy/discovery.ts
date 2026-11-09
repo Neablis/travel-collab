@@ -15,6 +15,7 @@ import { mcpResource } from "@/server/oauth/metadata";
 /** The pinned protocol version; no `supported_versions` (ADR-089 decision 1). */
 export const POPPY_PROTOCOL_VERSION = "0.4";
 
+/** The `poppy.json` body for this deployment's origin. */
 export function poppyDocument() {
   const origin = deploymentOrigin();
   return {
@@ -23,7 +24,11 @@ export function poppyDocument() {
     auth: {
       // `auth.scopes` takes the catalogue's sentences, so the consent screen,
       // openapi and this document cannot describe a scope differently.
-      scopes: Object.fromEntries(API_SCOPES.map((scope) => [scope, SCOPE_CATALOGUE[scope].description])),
+      // `offline_access` is in `scopes_supported` too, so it needs a sentence of its own.
+      scopes: {
+        ...Object.fromEntries(API_SCOPES.map((scope) => [scope, SCOPE_CATALOGUE[scope].description])),
+        offline_access: "Stay connected: a refresh token, which every grant gets anyway",
+      },
       scope_hints: SCOPE_HINTS,
     },
     apis: [

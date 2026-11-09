@@ -43,7 +43,13 @@ export type Exposure =
 
 const PLANNED = (note: string): Exposure => ({ status: "planned", note });
 
-/** Keyed by the route's directory under `app/api/`, exactly as on disk. */
+/**
+ * Keyed by the route's directory under `app/api/`, exactly as on disk; or, for a
+ * front door a standard places outside `app/api` (`.well-known/poppy.json`), its
+ * path under `app/`. Only `poppy.json` is listed there: the other `.well-known`
+ * documents carry OAuth metadata, not a capability, and the test's `missing`
+ * check walks `app/api` alone.
+ */
 export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   // ── Published ────────────────────────────────────────────────────────────
   "account/plan": { status: "public", v1: ["account"] },
