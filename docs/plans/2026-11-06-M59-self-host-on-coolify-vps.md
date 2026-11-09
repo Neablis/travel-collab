@@ -1,195 +1,217 @@
-# M59 plan - self-host Caesura on a Coolify VPS
+# M59 plan — self-host Caesura on a Coolify VPS
 
-Milestone: `docs/milestones/M59-self-host-on-coolify-vps.md` (decisions D1–D9, all open
-with recommendations, none answered). ADR: none yet; if Part 1 finds the
-deployment-origin module needs a recorded decision, it mints one then.
-Part 0 is this prose-only tracking PR on `claude/m59-self-host-coolify-vps`; it merges last.
-Deleted at gate close (`docs/plans/README.md`).
+Milestone: `docs/milestones/M59-self-host-on-coolify-vps.md` (decisions 1–11, answered 2026-11-08).
+ADR: none planned; Part 1 mints one only if the deployment-env module needs a recorded decision.
+Part 0 is the prose-only tracking PR on `claude/next-milestone-setup-3ccab6`; it merges last and
+supersedes the proposal PR 695. Deleted at gate close (`docs/plans/README.md`).
 
-The guide this follows: Saqib Shah, Medium, Feb 2026, "Stop Paying the Vercel Tax:
-Self-Host Next.js with Coolify & VPS". Hostinger KVM 2 VPS (2 vCPU, 8GB RAM, NVMe,
-about $6/mo in the guide), Ubuntu 24.04, `ssh root@ip`, `apt update && apt upgrade`,
-Coolify via `curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash` (installs
-Docker, dashboard on :8000, firewall), connect GitHub, create the resource, Nixpacks
-builder auto-detects Next.js, paste env vars, deploy, SSL via Let's Encrypt on the
-domain pointed at the VPS IP. The guide's $6/mo VPS claim and its $20/user/mo Vercel
-Pro framing are the guide's numbers, not verified against our bill; see the cost
-fact below.
+Paths are relative to `apps/web/src/` unless they start with `packages/`, `apps/`, `scripts/`,
+`.github/`, `.claude/` or `docs/`. Line numbers are from `main` at `ddcb4027`, so treat them as a
+starting point, not as fact. **New** marks a file that does not exist yet.
 
-Paths are relative to `apps/web/src/` unless they start with `packages/`, `apps/` or `docs/`.
-Line numbers are from `main` at `6e384a7a`, the survey base, so treat them as a starting
-point, not as fact. The Vercel-coupling facts were re-checked against latest main
-(`aac72462`) at plan time and still hold, with one addition: a second cron, tier-rollup.
-**New** marks a file that does not exist yet.
+The guide this follows: Saqib Shah, Medium, Feb 2026, "Stop Paying the Vercel Tax: Self-Host
+Next.js with Coolify & VPS" (Ubuntu 24.04, Coolify's install script, GitHub app, build, env
+vars, Let's Encrypt). Its prices are the guide's, not our bill.
+
+## Two tracks
+
+This milestone has a **code track** (Parts 1–5, one stack of draft PRs, built by subagents with
+no one in the room) and an **ops track** (O1–O6, accounts and servers). Ops steps marked
+**Mitchell** need his sign-up, payment or a click GitHub will not let an agent make; the rest
+an agent runs once it holds the token named.
+
+**Invariant for Parts 1–4: Vercel keeps working.** Every part reads the new env vars first and
+falls back to the `VERCEL_*` ones, so `main` still deploys to Vercel until the cutover. Only
+Part 5 removes Vercel-only files, and the top PR (Part 5) merges at the cutover (O6), not before.
 
 ## Order
 
-| Part | Branch | Depends on | Can run beside |
+| Part | Branch | Base | Depends on |
 |---|---|---|---|
-| 1 Decouple from Vercel runtime APIs | `claude/m59-part1-decouple` | - | - |
-| 2 Provision the VPS and the deploy pipeline | `claude/m59-part2-provision` | 1 merged | 3 |
-| 3 Cron, migrations and backups on the new host | `claude/m59-part3-cron-migrations` | 1 merged | 2 |
-| 4 Cutover | `claude/m59-part4-cutover` | 2 and 3 merged | - |
+| 1 One deployment-env module | `claude/m59-part1-deploy-env` | `main` | — |
+| 2 Drop the Vercel packages: cache, flags, analytics, headers | `claude/m59-part2-no-vercel-imports` | part 1 | 1 |
+| 3 Docker build, build-time migrate, Coolify previews | `claude/m59-part3-docker-previews` | part 2 | 2 |
+| 4 Direct AI providers (no AI Gateway) | `claude/m59-part4-direct-ai` | part 3 | 3 |
+| 5 Docs, agents, workflows; Vercel files removed | `claude/m59-part5-off-vercel` | part 4 | 4, and O1–O5 for its walk |
 
-Every part targets `main`. A part that depends on another branches from `main` after that part
-has merged. Parts 2 and 3 both touch `.github/workflows/`; the second to merge takes
-`main` first.
+One stack: each part's draft PR targets the part below; Part 5's PR is retargeted to `main` and
+is the one CI run and the one merge (`docs/guidelines/stacked-prs.md`).
 
-## Facts the parts share (the survey, 2026-11-06)
+## Facts the parts share (the survey, 2026-11-08, at `ddcb4027`)
 
-- **The cost baseline is unverified.** Current Vercel Pro + Neon spend is not
-  a measured number anywhere in the repo. The plan asks Mitchell for the actual
-  monthly bill as the baseline input; it does not assert a saving. Context from
-  the Oct 25 pricing research (`~/workspace/pricing-research-caesura-2026-10-25.md`):
-  Cloudflare Workers + Neon about $11-22/mo (medium effort); stay-and-tune on
-  Vercel+Neon about $26-40/mo, Vercel portion unverified; a VPS about $6-12/mo
-  plus Neon Launch scale-to-zero about $6-17/mo if the database stays, so about
-  $12-29/mo in total. Hetzner one-box was the cheapest raw option in that
-  research (secondary prices only, unverified on the official fetch).
-- **Bill drivers that vanish on a VPS** (no function-duration billing): the 2s
-  board poll, 300s AI/cron durations, per-hit quota writes. But long requests
-  then need proxy/Coolify timeout config instead of a `maxDuration` export.
-- **Two crons.** `apps/web/vercel.json`: `/api/cron/embed-days` daily 04:00 UTC
-  and `/api/cron/tier-rollup` daily 04:30 UTC; `git.deploymentEnabled` is main
-  only, `"**": false`. Both routes check Bearer `CRON_SECRET` first and are
-  `force-dynamic`. `embed-days` (`app/api/cron/embed-days/route.ts`) runs the
-  plan-retrieval embed sweep with `maxDuration = 300`; its own comment says
-  daily cadence is the Vercel Hobby limit and sub-daily needs Pro, so on
-  self-host the cadence is free, a small win. `tier-rollup`
-  (`app/api/cron/tier-rollup/route.ts`) rewrites the week's tier counts and
-  imports nothing from `server/ai/` (KI-2026-10-17-a).
-- **Migrations.** `apps/web/scripts/vercel-build-migrate.mjs` runs migrations
-  (and, since M51 part 7, a content import) during the Vercel build, preview
-  only, gated on `VERCEL_ENV=preview` AND `PREVIEW_DB_IS_DISPOSABLE=true`.
-  Production migrates only via dispatched `.github/workflows/migrate-production.yml`
-  (ADR-004). History: KI-2026-09-06-h, Neon once injected one `DATABASE_URL`
-  for Production+Preview so previews migrated production. Preview and Production
-  `DATABASE_URL` are never the same value
-  (`docs/guidelines/environments-and-deploys.md`).
-- **The build.** `apps/web/package.json`: Node 24.x, Next `^16.4.3`,
-  `vercel-build` runs the migrate script then `next build`. There is no
-  Dockerfile anywhere in the repo.
-- **The config.** `apps/web/next.config.ts`: no `output: "standalone"` (a
-  Docker deploy needs this decided); the CSP gates Vercel Toolbar origins on
-  `VERCEL_ENV=preview`, and the Toolbar is how the Flags Explorer flips
-  `ai-live` per reviewer session (`docs/guidelines/environments-and-deploys.md`,
-  *Feature flags*); HSTS is deliberately absent because Vercel serves it, so
-  self-host must add it (or serve it via Cloudflare); Sentry
-  `automaticVercelMonitors: true` (Vercel Cron monitors).
-- **The Vercel couplings.** `VERCEL_ENV` / `VERCEL_URL` appear in
-  `lib/authConfig.ts` (env detection), `lib/deploymentOrigin.ts`
-  (`VERCEL_URL` / `VERCEL_BRANCH_URL` / `VERCEL_PROJECT_PRODUCTION_URL`),
-  `lib/devLogin.ts`, `lib/demoDataReset.ts`, `lib/siteMetadata.ts` (NOINDEX
-  unless production), `server/cache/keys.ts` (`VERCEL_ENV` in the cache-key
-  prefix), `server/cache/redis.ts` (Upstash Redis only when on Vercel, see
-  below), `server/libraryCache.ts` (`VERCEL_DEPLOYMENT_ID` /
-  `VERCEL_GIT_COMMIT_SHA` as the cache version), `server/admission.ts`,
-  `server/users.ts`.
-- **The cache fallback, exactly.** `server/cache/redis.ts`: `onVercel` is
-  `VERCEL_ENV` set. Off Vercel, auto with no credentials resolves to the
-  `memory` driver, an in-process Map; the file's own comment says `memory` is
-  for one process only and a revoke on one instance would not clear another,
-  so on a multi-replica deploy the cache needs a shared store or `off`. The
-  cache fails open in every case (a miss reads as "not cached"), so this is a
-  correctness question about revokes, not an outage risk.
-- **Vercel-only imports.** `server/libraryCache.ts:2` imports `waitUntil` and
-  `dangerouslyDeleteByTag` from `@vercel/functions`. `server/flags.ts:12`
-  imports `vercelAdapter` from `@flags-sdk/vercel` (see also
-  `server/entitlements/admin.ts`, checked 2026-09-23). `app/layout.tsx:2-3`
-  renders `@vercel/analytics` and `@vercel/speed-insights`, served from
-  `/_vercel/*` on our origin; they stop working off Vercel.
-- **Env vars in use** (from grep): `DATABASE_URL` (Neon), `CRON_SECRET`,
-  `AUTH_SECRET`, `GOOGLE_ID`/`GOOGLE_SECRET`, `STRIPE_*` (secret, webhook
-  secret, mode, API version), `RESEND_API_KEY`/`RESEND_EMAIL_DOMAIN`/
-  `RESEND_ENDPOINT`, `UNSPLASH_ACCESS_KEY` plus rate limits, `SENTRY_DSN` /
-  `NEXT_PUBLIC_SENTRY_DSN`. All move to Coolify env vars; secrets are never
-  committed. `AUTH_REDIRECT_PROXY_URL` (Google OAuth callback proxy,
-  ADR-034) points at production's callback and must be re-checked on the new
-  host: a preview that has the proxy pointing at a production that has not
-  been redeployed fails with an invalid-state error.
-- **Rollback.** The Vercel project and Neon stay in place through the whole
-  milestone; cutover goes via Cloudflare DNS; dual-run, then Vercel is
-  decommissioned only after a soak period. The Vercel project is never deleted
-  in this milestone.
+- **`VERCEL_*` reads in src:** `server/config.ts:138`, `server/cache/keys.ts:16,39`,
+  `server/cache/redis.ts:150`, `server/libraryCache.ts:52` (deploy id / git sha as cache version),
+  `app/api/health/ai-mode/route.ts:62`, `lib/devLogin.ts:29`, `lib/demoDataReset.ts:20`,
+  `lib/siteMetadata.ts:52`, `lib/authConfig.ts:127`, `lib/deploymentOrigin.ts:44-52`,
+  `apps/web/next.config.ts:22`. Comments only: `server/admission.ts:47`, `server/users.ts:446`,
+  `app/api/dev/saved-days/route.ts`, `app/api/dev/content/playbooks/route.ts`.
+- **Scripts:** `apps/web/scripts/lib/vercel-build-steps.mjs:10` (`VERCEL_ENV`),
+  `apps/web/scripts/vercel-ignore-build.mjs:19`; `VERCEL_AUTOMATION_BYPASS_SECRET` in
+  `apps/web/scripts/assistant-live-set.mjs:106`, `apps/web/scripts/walk-preview.mjs:106`,
+  `scripts/check-auth-proxy.mjs:96`, `scripts/check-preview-links.mjs:67`,
+  `.github/workflows/preview-link-check.yml:47`. `.github/workflows/vercel-preview.yml` asks
+  Vercel's API for an on-demand preview.
+- **Vercel imports:** `@vercel/analytics` and `@vercel/speed-insights` in `app/layout.tsx:2-3,182-183`;
+  `@vercel/functions` (`waitUntil`, `dangerouslyDeleteByTag`) in `server/libraryCache.ts:2`, mocked in
+  `libraryCache.test.ts:9` and `entitlements/consoleCache.test.ts:7`; `@flags-sdk/vercel` in
+  `server/flags.ts:12`. Declared in `apps/web/package.json:49,68-70`.
+- **Cache:** `server/cache/redis.ts` is the Upstash REST client (`@upstash/redis`), reading
+  `KV_REST_API_URL` / `KV_REST_API_TOKEN` (:124) and `CACHE_DRIVER` (upstash|memory|off).
+  Decision 4 keeps the client and points it at serverless-redis-http on the box, so the only code
+  change is the `onVercel` auto-detect.
+- **Flags:** `ai-live` (`server/flags.ts:48`) and `admin-console` (:95), both on `vercelAdapter()`.
+  Callers: `server/quota.ts`, `server/entitlements/admin.ts`, `server/ai/modelSelection.ts`,
+  `server/flagEntities.ts`. Flags Explorer discovery: `app/.well-known/vercel/flags/route.ts`.
+- **`next.config.ts`:** no `output`; Toolbar CSP origins at :14-23, :61, :72, :84, :88, :101, :110;
+  HSTS deliberately absent (:130 says Vercel serves it); Sentry `automaticVercelMonitors: true` :304.
+- **`apps/web/vercel.json`:** deploys `main` only, `ignoreCommand` the ignore script, crons
+  `/api/cron/embed-days` 04:00 UTC and `/api/cron/tier-rollup` 04:30 UTC (both Bearer `CRON_SECRET`).
+- **Preview database:** every preview uses one disposable Neon branch, never production's, with
+  `PREVIEW_DB_IS_DISPOSABLE=true` (`docs/guidelines/environments-and-deploys.md:60`). Coolify
+  previews keep that rule: one shared preview branch, migrated at build by the same gate.
+- **No Dockerfile, `.dockerignore` or `nixpacks.toml` exists.** Root `docker-compose.yml` is local
+  Postgres only.
 
-## Part 1 - decouple from Vercel runtime APIs
+## Part 1 — one deployment-env module (~25 files)
 
-**Theme.** D1's groundwork, D3, D4, D5's survey. No behavior change on Vercel;
-every change lands behind the existing test lanes. No new route, so nothing in
-`server/public-api/exposure.ts`.
+Built at `lib/deployment/env.ts`, not `server/`: the lint wall bars pages from `@/server`, and pages import `devLogin` and `siteMetadata` (PR 702).
+
+**Theme.** Decisions 7 and 9's groundwork. One module answers *which environment am I*
+(`production` | `preview` | `development`) and *what is my public origin*, from new
+`APP_ENV` and `PUBLIC_ORIGIN` env vars, falling back to `VERCEL_ENV` / `VERCEL_*_URL`. Every
+`VERCEL_*` read in `apps/web/src` moves behind it. No behavior change on Vercel.
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
-| new `server/deployment/origin.ts` | - | the deployment-agnostic origin/env module: one place that answers "which host am I, which environment, what is my public origin", replacing `lib/deploymentOrigin.ts` and the `VERCEL_ENV` gates in `lib/authConfig.ts`, `lib/devLogin.ts`, `lib/demoDataReset.ts`, `lib/siteMetadata.ts`, `server/cache/keys.ts`, `server/libraryCache.ts`, `server/admission.ts`, `server/users.ts` | new `server/deployment/origin.test.ts` |
-| `lib/deploymentOrigin.ts` | - | deleted once its callers move | existing callers' tests |
-| `server/libraryCache.ts` | `waitUntil`, `dangerouslyDeleteByTag` :2 | replace the `@vercel/functions` pair with the Next-native equivalents (to verify in the part: `after()` and cache revalidation); no behavior change | existing library cache tests |
-| `server/flags.ts` | `vercelAdapter()` :12, :57, :104 | replace the `@flags-sdk/vercel` adapter with the D5 replacement, surveyed in this part and proposed, not assumed; `defaultValue: false` stays the fail-closed fallback | `server/flags.test.ts` |
-| `app/layout.tsx` | `Analytics`, `SpeedInsights` :2-3 | remove both (D4: drop by default; Plausible self-hosted only if Mitchell wants the numbers) | existing layout tests |
-| `apps/web/next.config.ts` | - | add `output: "standalone"` and a Dockerfile, or justify Nixpacks-only and record the decision; add HSTS, or record that Cloudflare serves it; turn off `automaticVercelMonitors`; the Toolbar CSP origins become conditional on the preview host, not on Vercel | `next.config.test.ts` |
-| `server/cache/redis.ts` | `resolveCacheDriver`, `getCache` | the `onVercel` detection becomes the new deployment-env module's answer; confirm the off-Vercel fallback for production (D3: self-hosted Redis in Coolify, or `off` with the revoke caveat recorded) | existing cache tests |
-| `apps/web/package.json` | `vercel-build` | no change in this part; Vercel still builds until cutover, and Part 2 adds the Coolify build path | - |
+| **New** `lib/deployment/env.ts` | `deployEnv()`, `publicOrigin()`, `deploymentVersion()` | the one reader of `APP_ENV`, `PUBLIC_ORIGIN`, `APP_VERSION`, with `VERCEL_*` fallbacks | **New** `lib/deployment/env.test.ts` |
+| `lib/deploymentOrigin.ts` | :44-52 | delegate to `publicOrigin()` (or delete and move callers) | `lib/deploymentOrigin.test.ts` |
+| `lib/authConfig.ts` | :127 | `deployEnv()` | `lib/authConfig.test.ts` |
+| `lib/siteMetadata.ts` | :52 | `deployEnv()` (NOINDEX unless production) | `lib/siteMetadata.test.ts` |
+| `lib/devLogin.ts`, `lib/demoDataReset.ts` | :29, :20 | `deployEnv()` | `lib/demoDataReset.test.ts` |
+| `server/config.ts`, `server/cache/keys.ts`, `server/cache/redis.ts` | :138; :16,39; :150 | `deployEnv()`; `redis.ts`'s auto picks `upstash` whenever `KV_REST_API_URL` is set, not only on Vercel | `server/cache/keys.test.ts`, `server/cache/redis.test.ts` |
+| `server/libraryCache.ts` | :52 | `deploymentVersion()` | `server/libraryCache.test.ts` |
+| `apps/web/sentry.shared.ts` | :34, :71 | Sentry environment and release from the env module (review of PR 702; fixed on part 1) | — |
+| `app/api/health/ai-mode/route.ts` | :62 | `deployEnv()` | — (add a case to `env.test.ts`) |
+| `apps/web/next.config.ts` | :22 `isPreview` | read `APP_ENV` first | `next.config.test.ts` |
+| `apps/web/.env.example` | — | document `APP_ENV`, `PUBLIC_ORIGIN`, `APP_VERSION` | — |
 
-**Preview walk:** nothing on screen changes. On a Vercel preview, the app behaves
-exactly as before: sign in with Google, open a trip, and confirm no `@vercel/`
-or `@flags-sdk/vercel` import remains in `apps/web/src` (grep).
+Comment-only mentions (`server/admission.ts`, `server/users.ts`, the two dev routes) are reworded.
+The other tests in the survey's list (`tripCovers.int`, `savedDayCovers.int`, `coverProxy`,
+`oauth/metadata`, `oauth/wellKnown`, `public-api/playbookCover.int`, the dev route int tests) set
+`VERCEL_*` in their setup; they keep passing through the fallback, and switch to `APP_ENV` where
+they are touched anyway. **Red test:** `env.test.ts` asserts `APP_ENV=preview` with no `VERCEL_ENV`
+reads as preview; seen red before the module exists.
 
-## Part 2 - provision the VPS and the deploy pipeline
+**Preview walk:** nothing on screen changes. On the part's preview, sign in with Google, open a
+trip, and confirm `/api/health/ai-mode` reports the preview environment.
 
-**Theme.** D1, D2's host half, D6. The app does not change in this part; the
-place it runs does.
+## Part 2 — drop the Vercel packages: cache, flags, analytics, headers (~20 files)
 
-| File | Entry point | Change | Test |
-|---|---|---|---|
-| (VPS, not the repo) | - | provision per D1 (Hostinger KVM 2 per the guide, or Hetzner priced at build time), Ubuntu 24.04, SSH, `apt update && apt upgrade` | the provider's console shows the box up |
-| (Coolify, not the repo) | - | install via the guide's install script; dashboard on :8000; firewall per the script | dashboard reachable, Docker running |
-| (Coolify, not the repo) | - | connect GitHub; create the project and the resource for the repo; Nixpacks builder, or the Dockerfile from Part 1 if that was the decision | a first deploy builds |
-| (Coolify, not the repo) | - | move the env vars from the survey (all of them; secrets never committed) into Coolify env vars | the deployed app boots and reads its config |
-| (Cloudflare, not the repo) | - | proxy DNS through Cloudflare free tier (the guide's DDoS recommendation, which also hides the VPS IP) and SSL via Let's Encrypt on the domain pointed at the VPS IP | the domain answers over https through Cloudflare |
-| `.github/workflows/vercel-preview.yml`, `apps/web/vercel.json` | - | left alone until D6 is answered; Part 2 does not remove the Vercel preview path until its replacement is proven | - |
-| new `docs/ops/coolify-vps.md` | - | the runbook: provider, box size, Coolify version, where the env vars live, how to deploy, how to roll back, who holds the keys | - |
-
-**To verify in this part:** what Coolify offers for per-PR preview deployments.
-If it cannot do them, the part says what replaces the preview walk the
-part-reviewer drives today on a Vercel preview (D6), and does not pretend
-otherwise.
-
-**Preview walk:** open a PR's Coolify preview URL and walk the app the way the
-part-reviewer walks a Vercel preview today. If Coolify cannot make per-PR
-previews, the walk uses the D6 replacement and the plan records what it is.
-
-## Part 3 - cron, migrations and backups on the new host
-
-**Theme.** D2's data half, D3, D7. The two crons, the preview-migrate gate, and
-the backup story, all without Vercel.
+**Theme.** Decisions 4, 5, 6, 10. After this part no `@vercel/` or `@flags-sdk/vercel` import is
+left in `apps/web/src`.
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
-| (Coolify or system cron, not the repo) | - | replace Vercel Cron with a Coolify scheduled task or a system cron hitting `/api/cron/embed-days` (04:00 UTC) and `/api/cron/tier-rollup` (04:30 UTC) with `CRON_SECRET`; verify which Coolify supports; never an in-app timer (D7) | trigger both endpoints by hand with `CRON_SECRET` and watch the sweep and the rollup run |
-| (Sentry, not the repo) | - | Sentry cron monitors via the Sentry API, replacing `automaticVercelMonitors`; to verify in the part | a missed run pages the way a missed Vercel cron run did |
-| `apps/web/scripts/vercel-build-migrate.mjs` | the `VERCEL_ENV=preview` AND `PREVIEW_DB_IS_DISPOSABLE=true` gate | replace the preview-migrate build step with an equivalent disposable-branch gate on the new host; the step now also imports content (M51 part 7), so the replacement covers both the migrate and the import; production stays dispatched via `migrate-production.yml` (ADR-004), unchanged | a preview build against a disposable branch migrates and imports without touching production |
-| (Neon, not the repo) | - | the database stays on Neon in this milestone (D2), so Neon backups stand; Coolify/app backups go to S3 per the guide (to verify in the part: what Coolify backs up, and where the credentials live) | a backup exists and a restore was at least listed, not just configured |
-| (Coolify, not the repo) | - | the staging/preview database story: a disposable Neon branch per preview, same rule as today (Preview and Production `DATABASE_URL` never the same value); how a Coolify preview gets its branch is part of this part | a preview's database is provably not production's |
+| `server/libraryCache.ts` | :2 `waitUntil`, `dangerouslyDeleteByTag` | Next's `after()` and `revalidateTag()`; same semantics | `server/libraryCache.test.ts`, `server/entitlements/consoleCache.test.ts` |
+| `server/flags.ts` | `vercelAdapter()` :12, :57, :104 | `ai-live` reads `FLAG_AI_LIVE` (decision 6); `admin-console` must stay per-user: an allowlist env (`ADMIN_CONSOLE_USERS`, ids or emails), never a global boolean that makes every signed-in user an operator; fail-closed stays | `server/flags.test.ts`, `server/entitlements/adminFlag.int.test.ts` |
+| `app/.well-known/vercel/flags/route.ts` | — | deleted (no Flags Explorer) | `server/flags.test.ts` |
+| `app/layout.tsx` | :2-3, :182-183 | remove `Analytics` and `SpeedInsights`; add a Plausible `next/script` only when `NEXT_PUBLIC_PLAUSIBLE_SRC` and `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` are set | `app/layout.test.ts` |
+| `apps/web/next.config.ts` | :14-23, :61-110 CSP; :130; :304 | drop the Toolbar and `va.vercel-scripts.com` origins; allow the Plausible origin from env; add HSTS (`max-age=63072000; includeSubDomains; preload`) in production only; `automaticVercelMonitors: false` | `next.config.test.ts` |
+| `apps/web/package.json` | :49, :68-70 | remove the four Vercel packages | — |
+| `server/quota.ts`, `server/ai/modelSelection.ts`, `server/flagEntities.ts`, `server/entitlements/admin.ts` | flag callers | only if the flag API changes shape | `server/quota.test.ts`, `server/ai/modelSelection.test.ts` |
 
-**Preview walk:** trigger the cron endpoints by hand with `CRON_SECRET` and watch
-the embed sweep and tier rollup run; run a preview build against a disposable
-branch and watch it migrate and import content without touching production.
+`ai-live` on a preview is now an env var on that preview. `apps/web/scripts/assistant-live-set.mjs`
+changes in Part 5 with the other scripts. **Red test:** `flags.test.ts` asserts `FLAG_AI_LIVE=true`
+turns `ai-live` on with no adapter. **Gate check:** `grep -rn "@vercel/\|@flags-sdk/vercel" apps/web/src`
+prints nothing.
 
-## Part 4 - cutover
+**Preview walk:** open the landing page and confirm the CSP has no `vercel.live`, the response has
+no HSTS on a preview, and an AI turn still works with `FLAG_AI_LIVE` set on the preview.
 
-**Theme.** D8, D9's execution. The DNS flip, the soak, the rollback, and the
-decision about what Vercel becomes.
+## Part 3 — Docker build, build-time migrate, Coolify previews (~12 files)
+
+**Theme.** Decisions 3, 7, 8. The app builds as a container Coolify runs, and a Coolify preview
+migrates the shared disposable preview branch at build time, behind the same gate as today.
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
-| (Cloudflare, not the repo) | - | dual-run: Vercel production keeps serving while the Coolify deployment serves the same code behind Cloudflare; flip DNS when the soak criteria are met | both deployments answer the same commit |
-| `docs/ops/coolify-vps.md` (from Part 2) | - | the soak: period length set at cutover time and recorded in the milestone file; what is watched during it (errors, cron runs, migration dispatches) | the soak log |
-| (Cloudflare, not the repo) | - | rollback is DNS back to Vercel (D8); rollback is exercised or documented before the flip is called done | a rollback rehearsal, or a written rollback runbook with the exact DNS change |
-| `docs/milestones/M59-self-host-on-coolify-vps.md` | - | record whether Vercel stays as a fallback or is decommissioned after the soak (D8); the project is never deleted in this milestone | - |
+| `apps/web/next.config.ts` | — | `output: "standalone"` (monorepo `outputFileTracingRoot` at the repo root) | `next.config.test.ts` |
+| **New** `Dockerfile` (repo root) | — | pnpm 11, Node 24, multi-stage; build runs the migrate step, `copy-maplibre-worker.mjs`, `next build`; runtime is the standalone server on :3000 | `docker build` in the part's run (see below) |
+| **New** `.dockerignore` | — | node_modules, `.next`, `.git`, worktrees, e2e artefacts | — |
+| `apps/web/scripts/lib/vercel-build-steps.mjs` → **new** `apps/web/scripts/lib/build-steps.mjs` | :10 | gate on `APP_ENV=preview` (falling back to `VERCEL_ENV`) AND `PREVIEW_DB_IS_DISPOSABLE=true`; production never migrates at build (ADR-004) | `apps/web/scripts/vercel-build-migrate.test.ts` (renamed `build-migrate.test.ts`) |
+| `apps/web/scripts/vercel-build-migrate.mjs` | — | renamed `build-migrate.mjs`; `vercel-build` keeps calling it until Part 5 | same test |
+| `apps/web/package.json` | :12 | add a `build:container` script; `vercel-build` unchanged | — |
+| **New** `docs/ops/coolify-vps.md` | — | the runbook skeleton: box, Coolify version, every env var by name (never value) per environment, deploy, previews, crons, backups, rollback | — |
 
-**Preview walk:** production serving from the VPS, previews working, cron firing,
-migrations dispatching, rollback exercised or documented.
+**Red test:** `build-migrate.test.ts` asserts `APP_ENV=preview` + disposable migrates and
+`APP_ENV=production` never does; seen red before the gate reads `APP_ENV`. **Verify:**
+`docker build .` succeeds locally and the container answers `/api/health` with a test
+`DATABASE_URL`; say so in the PR's "Not run, and why" line if Docker is not available.
+
+**Preview walk:** the part's Coolify preview (once O4 exists; until then the Vercel preview, which
+must still work) shows the app, signed in, on the preview Neon branch.
+
+## Part 4 — direct AI providers, no AI Gateway (added 2026-11-08)
+
+**Why.** The plan missed it: the assistant reaches models through Vercel's AI Gateway
+(`@ai-sdk/gateway`, `AI_GATEWAY_API_KEY`), and the blocked account's key now answers 401.
+**Mitchell, 2026-11-08: a direct Anthropic key.**
+
+**Theme.** Chat, classifier and tool models go through `@ai-sdk/anthropic` with
+`ANTHROPIC_API_KEY`. The `AI_MODEL_*` / `AI_CLASSIFIER_MODEL` values keep their gateway form
+(`anthropic/claude-…`): one resolver strips the provider prefix and refuses any provider other
+than `anthropic`. Embeddings (`openai/text-embedding-3-small`, the vectors already in Upstash
+Vector) go through `@ai-sdk/openai` with `OPENAI_API_KEY`. That is the same model, so no
+re-index. `@ai-sdk/gateway` and `AI_GATEWAY_API_KEY` are removed. Cost and usage telemetry
+(`ai_usage`) keeps its numbers: whatever the gateway's response metadata supplied must come
+from the provider's usage instead.
+
+**Red test:** the model resolver maps `anthropic/claude-haiku-5.5` to the Anthropic provider and
+throws on `openai/gpt-x` for a chat role; the embedding resolver maps
+`openai/text-embedding-3-small` to OpenAI.
+
+**Preview walk:** ask the assistant on staging and get an answer; `embed-days` run by hand writes
+vectors.
+
+## Part 5 — docs, agents, workflows; Vercel files removed (~30 files, mostly prose)
+
+**Theme.** Decisions 7, 8, 9. Everything that tells a person or an agent "Vercel" now says
+Coolify, and the Vercel-only files go. Lands at the cutover (O6).
+
+| File | Entry point | Change | Test |
+|---|---|---|---|
+| `apps/web/vercel.json`, `apps/web/scripts/vercel-ignore-build.mjs` | — | deleted (crons move to Coolify, O5) | `apps/web/scripts/vercel-ignore-build.test.ts` deleted |
+| `apps/web/package.json` | `vercel-build` | removed; `build:container` is the build | — |
+| `.github/workflows/vercel-preview.yml` | — | deleted (Coolify builds previews from PRs) | — |
+| `.github/workflows/preview-link-check.yml`, `scripts/check-preview-links.mjs`, `scripts/check-auth-proxy.mjs`, `apps/web/scripts/walk-preview.mjs`, `apps/web/scripts/assistant-live-set.mjs` | bypass secret reads | Coolify preview URLs; drop `VERCEL_AUTOMATION_BYPASS_SECRET` (previews are public, NOINDEX) or replace it with Coolify basic auth if Mitchell wants previews private | `apps/web/scripts/assistant-live-set.test.ts` |
+| `.claude/agents/phase-verifier.md`, `.claude/skills/review-a-part/SKILL.md`, `.claude/skills/ai-usage/SKILL.md` | — | walk a Coolify preview; logs come from Coolify, not Vercel runtime logs | — |
+| `AGENTS.md`, `docs/guidelines/environments-and-deploys.md`, `docs/guidelines/working-a-review.md`, `docs/guidelines/third-party-services-on-a-preview.md`, `docs/guidelines/observability-and-telemetry.md`, `docs/guidelines/cloud-agent-sessions.md`, `docs/guidelines/stack-and-constraints.md`, `docs/guidelines/ci-cost-and-capacity.md`, `docs/guidelines/repo-automation.md`, `docs/guidelines/billing-without-spending-money.md`, `docs/guidelines/external-data-manual-check.md`, `docs/guidelines/README.md` | — | Vercel → Coolify where it describes how things run now | — |
+| `docs/ops/coolify-vps.md` | — | filled in from O1–O6 | — |
+
+**Preview walk:** a Coolify preview of the top of the stack: sign in with Google, open a trip,
+ask the assistant, watch a pageview arrive in Plausible.
+
+## Ops track
+
+| Step | Who | What | Done when |
+|---|---|---|---|
+| O1 | **Mitchell** | Hetzner account, payment, a project, a read/write API token handed to the session | token works (`GET /servers`) |
+| O2 | agent (Hetzner token) | create the 8GB box (Ubuntu 24.04, nearest region to the audience), firewall 22/80/443/8000, SSH key; install Coolify via the guide's script; set concurrent builds to 1 | Coolify dashboard answers on :8000 |
+| O3 | **Mitchell** | create the Coolify admin account; install Coolify's GitHub App on the repo (GitHub requires the owner's click); create a Coolify API token for the session | token works |
+| O4 | agent (Coolify + Vercel DNS + Neon) | DNS: `coolify.`, `staging.` and `*.preview.caesura.today` A records to the box on Vercel DNS; the app resource from the Dockerfile with production env vars (copied from Vercel by name, values moved without printing them) on `staging.caesura.today`; PR previews on `*.preview.caesura.today` with the preview env (preview Neon branch, `PREVIEW_DB_IS_DISPOSABLE=true`, `APP_ENV=preview`); Redis + serverless-redis-http and Plausible as Coolify services; `AUTH_REDIRECT_PROXY_URL` and Google OAuth redirect URIs checked (adding a redirect URI in Google Cloud is **Mitchell's**) | staging serves the app from the box; a PR gets a preview URL |
+| O5 | agent (Coolify) | Coolify scheduled tasks: `curl` both cron routes with `CRON_SECRET` at 04:00 and 04:30 UTC; Sentry cron monitors for both; Stripe webhook endpoint unchanged (same domain) | both crons fired once by hand and once on schedule |
+| O6 | **Mitchell** merges, agent flips | walk on staging passes → Mitchell merges the top PR → Coolify deploys `main` → apex and `www` DNS flipped to the box → walk on `caesura.today` → Vercel project paused (not deleted); rollback runbook in `docs/ops/coolify-vps.md` | production serves from the VPS |
+
+Secrets never enter the repo, a PR, a log or this chat; env values move tool to tool.
+
+**Follow-up (Mitchell, 2026-11-08): plan retrieval is paused.** Coolify has `RAG_PLAN_RETRIEVAL=0`
+until there is an `OPENAI_API_KEY` for embeddings (Anthropic has no embedding model). Restore it
+before the gate closes: add the key, set the flag back to `1`, run `/api/cron/embed-days` once by
+hand. The alternative, Voyage or a self-hosted model, means re-embedding into a new index.
 
 ## Gate
 
-The milestone's exit gate. The **[walk]** is on the VPS deployment after Part 4,
-with the Vercel deployment still standing by as the rollback target.
+The milestone file's exit gate. CI reads on the top part's head (Part 5) once retargeted to
+`main`. The **[walk]** is Mitchell's on `staging.caesura.today` before the merge and on
+`caesura.today` after the flip: sign in with Google, open a trip, ask the assistant, watch a
+cron fire, and see the visit in Plausible.
