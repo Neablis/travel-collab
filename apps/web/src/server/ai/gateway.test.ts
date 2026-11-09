@@ -9,14 +9,14 @@ afterEach(() => {
 });
 
 describe("aiModel", () => {
-  it("throws when AI_GATEWAY_API_KEY is unset", async () => {
-    vi.stubEnv("AI_GATEWAY_API_KEY", "");
+  it("throws when ANTHROPIC_API_KEY is unset", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
     const { aiModel } = await import("./gateway");
-    expect(() => aiModel()).toThrow("AI_GATEWAY_API_KEY not set");
+    expect(() => aiModel()).toThrow("ANTHROPIC_API_KEY not set");
   });
 
-  it("returns a model handle when AI_GATEWAY_API_KEY is set", async () => {
-    vi.stubEnv("AI_GATEWAY_API_KEY", "test-key");
+  it("returns a model handle when ANTHROPIC_API_KEY is set", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
     const { aiModel } = await import("./gateway");
     expect(aiModel()).toBeDefined();
   });
@@ -29,20 +29,20 @@ describe("aiModel", () => {
 // "a handle came back".
 describe("aiClassifierModel", () => {
   async function classifierId(env: Record<string, string | undefined>) {
-    vi.stubEnv("AI_GATEWAY_API_KEY", "test-key");
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
     for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
     const { aiClassifierModel } = await import("./gateway");
     return aiClassifierModel().modelId;
   }
 
   it("defaults to AI_MODEL, so setting AI_MODEL alone still moves both", async () => {
-    await expect(classifierId({ AI_MODEL: "vendor/answer-model", AI_CLASSIFIER_MODEL: undefined })).resolves.toBe(
-      "vendor/answer-model",
+    await expect(classifierId({ AI_MODEL: "anthropic/answer-model", AI_CLASSIFIER_MODEL: undefined })).resolves.toBe(
+      "anthropic/answer-model",
     );
   });
 
   it("falls back to the same built-in default when neither is set", async () => {
-    vi.stubEnv("AI_GATEWAY_API_KEY", "test-key");
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
     vi.stubEnv("AI_MODEL", undefined);
     vi.stubEnv("AI_CLASSIFIER_MODEL", undefined);
     // Both imports come AFTER the stubs: `serverConfig` reads the env once at
@@ -56,69 +56,38 @@ describe("aiClassifierModel", () => {
   });
 
   it("uses AI_CLASSIFIER_MODEL when it is set, leaving the answer model alone", async () => {
-    vi.stubEnv("AI_GATEWAY_API_KEY", "test-key");
-    vi.stubEnv("AI_MODEL", "vendor/answer-model");
-    vi.stubEnv("AI_CLASSIFIER_MODEL", "vendor/tiny-classifier");
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
+    vi.stubEnv("AI_MODEL", "anthropic/answer-model");
+    vi.stubEnv("AI_CLASSIFIER_MODEL", "anthropic/tiny-classifier");
     const { aiModel, aiClassifierModel } = await import("./gateway");
-    expect(aiClassifierModel().modelId).toBe("vendor/tiny-classifier");
-    expect(aiModel().modelId).toBe("vendor/answer-model");
+    expect(aiClassifierModel().modelId).toBe("anthropic/tiny-classifier");
+    expect(aiModel().modelId).toBe("anthropic/answer-model");
   });
 
   // A second model id must not become a second door to the provider: it goes
   // through `aiModel`, so it inherits the key check rather than restating it.
   it("throws the same missing-key error as the answer model", async () => {
-    vi.stubEnv("AI_GATEWAY_API_KEY", "");
-    vi.stubEnv("AI_CLASSIFIER_MODEL", "vendor/tiny-classifier");
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("AI_CLASSIFIER_MODEL", "anthropic/tiny-classifier");
     const { aiClassifierModel } = await import("./gateway");
-    expect(() => aiClassifierModel()).toThrow("AI_GATEWAY_API_KEY not set");
+    expect(() => aiClassifierModel()).toThrow("ANTHROPIC_API_KEY not set");
   });
 });
 
-// The BYOK pin (2026-10-10): our key is an Anthropic key, and a Claude call the
-// Gateway routes to Vertex or Bedrock runs on Vercel's credits instead. Asserted
-// on what the provider is HANDED, through a recording model, so the merge with
-// a call's own options is part of what is tested.
-describe("pinnedToOwnKey", () => {
-  function recording(modelId: string) {
-    const seen: { providerOptions?: unknown }[] = [];
-    const model = {
-      specificationVersion: "v4",
-      provider: "gateway",
-      modelId,
-      supportedUrls: {},
-      doGenerate: async (options: { providerOptions?: unknown }) => {
-        seen.push(options);
-        return {
-          content: [{ type: "text", text: "ok" }],
-          finishReason: { unified: "stop", raw: undefined },
-          usage: {
-            inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
-            outputTokens: { total: 1, text: undefined, reasoning: undefined },
-          },
-          warnings: [],
-        };
-      },
-    };
-    return { model, seen };
-  }
-
-  it("pins an Anthropic model to Anthropic, keeping the call's own gateway options", async () => {
-    const { generateText } = await import("ai");
-    const { pinnedToOwnKey } = await import("./gateway");
-    const { model, seen } = recording("anthropic/claude-haiku-5.5");
-    const pinned = pinnedToOwnKey(model as never);
-    await generateText({ model: pinned, prompt: "hi", providerOptions: { gateway: { caching: "auto" } } });
-
-    expect(seen[0]!.providerOptions).toEqual({ gateway: { only: ["anthropic"], caching: "auto" } });
-    expect((pinned as { modelId: string }).modelId).toBe("anthropic/claude-haiku-5.5");
+// The handle reaches Anthropic directly, but keeps the Gateway-form id: the
+// ledger's `turn_model` and the rate table key on it.
+describe("aiModel provider", () => {
+  it("is served by Anthropic and keeps the Gateway-form model id", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
+    const { aiModel } = await import("./gateway");
+    const model = aiModel("anthropic/claude-haiku-5.5");
+    expect(model.provider).toContain("anthropic");
+    expect(model.modelId).toBe("anthropic/claude-haiku-5.5");
   });
 
-  it("leaves any other model to the Gateway's own routing", async () => {
-    const { generateText } = await import("ai");
-    const { pinnedToOwnKey } = await import("./gateway");
-    const { model, seen } = recording("zai/glm-5.3-flash");
-    await generateText({ model: pinnedToOwnKey(model as never), prompt: "hi" });
-
-    expect(seen[0]!.providerOptions).toBeUndefined();
+  it("refuses a non-Anthropic chat model", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
+    const { aiModel } = await import("./gateway");
+    expect(() => aiModel("openai/gpt-x")).toThrow(/only anthropic/);
   });
 });

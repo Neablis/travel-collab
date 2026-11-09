@@ -1,5 +1,11 @@
 # Running Caesura as cheaply as possible
 
+> **Superseded as a description of hosting (M59).** The app now runs on a
+> Coolify-managed VPS: crons are Coolify scheduled tasks (`/api/cron/embed-days`
+> 04:00 UTC, `/api/cron/tier-rollup` 04:30 UTC), `apps/web/vercel.json` and the
+> Vercel preview workflow are gone. The Vercel sections below are the cost
+> analysis as written on 2026-10-25 and are kept for the comparison.
+
 Status: draft for Mitchell's review. No Vercel or Neon dashboard was accessed
 while writing this (no account logins, no bill figures seen), so every number
 below is either **verified** on an official pricing page fetched 2026-10-25,
@@ -8,7 +14,7 @@ an **estimate** with its assumptions stated, or explicitly marked
 measured bill. See §2 for the three numbers only Mitchell can supply from his
 dashboards — they decide between several options below.
 
-Scope: the production app as deployed today — Next.js all-in-one on Vercel,
+Scope: the production app as deployed when this was written (2026-10-25) — Next.js all-in-one on Vercel,
 Neon Postgres via Drizzle, pnpm monorepo — at its current scale: a small
 invite-only site. All monthly estimates assume roughly 30k page views/month,
 under 1M requests/month, under ~10 GB transfer/month, a 1–2 GB database, one

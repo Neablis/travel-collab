@@ -1,16 +1,14 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
+import { resolve } from "node:path";
 import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 
 /**
- * The CSP is a build-time string keyed off VERCEL_ENV, so nothing that runs in
- * this repo's normal lanes ever observes the preview variant — a preview-only
- * directive is invisible until it is deployed and a browser refuses something.
- * That is exactly how the Vercel Toolbar came to be blocked for as long as it
- * was. These tests read the header out of `headers()` for both environments.
- *
- * The pairing matters more than either half: the point of gating the Toolbar
- * origins on `isPreview` is that production's policy does NOT gain them, so
- * every "preview allows X" assertion has a "production still refuses X" twin.
+ * The CSP is a build-time string, so nothing that runs in this repo's normal
+ * lanes observes a variant of it until it is deployed and a browser refuses
+ * something. These tests read the header out of `headers()` for each
+ * environment. Since M59 the policy is the same in preview and production:
+ * the Vercel Toolbar's origins are gone, and the one environment-dependent
+ * origin is the self-hosted Plausible.
  */
 
 // next.config.ts reads process.env at module scope, so each case needs a fresh
@@ -64,129 +62,90 @@ function directive(csp: string, name: string): string {
   return found;
 }
 
-/** Directive name → its source expressions, split on whitespace. */
-function sourcesByDirective(csp: string): Map<string, string[]> {
-  const entries: Array<[string, string[]]> = csp.split("; ").map((d) => {
-    const [name = "", ...sources] = d.trim().split(/\s+/);
-    return [name, sources];
-  });
-  return new Map(entries);
-}
-
-/**
- * Exactly what the preview policy adds and removes relative to production,
- * compared as whole source expressions. Directives that are identical in both
- * do not appear, so the assertion against this is total: any origin appearing
- * anywhere it should not shows up here, and so does a directive quietly losing
- * a keyword like `'none'`.
- */
-async function previewDelta(): Promise<{
-  added: Record<string, string[]>;
-  removed: Record<string, string[]>;
-}> {
-  const preview = sourcesByDirective(await cspFor("preview"));
-  const production = sourcesByDirective(await cspFor("production"));
-  const added: Record<string, string[]> = {};
-  const removed: Record<string, string[]> = {};
-  for (const name of new Set([...preview.keys(), ...production.keys()])) {
-    const before = production.get(name) ?? [];
-    const after = preview.get(name) ?? [];
-    const gained = after.filter((s) => !before.includes(s));
-    const lost = before.filter((s) => !after.includes(s));
-    if (gained.length) added[name] = gained;
-    if (lost.length) removed[name] = lost;
-  }
-  return { added, removed };
-}
-
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("the preview CSP admits the Vercel Toolbar", () => {
-  // Each entry is the directive the Toolbar's own documented policy needs
-  // (https://vercel.com/docs/vercel-toolbar/managing-toolbar) and the origin
-  // it needs there.
-  const required: ReadonlyArray<readonly [string, string]> = [
-    ["script-src", "https://vercel.live"],
-    ["style-src", "https://vercel.live"],
-    ["img-src", "https://vercel.live"],
-    ["img-src", "https://vercel.com"],
-    ["font-src", "https://vercel.live"],
-    ["font-src", "https://assets.vercel.com"],
-    ["connect-src", "https://vercel.live"],
-    ["connect-src", "wss://*.pusher.com"],
-    ["frame-src", "https://vercel.live"],
-  ];
-
-  it.each(required)("preview %s allows %s", async (name, origin) => {
-    expect(directive(await cspFor("preview"), name)).toContain(origin);
+describe("the CSP names no Vercel origin", () => {
+  it.each(["preview", "production", undefined])("in %o, in a built app or the dev server", async (env) => {
+    for (const nodeEnv of ["production", "development"] as const) {
+      const csp = await cspFor(env, nodeEnv);
+      expect(csp).not.toContain("vercel");
+      expect(csp).not.toContain("pusher");
+    }
   });
 
-  it.each(required)("production %s does NOT allow %s", async (name, origin) => {
-    expect(directive(await cspFor("production"), name)).not.toContain(origin);
+  it.each(["", "preview", "production", "PREVIEW", "prod"])("is the same policy whatever VERCEL_ENV is (%o)", async (value) => {
+    expect(await cspFor(value, "production")).toBe(await cspFor(undefined, "production"));
   });
 
-  // The first version of this test picked the added origins out with
-  // `token.includes("vercel.com")`, which CodeQL flagged twice as incomplete
-  // URL substring sanitization — correctly, and it was wrong for a second
-  // reason it did not mention: `https://assets.vercel.com` *contains*
-  // `vercel.com`, so the filter's three substrings overlapped and the "closed
-  // set" it claimed to pin was not the set it actually computed. Diffing whole
-  // source tokens per directive needs no matching at all.
-  it("preview adds exactly these origins to exactly these directives, and nothing else", async () => {
-    expect(await previewDelta()).toEqual({
-      added: {
-        "script-src": ["https://vercel.live"],
-        "style-src": ["https://vercel.live"],
-        "img-src": ["https://vercel.live", "https://vercel.com"],
-        "font-src": ["https://vercel.live", "https://assets.vercel.com"],
-        "connect-src": ["https://vercel.live", "wss://*.pusher.com"],
-        "frame-src": ["https://vercel.live"],
-      },
-      // The only thing preview takes away: frame-src stops being 'none' so the
-      // Toolbar can frame itself. Asserted rather than ignored, because a diff
-      // that only reports additions would call a directive silently dropping
-      // 'none' — or `object-src` losing it — no change at all.
-      removed: { "frame-src": ["'none'"] },
-    });
+  it("frame-src is 'none' everywhere", async () => {
+    for (const env of ["preview", "production", undefined]) {
+      expect(directive(await cspFor(env), "frame-src")).toBe("frame-src 'none'");
+    }
+  });
+});
+
+describe("the self-hosted Plausible origin", () => {
+  async function withPlausible(src: string | undefined, nodeEnv: "production" | "development" = "production") {
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", src);
+    return cspFor(undefined, nodeEnv);
+  }
+
+  it("is allowed to load its script and receive events, by origin only, when configured", async () => {
+    const csp = await withPlausible("https://stats.example.com/js/script.js");
+    expect(directive(csp, "script-src")).toBe("script-src 'self' 'unsafe-inline' https://stats.example.com");
+    expect(directive(csp, "connect-src")).toBe("connect-src 'self' https://tiles.openfreemap.org https://stats.example.com");
   });
 
-  it("frame-src stays 'none' anywhere but preview", async () => {
-    expect(directive(await cspFor("production"), "frame-src")).toBe("frame-src 'none'");
-    expect(directive(await cspFor(undefined), "frame-src")).toBe("frame-src 'none'");
+  it.each([undefined, "", "not a url"])("adds nothing when SRC is %o", async (src) => {
+    expect(await withPlausible(src)).toBe(await cspFor(undefined, "production"));
+  });
+});
+
+describe("Strict-Transport-Security", () => {
+  const hsts = async (vercelEnv: string | undefined, appEnv?: string) => {
+    vi.stubEnv("APP_ENV", appEnv);
+    return (await headersFor(vercelEnv, "production"))
+      .find((r) => r.source === "/:path*")
+      ?.headers.find((h) => h.key === "Strict-Transport-Security")?.value;
+  };
+
+  // The app serves it itself now that nothing in front of it does (M59), and
+  // only on production: every `next build` has NODE_ENV=production, previews
+  // included, so the gate is the deployment environment.
+  it("is served on the production deployment, without includeSubDomains (previews share the apex)", async () => {
+    expect(await hsts(undefined, "production")).toBe("max-age=63072000");
+    expect(await hsts("production")).toBe("max-age=63072000");
   });
 
-  // This asserted only that `vercel.live` and `pusher.com` were absent, which
-  // left `https://vercel.com` and `https://assets.vercel.com` free to appear in
-  // a local or CI policy with the test still green (CodeRabbit, PR #80).
-  // Naming all four would fix that case and keep the shape that caused it —
-  // a hand-maintained list of things to check for. Asserting the whole policy
-  // is identical to production cannot fall behind: any origin, on any
-  // directive, in either direction, fails it.
-  it("a VERCEL_ENV that is absent entirely (local, CI) produces exactly the production policy", async () => {
-    // Proves the variable really is gone, not set to "" — the distinction this
-    // whole case exists for.
-    vi.resetModules();
-    vi.stubEnv("VERCEL_ENV", undefined);
-    expect(process.env.VERCEL_ENV).toBeUndefined();
-    expect(await cspFor(undefined)).toBe(await cspFor("production"));
+  it("is not served on a preview build, even though NODE_ENV is production", async () => {
+    expect(await hsts(undefined, "preview")).toBeUndefined();
+    expect(await hsts("production", "preview")).toBeUndefined();
   });
 
-  it("APP_ENV=preview admits the Toolbar origins with no VERCEL_ENV, and wins over VERCEL_ENV", async () => {
-    vi.resetModules();
-    vi.stubEnv("APP_ENV", "preview");
-    expect(directive(await cspFor(undefined), "script-src")).toContain("https://vercel.live");
-    vi.stubEnv("APP_ENV", "production");
-    expect(directive(await cspFor("preview"), "script-src")).not.toContain("https://vercel.live");
+  it("is not served when no deployment environment is set", async () => {
+    expect(await hsts(undefined)).toBeUndefined();
+  });
+});
+
+describe("X-Robots-Tag", () => {
+  const robots = async (appEnv: string | undefined) => {
+    vi.stubEnv("APP_ENV", appEnv);
+    return (await headersFor(undefined, "production"))
+      .find((r) => r.source === "/:path*")
+      ?.headers.find((h) => h.key === "X-Robots-Tag")?.value;
+  };
+
+  // Previews are public URLs of a real app with sign-in pages; nothing else
+  // stops a crawler indexing them.
+  it("keeps a preview out of search indexes, on every path", async () => {
+    expect(await robots("preview")).toBe("noindex, nofollow");
   });
 
-  it.each(["", "preview-", "PREVIEW", "prod", "development", " preview", "Preview"])(
-    "%o is not preview — only the exact value is",
-    async (value) => {
-      expect(await cspFor(value)).toBe(await cspFor("production"));
-    },
-  );
+  it.each(["production", undefined])("is not sent when APP_ENV is %o", async (appEnv) => {
+    expect(await robots(appEnv)).toBeUndefined();
+  });
 });
 
 /**
@@ -295,6 +254,8 @@ describe("the Sentry build plugin", () => {
     }
     expect(seen).toHaveLength(1);
     expect(seen[0]?.telemetry).toBe(false);
+    // Vercel Cron Monitors do not exist on a self-hosted box.
+    expect((seen[0]?.webpack as { automaticVercelMonitors?: boolean }).automaticVercelMonitors).toBe(false);
   });
 });
 
@@ -307,8 +268,7 @@ describe("the Sentry build plugin", () => {
  * them fails here instead of in a browser nobody is watching.
  */
 describe("the four counter-probed CSP surfaces (KI-2026-09-12-d)", () => {
-  // The dev branch: React Refresh needs 'unsafe-eval', and the analytics
-  // debug script is off-origin. A built app needs neither, and the probe
+  // The dev branch: React Refresh needs 'unsafe-eval'. A built app does not, and the probe
   // showed a production build refusing both — which stays true only while
   // the relaxations stay behind `isDev`.
   it("a production build's script-src is exactly 'self' 'unsafe-inline'", async () => {
@@ -327,14 +287,14 @@ describe("the four counter-probed CSP surfaces (KI-2026-09-12-d)", () => {
   // nothing else of Unsplash's — its API is the server's to call.
   it.each(["production", "preview", undefined])("img-src admits Unsplash's image CDN and no other new origin (%o)", async (env) => {
     expect(directive(await cspFor(env, "production"), "img-src")).toBe(
-      `img-src 'self' data: blob: https://tiles.openfreemap.org https://images.unsplash.com${env === "preview" ? " https://vercel.live https://vercel.com" : ""}`,
+      "img-src 'self' data: blob: https://tiles.openfreemap.org https://images.unsplash.com",
     );
   });
 
   it("the dev server's policy carries the dev-only relaxations", async () => {
     const dev = await cspFor(undefined, "development");
     expect(directive(dev, "script-src")).toBe(
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
     );
     expect(directive(dev, "connect-src")).toBe("connect-src 'self' https://tiles.openfreemap.org ws:");
   });
@@ -372,5 +332,20 @@ describe("the four counter-probed CSP surfaces (KI-2026-09-12-d)", () => {
       routes.find((r) => r.source === source)?.headers.find((h) => h.key === "Content-Security-Policy")?.value;
     expect(cspOf("/:path*")).toBeDefined();
     expect(cspOf("/:prefix(s|invite|n)/:path*")).toBe(cspOf("/:path*"));
+  });
+});
+
+// The Dockerfile copies `.next/standalone` and runs `apps/web/server.js` out of
+// it. Without `output: "standalone"` there is no such directory; with the
+// tracing root left at `apps/web`, the workspace packages and the hoisted
+// `node_modules` are not traced and the server starts without them (M59).
+describe("the container build's output", () => {
+  it("is a standalone server traced from the repo root", async () => {
+    vi.resetModules();
+    const { default: config } = await import("./next.config");
+    expect({ output: config.output, root: config.outputFileTracingRoot }).toEqual({
+      output: "standalone",
+      root: resolve(__dirname, "../.."),
+    });
   });
 });

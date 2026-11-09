@@ -246,103 +246,40 @@ production (`environments-and-deploys.md`), and its build applies pending
 migrations itself when `PREVIEW_DB_IS_DISPOSABLE=true` — so `0021` and `0022`
 are already there. Test-mode subscription rows land somewhere throwaway.
 
-### The thing that is different: Stripe cannot reach the webhook
+### The webhook can reach a preview
 
-Preview URLs sit behind **Vercel Authentication** (`ssoProtection`, scoped
-`all_except_custom_domains`). Your browser can get past it. Stripe's webhook
-POST cannot: it is an unauthenticated server-to-server request, so it 302s to
-`vercel.com/sso-api` and your endpoint never runs.
+Previews are public (M59), so Stripe's server-to-server POST reaches
+`https://<pr number>.preview.caesura.today/api/stripe/webhook` with no credential
+in the way. (On Vercel the preview sat behind Authentication, which 302'd the
+POST and needed a bypass secret in a header or a custom domain. None of that
+workaround survives; this section used to be a page about it.)
 
-**That matters more here than anywhere else in the app**, because the webhook is
+**The webhook matters more here than anywhere else in the app**, because it is
 the *sole writer* (ADR-047). Without it a checkout completes, Stripe takes the
 test payment, and the account is granted nothing — which looks exactly like a
-broken product and is really a blocked request.
+broken product and is really an endpoint that was never registered.
 
-> #### Do not put the bypass secret in the webhook URL
->
-> Vercel accepts `?x-vercel-protection-bypass=<secret>` as a query parameter, and
-> **the first version of this section told you to register that as your Stripe
-> endpoint. That was wrong.** Mitchell caught it. It is written down rather than
-> quietly deleted, because the URL form is genuinely convenient and somebody will
-> reach for it again.
->
-> **Vercel documents this form, and for Stripe by name** — *"For tools that
-> cannot set custom headers (such as webhook URL verification for third-party
-> services like Slack, Stripe, or other integrations), append the bypass secret
-> as a query parameter to your URL."* So it is the vendor's sanctioned route,
-> not a hack somebody invented. It is still the wrong default here, and both
-> things are true at once: sanctioned and leaky.
->
-> A query parameter is not a private channel:
->
-> - **Stripe stores the endpoint URL** and shows it to anyone with dashboard
->   access — in the endpoint's settings, and beside every delivery attempt.
-> - **Vercel logs the request line**, query string included, so the secret lands
->   in runtime logs and anything they drain to.
-> - The blast radius is not this preview. `environments-and-deploys.md` says it
->   plainly: *"anyone holding it can reach every protected deployment this
->   project has"* — production's `vercel.app` URL among them, since that is
->   protected by the same `all_except_custom_domains` rule.
->
-> A credential that unlocks every deployment does not belong in a field two
-> systems log and one of them displays.
->
-> **If you use it anyway** — and for a single proving run that is a defensible
-> call — **regenerate the bypass secret in Vercel's project settings afterwards.**
-> That is what turns an indefinite leak into a bounded one.
+Two ways to get the event to a preview:
 
-### Three ways that do not leak it
+**1. A dashboard endpoint** at the preview's `/api/stripe/webhook`, in Stripe's
+test mode. Its `whsec_` is the preview scope's `STRIPE_WEBHOOK_SECRET`. A test-mode
+event applies only on the deployment its checkout began on (the
+`deploymentOrigin` metadata `startCheckout` writes), so a second endpoint hearing
+the same event records it as `unattributable` and grants nothing.
 
-**1. Keep the webhook local, even while the browser is on the preview.**
-`stripe listen` forwards wherever you point it, and nothing says that has to be
-the host you are clicking on. Sign in to the preview, start checkout there, pay
-on Stripe's real hosted page — and let the event land on your machine, where no
-bypass is involved at all. What you give up is the grant: a test-mode event
-applies only on the deployment its checkout began on (the `deploymentOrigin`
-metadata `startCheckout` writes), so your machine records it as
-`unattributable` and the preview never hears it. For *"does Checkout render,
-redirect, and come back"* that is usually the whole question.
-
-**2. Forward to the preview with the bypass as a HEADER — the best of both.**
-`stripe listen --forward-to` takes any URL, and `--headers` (short `-H`, a
-comma-separated `"Key: Value"` list) attaches whatever you like. So the CLI can
-carry the bypass Vercel wants while the secret stays in your shell — never in
-Stripe's stored config, never in a logged request line:
+**2. `stripe listen` forwarding to the preview**, which needs no registration:
 
 ```bash
-stripe listen \
-  --forward-to https://travel-collab-git-<branch>-neablis-projects.vercel.app/api/stripe/webhook \
-  --headers "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET"
+stripe listen --forward-to https://<pr number>.preview.caesura.today/api/stripe/webhook
 ```
 
-**The flag is real** — an earlier version of this section said "check
-`stripe listen --help` before relying on it" because the sandbox writing it
-could not reach Stripe's docs. It has since been confirmed against the CLI's own
-`listen` reference and the pull request that added it.
-
 **The catch is the signing secret.** `stripe listen` mints a NEW `whsec_` each
-run, and the deployment reads `STRIPE_WEBHOOK_SECRET` at build — so every restart
-of the CLI means updating the Preview scope and redeploying. Fine for one proving
-run; miserable as a loop. That asymmetry is the real argument for doing the
-iterating locally and spending a deployment only on the thing local cannot show.
+run, and the deployment reads `STRIPE_WEBHOOK_SECRET` when it starts, so every
+restart of the CLI means updating the Preview scope and restarting the preview.
+Fine for one proving run; miserable as a loop. Iterate locally, and spend a
+preview only on the thing local cannot show.
 
-**3. Give the preview a custom domain.** `all_except_custom_domains` means a
-custom domain is not protected at all, so Stripe reaches it with no credential of
-any kind. Heaviest to set up, and the only durable answer if preview webhooks
-become routine rather than a one-off.
-
-#### Three that sound like the answer and are not
-
-- **Deployment Protection Exceptions** exempt named preview domains from
-  protection outright, which would be exactly right — and they need Enterprise,
-  or the *Advanced Deployment Protection* add-on on Pro. This project's team is
-  on **hobby**, so it is not available. Worth revisiting if the plan changes,
-  because it removes the problem rather than working around it.
-- **Trusted Sources** authenticate callers with a short-lived OIDC token, for
-  other Vercel projects and things like GitHub Actions. Stripe cannot mint one.
-- **OPTIONS Allowlist** exempts preflight `OPTIONS` only. A webhook is a `POST`.
-
-**If none of those are worth it**, walk the preview without a webhook and know
+**If neither is worth it**, walk the preview without a webhook and know
 what you are looking at: Checkout renders, takes the test card, and returns to
 `?checkout=cs_…`; the pending screen waits, and after twenty polls says it is
 taking a while. That is the honest failure of a webhook that never lands — what a
@@ -350,10 +287,10 @@ real user would see if the endpoint were down, and worth seeing once on purpose.
 
 ### Setting it up
 
-1. **Set the keys in Vercel's Preview scope** — `STRIPE_SECRET_KEY` (`sk_test_`,
+1. **Set the keys in Coolify's Preview scope** — `STRIPE_SECRET_KEY` (`sk_test_`,
    and read *The one rule* again before you paste) and `STRIPE_WEBHOOK_SECRET`.
 2. **Point Stripe at whichever route you chose.** With `stripe listen` there is
-   nothing to register; with a custom domain it is a dashboard endpoint there.
+   nothing to register; otherwise it is a dashboard endpoint.
    Subscribe to the five types `HANDLED` lists in `webhook.ts`:
    `checkout.session.completed`, `customer.subscription.created|updated|deleted`,
    `invoice.payment_failed`, `invoice.payment_succeeded`.
@@ -361,22 +298,17 @@ real user would see if the endpoint were down, and worth seeing once on purpose.
    prints its own `whsec_` per session; a dashboard endpoint has a different one.
    They are not interchangeable, and the wrong one verifies nothing — a failure
    that looks like Stripe being down rather than like a wrong variable.
-4. **Redeploy**, because the deployment reads its environment at build.
+4. **Restart the preview**, because the container reads its environment when it starts.
 5. **Check it took**: sign in, open `/plans`. The "not available on this
    deployment" banner is gone when `billingConfigured()` is true.
 
-**A dashboard endpoint pointed at a branch alias must be deleted when the branch
-merges.** It retries forever against a URL that no longer deploys, and the
+**A dashboard endpoint pointed at a preview must be deleted when the PR
+merges.** It retries forever against a URL that no longer answers, and the
 failures sit in the Stripe dashboard looking like a product that is broken.
 
 ### Getting yourself in
 
-A `?_vercel_share=` URL (23 hours, minted per deployment by the Vercel MCP's
-`get_access_to_vercel_url`) or the bypass secret as an
-`x-vercel-protection-bypass` **header**, with `x-vercel-set-bypass-cookie: true`
-if you want the rest of the browsing session to carry it. A browser is a place a
-header is easy to send and a URL is easy to paste somewhere it should not be —
-prefer the share link for anything you might screenshot.
+A preview is public: open its URL, and sign in as you would anywhere.
 
 ### What a preview actually proves, which is less than you would think
 
@@ -424,12 +356,11 @@ Once:
    checkout, naming accounts it does not have or, by a coincidence of id, does.
    In the Stripe dashboard, create a sandbox → Developers → Webhooks → add an
    endpoint at production's `/api/stripe/webhook`, for the same events as the
-   live one. Its signing secret is the `whsec_` for step 2. Production is a
-   custom domain, so no bypass header is involved.
-2. **Set the pair in Vercel's Production scope**: `STRIPE_TEST_SECRET_KEY` (the
+   live one. Its signing secret is the `whsec_` for step 2. 
+2. **Set the pair in Coolify's Production scope**: `STRIPE_TEST_SECRET_KEY` (the
    sandbox's own `sk_test_`) and `STRIPE_TEST_WEBHOOK_SECRET` (step 1's
    `whsec_`).
-3. **Redeploy.** Vercel injects variables at build time.
+3. **Restart the application.** Coolify injects variables when it starts the container.
 
 Then, each time: switch the account on in the console (its account page's
 **Stripe test mode**, which M47 part 3 adds; until then checkout sells in the

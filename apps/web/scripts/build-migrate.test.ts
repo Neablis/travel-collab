@@ -4,19 +4,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { buildSteps, runBuildSteps } from "./lib/vercel-build-steps.mjs";
+import { buildSteps, runBuildSteps } from "./lib/build-steps.mjs";
 import {
   describeMigrateError,
   diagnoseAppliedMigrations,
   renumberedMessage,
 } from "./lib/preview-migrate.mjs";
 
-const ENTRY = fileURLToPath(new URL("./vercel-build-migrate.mjs", import.meta.url));
+const ENTRY = fileURLToPath(new URL("./build-migrate.mjs", import.meta.url));
 
 // M51 part 7: a preview's database holds the library the landing sea links
 // into, so a preview build imports `content/` after migrating. Production's
 // content is dispatched by hand (`import-content-production.yml`), never here.
-describe("the Vercel build's database steps", () => {
+describe("the build's database steps", () => {
   it("imports content on a disposable preview, after migrating and without pruning", () => {
     const steps = buildSteps({ VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" });
     expect(steps.run).toEqual([
@@ -31,13 +31,41 @@ describe("the Vercel build's database steps", () => {
   });
 
   it("touches no database on production", () => {
-    expect(buildSteps({ VERCEL_ENV: "production", PREVIEW_DB_IS_DISPOSABLE: "true" })).toEqual({
-      skip: "[vercel-build-migrate] skipped (VERCEL_ENV=production)",
+    expect(buildSteps({ APP_ENV: "production", PREVIEW_DB_IS_DISPOSABLE: "true" })).toEqual({
+      skip: "[build-migrate] skipped (APP_ENV=production)",
     });
+    expect(buildSteps({ VERCEL_ENV: "production", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("skip");
+  });
+
+  // The case that tells the Coolify gate from the old VERCEL_ENV-only one: a
+  // production box that also carries a stale VERCEL_ENV=preview and the
+  // disposable flag. Read from VERCEL_ENV alone this migrates production.
+  it("skips on production even when a stale VERCEL_ENV=preview and the flag are present", () => {
+    expect(
+      buildSteps({ APP_ENV: "production", VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" }),
+    ).toEqual({ skip: "[build-migrate] skipped (APP_ENV=production)" });
+  });
+
+  // A self-hosted box sets APP_ENV and no VERCEL_ENV (M59).
+  it("migrates a disposable preview that names itself by APP_ENV alone", () => {
+    expect(buildSteps({ APP_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("run");
+  });
+
+  it("lets APP_ENV win over VERCEL_ENV, as the env module does", () => {
+    expect(buildSteps({ APP_ENV: "production", VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty(
+      "skip",
+    );
+  });
+
+  // `||`, not `??`: Coolify can hold APP_ENV as an empty string, and
+  // `deployEnv()` treats that as unset and falls back to VERCEL_ENV.
+  it("falls back to VERCEL_ENV when APP_ENV is empty, as the env module does", () => {
+    expect(buildSteps({ APP_ENV: "", VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("run");
+    expect(buildSteps({ APP_ENV: "", VERCEL_ENV: "production", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("skip");
   });
 
   it("refuses a preview whose database nobody has marked disposable", () => {
-    expect(buildSteps({ VERCEL_ENV: "preview" })).toHaveProperty("refuse");
+    expect(buildSteps({ APP_ENV: "preview" })).toHaveProperty("refuse");
   });
 
   it("runs every step it decided on, in order", () => {
@@ -51,11 +79,11 @@ describe("the Vercel build's database steps", () => {
   // URL. Node realpaths the URL and not `argv[1]`, so a symlink in the build
   // path made the whole step exit 0 in silence. Through one, it still refuses.
   it("refuses from the entry itself, even when it is reached through a symlink", () => {
-    const dir = mkdtempSync(join(tmpdir(), "vercel-build-"));
+    const dir = mkdtempSync(join(tmpdir(), "build-migrate-"));
     try {
-      const link = join(dir, "vercel-build-migrate.mjs");
+      const link = join(dir, "build-migrate.mjs");
       symlinkSync(ENTRY, link);
-      const env: NodeJS.ProcessEnv = { ...process.env, VERCEL_ENV: "preview" };
+      const env: NodeJS.ProcessEnv = { ...process.env, APP_ENV: "preview" };
       delete env.PREVIEW_DB_IS_DISPOSABLE;
       const result = spawnSync(process.execPath, [link], { env, encoding: "utf8" });
       expect({ status: result.status, refused: result.stderr.includes("REFUSING") }).toEqual({

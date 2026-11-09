@@ -2,26 +2,26 @@
 // any deployment that does not itself report preview or local development.
 // The first version decided from the hostname, and a production deployment's
 // own hashed URL passed it (Copilot on #301).
-import { describe, expect, it } from "vitest";
-import { argValue, isFatalStatus, targetVerdict, transportVerdict } from "./assistant-live-set.mjs";
+import { describe, expect, it, vi } from "vitest";
+import { argValue, headersFor, isFatalStatus, targetVerdict, transportVerdict } from "./assistant-live-set.mjs";
 
 describe("the live set's target guard", () => {
   it("allows a deployment that reports preview or development", () => {
-    expect(targetVerdict("preview", "x-git-y.vercel.app").ok).toBe(true);
+    expect(targetVerdict("preview", "pr-12.preview.caesura.today").ok).toBe(true);
     expect(targetVerdict("development", "localhost").ok).toBe(true);
   });
 
   it("refuses production, and anything it could not read", () => {
-    expect(targetVerdict("production", "x.vercel.app").ok).toBe(false);
-    expect(targetVerdict(undefined, "x.vercel.app").ok).toBe(false);
-    expect(targetVerdict("staging", "x.vercel.app").ok).toBe(false);
+    expect(targetVerdict("production", "pr-12.preview.caesura.today").ok).toBe(false);
+    expect(targetVerdict(undefined, "pr-12.preview.caesura.today").ok).toBe(false);
+    expect(targetVerdict("staging", "pr-12.preview.caesura.today").ok).toBe(false);
   });
 
-  // A deployment that hides VERCEL_ENV reports null; that is only safe when
+  // A deployment that hides APP_ENV reports null; that is only safe when
   // the target is this machine (review of #301).
   it("allows an unknown environment only on localhost", () => {
     expect(targetVerdict(null, "localhost").ok).toBe(true);
-    expect(targetVerdict(null, "travel-collab-abc123xyz-team.vercel.app").ok).toBe(false);
+    expect(targetVerdict(null, "caesura.today").ok).toBe(false);
   });
 });
 
@@ -29,13 +29,13 @@ describe("the live set's target guard", () => {
 // the transport is checked before it, not left to `targetVerdict` after it.
 describe("the live set's transport guard", () => {
   it("allows HTTPS anywhere, and plain HTTP only to this machine", () => {
-    expect(transportVerdict(new URL("https://x-git-y.vercel.app")).ok).toBe(true);
+    expect(transportVerdict(new URL("https://pr-12.preview.caesura.today")).ok).toBe(true);
     expect(transportVerdict(new URL("http://localhost:3000")).ok).toBe(true);
     expect(transportVerdict(new URL("http://127.0.0.1:3000")).ok).toBe(true);
   });
 
   it("refuses plain HTTP to a remote host", () => {
-    expect(transportVerdict(new URL("http://x-git-y.vercel.app")).ok).toBe(false);
+    expect(transportVerdict(new URL("http://pr-12.preview.caesura.today")).ok).toBe(false);
   });
 });
 
@@ -57,5 +57,17 @@ describe("the live set's stop condition", () => {
     expect(isFatalStatus(403)).toBe(true);
     expect(isFatalStatus(200)).toBe(false);
     expect(isFatalStatus(500)).toBe(false);
+  });
+});
+
+// Previews on the Coolify box are public and NOINDEX, so there is no gate to
+// bypass; a leftover Vercel secret in the shell must not be sent to the host.
+describe("the live set's request headers", () => {
+  it("sends the cookie and no protection-bypass header, even with a Vercel secret in the environment", () => {
+    vi.stubEnv("VERCEL_AUTOMATION_BYPASS_SECRET", "leftover");
+    const headers = headersFor("authjs.session-token=abc");
+    vi.unstubAllEnvs();
+    expect(headers.Cookie).toBe("authjs.session-token=abc");
+    expect(Object.keys(headers).map((k) => k.toLowerCase())).not.toContain("x-vercel-protection-bypass");
   });
 });

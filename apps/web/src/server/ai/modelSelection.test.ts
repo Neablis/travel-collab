@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mocked so the real module — and therefore `flags/next`, which reaches for
-// next/headers and a request scope — never loads in a unit test.
+// Mocked so each test decides what the flag answers, without touching the
+// environment.
 const aiLiveFlag = vi.fn<() => Promise<boolean>>();
 vi.mock("@/server/flags", () => ({ aiLiveFlag: () => aiLiveFlag() }));
 
-// aiModel() throws without AI_GATEWAY_API_KEY; stub both so the live branch is
+// aiModel() throws without ANTHROPIC_API_KEY; stub both so the live branch is
 // testable without a key, and so a stray call is visible. They are separate
 // spies on purpose: the whole risk of a second model id is that it becomes a
 // second way to reach a provider, and "the classifier was not constructed
@@ -80,22 +80,17 @@ describe("aiLive", () => {
     expect(aiLiveFlag).not.toHaveBeenCalled();
   });
 
-  // aiLiveFlag()'s own `defaultValue: false` only covers a throw/undefined
-  // from inside the SDK's `decide` — it does NOT cover readOverrides /
-  // decryptOverrides throwing earlier in getRun(), which happens when
-  // FLAGS_SECRET is unset/malformed and a stray override cookie is present.
-  // aiLive() must fail closed (simulated) rather than let that throw become
-  // an unhandled rejection out of the AI handler.
+  // aiLive() must fail closed (simulated) rather than let a throwing flag
+  // read become an unhandled rejection out of the AI handler.
   it("resolves to false, not rejects, when the flag throws", async () => {
-    aiLiveFlag.mockRejectedValue(new Error("readOverrides: invalid FLAGS_SECRET"));
+    aiLiveFlag.mockRejectedValue(new Error("flag read failed"));
     await expect(aiLive()).resolves.toBe(false);
   });
 });
 
-// `source` is the half of the answer that says how far it generalises, and it
-// exists because the `ai-live` flag is per-user targetable (ADR-019 amendment
-// 2026-09-08). e2e's global setup clears a whole suite on it, so getting it
-// backwards would let a run that could bill a real model proceed.
+// `source` is the half of the answer that says what decided it. e2e's global
+// setup clears a whole suite on `"env"`, so getting it backwards would let a
+// run that could bill a real model proceed.
 describe("aiLiveMode", () => {
   it('reports source "env" when AI_LIVE decided it, for both values', async () => {
     process.env.AI_LIVE = "false";
@@ -113,7 +108,7 @@ describe("aiLiveMode", () => {
   // The degrade path still says where it came from. Reporting `"env"` here
   // would claim a server-wide guarantee on the strength of a failed lookup.
   it('reports a failed flag read as not live, and still as source "flag"', async () => {
-    aiLiveFlag.mockRejectedValue(new Error("identify: JWT decryption failed"));
+    aiLiveFlag.mockRejectedValue(new Error("flag read failed"));
     await expect(aiLiveMode()).resolves.toEqual({ live: false, source: "flag" });
   });
 });
@@ -125,16 +120,16 @@ describe("aiLiveMode", () => {
 // start and then said nothing for however long that container stayed warm,
 // even while every request through it kept using the override. Moved into
 // `aiLiveMode()`, it now fires on every resolution the override decides.
-describe("Vercel AI_LIVE override warning (KI-24)", () => {
-  it("warns on every resolution AI_LIVE decides on Vercel, not just the first", async () => {
-    vi.stubEnv("VERCEL", "1");
+describe("deployed AI_LIVE override warning (KI-24)", () => {
+  it("warns on every resolution AI_LIVE decides in a deployment, not just the first", async () => {
+    vi.stubEnv("APP_ENV", "production");
     process.env.AI_LIVE = "true";
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       await aiLiveMode();
       await aiLiveMode();
       expect(warnSpy).toHaveBeenCalledTimes(2);
-      expect(warnSpy.mock.calls[0]?.[0]).toMatch(/AI_LIVE is set in a Vercel environment/);
+      expect(warnSpy.mock.calls[0]?.[0]).toMatch(/AI_LIVE is set in a deployed environment/);
     } finally {
       warnSpy.mockRestore();
       vi.unstubAllEnvs();
@@ -142,9 +137,9 @@ describe("Vercel AI_LIVE override warning (KI-24)", () => {
   });
 
   // The escape hatch is LOCAL/CI ONLY by design (see aiLiveMode()'s own doc
-  // comment) — outside a Vercel environment, AI_LIVE deciding the outcome is
+  // comment) — outside a deployment, AI_LIVE deciding the outcome is
   // the expected, documented path and must not itself be noisy.
-  it("does not warn when AI_LIVE is set outside a Vercel environment", async () => {
+  it("does not warn when AI_LIVE is set outside a deployment", async () => {
     process.env.AI_LIVE = "true";
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {

@@ -147,78 +147,26 @@ true there:
   like a pass.
 - **The detector is the container, not `process.env.CI`.**
 
-**The Vercel preview IS reachable from here.** This paragraph used to say the
-opposite, and stopped three runs from testing where the bug was. Deployment
-Protection does 302 every unauthenticated request to `vercel.com/sso-api`, and
-that 302 carries Vercel's headers, not the app's — do not mistake it for a
-response from the application. But there are two ways past it, and both work
-from this container:
+**The Coolify preview is reachable from here.** Coolify builds every PR to
+`https://<pr number>.preview.caesura.today` (M59). Previews are public and
+NOINDEX, so there is no gate to get past: no bypass secret, no share link. (Until
+M59 they sat behind Vercel Authentication, whose 302 to `vercel.com/sso-api`
+stopped three runs from testing where the bug was, and whose anti-bot checkpoint
+answered 429 to headless Chromium on a datacenter IP. None of that applies to the
+box.)
 
     pnpm --filter web walk:preview <url> [path ...]
 
-`apps/web/scripts/walk-preview.mjs` is the whole recipe, with the diagnosis in
-its header. Give it either a `?_vercel_share=` URL (mint one for any deployment
-with the Vercel MCP's `get_access_to_vercel_url`; valid 23 hours) or a plain
-preview URL with `VERCEL_AUTOMATION_BYPASS_SECRET` set. It reports status,
-title and console errors per path, and exits non-zero if a path fails — so it
-is usable as a check, not just as a look.
+`apps/web/scripts/walk-preview.mjs` is the whole recipe. It reports status, title
+and console errors per path, and exits non-zero if a path fails, so it is usable
+as a check, not just as a look.
 
-**The `_vercel_share` half of that did not work on 2026-08-30, and the failure
-is worth recognising rather than re-deriving.** A freshly minted share link
-redeemed as `429 Vercel Security Checkpoint` — twice, five minutes apart, at
-the redeem step, before any app response:
-
-    redeem  429  -> https://<preview>/demo
-    429  /   Vercel Security Checkpoint
-
-That is Vercel's anti-bot interstitial, not rate limiting and not Deployment
-Protection: the link is valid and the checkpoint challenges the *client*, which
-is headless Chromium on a datacenter IP. So a share link is enough for a person
-in a browser and is NOT reliably enough for the automated walk from here. It
-may pass on another day or another egress IP; treat a pass as luck, not as the
-supported route.
-
-**`VERCEL_AUTOMATION_BYPASS_SECRET` is therefore the only dependable route for
-an unattended walk**, because the bypass header is honoured before the
-checkpoint ever renders. Until that secret exists, a cloud session cannot
-produce preview evidence for a gate, and should say so rather than reporting a
-walk it could not perform.
-
-**The secret now exists** (Vercel → Settings → Deployment Protection →
-Protection Bypass for Automation) and was used for a full signed-in walk on
-2026-09-03. Two things that were not obvious the first time:
-
-- **It has to be in the SESSION's environment, not just in Vercel.** A cloud
-  container's environment is fixed when it starts, so setting the value in the
-  project does not reach a session already running — it has to be handed to
-  that session. The value is deliberately not written down in this repo.
-  **Where it belongs, per surface, is in the recipe below.**
-- **A signed-in walk needs no invite code.** `server/admission.ts` evaluates
-  admission only for someone with **no `users` row**; an existing dev user is
-  admitted as `returning-user`. So `/signin` → dev login as a username that has
-  been here before is enough. `INVITE_SUPER_CODE` is a first-sign-in concern and
-  `playwright.config.ts` injects it only into the LOCAL e2e web server — which
-  is easy to misread as "the preview is unreachable".
-
-### Using the bypass secret
-
-`.env.example` documents the variable's NAME and how to generate it; this is
-how to use it. Nothing in the app reads it — its only consumer is
-`apps/web/scripts/walk-preview.mjs`, which sends it as
-`x-vercel-protection-bypass` (plus `x-vercel-set-bypass-cookie`) on
-**preview-origin requests only**. That per-request scoping is not fussiness:
-the pages walked here fetch from `tiles.openfreemap.org`, `vercel.live` and
-Google Fonts, and a context-level header would hand all of them a secret that
-unlocks every protected deployment this project has.
-
-Where the value goes depends on where the walk runs, and only one of these
-works for a cloud session:
-
-| Running on | Put the value | Why |
-|---|---|---|
-| A laptop | `apps/web/.env.local` | `walk:preview` loads it with `--env-file-if-exists`, the same way every `db:*` script does |
-| A **cloud** Claude Code session | the **Claude Code environment's** variables (Claude Code web → that environment's settings) | The container's environment is fixed at boot. Vercel holding the value does not put it in the session |
-| CI | the workflow env | Same mechanism as every other secret there |
+**A signed-in walk needs no invite code.** `server/admission.ts` evaluates
+admission only for someone with **no `users` row**; an existing dev user is
+admitted as `returning-user`. So `/signin` → dev login as a username that has
+been here before is enough. `INVITE_SUPER_CODE` is a first-sign-in concern and
+`playwright.config.ts` injects it only into the LOCAL e2e web server, which is
+easy to misread as "the preview is unreachable".
 
 ### A fresh worktree has no `.env.local`, and the failure does not say so
 
@@ -304,23 +252,9 @@ only fills in names that are not already set (verified on Node 22:
 value, and `scripts/setup-env.mjs` creating `.env.local` from `.env.example` at
 session start cannot break a cloud walk.
 
-Then:
-
-    pnpm --filter web walk:preview <preview-url> [path ...]
-
-with a plain preview URL — no `?_vercel_share=` needed once the secret is set.
-It exits non-zero if any path fails, so it is usable as a check.
-
-**Do not ask for the value in chat if it can be avoided.** A secret pasted into
-a conversation lives in that transcript; setting it on the environment means it
-is never spoken. If one does get pasted, rotate it afterwards — Vercel →
-Settings → Deployment Protection → Protection Bypass for Automation regenerates
-it, and nothing else in this project depends on the old value.
-
-**What it does NOT get you.** The bypass clears Deployment Protection and the
-anti-bot checkpoint; it is not a session. A signed-in walk still has to sign in
-(see the dev-login note above), and the two container-networking obstacles —
-the gateway CA and the TLS 1.2 cap — are unrelated to it and still apply.
+**What the walk does NOT get you.** It is not a session: a signed-in walk still
+has to sign in (see the dev-login note above), and the container-networking
+obstacle below, the gateway CA, still applies.
 
 One trap that cost two runs, and belongs to whoever writes the walk script
 rather than to the app: Playwright's `getByRole(..., { name })` matches the
@@ -330,9 +264,8 @@ match `getByRole("button", { name: "Notebooks" })`, and the resulting strict-mod
 violation reads exactly like the app rendering the control twice. Name walk
 fixtures so they cannot collide with a control you intend to query.
 
-Three things had to be true at once, and each failed with an error naming none
-of the others. Worth knowing, because they bite anything else you point at the
-network from a renderer:
+The obstacle below failed with an error that did not name it. Worth knowing,
+because it bites anything else you point at the network from a renderer:
 
 1. **Chromium does not read `/etc/ssl/certs`,** so the egress gateway's
    TLS-inspection CA is untrusted and inspected hosts fail
@@ -340,19 +273,13 @@ network from a renderer:
    is what makes it confusing. `certutil` is not installed, so the script pins
    the container's own CAs by SPKI hash instead. That is five named
    certificates, not `--ignore-certificate-errors`.
-2. **`*.vercel.app` is tunnelled, not inspected,** and the tunnel cannot carry
-   Chromium's TLS 1.3 ClientHello (~1830 B with the post-quantum key share).
-   The upstream answers 39 B and resets: `ERR_CONNECTION_RESET`, with nothing
-   pointing at TLS. `--ssl-version-max=tls1.2` shrinks the ClientHello and it
-   goes through. Every `--disable-features=` spelling of the post-quantum flag
-   was tried first and none worked on Chromium 141. The cost: a walk from here
-   exercises TLS 1.2, so it is not evidence about anything TLS-version-specific.
-3. **Deployment Protection**, above.
+
+(A second one, a TLS 1.2 cap for `*.vercel.app`, went with Vercel in M59.)
 
 A local production build (`pnpm --filter web build && next start`) is still the
 right thing for anything that does not depend on the deployed environment, and
-it is faster. What it cannot show you is what Vercel's own edge adds — the
-first real preview walk, 2026-08-29, found the Vercel Toolbar's loader blocked
+it is faster. What it cannot show you is what the deployed environment adds — the
+first real preview walk, 2026-08-29, found a third-party loader blocked
 by our CSP, which twenty local surfaces had not. Build from a clean
 `git archive HEAD` if other agents are editing the tree, since
 `check-lint-wall.mjs` deletes its fixture mid-run and will break a concurrent
@@ -368,7 +295,7 @@ happening.
 What this used to cost us: the Map lens's tiles could not be seen from a
 container's browser. That is no longer a limit on e2e (see *the e2e lane does
 not reach the tile host*, above), and the real basemap is checked by hand on a
-Vercel preview — `docs/guidelines/third-party-services-on-a-preview.md` has
+Coolify preview — `docs/guidelines/third-party-services-on-a-preview.md` has
 the steps, and `walk:preview` can drive them from here. A local map with a
 plain background is the fixture working, not evidence about the real tiles;
 say which one you looked at.
@@ -376,7 +303,7 @@ say which one you looked at.
 ## Secrets
 
 **Never put real secrets in the cloud session's environment-variables field** —
-`LOCATIONIQ_API_KEY` and `AI_GATEWAY_API_KEY` belong in Vercel's env scopes.
+`LOCATIONIQ_API_KEY` and `ANTHROPIC_API_KEY` belong in Coolify's env scopes.
 Only non-secret gates (`SEED_DEMO_DATA=true`) are appropriate there.
 
 ## Waiting on a PR: a scheduled check-in, not a subscription
@@ -423,7 +350,7 @@ event on the PRs it watched. A check-in batches every change into one wake.
 ## Node is pinned, and the hook switches to it
 
 The image puts Node 22 on PATH. The project pins **24** in `.nvmrc`, and so do
-CI (`node-version-file: .nvmrc`), `engines`, and Vercel. The `SessionStart` hook's
+CI (`node-version-file: .nvmrc`), `engines`, and the Dockerfile. The `SessionStart` hook's
 `use_pinned_node` installs the pinned version with the image's nvm (a few seconds
 the first time) and writes the PATH to `CLAUDE_ENV_FILE`, so the session's shell
 runs 24 as well. If `pnpm lanes` reports the unit lane as `BLOCKED` because of

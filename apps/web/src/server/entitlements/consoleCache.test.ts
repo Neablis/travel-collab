@@ -4,7 +4,6 @@ const revalidateTag = vi.fn();
 // Records the key and options each read is cached under, and reads through.
 const unstable_cache = vi.fn((read: () => Promise<unknown>, _keyParts: string[], _options: unknown) => read);
 vi.mock("next/cache", () => ({ revalidateTag, unstable_cache }));
-vi.mock("@vercel/functions", () => ({ dangerouslyDeleteByTag: vi.fn(), waitUntil: vi.fn() }));
 
 const { CONSOLE_CACHE_SECONDS, CONSOLE_TAG, consoleCached, invalidateConsole } = await import("./consoleCache");
 

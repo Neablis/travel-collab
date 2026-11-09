@@ -3,7 +3,7 @@
 No automated test here calls MET Norway or NASA POWER, and none may (Mitchell's policy).
 The e2e server sets `EXTERNAL_DATA_OFFLINE=true` (`apps/web/playwright.config.ts`), and
 the unit lane throws on any `fetch` to a host other than this machine (`apps/web/vitest.setup.ts`). So the only
-check against the real services is this walk, done by hand on a Vercel preview. It is
+check against the real services is this walk, done by hand on a Coolify preview. It is
 also the only way to settle what ADR-052 and the two adapters still mark **to verify**.
 
 Walk it once before M14's weather gate box is ticked, and again whenever
@@ -11,12 +11,11 @@ Walk it once before M14's weather gate box is ticked, and again whenever
 
 ## Before you start
 
-- A Vercel **preview** for the branch, with `EXTERNAL_DATA_CONTACT` set in the
-  project's Preview environment: an operator's address, never a user's (ADR-052
+- A Coolify **preview** for the branch, with `EXTERNAL_DATA_CONTACT` set in the
+  application's Preview scope: an operator's address, never a user's (ADR-052
   decision 6). Without it the forecast is off by design and step 2 cannot pass.
 - `EXTERNAL_DATA_OFFLINE` must **not** be set on the preview. It is an e2e switch.
-- Access to the deployment's runtime logs (the Vercel dashboard, or the Vercel MCP's
-  runtime-log tool filtered to the preview).
+- Access to the preview's container logs (Coolify's Logs tab for that preview).
 - Today's date. The forecast horizon is about nine days from it.
 
 ## The walk

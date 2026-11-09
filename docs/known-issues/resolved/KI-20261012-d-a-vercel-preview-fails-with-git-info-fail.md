@@ -1,5 +1,7 @@
 ### KI-2026-10-12-d — a PR's Vercel preview fails with `git_info_fail`
 
+- **Resolved 2026-11-08 (M59 part 5):** `vercel-preview.yml` is deleted; previews are built by Coolify, not requested from Vercel, so this failure mode no longer exists.
+
 - **Severity:** reliability. No code is at fault; the PR just has no preview to walk until it is
   retried.
 - **Area:** `.github/workflows/vercel-preview.yml`, which asks Vercel for a deployment of the PR

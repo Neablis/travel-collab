@@ -1,27 +1,27 @@
+import { resolve } from "node:path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 import { deployEnv } from "./src/lib/deployment/env";
 
 // `next build` sets NODE_ENV=production; `next dev --turbopack` sets
 // development. The dev-only relaxations below exist because the dev server's
-// own machinery (React Refresh, the HMR socket, the analytics debug script)
-// is not present in a built app, and a policy that blocks them makes the
+// own machinery (React Refresh, the HMR socket) is not present in a built app, and a policy that blocks them makes the
 // console unreadable without protecting anything that ships.
 const isDev = process.env.NODE_ENV !== "production";
 
-// Vercel sets VERCEL_ENV (or we set APP_ENV) at build time, and a preview build is the only place
-// the Vercel Toolbar is ever injected. It is not cosmetic here: the Toolbar is
-// how the Flags Explorer flips `ai-live` for one reviewer's session, which
-// `docs/guidelines/environments-and-deploys.md` documents as the way to try
-// live AI on a preview without changing the stored value for everyone. The
-// policy below blocked its loader outright, so that workflow had been broken
-// since the CSP landed — found by browser-walking a preview (see
-// `pnpm --filter web walk:preview`), which is exactly the surface the CSP's
-// own comment records as unobserved. Preview only: production never loads
-// vercel.live, and widening its policy for a tool it does not serve would be
-// paying for nothing.
-const isPreview = deployEnv() === "preview";
-const toolbar = (...origins: string[]) => (isPreview ? ` ${origins.join(" ")}` : "");
+// The self-hosted Plausible's origin (M59), for the two directives its script
+// needs: loading, and posting events back. `NEXT_PUBLIC_PLAUSIBLE_SRC` is the
+// script's URL; only its origin goes in the policy. Anything that does not
+// parse as a URL adds nothing, so a typo cannot widen the policy to a path
+// or a keyword.
+const plausibleOrigin = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_PLAUSIBLE_SRC ? new URL(process.env.NEXT_PUBLIC_PLAUSIBLE_SRC).origin : "";
+  } catch {
+    return "";
+  }
+})();
+const plausible = plausibleOrigin ? ` ${plausibleOrigin}` : "";
 
 // Project review M2: the app shipped with no security headers at all — no
 // CSP, no frame-ancestors, no Referrer-Policy, no nosniff.
@@ -38,9 +38,8 @@ const toolbar = (...origins: string[]) => (isPreview ? ` ${origins.join(" ")}` :
 // editor the first pass could only reason about.
 //
 // What that walk could not see, and a preview walk now can (KI-66): the
-// deployed environment's own additions. The first walk of a real preview,
-// 2026-08-29, found exactly one — the Vercel Toolbar's loader, blocked. See
-// the isPreview note above.
+// deployed environment's own additions. The only one left is the Plausible
+// origin above; the Vercel Toolbar's origins went with Vercel (M59).
 const contentSecurityPolicy = [
   "default-src 'self'",
 
@@ -53,13 +52,10 @@ const contentSecurityPolicy = [
   // frame-ancestors) already close the classic injection escalations. Worth
   // revisiting, not worth blocking this fix on.
   //
-  // No third-party script is loaded in production: the fonts are committed
-  // files served by next/font/local (app/typefaces.ts), and @vercel/analytics and
-  // @vercel/speed-insights serve from /_vercel/insights and
-  // /_vercel/speed-insights on our own origin. In dev both fetch a debug
-  // script from va.vercel-scripts.com instead, and React Refresh needs
-  // 'unsafe-eval'.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval' https://va.vercel-scripts.com" : ""}${toolbar("https://vercel.live")}`,
+  // No third-party script is loaded: the fonts are committed files served by
+  // next/font/local (app/typefaces.ts), and the one analytics script is our own
+  // Plausible. React Refresh needs 'unsafe-eval' in dev.
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${plausible}`,
 
   // Tailwind ships a linked stylesheet, but inline styles are unavoidable
   // here: Radix positions popovers and dialogs with style attributes,
@@ -70,7 +66,7 @@ const contentSecurityPolicy = [
   // element wall's enumerated exceptions (map container,
   // computed timeline geometry) are style attributes by design. There is no
   // style equivalent of the nonce trade-off worth making for those.
-  `style-src 'self' 'unsafe-inline'${toolbar("https://vercel.live")}`,
+  "style-src 'self' 'unsafe-inline'",
 
   // data: for inlined SVG/icons; blob: because maplibre decodes sprite
   // images into `URL.createObjectURL(new Blob(...))` before assigning them
@@ -82,24 +78,17 @@ const contentSecurityPolicy = [
   // guidelines require hotlinking it, so a cover is a plain <img> on that
   // origin and is never proxied through ours. Images only — the API host is
   // called by the server, never by the browser.
-  `img-src 'self' data: blob: https://tiles.openfreemap.org https://images.unsplash.com${toolbar("https://vercel.live", "https://vercel.com")}`,
+  "img-src 'self' data: blob: https://tiles.openfreemap.org https://images.unsplash.com",
 
   // The fonts are committed files (next/font/local, app/typefaces.ts), so
   // no fonts.gstatic.com origin is needed here.
-  `font-src 'self' data:${toolbar("https://vercel.live", "https://assets.vercel.com")}`,
+  "font-src 'self' data:",
 
   // Vector tiles, glyphs and the style JSON, all fetched by maplibre. The
   // geocode and AI calls go through our own /api routes, not the vendor.
   // ws: in dev is the HMR socket.
-  // `wss://*.pusher.com` rather than the `wss://ws-us3.pusher.com` Vercel's
-  // Toolbar CSP documentation names. The `ws-us3` segment is a Pusher cluster
-  // Vercel picked and can move without telling us, and the failure mode if it
-  // does is precisely the one this whole change exists to fix: a CSP silently
-  // refusing a Vercel-side URL, client-side, on a surface no lane loads. We
-  // are not going to notice that twice. The widening buys nothing an attacker
-  // wants — it is preview-only, `connect-src` only, and confined to hosts
-  // under a domain we already have to trust for the Toolbar to work at all.
-  `connect-src 'self' https://tiles.openfreemap.org${isDev ? " ws:" : ""}${toolbar("https://vercel.live", "wss://*.pusher.com")}`,
+  // Plausible receives its events by POST from the browser.
+  `connect-src 'self' https://tiles.openfreemap.org${isDev ? " ws:" : ""}${plausible}`,
 
   // maplibre spawns its tile-decoding workers from a blob: URL.
   "worker-src 'self' blob:",
@@ -108,7 +97,7 @@ const contentSecurityPolicy = [
   // second half is the UI-redressing defence the review asked for (the
   // trip-delete and demo-reset buttons). X-Frame-Options below says the same
   // thing for anything that predates frame-ancestors.
-  isPreview ? "frame-src https://vercel.live" : "frame-src 'none'",
+  "frame-src 'none'",
   "frame-ancestors 'none'",
 
   // No <base> tag exists, and no form posts anywhere but here: every form in
@@ -128,10 +117,15 @@ const contentSecurityPolicy = [
   "object-src 'none'",
 ].join("; ");
 
-// Strict-Transport-Security is deliberately absent: Vercel serves it on our
-// deployments already, and setting it here would also emit it from the local
-// http dev server, where a browser that honours it pins localhost to https
-// for months.
+// Strict-Transport-Security is served by the app now that nothing in front of
+// it does (M59), on the production deployment only: not on a preview, whose
+// host may later be served with a self-signed certificate a browser could no
+// longer click through, and not on the local http server. `NODE_ENV` cannot say
+// which, since every `next build` is "production"; `deployEnv()` is read at
+// build time, so `APP_ENV` must be a build variable. No `includeSubDomains` or
+// `preload`: previews live under `*.preview.caesura.today`, so a pin on the
+// apex would give a fresh preview, still on Traefik's default certificate while
+// its Let's Encrypt order is pending, the very hard failure this gate avoids.
 const securityHeaders = [
   { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -140,9 +134,21 @@ const securityHeaders = [
   // URL-borne tokens off cross-origin Referer headers; /s/** below goes
   // further for the ones that are the whole secret.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  ...(deployEnv() === "production"
+    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000" }]
+    : []),
+  // A preview is a public URL of the real app, sign-in pages included. Read at
+  // build time like the HSTS gate, so `APP_ENV` must be a build variable.
+  ...(deployEnv() === "preview" ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] : []),
 ];
 
 const nextConfig: NextConfig = {
+  // The container runs `.next/standalone/apps/web/server.js` (Dockerfile). The
+  // tracing root is the repo root because this is a pnpm workspace: from
+  // `apps/web` alone the trace would miss `@tc/*` and the hoisted
+  // `node_modules`, and the server would start without them.
+  output: "standalone",
+  outputFileTracingRoot: resolve(import.meta.dirname, "../.."),
   transpilePackages: ["@tc/contracts", "@tc/domain"],
   // Next 16.3 auto-generates `apps/web/AGENTS.md` and `apps/web/CLAUDE.md`
   // when `next dev` detects an AI coding agent in the environment
@@ -298,11 +304,8 @@ export default withSentryConfig(nextConfig, {
   tunnelRoute: "/monitoring",
 
   webpack: {
-    // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-    // See the following for more information:
-    // https://docs.sentry.io/product/crons/
-    // https://vercel.com/docs/cron-jobs
-    automaticVercelMonitors: true,
+    // Vercel Cron Monitors do not exist on a self-hosted box (M59).
+    automaticVercelMonitors: false,
 
     // Tree-shaking options for reducing bundle size
     treeshake: {

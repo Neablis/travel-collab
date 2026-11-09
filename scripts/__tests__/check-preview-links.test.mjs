@@ -10,8 +10,6 @@ import { createServer } from "node:http";
 
 import { checkLinks } from "../check-preview-links.mjs";
 
-const BYPASS = "test-bypass";
-
 /** A stub preview: `routes` maps a path to a status, "drop" to close the socket unanswered, or a list of those, one per hit. A 3xx points at `/ok`. */
 async function stubPreview(routes) {
   // Maps, and no function to call, keyed by `req.url`: CodeQL reads either as
@@ -21,7 +19,6 @@ async function stubPreview(routes) {
   const server = createServer((req, res) => {
     const hit = (hits.get(req.url) ?? 0) + 1;
     hits.set(req.url, hit);
-    if (req.headers["x-vercel-protection-bypass"] !== BYPASS) return res.writeHead(401).end();
     const route = table.get(req.url);
     const answer = Array.isArray(route) ? route[hit - 1] : route;
     if (answer === "drop") return req.socket.destroy();
@@ -36,7 +33,7 @@ async function stubPreview(routes) {
 test("names each href that 404s or never answers, and passes the rest", async (t) => {
   const preview = await stubPreview({ "/ok": 200, "/missing": 404, "/silent": "drop" });
   t.after(preview.close);
-  const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs: ["/ok", "/missing", "/silent"], bypass: BYPASS });
+  const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs: ["/ok", "/missing", "/silent"] });
   assert.deepEqual(
     failures.map((failure) => failure.href),
     ["/missing", "/silent"],
@@ -48,26 +45,26 @@ test("names each href that 404s or never answers, and passes the rest", async (t
 test("retries once when a request gets no response, and only then", async (t) => {
   const preview = await stubPreview({ "/flaky": ["drop", 200], "/missing": 404 });
   t.after(preview.close);
-  const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs: ["/flaky", "/missing"], bypass: BYPASS });
+  const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs: ["/flaky", "/missing"] });
   assert.deepEqual(failures.map((failure) => failure.href), ["/missing"]);
   assert.deepEqual(Object.fromEntries(preview.hits), { "/flaky": 2, "/missing": 1 });
 });
 
 test("counts a redirect as a failure, even one that ends on a 200", async (t) => {
-  // Vercel's sign-in is a 302, so a followed redirect could read as a pass.
+  // A redirect to a sign-in page is a 302, so a followed one could read as a pass.
   const preview = await stubPreview({ "/ok": 200, "/moved": 302 });
   t.after(preview.close);
-  const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs: ["/moved"], bypass: BYPASS });
+  const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs: ["/moved"] });
   assert.deepEqual(failures, [{ href: "/moved", reason: "HTTP 302" }]);
 });
 
-test("refuses an absolute href, and never sends the secret to another host", async (t) => {
+test("refuses an absolute href, and never requests another host", async (t) => {
   const preview = await stubPreview({ "/ok": 200 });
   const elsewhere = await stubPreview({ "/ok": 200 });
   t.after(preview.close);
   t.after(elsewhere.close);
   const hrefs = [`${preview.baseUrl}/ok`, `${elsewhere.baseUrl}/ok`, `//${new URL(elsewhere.baseUrl).host}/ok`, "/ok"];
-  const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs, bypass: BYPASS });
+  const failures = await checkLinks({ baseUrl: preview.baseUrl, hrefs });
   assert.deepEqual(failures.map((failure) => failure.href), hrefs.slice(0, 3));
   assert.equal(elsewhere.hits.size, 0);
 });

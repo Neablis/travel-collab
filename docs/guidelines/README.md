@@ -32,7 +32,7 @@ practice. Read the one that matches your task:
 | `building-a-milestone.md` | Mitchell said "next milestone" — what order does the session go in, from his decisions through a gate PR that merges last, to the close? |
 | `building-with-judgment.md` | How do I approach building a feature well — evals before serving, gates with teeth, honest failure, and when to stop? |
 | `stacked-prs.md` | This work is too big for one PR — how do I plan the stack, merge it without conflicts, get it reviewed, and finish it? |
-| `third-party-services-on-a-preview.md` | My feature depends on a third-party service — what do the automated tests stub instead, and what do I check by hand on a Vercel preview? |
+| `third-party-services-on-a-preview.md` | My feature depends on a third-party service — what do the automated tests stub instead, and what do I check by hand on a Coolify preview? |
 | `repo-automation.md` | What scripts, commands, subagents, skills and hooks already exist, and why each one does — before I hand-roll a workflow |
 | `retiring-a-rule.md` | A first-read file is near its surface budget — what may leave it, where it goes, and how to bring it back? |
 | `writing-a-retro.md` | The gate is closing — what goes in the retro, how is the spend block generated, and what are the targets it is read against? |

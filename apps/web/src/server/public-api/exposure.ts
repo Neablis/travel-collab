@@ -167,6 +167,8 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "AI and assistant endpoints never get a public API: abuse risk (Mitchell, 2026-11-01)",
     reaches: [{ module: "@/server/assistant/turnTrace" }],
   },
+  // M59: the container healthcheck's probe; an infrastructure signal, not data.
+  health: { status: "never", why: "A liveness probe for the host, not data", reaches: [] },
   "health/ai-mode": {
     status: "never",
     why: "Operator diagnostics for the assistant",

@@ -1,4 +1,4 @@
-// The preview build's migrate step (`lib/vercel-build-steps.mjs`), in place of
+// The preview build's migrate step (`lib/build-steps.mjs`), in place of
 // `pnpm drizzle-kit migrate`. It runs the same migrator — drizzle-orm's, which
 // `drizzle-kit migrate` calls — against the same `drizzle` folder, and adds two
 // things KI-2026-10-17-c needed:
@@ -14,9 +14,9 @@
 //    preview build fails. Before migrating, this compares the applied rows with
 //    the journal and refuses with the recovery steps when that is about to
 //    happen. The comparison is `diagnoseAppliedMigrations`, tested in
-//    `vercel-build-migrate.test.ts`.
+//    `build-migrate.test.ts`.
 //
-// Preview only: `vercel-build-steps.mjs` decides whether this runs at all, and
+// Preview only: `build-steps.mjs` decides whether this runs at all, and
 // production is still migrated by dispatching `migrate-production.yml`.
 import path from "node:path";
 import { readFileSync } from "node:fs";

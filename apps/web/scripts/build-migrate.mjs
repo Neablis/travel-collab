@@ -1,4 +1,4 @@
-// Runs drizzle migrations, then imports `content/`, during the Vercel build —
+// Runs drizzle migrations, then imports `content/`, during the build —
 // PREVIEW ONLY, and only against a database the operator has explicitly marked
 // disposable.
 // Production is migrated by explicitly dispatching
@@ -41,8 +41,8 @@
 // `argv[1]` matched this file's URL; Node realpaths the URL and not `argv[1]`,
 // so a symlink in the build path skipped every step, the refusal included, and
 // the build stayed green (PR 509 review). The logic lives in
-// `lib/vercel-build-steps.mjs` so the test can import it instead.
+// `lib/build-steps.mjs` so the test can import it instead.
 import { execSync } from "node:child_process";
-import { runBuildSteps } from "./lib/vercel-build-steps.mjs";
+import { runBuildSteps } from "./lib/build-steps.mjs";
 
 process.exitCode = runBuildSteps(process.env, (command) => execSync(command, { stdio: "inherit" }));

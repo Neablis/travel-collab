@@ -265,10 +265,9 @@ filed it as harmless preview noise; it was not. The policy now admits the
 Toolbar's origins on preview only, gated on `VERCEL_ENV`, with a test asserting
 production's policy is untouched.
 
-**One thing is still Mitchell's to do, and nothing unattended can test a preview
-until it is done:** generate **Protection Bypass for Automation** (Vercel → the
-project → Settings → Deployment Protection) and copy the value into a
-`VERCEL_AUTOMATION_BYPASS_SECRET` repo secret.
+**No longer pending (M59):** previews moved to Coolify and are public, so the
+Vercel Protection Bypass secret this paragraph asked for does not exist and is
+not needed.
 
 **The `_vercel_share` fallback was tested on 2026-08-30 and is not a substitute
 — tried while looking for M18b's gate evidence.** A freshly minted link gets

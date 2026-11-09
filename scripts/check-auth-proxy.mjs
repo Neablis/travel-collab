@@ -4,19 +4,19 @@
 // on it.
 //
 // Why this exists rather than "just try signing in": the proxy is configured
-// entirely by an environment variable that Vercel injects at DEPLOY time, so
+// entirely by an environment variable that Coolify injects at BUILD/RUN time, so
 // whether a given deployment has it is a property of when it was built, not of
 // what the dashboard says today. The only honest way to know is to ask the
 // deployment. A full OAuth round trip would answer too, but it needs a human,
-// a Google account and a browser that is past Deployment Protection; this
-// needs none of those and answers in one round trip.
+// a Google account and a browser; this needs none of those and answers in
+// one round trip.
 //
 // It reads the `redirect_uri` out of the authorization URL the deployment
 // builds. That single parameter is the whole mechanism: a deployment with the
 // proxy names PRODUCTION's callback (the one URI registered with Google);
 // one without names its own (which Google has never heard of).
 //
-//   node scripts/check-auth-proxy.mjs https://travel-collab-git-<branch>-<team>.vercel.app
+//   node scripts/check-auth-proxy.mjs https://<pr>.preview.caesura.today
 //
 // It then asks GOOGLE whether it accepts that redirect_uri, which is the only
 // question KI-50 was ever about. That step needs no credentials — an
@@ -26,11 +26,7 @@
 // What it still cannot prove: that production FORWARDS the callback back here.
 // That needs a completed Google sign-in, and therefore a human.
 //
-// Preview deployments sit behind Vercel Deployment Protection. Set
-// VERCEL_AUTOMATION_BYPASS_SECRET (get it with `vercel env pull`) and it is
-// sent as the bypass header automatically; without it a protected deployment
-// answers with Vercel's SSO page and this script says so rather than
-// misreporting it as a configuration failure.
+// Previews are public (and NOINDEX), so no credential is sent.
 
 const EXPECTED_PROXY_ORIGIN = "https://caesura.today";
 // The full URI, not just the origin. An origin-only comparison passes for any
@@ -53,33 +49,6 @@ const fail = (message, detail) => {
   process.exit(1);
 };
 
-/**
- * Is this a host of ours, and therefore one we may send the bypass secret to?
- *
- * `VERCEL_AUTOMATION_BYPASS_SECRET` unlocks EVERY protected deployment this
- * project has (`environments-and-deploys.md` says so in as many words), and
- * this script's only argument is a URL. Attaching the header to whatever the
- * caller typed means one mistyped or pasted host receives that credential —
- * an outbound secret leak caused by a diagnostic tool, which is a poor trade
- * for saving a comparison. So the allow-list is the gate, not the header.
- *
- * Deliberately narrow: `caesura.today`, and this project's own Vercel hosts,
- * which are all `travel-collab-…​.vercel.app`. A bare `.vercel.app` suffix
- * check would not do — that is every Vercel deployment on the internet.
- * HTTPS is required for the same reason; the secret must not cross plaintext.
- */
-const isOurHost = (origin) => {
-  let u;
-  try {
-    u = new URL(origin);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== "https:") return false;
-  return u.hostname === "caesura.today" ||
-    (u.hostname.startsWith("travel-collab-") && u.hostname.endsWith(".vercel.app"));
-};
-
 // A network error is a normal outcome for a diagnostic whose only input is a
 // URL — an unreachable host, DNS failure or TLS error otherwise surfaces as an
 // uncaught stack trace, which reads like the script is broken rather than the
@@ -92,57 +61,18 @@ const get = async (url, init, what) => {
   }
 };
 
-const trusted = isOurHost(base);
-const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-if (bypass && !trusted) {
-  fail(
-    `Refusing to send VERCEL_AUTOMATION_BYPASS_SECRET to ${base}.`,
-    "That secret unlocks every protected deployment this project has, and this host is not one of ours (expected https://caesura.today or https://travel-collab-*.vercel.app). Re-run without the variable set if you meant to probe it unauthenticated.",
-  );
-}
-const headers = bypass ? { "x-vercel-protection-bypass": bypass } : {};
-
-// Vercel's SSO gate answers with an HTML page rather than an error status, so
-// a JSON parse failure here is almost always protection rather than a broken
-// deployment. Say which, so nobody debugs the wrong thing.
+// A non-JSON body is almost always a proxy or error page rather than this app;
+// show its start so nobody debugs the wrong thing.
 const asJson = async (res, what) => {
   const body = await res.text();
   try {
     return JSON.parse(body);
   } catch {
-    // Deployment Protection announces itself three different ways depending on
-    // how the request was made: a 401, a 302 to `vercel.com/sso-api` (which
-    // `redirect: "manual"` leaves as an empty body), or an interstitial HTML
-    // page. Recognise all three, because the remedy is the same and it is not
-    // "the deployment is broken".
-    const location = res.headers.get("location") ?? "";
-    // Two DIFFERENT Vercel gates land here and they have opposite remedies, so
-    // do not collapse them. Deployment Protection is an access check a secret
-    // opens. The bot challenge (`x-vercel-mitigated: challenge`, HTTP 429) is a
-    // proof-of-browser that no secret opens — it wants JavaScript, so the only
-    // way past it is a real browser. Production sits behind the second one
-    // (custom domains are excluded from SSO protection), which is why this
-    // script is a preview tool and production is verified by hand.
-    const challenged =
-      res.headers.get("x-vercel-mitigated") === "challenge" ||
-      body.includes("Vercel Security Checkpoint");
-    const protectedByVercel =
-      res.status === 401 ||
-      location.includes("vercel.com/sso-api") ||
-      body.includes("vercel.com/sso-api") ||
-      body.includes("Vercel Authentication");
-    fail(
-      `${what} did not return JSON (HTTP ${res.status}).`,
-      challenged
-        ? "Vercel's bot challenge answered, not the app. No secret gets past it — it needs a real browser. This is expected on the production custom domain; run this against a preview host instead."
-        : protectedByVercel
-          ? "This looks like Vercel Deployment Protection. Set VERCEL_AUTOMATION_BYPASS_SECRET (`vercel env pull`) and retry."
-          : `First 200 bytes: ${body.slice(0, 200) || "(empty)"}`,
-    );
+    fail(`${what} did not return JSON (HTTP ${res.status}).`, `First 200 bytes: ${body.slice(0, 200) || "(empty)"}`);
   }
 };
 
-const csrfRes = await get(`${base}/api/auth/csrf`, { headers, redirect: "manual" }, `${base}/api/auth/csrf`);
+const csrfRes = await get(`${base}/api/auth/csrf`, { redirect: "manual" }, `${base}/api/auth/csrf`);
 const { csrfToken } = await asJson(csrfRes, "GET /api/auth/csrf");
 if (!csrfToken) fail("No csrfToken in /api/auth/csrf — is this a deployment of this app?");
 
@@ -157,7 +87,6 @@ const signinRes = await get(`${base}/api/auth/signin/google`, {
   method: "POST",
   redirect: "manual",
   headers: {
-    ...headers,
     cookie: cookies,
     "content-type": "application/x-www-form-urlencoded",
     "X-Auth-Return-Redirect": "1",

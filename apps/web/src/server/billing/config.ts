@@ -5,7 +5,7 @@
 // Two pairs of names (ADR-076 §5), none of their values in this repo.
 // `.env.example` carries the names with the secret ones marked, and the values
 // live in Vercel's environment scopes — the same arrangement
-// `LOCATIONIQ_API_KEY` and `AI_GATEWAY_API_KEY` have.
+// `LOCATIONIQ_API_KEY` and `ANTHROPIC_API_KEY` have.
 //
 // **Read lazily, never at module load.** `serverConfig` is a module-level
 // object literal, which is why two `modelSelection` tests had to reach into

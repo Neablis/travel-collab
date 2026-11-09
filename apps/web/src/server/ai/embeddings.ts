@@ -1,9 +1,10 @@
 // Server-only: never import from UI code (would ship the gateway client to
-// the client bundle). One embedding call through the Vercel AI Gateway,
-// for the plan-retrieval RAG stack.
-import { createGateway } from "@ai-sdk/gateway";
+// the client bundle). One embedding call straight to OpenAI, for the
+// plan-retrieval RAG stack.
+import { createOpenAI } from "@ai-sdk/openai";
 import { embed } from "ai";
 import { serverConfig } from "@/server/config";
+import { resolveEmbeddingModel } from "./modelId";
 
 /** The dimension `text-embedding-3-small` produces, and `day_embeddings.embedding` is sized for. */
 export const EMBEDDING_DIMENSIONS = 1536;
@@ -20,13 +21,13 @@ export const EMBEDDING_DIMENSIONS = 1536;
  * exactly. The turn must never be more expensive for having tried.
  *
  * It throws only on programmer errors: empty text (nothing to embed), and
- * a missing `AI_GATEWAY_API_KEY` (a deployment misconfiguration — the same
- * throw `aiModel()` makes, so the two stay greppable together).
+ * a missing `OPENAI_API_KEY` (a deployment misconfiguration — the same
+ * kind of throw `aiModel()` makes for its key).
  *
  * Why this does not go through `@/server/ai/gateway`: that module is the
  * ADR-019 chokepoint for *language* models, and the lint wall permits only
  * `modelSelection.ts` to import it. An embedding model is a different job —
- * no tier, no simulated-model seam — so it builds its own Gateway client
+ * no tier, no simulated-model seam — so it builds its own OpenAI client
  * with the same key check, rather than widening the wall's one hole.
  *
  * @param text The chunk or query to embed. Must be non-empty.
@@ -36,14 +37,14 @@ export async function embedText(text: string): Promise<number[] | null> {
   if (text.trim() === "") {
     throw new Error("embedText: cannot embed empty text");
   }
-  if (!serverConfig.aiGatewayApiKey) {
-    throw new Error("AI_GATEWAY_API_KEY not set");
+  if (!serverConfig.openaiApiKey) {
+    throw new Error("OPENAI_API_KEY not set");
   }
   const modelId = serverConfig.embeddingModel;
-  const gateway = createGateway({ apiKey: serverConfig.aiGatewayApiKey });
+  const embeddingModel = resolveEmbeddingModel(modelId);
   try {
     const { embedding } = await embed({
-      model: gateway.embeddingModel(modelId),
+      model: createOpenAI({ apiKey: serverConfig.openaiApiKey }).embedding(embeddingModel.model),
       value: text,
       abortSignal: AbortSignal.timeout(serverConfig.embeddingTimeoutMs),
     });

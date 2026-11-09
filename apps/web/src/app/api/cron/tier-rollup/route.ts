@@ -1,5 +1,5 @@
-// The Vercel Cron entry point for the weekly tier rollup (M47 part 4). Once
-// daily at 04:30 UTC (`apps/web/vercel.json`) Vercel GETs this route with
+// The cron entry point for the weekly tier rollup (M47 part 4). Once
+// daily at 04:30 UTC a Coolify scheduled task (`docs/ops/coolify-vps.md`) GETs this route with
 // `Authorization: Bearer ${CRON_SECRET}`; the secret is checked before any
 // database work. Daily, though the rows are weekly: each run rewrites this
 // week's, so a missed day heals on the next.

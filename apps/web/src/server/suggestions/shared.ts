@@ -82,7 +82,8 @@ export function isExpired(row: Pick<ChangeRow, "status" | "createdAt">, now: Dat
 
 /**
  * Record every change on the trip that has aged out as `expired`. There is no
- * cron to do it (vercel.json declares none, and `og/limit.ts`'s sweep belongs
+ * scheduled task to do it (the Coolify tasks are /api/cron/embed-days 04:00 UTC
+ * and /api/cron/tier-rollup 04:30 UTC, and `og/limit.ts`'s sweep belongs
  * to its own route), so it runs inside each write on the trip's suggestions,
  * in that write's transaction. Until then the reads above already treat the
  * row as expired, so nothing waits on it.
