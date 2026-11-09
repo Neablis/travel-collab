@@ -28,7 +28,7 @@ outside MCP dispatch with `audience`).
 1. **Draft 0.4, pinned.** `protocol_version: "0.4"`, no `supported_versions`. The spec is re-read
    before part 1 merges; a later version is a candidate, not a reopened gate.
 2. **`poppy.json` lists two APIs and the website.** `apis`: the MCP server (`/api/mcp`, type
-   `mcp`) and the OpenAPI description (`/api/v1/openapi.json`, type `openapi`). `web: {}` with no
+   `mcp`) and the OpenAPI description (`/api/v1/openapi`, type `openapi`). `web: {}` with no
    `browser_session_endpoint`: agents browse the public site as signed-out visitors. **No
    `agent`**: the assistant as a Poppy conversation (§8) is a candidate. `organization.domain` is
    the deployment origin's host, the same source as `oauthIssuer()`, never the request's `Host`
@@ -42,7 +42,7 @@ outside MCP dispatch with `audience`).
    no access token reaches only the signed-out surface (decision 5), on any plan or none. Account
    access stays behind `api.tokens`, resolved per request, exactly as M55 D6.
 5. **The signed-out surface is Discover, read-only.** `GET /v1/discover/playbooks` (today
-   `library:read`) and the discovery documents (`/v1`, `/v1/openapi.json`). Nothing that writes,
+   `library:read`) and the discovery documents (`/v1`, `/v1/openapi`). Nothing that writes,
    nothing that spends a paid quota (geocode is excluded), under a per-`(client_id, sid)` rate
    limit with `429` and `Retry-After`. A route opts in by declaring `signedOut: true` in
    `declare()`; the default is no.
