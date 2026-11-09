@@ -1,3 +1,4 @@
+import { clientIp } from "@/server/og/limit";
 import { oauthError, oauthJson, preflight } from "@/server/oauth/errors";
 import { exchangeCode, refresh } from "@/server/oauth/tokens";
 
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
     clientId: field("client_id"),
     clientAssertion: field("client_assertion"),
     clientAssertionType: field("client_assertion_type"),
+    callerIp: clientIp(request),
   };
 
   const grantType = field("grant_type");

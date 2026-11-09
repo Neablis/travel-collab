@@ -6,7 +6,7 @@ import { poppyDelegationKey } from "@/server/cache/keys";
 import { getCache, type CachePort } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
 import { oauthClients, oauthGrants, oauthTokens } from "@/server/db/schema";
-import { fetchClientKeys, resolveClient, type ClientDeps } from "@/server/oauth/clients";
+import { fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps } from "@/server/oauth/clients";
 import { oauthIssuer } from "@/server/oauth/metadata";
 import { signedOutFetchQuota } from "@/server/quota";
 import { keyedDigestCandidates } from "@/server/secrets/keyedDigest";
@@ -202,9 +202,13 @@ const issuedTo = async (token: string) => (await tokenHolder(token))?.clientId ?
 
 /** A Personal Agent's keys, by its document and `jwks_uri`; a client that is not one has none. */
 async function keysOf(clientId: string, deps: SessionDeps): Promise<{ ok: true; keys: JWK[] } | { ok: false; reason: string }> {
-  // Charged to the signed-out quota, never `oauthCimdQuota`: anyone can send this header, naming
-  // any URL, and that must not use up the share `/oauth/authorize` draws on for real clients.
-  const clientDeps = { userId: deps.chargeTo ?? "poppy-session", now: deps.now, quota: signedOutFetchQuota(), ...deps.clientDeps };
+  // Only a client someone has allowed has a row, and authorize alone makes one: an `iss` that
+  // names none is refused without a fetch, so a header naming made-up URLs costs nothing.
+  if ((await storedClientRowId(clientId)) === null) return { ok: false, reason: "iss is not a usable client: unknown-client" };
+  // Charged to the caller's IP on the signed-out quota, never `oauthCimdQuota`: that is the share
+  // `/oauth/authorize` draws on for real clients. `staleOk` is the token endpoint's own fallback:
+  // a host that is down does not stop an agent whose delegations are not yet cached.
+  const clientDeps = { userId: deps.chargeTo ?? "poppy-session", now: deps.now, quota: signedOutFetchQuota(), staleOk: true, ...deps.clientDeps };
   const resolved = await resolveClient(clientId, clientDeps);
   if (!resolved.ok) return { ok: false, reason: `iss is not a usable client: ${resolved.reason}` };
   if (resolved.client.authMethod !== "private_key_jwt") return { ok: false, reason: "iss is not a Personal Agent" };

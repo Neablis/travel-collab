@@ -411,35 +411,42 @@ export function oauthCimdQuota(): QuotaPolicy[] {
 }
 
 /**
- * Metadata and key-set fetches for a caller who has no account yet: a Personal
- * Agent's `Poppy-Session`, or a client assertion that arrives before any grant
- * is known. A policy of its own, so anyone able to send those cannot spend the
- * global share `/oauth/authorize` draws on for the clients people are connecting
- * (`oauthCimdQuota`); the worst they can do is use up this smaller one, which
- * only refuses more of the same kind of caller.
+ * Metadata and key-set fetches made before any account is known: a Personal
+ * Agent's `Poppy-Session`, or a client assertion that arrives before its grant
+ * is. A policy of its own, so these cannot spend the global share
+ * `/oauth/authorize` draws on for the clients people are connecting
+ * (`oauthCimdQuota`). Charged to the caller's IP, never to a `client_id` the
+ * caller names, and only for a client that has a stored row: a made-up URL is
+ * answered without a fetch. The most that remains is one fetch per known client
+ * per cache window, so the global is sized by the steady state, not by an
+ * attacker: a busy agent costs about 24 units an hour (its document and key set,
+ * every five minutes), so 3,000 carries over a hundred of them with room to spare.
  */
 export function signedOutFetchQuota(): QuotaPolicy[] {
   return [
     {
       name: "oauth-signed-out-fetch-hourly",
       windowMs: HOUR_MS,
-      perUser: envCeiling("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_PER_CALLER_HOURLY", 30),
-      global: envCeiling("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_GLOBAL_HOURLY", 300),
+      perUser: envCeiling("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_PER_CALLER_HOURLY", 120),
+      global: envCeiling("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_GLOBAL_HOURLY", 3000),
     },
   ];
 }
 
 /**
- * Personal Agent Sessions opened (Poppy 5.5), per `client_id`. Only the insert
- * is charged: continuing one is free. Bounds what one agent can write to
- * `agent_sessions` however many `sid`s it invents.
+ * Personal Agent Sessions opened (Poppy 5.5). Only the insert is charged:
+ * continuing one is free. A Session is only opened once an access token is
+ * accepted, so the bucket is the account's, per agent: `(client_id, account)`
+ * signed in, `(client_id, caller IP)` signed out. One popular agent's users
+ * therefore never share a ceiling, and what one account can write through one
+ * agent is bounded.
  */
 export function agentSessionOpenQuota(): QuotaPolicy[] {
   return [
     {
       name: "agent-session-open-hourly",
       windowMs: HOUR_MS,
-      perUser: envCeiling("AGENT_SESSION_OPEN_RATE_LIMIT_PER_CLIENT_HOURLY", 600),
+      perUser: envCeiling("AGENT_SESSION_OPEN_RATE_LIMIT_PER_ACCOUNT_HOURLY", 60),
       global: envCeiling("AGENT_SESSION_OPEN_RATE_LIMIT_GLOBAL_HOURLY", 20000),
     },
   ];

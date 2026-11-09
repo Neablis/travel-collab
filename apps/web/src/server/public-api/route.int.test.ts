@@ -601,6 +601,10 @@ describe("a request that carries Poppy-Session", () => {
     const { deploymentOrigin } = await import("@/lib/deploymentOrigin");
     const agent = await makeTestAgent({ issuer: oauthIssuer() });
     const cache = createRedisCache(createMemoryClient());
+    // Someone has allowed it: a Session header naming a client with no row is refused without a fetch.
+    const { resolveClient, storeClient } = await import("@/server/oauth/clients");
+    const known = await resolveClient(agent.clientId, { fetch: agent.fetch, resolve: publicResolve, cache, userId: "route-test-owner" });
+    if (known.ok) await storeClient(known.client, new Date());
     poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
     const jwt = await agent.session({
       htu: `${deploymentOrigin()}/api/v1/trips`,

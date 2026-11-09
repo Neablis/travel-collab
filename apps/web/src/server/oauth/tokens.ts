@@ -51,6 +51,8 @@ export interface ClientCredentials {
   clientId?: string;
   clientAssertion?: string;
   clientAssertionType?: string;
+  /** Who is calling, from the route: what a fetch made before the grant is known is charged to. */
+  callerIp?: string;
 }
 
 export interface TokenResponse {
@@ -119,9 +121,11 @@ async function grantFor(
  * Poppy 4.1: a grant made to a client that signs in with a key (its
  * `token_endpoint_auth_method`, stored when it was allowed) is only that client
  * with a client assertion. Such a client's document is read again here (cached
- * for five minutes, fetched on the grant owner's share), so one that went back
- * to `none` is a public client again, and a document that cannot be read fails
- * closed. **A grant stored as `none` never reads its document**, as before
+ * for five minutes, fetched on the grant owner's share), and a document that
+ * cannot be read fails closed. **That method is sticky**: a grant stored as
+ * `private_key_jwt` always wants an assertion, whatever its document says now, so
+ * an operator's edit, or someone else serving a document at a lapsed domain,
+ * cannot turn its refresh tokens into bearer tokens. **A grant stored as `none` never reads its document**, as before
  * Personal Agents existed: a host that is down or a spent quota must not sign
  * people out of Claude Code, whatever any cache holds. `grant` is `null` when
  * none is known yet (an assertion arrives before the code or token is looked up).
@@ -140,7 +144,11 @@ async function authenticateClient(
   const resolved = await resolveClient(creds.clientId, asked);
   if (!resolved.ok) return bad("the client's metadata document could not be read");
   const { client } = resolved;
-  if (client.authMethod === "none") return { ok: true, confidential: false };
+  if (client.authMethod === "none") {
+    return grant?.tokenEndpointAuthMethod === "private_key_jwt"
+      ? bad("this client authenticates with a client_assertion")
+      : { ok: true, confidential: false };
+  }
   if (creds.clientAssertionType !== CLIENT_ASSERTION_TYPE || !creds.clientAssertion) {
     return bad("this client authenticates with a client_assertion");
   }
@@ -164,9 +172,12 @@ async function authenticateClient(
  * A request that carries an assertion is authenticated before any code or
  * token is looked up (Poppy 4.4, and the kit's validator sends a made-up refresh
  * token with a bad assertion and expects `invalid_client`, not `invalid_grant`).
- * No grant is known yet, so the read is charged to the client_id itself,
- * on the signed-out quota: anyone can send an assertion naming any URL, and
- * that must not draw on the share authorize uses. `null` when nothing was presented.
+ * No grant is known yet, so a read is charged to the caller's IP on the
+ * signed-out quota, never to the client_id it names or to the share authorize
+ * uses, and **only for a client with a stored row**: authorize alone creates
+ * one, under its own quota, so a made-up URL is `invalid_client` with no fetch.
+ * `null` when nothing was presented, or when the client turns out to be public:
+ * that is for the grant's own method to say, once it is known.
  */
 async function authenticateFirst(
   creds: ClientCredentials,
@@ -175,7 +186,16 @@ async function authenticateFirst(
   const { clientId } = creds;
   if (!clientId?.startsWith("https://")) return null;
   if (creds.clientAssertion === undefined && creds.clientAssertionType === undefined) return null;
-  return authenticateClient({ ...creds, clientId }, null, { userId: `cimd-client:${clientId}`, quota: signedOutFetchQuota() }, deps);
+  if ((await storedClientRowId(clientId)) === null) {
+    return { ok: false, outcome: refuse("invalid_client", "no such client") };
+  }
+  const checked = await authenticateClient(
+    { ...creds, clientId },
+    null,
+    { userId: `ip:${creds.callerIp ?? "unknown"}`, quota: signedOutFetchQuota() },
+    deps,
+  );
+  return checked.ok && !checked.confidential ? null : checked;
 }
 
 /**
