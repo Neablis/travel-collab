@@ -113,9 +113,9 @@ describe("Strict-Transport-Security", () => {
   // The app serves it itself now that nothing in front of it does (M59), and
   // only on production: every `next build` has NODE_ENV=production, previews
   // included, so the gate is the deployment environment.
-  it("is served on the production deployment, with the plan's value", async () => {
-    expect(await hsts(undefined, "production")).toBe("max-age=63072000; includeSubDomains; preload");
-    expect(await hsts("production")).toBe("max-age=63072000; includeSubDomains; preload");
+  it("is served on the production deployment, without includeSubDomains (previews share the apex)", async () => {
+    expect(await hsts(undefined, "production")).toBe("max-age=63072000");
+    expect(await hsts("production")).toBe("max-age=63072000");
   });
 
   it("is not served on a preview build, even though NODE_ENV is production", async () => {

@@ -121,7 +121,10 @@ const contentSecurityPolicy = [
 // host may later be served with a self-signed certificate a browser could no
 // longer click through, and not on the local http server. `NODE_ENV` cannot say
 // which, since every `next build` is "production"; `deployEnv()` is read at
-// build time, so `APP_ENV` must be a build variable. The value is the plan's.
+// build time, so `APP_ENV` must be a build variable. No `includeSubDomains` or
+// `preload`: previews live under `*.preview.caesura.today`, so a pin on the
+// apex would give a fresh preview, still on Traefik's default certificate while
+// its Let's Encrypt order is pending, the very hard failure this gate avoids.
 const securityHeaders = [
   { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -131,7 +134,7 @@ const securityHeaders = [
   // further for the ones that are the whole secret.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   ...(deployEnv() === "production"
-    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }]
+    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000" }]
     : []),
 ];
 

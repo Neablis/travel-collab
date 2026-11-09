@@ -6,11 +6,12 @@
 // psql session, and an operator surface nobody can reach is an operator surface
 // that does not exist. Found by trying to walk the gate end to end.
 //
-// **An allowlist of ids in the environment, read at sign-in.** The column stays
-// the single source of truth for every READ — nothing else consults this — and
-// this only ever **promotes**: an id in the list is made an operator on its
-// next sign-in, and an id removed from the list keeps the bit until somebody
-// takes it away deliberately. Demoting on absence would mean a deploy that
+// **An allowlist of ids in the environment, read at sign-in** to promote the
+// column, and again on every request by `callerIsAdmin` as a second way to say
+// yes (M59). It only ever **promotes**: an id in the list is made an operator
+// on its next sign-in, and an id removed from the list keeps a stored bit until
+// somebody takes it away deliberately; an account whose column was never set
+// loses access the moment its id leaves the list. Demoting on absence would mean a deploy that
 // forgot the variable silently locking every operator out of the console, which
 // is the failure you notice at the worst moment.
 //
