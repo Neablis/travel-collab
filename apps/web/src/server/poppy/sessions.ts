@@ -3,6 +3,7 @@ import { and, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { agentSessions } from "@/server/db/schema";
 import { clientIp } from "@/server/og/limit";
+import { clientIsBlocked } from "@/server/oauth/clients";
 import { bearerToken } from "@/server/public-api/actor";
 import { agentSessionOpenQuota, consumeQuota, quotaRefusal } from "@/server/quota";
 import { poppyError } from "./errors";
@@ -128,18 +129,26 @@ function versionServed(header: string | null): boolean {
  * one, as 5.3 wants. **Nothing is written until the credential is accepted**: a
  * request with no token, or a dead one, would otherwise create a row for any
  * `sid` its sender chose, and record an account from a token nobody had checked.
- * `open(accountId)` takes the accepted token's account, `null` for none.
+ * `open(accountId)` takes the accepted token's account, `null` for none. `claims` is
+ * who the verified Session is, or `null` when the request carried none.
  */
 export async function poppyGate(
   request: Request,
   deps: SessionDeps = {},
-): Promise<{ refused: Response } | { open: (accountId: string | null) => Promise<Response | null> }> {
-  if (request.headers.get("poppy-session") === null) return { open: async () => null };
+): Promise<
+  { refused: Response } | { claims: SessionClaims | null; open: (accountId: string | null) => Promise<Response | null> }
+> {
+  if (request.headers.get("poppy-session") === null) return { claims: null, open: async () => null };
   const token = bearerToken(request) ?? undefined;
   const verified = await verifySessionHeader(request, token, { chargeTo: `poppy:${clientIp(request)}`, ...deps });
   if (!verified.ok) return { refused: poppyError("invalid_session", verified.reason) };
+  // The operator's kill switch (ADR-089 decision 3). Poppy 7 answers a refused
+  // `client_id` as `invalid_session`, and a Session that verified is the first
+  // moment it is known whose it is.
+  if (await clientIsBlocked(verified.claims.clientId)) return { refused: poppyError("invalid_session", "this client_id is refused") };
   if (!versionServed(request.headers.get("poppy-version"))) return { refused: poppyError("version_unsupported") };
   return {
+    claims: verified.claims,
     open: async (accountId) => {
       const opened = await openOrContinueSession({ claims: verified.claims, accountId, now: deps.now ?? new Date() });
       if (opened.ok) return null;

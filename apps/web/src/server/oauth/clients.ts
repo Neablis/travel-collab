@@ -5,7 +5,7 @@ import { z } from "zod";
 import { cimdDocumentKey, clientKeySetKey } from "@/server/cache/keys";
 import { getCache, type CachePort } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
-import { oauthClients } from "@/server/db/schema";
+import { oauthClientBlocks, oauthClients } from "@/server/db/schema";
 import {
   beforeDeadline,
   guardedHttpsFetcher,
@@ -209,6 +209,15 @@ export async function storedClientRowId(clientId: string): Promise<string | null
   if (where === null) return null;
   const [row] = await db.select({ id: oauthClients.id }).from(oauthClients).where(where);
   return row?.id ?? null;
+}
+
+/**
+ * Whether the operator cut this protocol `client_id` off (ADR-089 decision 3).
+ * Read on every use and never cached, so a block takes effect on the next request.
+ */
+export async function clientIsBlocked(clientId: string): Promise<boolean> {
+  const [row] = await db.select({ clientId: oauthClientBlocks.clientId }).from(oauthClientBlocks).where(eq(oauthClientBlocks.clientId, clientId));
+  return row !== undefined;
 }
 
 const refused = (detail: string): ResolvedClient => ({ ok: false, reason: "invalid-metadata-document", detail });

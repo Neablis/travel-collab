@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/server/db/client";
-import { oauthCodes, oauthTokens } from "@/server/db/schema";
+import { oauthClientBlocks, oauthCodes, oauthTokens } from "@/server/db/schema";
 import { createMemoryClient } from "@/server/cache/memory";
 import { createRedisCache } from "@/server/cache/redis";
 import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
@@ -138,6 +138,14 @@ describe("exchanging a code", () => {
     expect(errorOf(await exchange({ resource: "https://other.example/api/mcp" }))).toBe("invalid_target");
     const stale = await consented({ resource: "https://old-origin.example/api/mcp" });
     expect(errorOf(await stale.exchange())).toBe("invalid_target");
+  });
+
+  it("takes a grant made for the domain, the audience a Personal Agent asks for, and still refuses a third", async () => {
+    const domain = await consented({ resource: oauthIssuer() });
+    expect(errorOf(await domain.exchange({ resource: oauthIssuer() }))).toBe("ok");
+    // Naming the other audience than the grant's is as wrong as naming a stranger's.
+    const named = await consented({ resource: oauthIssuer() });
+    expect(errorOf(await named.exchange({ resource: mcpResource() }))).toBe("invalid_target");
   });
 
   it("revokes the grant when a code is presented a second time", async () => {
@@ -432,5 +440,36 @@ describe("revoking a private_key_jwt client's token", () => {
     const fetch = spying(async () => new Response("", { status: 503 }));
     expect(await revokeSecret(refresh_token, new Date(), {}, { ...deps, fetch, cache: createRedisCache(createMemoryClient()) })).toEqual({ ok: true });
     expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+  });
+});
+
+// **The kill switch** (ADR-089 decision 3): a `client_id` the operator blocked
+// is `invalid_client` at every door of the token endpoint, and unblocking
+// brings it back with no new consent.
+describe("a blocked client_id", () => {
+  const block = (clientId: string) =>
+    db.insert(oauthClientBlocks).values({ clientId, blockedAt: new Date(), blockedBy: "dev-operator" });
+  const unblock = (clientId: string) => db.delete(oauthClientBlocks).where(eq(oauthClientBlocks.clientId, clientId));
+
+  it("is refused at the code exchange, at refresh and at revocation, and works again once unblocked", async () => {
+    const { exchange, signed, agent, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const refreshed = async () => refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
+    await block(agent.clientId);
+    expect(errorOf(await exchange(await signed()))).toBe("invalid_client");
+    expect(errorOf(await refreshed())).toBe("invalid_client");
+    expect(await revokeSecret(refresh_token, new Date(), { clientId: agent.clientId, ...(await signed()) }, deps)).toMatchObject({
+      ok: false,
+      error: "invalid_client",
+    });
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+    await unblock(agent.clientId);
+    expect(errorOf(await refreshed())).toBe("ok");
+  });
+
+  it("is refused though it is a public client, whose document is never read", async () => {
+    const { app, exchange } = await consented();
+    await block(app.clientId);
+    expect(errorOf(await exchange())).toBe("invalid_client");
   });
 });

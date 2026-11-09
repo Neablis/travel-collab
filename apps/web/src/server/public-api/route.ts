@@ -13,7 +13,7 @@ import type { AccessRefusal } from "@/server/oauth/verifyAccess";
 import { PublicApiError } from "./commands";
 import { TOO_LARGE, readCapped } from "@/server/readBody";
 import { tripAccessFor, type TripAccessDenial } from "@/server/access/trip-access";
-import { consumeQuota, type QuotaPolicy } from "@/server/quota";
+import { consumeQuota, signedOutReadQuota, type QuotaPolicy } from "@/server/quota";
 import {
   completeKey,
   readIdempotencyKey,
@@ -27,6 +27,7 @@ import {
   actorMayReachTrip,
   credentialKey,
   resolveActor,
+  SIGNED_OUT_ACTOR,
   type Actor,
   type ActorRefusal,
 } from "./actor";
@@ -95,6 +96,14 @@ interface BaseDef {
   readonly description?: string;
   /** The single scope a token must hold. A session holds every scope. */
   readonly scope: ApiScope;
+  /**
+   * Answers a Personal Agent's Session that carries no access token (Poppy 5.4,
+   * ADR-089 decision 5), and only that: a request with no `Poppy-Session`, or
+   * with a credential that fails, is refused as ever. The scope is not asked of
+   * it, so this is an opt-in for a public read, and it may not be declared on a
+   * write or a trip endpoint. `ctx.actor.via` is `"signed-out"`.
+   */
+  readonly signedOut?: true;
   /**
    * Declares this endpoint is about one trip, and where its id comes from.
    *
@@ -462,6 +471,9 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
   if (def.idempotent !== undefined && method !== "POST") {
     throw new Error(`idempotent is declared on ${method}; it is only meaningful on POST`);
   }
+  if (def.signedOut === true && (method !== "GET" || def.trip !== undefined)) {
+    throw new Error(`signedOut is declared on ${method}; it is only for a GET with no trip, a public read`);
+  }
   if (typeof def.trip === "object" && def.body === undefined) {
     throw new Error(`trip: { body } is declared on ${method} with no body schema to read it from`);
   }
@@ -507,15 +519,31 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       console.error("v1 credential resolution threw", { method, scope: def.scope, error });
       return fail("server-error", SERVER_FAILED, 500);
     }
-    if (!resolution.ok) return refusalResponse(resolution.refusal);
-    const actor = resolution.actor;
+    // **No `Authorization` at all, and a verified Session, is signed out** (Poppy
+    // 5.4): a bad or malformed credential is still refused as itself, never
+    // downgraded, for the reason `resolveActor` gives.
+    const signedOut =
+      !resolution.ok &&
+      def.signedOut === true &&
+      resolution.refusal.reason === "anonymous" &&
+      session.claims !== null &&
+      request.headers.get("authorization") === null;
+    if (!resolution.ok && !signedOut) return refusalResponse(resolution.refusal);
+    const actor = resolution.ok ? resolution.actor : SIGNED_OUT_ACTOR;
 
     // ---- rate limit, credentials only -----------------------------------
     // A token's bucket is its id, an OAuth grant's its grant id (ADR-083 §7):
     // every access token a grant is refreshed into shares one allowance.
+    // A signed-out Session has no credential, so its share is the Session's own.
     const credential = credentialKey(actor);
-    if (credential !== null) {
-      const decision = await consumeQuota([API_TOKEN_QUOTA], credential);
+    const charge =
+      session.claims !== null && actor.via === "signed-out"
+        ? { policy: signedOutReadQuota(), key: `${session.claims.clientId}:${session.claims.sid}` }
+        : credential !== null
+          ? { policy: [API_TOKEN_QUOTA], key: credential }
+          : null;
+    if (charge !== null) {
+      const decision = await consumeQuota(charge.policy, charge.key);
       if (!decision.allowed) {
         // **Fail closed when the counter store is down.** A rate limiter that
         // opens under load is not a rate limiter; `quota.ts` already made this
@@ -544,7 +572,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     // ---- scope -----------------------------------------------------------
     // **Names the scope it wanted.** That leaks nothing a caller does not
     // already know about its own token, and it saves a support round trip.
-    if (!actorHasScope(actor, def.scope)) {
+    if (actor.via !== "signed-out" && !actorHasScope(actor, def.scope)) {
       return fail(
         "insufficient-scope",
         `This token does not hold the "${def.scope}" scope.`,
@@ -900,7 +928,7 @@ export function oauthChallenge(invalidToken: boolean): Record<string, string> {
 export function oauthRefusalResponse(refusal: AccessRefusal): Response {
   switch (refusal.reason) {
     case "audience":
-      return fail("unauthenticated", "This token is for the MCP connector at /api/mcp, not the REST API.", 401, {
+      return fail("unauthenticated", "This token is for another endpoint than this one: a connector token works only at /api/mcp, and a Personal Agent's only on the REST API.", 401, {
         headers: oauthChallenge(true),
       });
     case "resource":

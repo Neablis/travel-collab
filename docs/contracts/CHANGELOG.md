@@ -13,6 +13,15 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-09 — `AdminAgent`, `AdminAgentList`, `AdminAgentBlock`: the console's Agents tab (M60 part 4)
+- **New schemas** in `packages/contracts/src/adminAgents.ts`: `AdminAgent` (a Personal Agent seen:
+  `clientId`, `name`, `logoUri`, `domain`, `sessions30d`, `accounts`, `lastSeenAt`, `blocked`),
+  `AdminAgentList` and `AdminAgentBlock` (`{ clientId, blocked }`).
+- Why: `/admin?tab=agents` lists the agents and blocks or unblocks one by `client_id` (ADR-089 decision 3).
+- Consumers updated: `apps/web` (`app/api/admin/agents/route.ts`, `…/[clientId]/block/route.ts`,
+  `components/admin/AgentsTab.tsx`). Admin-only endpoints, not in the public API.
+- Breaking? no, additive.
+
 ## 2026-11-09 — `ConnectedApp.personalAgent`: a Personal Agent's row (M60 part 3)
 - **New required field** on `ConnectedApp` (`packages/contracts/src/publicApi.ts`):
   `personalAgent: { logoUri: string | null } | null`. Set for a client whose metadata document says

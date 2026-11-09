@@ -80,6 +80,7 @@ const { apiTokens, tripDetails } = await import("@/server/db/schema");
 const { eq } = await import("drizzle-orm");
 
 const { GET: LIST_TRIPS } = await import("@/app/api/v1/trips/route");
+const { GET: DISCOVER } = await import("@/app/api/v1/discover/playbooks/route");
 const { GET: GET_TRIP } = await import("@/app/api/v1/trips/[tripId]/route");
 
 const RUN = randomUUID().slice(0, 8);
@@ -593,28 +594,38 @@ describe("the endpoint declares, and the wrapper does the rest", () => {
 // **A Personal Agent's Session header** (Poppy 5.3, M60 part 3): verified
 // before the actor when it is present, and a request without it is the request
 // every test above already sends.
+const agentCaches = new WeakMap<object, ReturnType<typeof import("@/server/cache/redis").createRedisCache>>();
+const agentAddresses = new WeakMap<object, string>();
+const agentAddress = (agent: object) =>
+  agentAddresses.get(agent) ?? agentAddresses.set(agent, `203.0.113.${1 + Math.floor(Math.random() * 250)}`).get(agent)!;
 describe("a request that carries Poppy-Session", () => {
-  async function agentRequest(over: { headers?: Record<string, string | null>; token?: string; session?: Record<string, unknown> } = {}) {
+  async function agentRequest(
+    over: { headers?: Record<string, string | null>; token?: string; session?: Record<string, unknown>; path?: string; agent?: Awaited<ReturnType<typeof import("@/server/poppy/testAgent").makeTestAgent>> } = {},
+  ) {
+    const path = over.path ?? "/api/v1/trips";
     const { makeTestAgent, publicResolve } = await import("@/server/poppy/testAgent");
     const { createMemoryClient } = await import("@/server/cache/memory");
     const { createRedisCache } = await import("@/server/cache/redis");
     const { deploymentOrigin } = await import("@/lib/deploymentOrigin");
-    const agent = await makeTestAgent({ issuer: oauthIssuer() });
-    const cache = createRedisCache(createMemoryClient());
+    const agent = over.agent ?? (await makeTestAgent({ issuer: oauthIssuer() }));
+    // One cache per agent, so its document is fetched, and charged to the shared signed-out
+    // fetch quota, once however many requests a test sends; and an address of its own, so the
+    // other suites that sign Sessions do not share this one's per-address share.
+    const cache = (agentCaches.get(agent) ?? agentCaches.set(agent, createRedisCache(createMemoryClient())).get(agent))!;
     poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
     const jwt = await agent.session({
-      htu: `${deploymentOrigin()}/api/v1/trips`,
+      htu: `${deploymentOrigin()}${path}`,
       // Signed over the token it rides with, so the check that fails is whose token it is, not `ath`.
       ...(over.token === undefined ? {} : { accessToken: over.token }),
       ...over.session,
     });
-    const headers: Record<string, string> = { "poppy-session": jwt, "poppy-version": "0.4" };
+    const headers: Record<string, string> = { "poppy-session": jwt, "poppy-version": "0.4", "x-forwarded-for": agentAddress(agent) };
     for (const [name, value] of Object.entries(over.headers ?? {})) {
       if (value === null) delete headers[name];
       else headers[name] = value;
     }
     if (over.token !== undefined) headers.authorization = `Bearer ${over.token}`;
-    return { agent, request: new Request("http://localhost/api/v1/trips", { headers }) };
+    return { agent, request: new Request(`http://localhost${path}`, { headers }) };
   }
 
   it("refuses a header that fails as invalid_session, a 400 outside the envelope, before the credential", async () => {
@@ -658,5 +669,67 @@ describe("a request that carries Poppy-Session", () => {
     const res = await LIST_TRIPS(request, NO_PARAMS);
     expect(res.status).toBe(500);
     expect((await res.json()).error.code).toBe("server-error");
+  });
+
+  // **Signed out** (Poppy 5.4, 7; ADR-089 decision 5): no access token is a signed-out
+  // request, and the only routes that answer one declare `signedOut`. A Session header
+  // is what makes it a Personal Agent and not an anonymous caller.
+  describe("with no access token", () => {
+    const DISCOVER_PATH = "/api/v1/discover/playbooks";
+
+    it("reaches a route that declares signedOut and no other", async () => {
+      const read = await agentRequest({ path: DISCOVER_PATH });
+      const res = await DISCOVER(read.request, NO_PARAMS);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ items: expect.any(Array) });
+
+      const trips = await agentRequest();
+      const refused = await LIST_TRIPS(trips.request, NO_PARAMS);
+      expect(refused.status).toBe(401);
+      expect((await refused.json()).error.code).toBe("unauthenticated");
+    });
+
+    it("is still 401 without a Session header, and with a credential that is not a bearer token", async () => {
+      expect((await DISCOVER(get("http://localhost/api/v1/discover/playbooks"), NO_PARAMS)).status).toBe(401);
+      const { request } = await agentRequest({ path: DISCOVER_PATH, headers: { authorization: "Basic abc" } });
+      expect((await DISCOVER(request, NO_PARAMS)).status).toBe(401);
+    });
+
+    it("writes the Session a signed-out request opens, and is limited per client_id and sid", async () => {
+      const previous = process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_SESSION_HOURLY;
+      process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_SESSION_HOURLY = "2";
+      try {
+        const { makeTestAgent } = await import("@/server/poppy/testAgent");
+        const agent = await makeTestAgent({ issuer: oauthIssuer() });
+        const sid = randomUUID();
+        const statuses: number[] = [];
+        for (let call = 0; call < 3; call++) {
+          const { request } = await agentRequest({ path: DISCOVER_PATH, session: { sid }, agent });
+          statuses.push((await DISCOVER(request, NO_PARAMS)).status);
+        }
+        expect(statuses).toEqual([200, 200, 429]);
+        // Another Session of the same agent is its own share.
+        const other = await agentRequest({ path: DISCOVER_PATH, session: { sid: randomUUID() }, agent });
+        expect((await DISCOVER(other.request, NO_PARAMS)).status).toBe(200);
+      } finally {
+        if (previous === undefined) delete process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_SESSION_HOURLY;
+        else process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_SESSION_HOURLY = previous;
+      }
+    });
+  });
+
+  // The kill switch (ADR-089 decision 3): Poppy 7 names a refused `client_id` as `invalid_session`.
+  it("refuses a blocked client_id as invalid_session, signed out or not, until it is unblocked", async () => {
+    const { oauthClientBlocks } = await import("@/server/db/schema");
+    const { request, agent } = await agentRequest({ path: "/api/v1/discover/playbooks" });
+    expect((await DISCOVER(request, NO_PARAMS)).status).toBe(200);
+    await db.insert(oauthClientBlocks).values({ clientId: agent.clientId, blockedAt: new Date(), blockedBy: "dev-operator" });
+    const again = await agentRequest({ path: "/api/v1/discover/playbooks", agent });
+    const blocked = await DISCOVER(again.request, NO_PARAMS);
+    expect(blocked.status).toBe(400);
+    expect(await blocked.json()).toMatchObject({ error: "invalid_session" });
+    await db.delete(oauthClientBlocks).where(eq(oauthClientBlocks.clientId, agent.clientId));
+    const back = await agentRequest({ path: "/api/v1/discover/playbooks", agent });
+    expect((await DISCOVER(back.request, NO_PARAMS)).status).toBe(200);
   });
 });

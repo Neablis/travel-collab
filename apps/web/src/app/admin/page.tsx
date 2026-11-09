@@ -14,6 +14,7 @@ import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { PriceCheckPanel, PriceCheckPending } from "@/components/admin/PriceCheckPanel";
 import { LibraryTab } from "@/components/admin/LibraryTab";
 import { AiModelsTab } from "@/components/admin/AiModelsTab";
+import { AgentsTab } from "@/components/admin/AgentsTab";
 import { PersonasTab } from "@/components/admin/PersonasTab";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
@@ -22,6 +23,7 @@ import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitleme
 import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { personaReport } from "@/server/entitlements/personaReport";
 import { grantForPersona, toolsFor } from "@/server/assistant/grants";
+import { agentsSeen } from "@/server/poppy/agentsSeen";
 import { EDGES, ENTRY, PERSONAS, type PersonaId } from "@/server/assistant/personas";
 import type { PersonaMapDef } from "@/lib/adminPersonas";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
@@ -141,6 +143,17 @@ export default async function AdminPage({
     return (
       <ConsoleShell tab={tab}>
         <PersonasTab report={report} />
+      </ConsoleShell>
+    );
+  }
+
+  if (tab === "agents") {
+    // **The Personal Agents seen and the operator's blocks** (M60 part 4): read
+    // after the gate, on its own, like every tab.
+    const agents = await agentsSeen();
+    return (
+      <ConsoleShell tab={tab}>
+        <AgentsTab agents={agents} />
       </ConsoleShell>
     );
   }

@@ -6,10 +6,10 @@ import { db } from "@/server/db/client";
 import { oauthCodes, oauthTokens } from "@/server/db/schema";
 import { keyedDigest, keyedDigestCandidates } from "@/server/secrets/keyedDigest";
 import { getCache } from "@/server/cache/redis";
-import { fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps } from "./clients";
+import { clientIsBlocked, fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps } from "./clients";
 import { verifyClientAssertion } from "./clientAssertion";
 import { cutOffGrant, grantIsLive, grantOf, grantScopes, mintSecret, type GrantRow } from "./grants";
-import { mcpResource, oauthIssuer } from "./metadata";
+import { isAudience, oauthIssuer } from "./metadata";
 import { verifyS256 } from "./pkce";
 import { signedOutFetchQuota } from "@/server/quota";
 
@@ -109,8 +109,8 @@ async function grantFor(
   if ((await storedClientRowId(clientId)) !== grant.clientId) {
     return { ok: false, outcome: refuse("invalid_grant", "this was not issued to that client_id") };
   }
-  if ((resource !== undefined && resource !== grant.resource) || grant.resource !== mcpResource()) {
-    return { ok: false, outcome: refuse("invalid_target", `the only resource here is ${mcpResource()}`) };
+  if ((resource !== undefined && resource !== grant.resource) || !isAudience(grant.resource)) {
+    return { ok: false, outcome: refuse("invalid_target", `the resource of this grant is not one this server serves`) };
   }
   return { ok: true, grant };
 }
@@ -133,6 +133,8 @@ async function authenticateClient(
   charge: { userId: string; quota?: ClientDeps["quota"] },
   deps: ClientDeps,
 ): Promise<{ ok: true; confidential: boolean } | { ok: false; outcome: TokenOutcome }> {
+  // Before any early return below: a public client is cut off too (ADR-089 decision 3).
+  if (await clientIsBlocked(creds.clientId)) return { ok: false, outcome: refuse("invalid_client", "this client has been blocked") };
   if (!creds.clientId.startsWith("https://")) return { ok: true, confidential: false };
   if (grant?.tokenEndpointAuthMethod === "none") return { ok: true, confidential: false };
   const bad = (description: string) => ({ ok: false as const, outcome: refuse("invalid_client", description) });
@@ -222,7 +224,7 @@ export async function exchangeCode(
   const authenticated = early ?? (await authenticateClient({ ...input, clientId: input.clientId }, checked.grant, { userId: checked.grant.ownerId }, { ...deps, now }));
   if (!authenticated.ok) return authenticated.outcome;
   if (code.resource !== checked.grant.resource) {
-    return refuse("invalid_target", `the only resource here is ${mcpResource()}`);
+    return refuse("invalid_target", "the code was issued for another resource than its grant");
   }
   // Exact: the redirect the code was sent to, as a string (RFC 6749 §4.1.3).
   if (code.redirectUri !== input.redirectUri) return refuse("invalid_grant", "redirect_uri differs from the authorize request's");

@@ -446,6 +446,23 @@ export function agentSessionOpenQuota(): QuotaPolicy[] {
 }
 
 /**
+ * What a Personal Agent's signed-out Session may read (Poppy 5.4, ADR-089
+ * decision 5), per `(client_id, sid)`: a Session is the unit an agent can make
+ * as many of as it likes, and `agentSessionOpenQuota` bounds that, so the two
+ * together bound what one agent can pull without an account.
+ */
+export function signedOutReadQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "signed-out-read-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_PER_SESSION_HOURLY", 300),
+      global: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_GLOBAL_HOURLY", 20000),
+    },
+  ];
+}
+
+/**
  * Outside-data quota (ADR-052 decision 8): our own ceiling on calls to MET
  * Norway and NASA POWER, charged per upstream call and **only on a cache
  * miss** — a notebook served from `external_data_cache` costs nothing here. A

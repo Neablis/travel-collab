@@ -1,6 +1,6 @@
 import { API_SCOPES, ApiScope } from "@tc/contracts";
 import { resolveClient, type ClientDeps, type OAuthClient } from "./clients";
-import { mcpResource, OAUTH_SCOPES, oauthIssuer } from "./metadata";
+import { isAudience, mcpResource, OAUTH_SCOPES, oauthIssuer } from "./metadata";
 import { isS256Challenge } from "./pkce";
 import { consentMarking, type ConsentMarking } from "./recognised";
 import { redirectMatches } from "./redirects";
@@ -129,10 +129,11 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
       ? [...API_SCOPES]
       : requested.filter((scope): scope is ApiScope => ApiScope.safeParse(scope).success);
   if (scopes.length === 0) return back("invalid_scope", "no scope this server grants was requested");
-  // Amendment C: the one audience here. Absent is taken as it, since an older
-  // client sends none and there is no other resource it could mean.
-  const resource = param("resource") ?? mcpResource();
-  if (resource !== mcpResource()) return back("invalid_target", `the only resource here is ${mcpResource()}`);
+  // Amendment C, with the domain beside `/api/mcp` (ADR-089 decision 4): the
+  // connector asks for the MCP endpoint, a Personal Agent for the domain (Poppy
+  // 3.2), and one that names none is the latter, the API this server is.
+  const resource = param("resource") ?? oauthIssuer();
+  if (!isAudience(resource)) return back("invalid_target", `the resources here are ${oauthIssuer()} and ${mcpResource()}`);
 
   return {
     request: { client, redirectUri, scopes, state, codeChallenge, resource, marking },

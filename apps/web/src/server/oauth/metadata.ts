@@ -26,6 +26,11 @@ export function mcpResource(): string {
   return `${deploymentOrigin()}/api/mcp`;
 }
 
+/** Whether `resource` is an audience a grant may be made for: this server's domain, or its MCP endpoint. */
+export function isAudience(resource: string): boolean {
+  return resource === oauthIssuer() || resource === mcpResource();
+}
+
 /**
  * RFC 9728: where a client learns which server issues tokens. The bare form
  * speaks for the domain, which Poppy (spec 3.2) requires to be the `resource`

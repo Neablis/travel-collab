@@ -103,6 +103,20 @@ describe("after the redirect is proven", () => {
     expect(query.get("iss")).toBe(oauthIssuer());
   });
 
+  // Poppy 3.2 makes the domain the `resource`; a request that names none is for it,
+  // and Claude's connector names `/api/mcp` itself as MCP authorization requires.
+  it("takes the domain or /api/mcp as the resource, and the domain when none is named", async () => {
+    resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
+    for (const [asked, granted] of [
+      [oauthIssuer(), oauthIssuer()],
+      [mcpResource(), mcpResource()],
+      [undefined, oauthIssuer()],
+    ] as const) {
+      const parsed = await parseAuthorizeRequest(valid({ resource: asked }));
+      expect(parsed, String(asked)).toEqual({ request: expect.objectContaining({ resource: granted }) });
+    }
+  });
+
   it("answers an unknown scope with invalid_scope, and a wrong response_type with unsupported_response_type", async () => {
     resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
     expect(backTo(await parseAuthorizeRequest(valid({ scope: "trips:read admin" }))).get("error")).toBe(

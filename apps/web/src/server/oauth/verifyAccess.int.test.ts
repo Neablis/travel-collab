@@ -11,6 +11,7 @@ import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { connectForTest as connect } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
+import { oauthIssuer } from "./metadata";
 import { grantIsLive, grantOf, revokeGrant } from "./grants";
 import { revokeSecret } from "./tokens";
 import { verifyAccessToken } from "./verifyAccess";
@@ -40,8 +41,16 @@ describe("verifyAccessToken", () => {
     const verified = await verifyAccessToken(access);
     expect(verified).toEqual({
       ok: true,
-      access: { grantId: grant.id, ownerId: owner, clientName: "Test app", scopes: new Set(["trips:read", "account:read"]) },
+      access: { grantId: grant.id, ownerId: owner, clientName: "Test app", scopes: new Set(["trips:read", "account:read"]), audience: "mcp" },
     });
+  });
+
+  it("answers the domain audience for a grant made for the domain, and refuses a third resource", async () => {
+    const owner = await person(true);
+    const { grant, access } = await connect(owner, ["trips:read"], new Date(), oauthIssuer());
+    expect(await verifyAccessToken(access)).toMatchObject({ ok: true, access: { audience: "domain" } });
+    await db.update(oauthGrants).set({ resource: "https://elsewhere.example" }).where(eq(oauthGrants.id, grant.id));
+    expect(await verifyAccessToken(access)).toEqual({ ok: false, refusal: { reason: "resource" } });
   });
 
   it("refuses as unknown a secret it never issued, a refresh token, and a tc_ token", async () => {

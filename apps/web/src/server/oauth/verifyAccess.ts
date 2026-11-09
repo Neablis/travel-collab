@@ -5,7 +5,7 @@ import { oauthTokens } from "@/server/db/schema";
 import { accountCan } from "@/server/entitlements/resolver";
 import { keyedDigestCandidates } from "@/server/secrets/keyedDigest";
 import { grantOf, grantScopes } from "./grants";
-import { mcpResource } from "./metadata";
+import { mcpResource, oauthIssuer } from "./metadata";
 
 // **An OAuth access token, verified on every call** (ADR-083 §7), the way
 // `verifyToken` verifies a `tc_` token: everything resolved on read, nothing
@@ -20,9 +20,9 @@ export type AccessRefusal =
   | { reason: "revoked"; revokedAt: Date }
   /** The token's hour, or its grant's year, ran out. */
   | { reason: "expired"; expiresAt: Date }
-  /** Presented outside an MCP dispatch, where its audience is not (`resolveActor`). */
+  /** Presented where its audience is not: an `/api/mcp` token on v1, or a domain one in MCP (`resolveActor`). */
   | { reason: "audience" }
-  /** The grant was made for another resource than this server's `/api/mcp` (amendment C). */
+  /** The grant was made for neither this server's domain nor its `/api/mcp` (amendment C). */
   | { reason: "resource" }
   /** Real and live, but its owner's plan no longer grants `api.tokens`. */
   | { reason: "not-entitled"; ownerId: string };
@@ -32,6 +32,8 @@ export interface VerifiedAccess {
   ownerId: string;
   clientName: string;
   scopes: ReadonlySet<ApiScope>;
+  /** `mcp` is the connector's token, `domain` a Personal Agent's: each works at its own endpoint only (Poppy 7). */
+  audience: "mcp" | "domain";
 }
 
 export type AccessResult = { ok: true; access: VerifiedAccess } | { ok: false; refusal: AccessRefusal };
@@ -42,7 +44,7 @@ const refuse = (refusal: AccessRefusal): AccessResult => ({ ok: false, refusal }
  * Verifies an OAuth access token presented as a bearer, reading the token, its
  * grant and the owner's plan afresh. Returns the grant's owner, client name and
  * scopes, or the first refusal in order: unknown, revoked, expired, resource,
- * not-entitled. Never refuses for `audience`: that is the caller's to decide.
+ * not-entitled. Never refuses for `audience`: it names it, and the caller decides.
  */
 export async function verifyAccessToken(secret: string, now: Date = new Date()): Promise<AccessResult> {
   if (!secret.startsWith(OAUTH_ACCESS_PREFIX)) return refuse({ reason: "unknown" });
@@ -66,7 +68,8 @@ export async function verifyAccessToken(secret: string, now: Date = new Date()):
 
   // Checked against the grant's own record, not inferred from where the call
   // arrived: a grant made for another deployment's resource is not ours to honour.
-  if (grant.resource !== mcpResource()) return refuse({ reason: "resource" });
+  const audience = grant.resource === mcpResource() ? "mcp" : grant.resource === oauthIssuer() ? "domain" : null;
+  if (audience === null) return refuse({ reason: "resource" });
 
   // A lapse disables, as it does a `tc_` token: re-subscribing restores the
   // connection with no writes and no new consent.
@@ -80,6 +83,7 @@ export async function verifyAccessToken(secret: string, now: Date = new Date()):
       ownerId: grant.ownerId,
       clientName: grant.clientName,
       scopes: new Set(grantScopes(grant)),
+      audience,
     },
   };
 }

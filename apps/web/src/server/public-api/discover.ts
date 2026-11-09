@@ -57,6 +57,8 @@ type ApiDiscoverDay = z.infer<typeof ApiDiscoverDay>;
 export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {
   summary: "Discover published Playbooks from everyone — filter by place, length and rating, ranked as the app ranks them",
   scope: "library:read",
+  // Published Playbooks are public on the web, so a Personal Agent may read them with no account.
+  signedOut: true,
   query: Query,
   collection: {
     item: ApiDiscoverDay,
@@ -75,7 +77,7 @@ export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {
         sort: q.sort ?? "most-added",
         length: q.length ?? "any",
         rating: q.rating ?? "any",
-        readerId: actor.userId,
+        readerId: actor.via === "signed-out" ? null : actor.userId,
       },
       page,
     );
