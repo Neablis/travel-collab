@@ -92,7 +92,20 @@ outside MCP dispatch with `audience`).
   `createRemoteJWKSet`, so the private-address rule (§3) holds.
 - **Client assertions:** `aud` must equal `oauthIssuer()` character for character (the token
   endpoint's URL is refused); `exp` at most 5 minutes after `iat`; `jti` remembered in the cache
-  until `exp`, and a reuse is `invalid_client`.
+  until `exp`, and a reuse is `invalid_client`. **Best effort, and it fails open:** while the cache
+  is down or `CACHE_DRIVER=off` (ADR-059), a replayed `jti` passes; the assertion must still be
+  unexpired and signed. The kit validator's `assertion.jti-reuse` check cannot pass where the
+  cache is off.
+- **A key set that cannot be read does not lock an agent out.** The last known good document and
+  key set are kept for 7 days (fresh for 5 minutes), and the token endpoint verifies against them
+  when a refetch is refused by a spent quota or fails, so a known `kid` never fails because of a
+  fetch. A key set asked for again (an unknown `kid`) gets no fallback and is read at most once a
+  minute per cached copy. Assertion-time fetches are charged to the signed-out fetch quota (30 per
+  caller, 300 an hour global), never to the authorize share, so a stranger naming an agent's
+  `client_id` can spend that quota but cannot stop a real refresh. A rotated refresh token or
+  spent code cuts a grant off only when presented under the grant's own `client_id`.
+- **Sessions are kept 60 days idle.** A 1% sweep on insert deletes older ones, and a `client_id`
+  may open 600 new sessions an hour (only the insert is charged).
 - **A refresh that asks for fewer scopes is refused** with `invalid_scope`; the scope must name
   exactly what the grant holds. Poppy 4.4 allows an agent to ask for less, but no scope is stored
   per token, and answering with the full set would breach 4.7's "never beyond requested". A
