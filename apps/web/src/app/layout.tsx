@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import Script from "next/script";
 // MapLibre's stylesheet is not imported here: it travels with the map
 // (`MapLens.tsx`, `SharedDayMap.tsx`), so a route with no map does not wait
 // on it.
@@ -109,6 +108,8 @@ export const viewport: Viewport = {
 const LOOK = "ledger";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const plausibleSrc = process.env.NEXT_PUBLIC_PLAUSIBLE_SRC;
+  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
   return (
     // `suppressHydrationWarning` for the one attribute React does not render
     // here: `LAUNCH_SCRIPT` adds `data-launch` before hydration on a home-screen
@@ -163,25 +164,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </SaveLightProvider>
         <ServiceWorkerRegistration />
         <InstallPromptRegistration />
-        {/* Only on Vercel. Both packages gate themselves on `isDevelopment()`
-            alone, so any production build — `next start` locally, CI's
-            ci-like e2e lane, a self-hosted deploy — mounted them and then
-            requested `/_vercel/insights/script.js` and
-            `/_vercel/speed-insights/script.js`, which only Vercel's edge ever
-            serves. Off Vercel that is two 404s plus two strict-MIME refusals
-            in the console on every page: 34 of the 2026-09-05 review's ~70
-            browser-walk finding lines, burying real errors and making a "no
-            console errors" e2e assertion impossible (KI-2026-09-05-y /
-            F-G06). `VERCEL` is set by the platform on every Vercel build and
-            runtime and by nothing else, which is also the condition
-            next.config.ts's CSP comment already assumes when it calls these
-            scripts same-origin. Read per render, not hoisted to a module
-            constant, so layout.test.ts can exercise both branches. */}
-        {process.env.VERCEL ? (
-          <>
-            <Analytics />
-            <SpeedInsights />
-          </>
+        {/* Self-hosted Plausible (M59), only when both public variables name
+            it: with none set, local, CI and forks request no script that
+            would 404 on every page (KI-2026-09-05-y / F-G06). Read per
+            render so layout.test.ts can exercise both branches. */}
+        {plausibleSrc && plausibleDomain ? (
+          <Script defer src={plausibleSrc} data-domain={plausibleDomain} strategy="afterInteractive" />
         ) : null}
       </body>
     </html>

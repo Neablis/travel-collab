@@ -31,10 +31,9 @@ export const REFERRAL_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400, sta
  * cached entry expires — up to an hour, plus the one stale answer
  * `stale-while-revalidate` serves while it fetches the generic card. Chat apps
  * cache their first unfurl far longer than that regardless, so a shorter edge
- * TTL would buy little. If it ever needs to be immediate, Vercel can purge by
- * tag (`@vercel/functions`' `invalidateByTag` / `dangerouslyDeleteByTag`, with
- * the invite id as a cache tag on these responses, purged from
- * `revokeInvite`); not built.
+ * TTL would buy little. If it ever needs to be immediate, a CDN that can purge
+ * by tag could be given the invite id as a cache tag on these responses and
+ * purged from `revokeInvite`; not built.
  */
 export const INVITE_CACHE_CONTROL = "public, max-age=3600, s-maxage=3600, stale-while-revalidate=604800";
 
@@ -42,8 +41,9 @@ export const INVITE_CACHE_CONTROL = "public, max-age=3600, s-maxage=3600, stale-
  * Every Playbooks card — day, profile, city, country and the generic one — and
  * its `meta` sibling: a day at the edge, as the library's own reads are
  * (ADR-063). Not the invite card's hour, which a day card used to share: each
- * response carries `Vercel-Cache-Tag` (`cacheTagHeader`), and a publish, an
- * unpublish or an operator's hide deletes those tags from the CDN at once.
+ * response carries `Vercel-Cache-Tag` (`cacheTagHeader`), which a CDN that
+ * honours it can purge on a publish, an unpublish or an operator's hide. The
+ * app purges none itself since M59, so a card lives at an edge for up to a day.
  */
 export const PLAYBOOK_CACHE_CONTROL = `public, max-age=3600, s-maxage=${LIBRARY_CACHE_SECONDS}, stale-while-revalidate=604800`;
 

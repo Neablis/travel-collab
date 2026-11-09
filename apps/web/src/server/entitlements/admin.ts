@@ -46,9 +46,9 @@ import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./
  *
  * This is what the console displays in its accounts table, and the distinction
  * from `callerIsAdmin` below is a correctness one rather than a tidiness one:
- * the `admin-console` flag resolves **the caller**, so asking it about somebody
- * else's id would answer with the viewer's own flag value and paint every row
- * as an operator the moment one operator had the flag. Use this whenever the
+ * the `admin-console` flag is global, so asking it about somebody else's id
+ * would answer with the flag's value and paint every row as an operator the
+ * moment it was on. Use this whenever the
  * question is *"is that account an operator"*.
  */
 export async function isAdmin(userId: string): Promise<boolean> {
@@ -61,50 +61,13 @@ export async function isAdmin(userId: string): Promise<boolean> {
 }
 
 /**
- * The `admin-console` flag, for the caller of this request, failing closed.
- *
- * **The catch is load-bearing and is not decoration.** The Flags SDK applies
- * `defaultValue` only to what `decide` returns or throws — `identify` runs
- * EARLIER (`getEntities` ahead of `applyResult`, verified in `flags@4.3.0`), so
- * a session read that throws escapes the flag entirely and would propagate as
- * an unhandled rejection. `aiLive()` catches the same hole for `ai-live`. Here
- * the answer to every question this flag cannot resolve is **not an operator**,
- * which is also the answer when no adapter is configured at all — the ordinary
- * case locally and in CI, where `ADMIN_USER_IDS` is the path instead.
- *
- * **The `FLAGS` check is what closes KI-2026-09-14-a**, and which env it reads
- * is the whole point. Unconfigured, the SDK still answers `false` — correctly —
- * but logs `Flag "admin-console" is falling back to its defaultValue … No flag
- * definitions available` on EVERY evaluation, and `/api/account/preferences` is
- * hit twice per page load for every non-admin, which is everybody in exactly
- * the environments where it cannot work. Dozens of lines per e2e run, in the
- * one place a developer is reading output.
- *
- * That entry considered gating on `process.env.VERCEL` and rejected it, for a
- * good reason: *"a deployment that is not Vercel, with Flags genuinely
- * configured, silently stops honouring the flag. A control that quietly stops
- * working is worse than a log line."* It asked instead for *"a positive signal
- * that Flags is configured at all — one env read the adapter already depends
- * on"*, and said it *"needs checking against `@flags-sdk/vercel`'s actual
- * configuration surface rather than guessed at"*.
- *
- * Checked, 2026-09-23. `@flags-sdk/vercel` reads no environment itself; it
- * delegates to `@vercel/flags-core`, whose client is built by
- * `createClient(process.env.FLAGS)`. **`FLAGS` IS the configuration surface** —
- * without it there is no auth, so `resolveDataWithFallbacks` exhausts stream,
- * polling, datafile, bundled definitions and a one-time fetch, and throws.
- *
- * So this is not the rejected gate wearing a different name. `VERCEL` is a
- * proxy for "probably configured" and can be wrong in both directions;
- * `FLAGS` is the credential the SDK itself requires, so its absence is not
- * evidence that the flag is inert — it is the *definition* of inert. A
- * non-Vercel deployment with Flags genuinely configured has `FLAGS` set and is
- * unaffected, which is precisely the case the rejection was protecting.
+ * The `admin-console` flag, failing closed. It is `FLAG_ADMIN_CONSOLE` and
+ * nothing else, so it is global: when it is on, every signed-in caller may open
+ * the console. A throw is answered as **not an operator**, the same answer as
+ * unset, which is the ordinary case locally and in CI where `ADMIN_USER_IDS` is
+ * the path instead.
  */
 async function adminConsoleFlagForCaller(): Promise<boolean> {
-  // Asked before the call, not after: the log line this avoids is emitted by
-  // the SDK during evaluation, so catching afterwards cannot suppress it.
-  if (!process.env.FLAGS) return false;
   try {
     return await adminConsoleFlag();
   } catch {
@@ -113,19 +76,17 @@ async function adminConsoleFlagForCaller(): Promise<boolean> {
 }
 
 /**
- * **May THIS CALLER open the console** — the stored fact, or a flag targeted at
- * them. The one question the route group and every admin endpoint ask.
+ * **May THIS CALLER open the console** — the stored fact, or the global
+ * `admin-console` flag. The one question the route group and every admin
+ * endpoint ask.
  *
- * `callerId` must be the id of whoever is making this request. The flag half
- * resolves the caller from the session (`identifyFlagEntities`), so passing
- * anyone else's id would silently mix two accounts' answers; `isAdmin` above is
- * the function for asking about somebody else.
+ * `callerId` must be the id of whoever is making this request: the flag is
+ * global, so for anyone else's id it would answer yes about an account it never
+ * looked at; `isAdmin` above is the function for asking about somebody else.
  *
  * **The column is read first**, and not only because it is the cheaper hop: an
- * operator whose bit is stored stays an operator while the Flags service is
- * unreachable, which is what keeps a third-party outage from emptying the
- * console. The flag is a second way to say yes and never a way to say no —
- * revoking is clearing the column.
+ * operator whose bit is stored stays an operator whatever the flag says. The flag is a second way to say yes and never a way to
+ * say no — revoking is clearing the column.
  */
 export async function callerIsAdmin(callerId: string): Promise<boolean> {
   if (await isAdmin(callerId)) return true;

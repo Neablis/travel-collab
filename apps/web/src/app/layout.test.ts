@@ -9,8 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // reads (`variable`) is enough to get the tree.
 vi.mock("next/font/local", () => ({ default: () => ({ variable: "font-var" }) }));
 
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import Script from "next/script";
 import { RouteViewTransition } from "@/components/RouteViewTransition";
 import { LaunchOverlay } from "@/components/welcome/WelcomeMoment";
 import { LAUNCH_SCRIPT } from "@/lib/welcomeCue";
@@ -40,30 +39,43 @@ function mounts(component: unknown): boolean {
   return seen(RootLayout({ children: null }));
 }
 
-// `@vercel/analytics` and `@vercel/speed-insights` gate only on
-// `isDevelopment()`, so a production build that is not ON Vercel mounts them
-// both and every page requests two scripts (`/_vercel/insights/script.js`,
-// `/_vercel/speed-insights/script.js`) that only Vercel's edge ever serves.
-// Off Vercel that is two 404s and two strict-MIME console errors per page —
-// 34 of the 2026-09-05 review's ~70 browser-walk finding lines, and the reason
-// a "no console errors" e2e assertion cannot be written (KI-2026-09-05-y /
-// F-G06).
-describe("root layout Vercel telemetry", () => {
-  it("mounts neither analytics script when the app is not running on Vercel", () => {
-    // Stubbed, not asserted. `expect(process.env.VERCEL).toBeUndefined()` made
-    // this test's premise depend on the runner's environment: anywhere VERCEL
-    // is set the test failed on its own precondition instead of exercising the
-    // off-Vercel branch it exists for (CodeRabbit, PR #155). `afterEach`'s
-    // `unstubAllEnvs` restores it.
-    vi.stubEnv("VERCEL", "");
-    expect(mounts(Analytics)).toBe(false);
-    expect(mounts(SpeedInsights)).toBe(false);
+/** The props of every element of this type in the layout's tree. */
+function propsOf(component: unknown): Array<Record<string, unknown>> {
+  const found: Array<Record<string, unknown>> = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node === null || typeof node !== "object") return;
+    const element = node as ReactElement<{ children?: unknown }>;
+    if (element.type === component) found.push(element.props as Record<string, unknown>);
+    walk(element.props?.children);
+  };
+  walk(RootLayout({ children: null }));
+  return found;
+}
+
+// M59: analytics is a self-hosted Plausible, loaded only when both of its
+// public variables name it. Nothing is mounted otherwise, so a build with no
+// Plausible configured (local, CI, a fork) makes no request for a script that
+// would 404 on every page (KI-2026-09-05-y / F-G06).
+describe("root layout analytics", () => {
+  it("mounts no analytics script when Plausible is not configured, or only half of it is", () => {
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", "");
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_DOMAIN", "");
+    expect(propsOf(Script)).toEqual([]);
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", "https://stats.example.com/js/script.js");
+    expect(propsOf(Script)).toEqual([]);
   });
 
-  it("mounts both on Vercel, where the scripts are served from our own origin", () => {
-    vi.stubEnv("VERCEL", "1");
-    expect(mounts(Analytics)).toBe(true);
-    expect(mounts(SpeedInsights)).toBe(true);
+  it("mounts the Plausible script for the configured domain when both are set", () => {
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", "https://stats.example.com/js/script.js");
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_DOMAIN", "trips.example.com");
+    expect(propsOf(Script)).toEqual([
+      expect.objectContaining({
+        src: "https://stats.example.com/js/script.js",
+        "data-domain": "trips.example.com",
+        defer: true,
+      }),
+    ]);
   });
 });
 
