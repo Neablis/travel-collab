@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { playbooksReaderFor, playbooksRoute } from "./playbooksReader";
+import { isInternalPlaybooksPath, playbooksReaderFor, playbooksRoute } from "./playbooksReader";
 
 // Which copy `proxy.ts` sends a request to. A wrong `cached` would serve a
 // signed-in reader the signed-out page (no Saved, no Ask, their private day a
@@ -85,4 +85,28 @@ describe("playbooksRoute", () => {
     expect(playbooksRoute("/playbooksx", "live")).toBeNull();
     expect(playbooksRoute("/trips/playbooks", "live")).toBeNull();
   });
+
+  // Production, 2026-11-09: a request for an internal path was prefixed again,
+  // `/playbooks/cached/cached/…`, and every such URL a crawler followed was a
+  // new one.
+  it.each(["/playbooks/cached", "/playbooks/live", "/playbooks/cached/", "/playbooks/live/day/a-b", "/playbooks/cached/cached"])(
+    "does not prefix a path already under a copy: %s",
+    (path) => {
+      expect(playbooksRoute(path, "cached")).toBeNull();
+      expect(playbooksRoute(path, "live")).toBeNull();
+    },
+  );
+});
+
+describe("isInternalPlaybooksPath", () => {
+  it.each(["/playbooks/cached", "/playbooks/live/", "/playbooks/cached/day/a-b", "/playbooks/live/live"])("names %s", (path) => {
+    expect(isInternalPlaybooksPath(path)).toBe(true);
+  });
+
+  it.each(["/playbooks", "/playbooks/day/a-b", "/playbooks/livery", "/playbooks/city/live", "/trips/playbooks/live"])(
+    "does not name %s",
+    (path) => {
+      expect(isInternalPlaybooksPath(path)).toBe(false);
+    },
+  );
 });
