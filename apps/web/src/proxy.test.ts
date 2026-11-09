@@ -131,6 +131,19 @@ describe("proxy", () => {
     expect(hintSetCookie(res)).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/);
   });
 
+  // The copies' own URLs are internal. Rewritten again they were an endless
+  // supply of `/playbooks/cached/cached/…` 404s; unrewritten they would serve
+  // the page a second time, as a duplicate. Both readers get the same answer.
+  it.each([
+    [false, "/playbooks/cached"],
+    [true, "/playbooks/live/day/a-b"],
+    [false, "/playbooks/cached/cached/cached"],
+  ])("answers 404 for the internal path (signed in: %s) %s, rewriting nothing", (session, path) => {
+    const res = handle(request(path, { session, hint: false }));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+
   // The live copy renders the app shell, which sets the hint; this does not.
   it("serves a signed-in reader the library's live copy, without setting the hint", () => {
     expect(config.matcher).toContain("/playbooks/:path*");

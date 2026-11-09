@@ -7,7 +7,7 @@ import {
   normalizePendingAdmission,
   pendingAdmissionCookieOptions,
 } from "@/lib/pendingAdmission";
-import { playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
+import { isInternalPlaybooksPath, playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
 import { SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
 import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@/lib/signupRef";
 
@@ -145,6 +145,10 @@ let guardedEntries: ReturnType<typeof getPathMatch>[] | undefined;
 // What the request gets before a stale hint is taken off it. `own` is the URL
 // as the server received it, which a rewrite must keep (see `guard`).
 function route(req: NextAuthRequest, own: URL): NextResponse {
+  // The copies' own URLs are answered 404 here, never rewritten again (which
+  // minted `/playbooks/cached/cached/…`) nor passed on (which would serve the
+  // page a second time under a URL of its own).
+  if (isInternalPlaybooksPath(req.nextUrl.pathname)) return new NextResponse(null, { status: 404 });
   // The public library, for everyone: a reader with no session and no query
   // gets the cached copy, anyone else the per-request one (`playbooksReader.ts`).
   // `req.auth` rather than the cookie's presence: a cookie whose session has
