@@ -1,6 +1,8 @@
 # M59 - Self-host Caesura on a Coolify VPS
 
-**Status:** **Scoped 2026-11-08 with Mitchell; current milestone**, placed ahead of M53 (D9).
+**Status:** **Production cut over 2026-11-09; gate still open** (Mitchell, 2026-11-09: keep M59
+open until Coolify PR previews work and the Vercel project is paused, rather than closing with
+those deferred). Scoped 2026-11-08 with Mitchell, placed ahead of M53 (D11).
 Decisions D1–D9 are answered below. Plan: `docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`.
 Part 0 is `claude/next-milestone-setup-3ccab6`, which supersedes the proposal PR 695.
 
@@ -60,6 +62,10 @@ recommended defaults and he can overturn them before Part 3):
 10. **DNS: stays on Vercel DNS** (`caesura.today`'s nameservers are `ns1/ns2.vercel-dns.com`,
     checked 2026-11-08), which is free on any plan. No Cloudflare in this milestone. HSTS is served by the
     app (`next.config.ts`), because nothing in front of it adds it.
+    **Overturned 2026-11-09 by events:** Vercel blocked the account for fair use, and Vercel DNS
+    writes failed with it. DNS moved to a Cloudflare zone (nameservers set in Vercel's domain
+    dashboard, since the domain is a Vercel-resold registration). Every record is DNS-only (grey
+    cloud), so Cloudflare proxies nothing and HSTS is still the app's.
 11. **Placement: M59 now, ahead of M53**, which follows it.
 
 ## Scope
@@ -85,23 +91,62 @@ recommended defaults and he can overturn them before Part 3):
 
 ## Exit gate
 
-- [x] **Decisions D1–D9 are answered and recorded here.** (2026-11-08)
+Evidence read 2026-11-09 by the close session. CI: the top part, PR 707, at head `a50b6d7d`,
+every check green (lint, typecheck, unit, scripts, integration, e2e 1/2 and 2/2, `ci-ok`, CodeQL);
+the only red is the commit status "Vercel", which is the account block, not the code.
+
+- [x] **Decisions D1–D9 are answered and recorded here.** (2026-11-08; D10 overturned 2026-11-09, see above)
 - [ ] **Production serves from the VPS** (hard cutover, D9), and the Vercel project
       is paused or downgraded, not deleted.
+      *Half met.* `https://caesura.today/api/health` answers `{"ok":true,"version":"5504d935…"}`
+      (main's head) from the box, with a Let's Encrypt (YR2) certificate issued 2026-11-09.
+      **Open:** the Vercel project is not paused yet (Mitchell).
 - [ ] **Coolify previews work for PRs**, each on its own disposable Neon branch, and the
       part-reviewer's and phase-verifier's walk instructions point at them.
-- [ ] **Redis and Plausible run on the box**, and the app uses both (a cache hit is
+      *Half met.* The walk instructions point at `https://<pr>.preview.caesura.today`
+      (`.claude/agents/phase-verifier.md:60`, `.claude/skills/review-a-part/SKILL.md:38`).
+      **Open:** PR previews are not switched on. The preview Neon branch is archived, so the
+      Preview-scope `DATABASE_URL` has to be set to a live preview branch first
+      (`docs/ops/coolify-vps.md`, *Previews*, steps 1 to 3).
+- [x] **Redis and Plausible run on the box**, and the app uses both (a cache hit is
       observable; a pageview shows in Plausible).
-- [ ] **Both crons fire on the new host** (embed-days and tier-rollup, with
+      `caesura-redis` and `caesura-redis-http` run as Coolify services with `KV_REST_API_URL`/`TOKEN`
+      set on `caesura-web`; Plausible is the compose service at `plausible.caesura.today`, and
+      Mitchell confirmed 2026-11-09 that caesura.today pageviews arrive. A cache hit was not
+      observed separately.
+- [x] **Both crons fire on the new host** (embed-days and tier-rollup, with
       `CRON_SECRET`), and a missed run is visible the way a missed Vercel
       cron run was.
-- [ ] **Migrations dispatch on the new host** with the disposable-branch gate
+      Coolify scheduled tasks on `caesura-web`, read through
+      `GET /applications/<uuid>/scheduled-tasks/<uuid>/executions`: embed-days ran
+      2026-11-09T04:00:06Z, `success`, `200 {"claimed":0,…,"pending":17}`; tier-rollup ran
+      04:30:02Z, `success`, `200 {"weekStart":"2026-11-09",…}`. A 200 means `CRON_SECRET` was
+      accepted (`server/cronAuth.ts`). A missed or failed run shows as a missing or failed row in
+      that execution log, as Vercel's cron log did.
+- [x] **Migrations dispatch on the new host** with the disposable-branch gate
       intact, and a preview build cannot migrate production.
-- [ ] **No `@vercel/` or `@flags-sdk/vercel` import remains** in `apps/web/src`
+      `migrate-production` run 42561546021 at `7b390a21` succeeded (0070 to 0074 applied).
+      Production's build never migrates and a preview build needs `APP_ENV=preview` and
+      `PREVIEW_DB_IS_DISPOSABLE=true` (`apps/web/scripts/lib/build-steps.mjs`, tested by
+      `build-migrate.test.ts`, green in CI at `a50b6d7d`).
+- [x] **No `@vercel/` or `@flags-sdk/vercel` import remains** in `apps/web/src`
       (grep), and HSTS is served.
-- [ ] **Flags work without the Vercel adapter**, from env vars per deployment (D6).
-- [ ] **Rollback is exercised or documented** (DNS back to Vercel), and the
+      `git grep -nE "@vercel/|@flags-sdk/vercel" 5504d935 -- apps/web/src` prints nothing;
+      `curl -sI https://caesura.today` carries `strict-transport-security: max-age=63072000`.
+- [x] **Flags work without the Vercel adapter**, from env vars per deployment (D6).
+      `apps/web/src/server/flags.ts:25,35`: `ai-live` reads `FLAG_AI_LIVE === "true"`, covered
+      by `server/flags.test.ts`, green in CI at `a50b6d7d`.
+- [x] **Rollback is exercised or documented** (DNS back to Vercel), and the
       Vercel project is retained, not deleted.
-- [ ] **[walk]** On the VPS deployment, the app behaves as on Vercel: sign in
+      Documented in `docs/ops/coolify-vps.md`, *Rollback*, for Cloudflare DNS. The project is
+      retained. While the Vercel account is blocked, a rollback to Vercel cannot serve; the
+      runbook says so.
+- [x] **[walk]** On the VPS deployment, the app behaves as on Vercel: sign in
       with Google, open a trip, and watch a cron fire.
+      Mitchell walked `staging.caesura.today` (the same box and application) on part 5 and said
+      "walk passed"; both crons fired on production the same night (above).
 - [ ] A retro is appended at gate close.
+
+**Deferred with Mitchell's OK (2026-11-09), not gate boxes:** plan retrieval stays paused until
+there is an OpenAI key (`KI-20261109-a`), and three leftover env vars on `caesura-web` are to be
+deleted (`KI-20261109-b`).

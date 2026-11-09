@@ -18,9 +18,13 @@ manager, not here.
   private neighbours, as Coolify services on the same network: Redis with
   serverless-redis-http (the cache) and Plausible (analytics). Neither is
   published to the internet.
-- DNS stays on Vercel DNS (`caesura.today`'s nameservers). `staging.`,
-  `coolify.` and `*.preview.` A records point at the box; the apex and `www`
-  point at it from the cutover (see *Rollback*).
+- DNS is a Cloudflare zone since 2026-11-09 (Vercel DNS stopped taking writes when the
+  account was blocked). The domain is a Vercel-resold registration, so its nameservers are
+  set in Vercel's domain dashboard. The apex, `www`, `staging.`, `coolify.`, `plausible.` and
+  `*.preview.` are A records to the box, all **DNS-only (grey cloud)**: Cloudflare proxies
+  nothing, so Let's Encrypt and HSTS are the box's. The email records (SPF, DKIM, DMARC, MX)
+  and a CAA for `letsencrypt.org` sit in the same zone. A Cloudflare API token with DNS edit
+  on the zone lives with the operator, not here.
 
 ## The image
 
@@ -79,9 +83,9 @@ Neon branch whose password you can rotate.
 | `APP_ENV` | `production` | `preview` | Build and runtime. Gates the build-time migrate |
 | `PREVIEW_DB_IS_DISPOSABLE` | never set | `true` | Build. Preview scope only, after checking the database is a throwaway branch |
 | `PUBLIC_ORIGIN`, `APP_VERSION` | runtime | runtime | `lib/deployment/env.ts` |
+| `AUTH_URL` | runtime | runtime | **Must equal the public origin** (`https://caesura.today` in production, the same value as `PUBLIC_ORIGIN`). Without it Auth.js builds the origin from the container's bind address and sends `https://0.0.0.0:3000/api/auth/callback/google` as the OAuth callback, which Google refuses. Found at the cutover, 2026-11-09 |
 | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`, `NEXT_PUBLIC_PLAUSIBLE_SRC` | build | build | Plausible |
 | `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE` | build | build | Sentry, browser side |
-| `NEXT_PUBLIC_VERCEL_ENV`, `NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA` | build | build | Sentry's environment and release in the browser; still read until Part 4 |
 | `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_PROFILE_SESSION_SAMPLE_RATE` | runtime | runtime | Sentry, server side |
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | runtime | runtime | Google sign-in |
 | `API_TOKEN_PEPPER`, `API_TOKEN_PEPPER_PREVIOUS`, `COVER_PROXY_SECRET`, `INVITE_SUPER_CODE`, `CRON_SECRET` | runtime | runtime | Secrets the app signs or checks with |
@@ -98,6 +102,10 @@ There is no `VERCEL_AUTOMATION_BYPASS_SECRET`: previews are public and NOINDEX, 
 there is nothing to bypass. A `VERCEL_*` variable left on the application does
 nothing after the cutover except feed the fallbacks in `lib/deployment/env.ts`;
 delete them.
+
+`NEXT_PUBLIC_VERCEL_ENV`, `LOCATION_API_KEY` and `UNSPLASHED_ACCESS_KEY` are still set on
+`caesura-web` from the copy out of Vercel and nothing reads them (the app reads
+`LOCATIONIQ_API_KEY` and `UNSPLASH_ACCESS_KEY`); they are to be deleted (`KI-20261109-b`).
 
 **Embeddings live in Neon.** `day_embeddings` is a pgvector table in the app's own
 database. There is no Upstash Vector, and no index to move.
@@ -145,6 +153,17 @@ Do the same for every other variable whose production value must not reach a
 preview: `STRIPE_*` (test keys only), `FLAG_AI_LIVE`, `CRON_SECRET` if a preview
 should not run the sweeps.
 
+## Plausible
+
+Plausible is a **raw Docker Compose service** in Coolify, not a one-click service:
+Coolify 4.6's API has no `plausible` service type, so it was created from a compose
+file. It answers at `https://plausible.caesura.today`, with Mitchell's account and the
+`caesura.today` site; the app loads its script from `NEXT_PUBLIC_PLAUSIBLE_SRC`.
+
+In that compose file `BASE_URL` must be `$SERVICE_URL_PLAUSIBLE` (the full
+`https://` URL), **not** `$SERVICE_FQDN_PLAUSIBLE`, which is the bare host name
+without a scheme. Plausible needs a full URL in `BASE_URL`.
+
 ## Crons
 
 Two Coolify **scheduled tasks** on `caesura-web`, each a `curl` to the app's own
@@ -170,12 +189,15 @@ reproducible, and its Coolify service has scheduled backups turned on.
 ## Rollback
 
 Production is DNS. Before the cutover, `caesura.today` and `www` pointed at Vercel;
-the Vercel project is **paused, not deleted**, so it can serve again.
+the Vercel project is kept (to be **paused, not deleted**), so it can serve again.
+**While the Vercel account is blocked (since 2026-11-08), it cannot serve**, and the
+only rollback is the first one below.
 
 - **The new deploy is bad, the box is fine:** Coolify → `caesura-web` → Deployments
   → redeploy the previous one. Minutes.
 - **The box is bad:** un-pause the Vercel project, then repoint the apex and
-  `www` records on Vercel DNS back to Vercel. The preview and staging hosts can stay
+  `www` A records in the Cloudflare zone back to Vercel (`76.76.21.21`, or the
+  values Vercel's domain page gives). The preview and staging hosts can stay
   where they are. DNS is the whole switch, so the time to rollback is the record's TTL.
 - Vercel's project settings and environment still hold the old variables, so
   nothing needs rebuilding. Delete the project only after the gate has been
