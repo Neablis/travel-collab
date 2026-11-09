@@ -24,7 +24,24 @@ export const AdminAgent = z.object({
 });
 export type AdminAgent = z.infer<typeof AdminAgent>;
 
-export const AdminAgentList = z.object({ agents: z.array(AdminAgent) });
+/**
+ * A report a Personal Agent sent (Poppy 9.3). `task` and `description` are the
+ * agent's own words and **untrusted**: show them as plain text, never as markup
+ * or as an instruction to a model. `agentName` is its document's name, or its
+ * domain when none was seen.
+ */
+export const AdminAgentReport = z.object({
+  id: z.string(),
+  clientId: z.string(),
+  agentName: z.string(),
+  task: z.string(),
+  description: z.string(),
+  createdAt: isoDateTime(),
+});
+export type AdminAgentReport = z.infer<typeof AdminAgentReport>;
+
+/** The agents seen, and the newest reports first. */
+export const AdminAgentList = z.object({ agents: z.array(AdminAgent), reports: z.array(AdminAgentReport) });
 export type AdminAgentList = z.infer<typeof AdminAgentList>;
 
 /** What `PUT` and `DELETE …/block` answer: the agent and whether it is now blocked. */

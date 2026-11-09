@@ -1,0 +1,64 @@
+// **`GET /api/poppy/tasks`** (Poppy 9, ADR-089 decision 11), against a real
+// database: a Session header that is sent is verified before anything is
+// answered, and the body is the same for every Session, so it is marked cacheable.
+import { describe, expect, it, vi } from "vitest";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { createMemoryClient } from "@/server/cache/memory";
+import { createRedisCache } from "@/server/cache/redis";
+import { oauthIssuer } from "@/server/oauth/metadata";
+import { tasksResponse } from "@/server/poppy/tasks";
+import { makeTestAgent, publicResolve } from "@/server/poppy/testAgent";
+
+// Nothing here is a person's: the route reads no cookie, and the module only has to load.
+vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
+
+// The route calls `poppyGate` with the real network; the agent's documents are
+// served from memory here, as `sessions.int.test.ts` serves them.
+let poppyDeps: import("@/server/poppy/sessionHeader").SessionDeps = {};
+vi.mock("@/server/poppy/sessions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/poppy/sessions")>();
+  return { ...actual, poppyGate: (request: Request) => actual.poppyGate(request, poppyDeps) };
+});
+
+const { GET } = await import("./route");
+
+const PATH = "/api/poppy/tasks";
+
+async function tasksRequest(over: { session?: Record<string, unknown>; header?: boolean } = {}) {
+  const agent = await makeTestAgent({ issuer: oauthIssuer() });
+  const cache = createRedisCache(createMemoryClient());
+  poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
+  const headers: Record<string, string> = {
+    "poppy-version": "0.4",
+    // An address of its own, so no other suite shares this one's signed-out fetch share.
+    "x-forwarded-for": `203.0.113.${1 + Math.floor(Math.random() * 250)}`,
+  };
+  if (over.header !== false) headers["poppy-session"] = await agent.session({ htu: `${deploymentOrigin()}${PATH}`, ...over.session });
+  return new Request(`http://localhost${PATH}`, { headers });
+}
+
+describe("GET /api/poppy/tasks", () => {
+  it("answers a verified Session with the excluded tasks and the feedback endpoint, cacheable", async () => {
+    const res = await GET(await tasksRequest());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(tasksResponse());
+    expect(res.headers.get("cache-control")).toMatch(/\bpublic\b.*max-age=\d+/);
+  });
+
+  it("refuses a Session header that fails as invalid_session, not the tasks", async () => {
+    const res = await GET(await tasksRequest({ session: { aud: "https://other.test" } }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_session" });
+  });
+
+  it("gives every Session the same body, with or without a header", async () => {
+    // One at a time: each request installs its own agent's documents for the gate.
+    const bodies: string[] = [];
+    for (const over of [{}, { session: { sub: "someone-else", sid: "another" } }, { header: false }]) {
+      const res = await GET(await tasksRequest(over));
+      expect(res.status).toBe(200);
+      bodies.push(await res.text());
+    }
+    expect(new Set(bodies).size).toBe(1);
+  });
+});

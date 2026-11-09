@@ -143,6 +143,15 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     status: "front-door",
     why: "The Personal Agent Protocol's discovery document; the same bytes for everyone, no data",
   },
+  // Poppy 9: the tasks list and the feedback endpoint it names; no account data.
+  "poppy/tasks": {
+    status: "front-door",
+    why: "The Personal Agent Protocol's tasks endpoint: what Caesura does not offer, the same body for everyone",
+  },
+  "poppy/feedback": {
+    status: "front-door",
+    why: "The Personal Agent Protocol's feedback endpoint: a report an agent could not do something; stored as text, no data read",
+  },
   // The MCP connector: v1's own declared handlers, under another protocol.
   mcp: {
     status: "front-door",

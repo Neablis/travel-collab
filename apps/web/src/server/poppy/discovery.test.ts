@@ -33,7 +33,7 @@ describe("poppyDocument", () => {
     }
   });
 
-  it("lists the MCP server and the OpenAPI description, the website, and no agent or tasks yet", () => {
+  it("lists the MCP server and the OpenAPI description, the website and the tasks endpoint, and no agent", () => {
     production();
     const doc = poppyDocument();
     expect(doc.apis).toEqual([
@@ -42,7 +42,8 @@ describe("poppyDocument", () => {
     ]);
     expect(doc.web).toEqual({});
     expect(doc).not.toHaveProperty("agent");
-    expect(doc).not.toHaveProperty("tasks");
+    // Spec 3.1: the endpoint the Session-bound tasks and feedback are reached from.
+    expect(doc.tasks).toEqual({ endpoint: "https://caesura.today/api/poppy/tasks" });
   });
 
   it("takes its origin from configuration, so a preview names the preview", () => {

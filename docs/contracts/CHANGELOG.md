@@ -13,6 +13,15 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-09 — `AdminAgentReport`, and `AdminAgentList.reports`: reports in the Agents tab (M60 part 5)
+- **New schema** `AdminAgentReport` in `packages/contracts/src/adminAgents.ts` (`id`, `clientId`,
+  `agentName`, `task`, `description`, `createdAt`); **new required field** `reports` on `AdminAgentList`.
+- Why: a Personal Agent's feedback (Poppy 9.3, ADR-089 decision 11) is listed under the agents table,
+  newest first, as plain text.
+- Consumers updated: `apps/web` (`app/api/admin/agents/route.ts`, `app/admin/page.tsx`,
+  `components/admin/AgentsTab.tsx` and its tests). Admin-only; nothing else parses `AdminAgentList`.
+- Breaking? no: it was added in part 4, which has not shipped.
+
 ## 2026-11-09 — `AdminAgent`, `AdminAgentList`, `AdminAgentBlock`: the console's Agents tab (M60 part 4)
 - **New schemas** in `packages/contracts/src/adminAgents.ts`: `AdminAgent` (a Personal Agent seen:
   `clientId`, `name`, `logoUri`, `domain`, `sessions30d`, `accounts`, `lastSeenAt`, `blocked`),

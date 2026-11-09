@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { AdminAgentList } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { agentSessions, oauthClientBlocks, users } from "@/server/db/schema";
+import { agentFeedback, agentSessions, oauthClientBlocks, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
 
 let currentUserId = "";
@@ -72,5 +72,23 @@ describe("GET /api/admin/agents", () => {
     // Older than the window and not blocked: not seen. Blocked with no Session: listed, so it can be undone.
     expect(row(stale)).toBeUndefined();
     expect(row(cut)).toMatchObject({ blocked: true, sessions30d: 0, accounts: 0 });
+  });
+
+  it("lists the reports newest first, each with its agent's domain when no name was seen, the text untouched", async () => {
+    const clientId = `https://${randomUUID()}.agent.test/poppy-client.json`;
+    const at = Date.now();
+    const text = "**bold** <b>markup</b>";
+    await db.insert(agentFeedback).values([
+      { id: randomUUID(), clientId, task: "older task", description: "older", createdAt: new Date(at - 2000) },
+      { id: randomUUID(), clientId, task: "newer task", description: text, createdAt: new Date(at - 1000) },
+    ]);
+    currentUserId = await account(true);
+
+    const { reports } = AdminAgentList.parse(await (await GET()).json());
+    const ours = reports.filter((report) => report.clientId === clientId);
+    expect(ours.map((report) => report.task)).toEqual(["newer task", "older task"]);
+    expect(ours[0]).toMatchObject({ agentName: new URL(clientId).host, description: text });
+    // Newest first across every agent, not only this one.
+    expect(reports.map((r) => r.createdAt)).toEqual([...reports.map((r) => r.createdAt)].sort().reverse());
   });
 });

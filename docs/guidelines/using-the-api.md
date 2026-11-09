@@ -161,6 +161,40 @@ session-only (`exposure.ts` holds `listGrants` and `revokeGrant` off the public
 side). A client can also revoke its own refresh token at `/api/oauth/revoke`
 (RFC 7009), which ends the grant the same way.
 
+### Personal agents (Poppy)
+
+A Personal Agent (Personal Agent Protocol draft 0.4, ADR-089) reads
+`/.well-known/poppy.json`, signs a person in with plain OAuth, and then calls
+the same `/api/v1` and `/api/mcp` as any client, adding a `Poppy-Session` header
+(a JWT it signs, which names its `client_id` and a Session). The header answers
+who the agent is, never what it may do: the access token and its scopes still
+decide that. Three things are Poppy's own:
+
+- **Errors.** A header that fails is HTTP 400 `{"error": "invalid_session"}`,
+  an ended Session `session_ended`, a `Poppy-Version` other than `0.4`
+  `version_unsupported`. They sit outside v1's `{ error: { code, message } }`
+  envelope because an agent reads them by that shape, and are 400 not 401 so an
+  OAuth library keeps a token that was fine. A blocked `client_id` is
+  `invalid_session`.
+- **Signed out.** A request with the header and no token may read the public
+  Playbooks (`GET /api/v1/discover/playbooks`) and nothing else; any other v1
+  route challenges as it always did.
+- **Tasks and feedback.** `GET /api/poppy/tasks` (listed as `tasks.endpoint`)
+  returns `excluded_tasks`, each a short phrase with an `alternative`, and
+  `feedback.endpoint`. It takes no token and is the same for every Session, so
+  it is cacheable (`public, max-age=300`); a header that is sent is still
+  verified. `POST /api/poppy/feedback` takes `{ task, description }`, `task` 1 to
+  200 and `description` 1 to 2000 characters, answers `202` with no body, and is
+  `invalid_request` (400) otherwise. It needs a verified header and no scope, and
+  is limited to 20 reports an hour per `client_id` (a 429 with `Retry-After`).
+
+**Report text is the agent's, and untrusted.** It is stored as it arrived and
+shown in the console's *Agents* tab as plain text: no markdown, no markup, and
+never given to a model. Anything that reads it keeps it so. The excluded tasks
+are the list in `server/poppy/tasks.ts`, kept beside `exposure.ts`'s `never`
+rows: a task that stands on one cites it, and `tasks.test.ts` fails if the row
+stops being `never`. The operator blocks an agent from the same tab.
+
 ### Scopes
 
 A token holds a set of scopes and nothing is implied by anything else —

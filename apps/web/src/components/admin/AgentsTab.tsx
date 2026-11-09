@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AdminAgentBlock, type AdminAgent } from "@tc/contracts";
+import { AdminAgentBlock, type AdminAgent, type AdminAgentReport } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,12 @@ import { Text } from "@/components/ui/text";
 // click changes the one row from what the PUT or DELETE answers, and a refusal
 // leaves it where it was and says so. **Block is confirmed and Unblock is not**:
 // blocking stops people's agents at once, and the way back costs nothing.
+//
+// **Reports from agents** (part 5) sit under the table, read-only. An agent
+// wrote them and nothing vouches for the words, so `task` and `description` are
+// only ever React text children: never `dangerouslySetInnerHTML`, never a
+// markdown renderer, and `whitespace-pre-wrap` keeps the agent's line breaks
+// without interpreting anything.
 
 const blockUrl = (clientId: string) => `/api/admin/agents/${encodeURIComponent(clientId)}/block`;
 
@@ -29,7 +35,7 @@ function refusalOf(status: number): string {
 }
 
 /** The agents table, with Block and Unblock on each row. */
-export function AgentsTab({ agents }: { agents: AdminAgent[] }) {
+export function AgentsTab({ agents, reports }: { agents: AdminAgent[]; reports: AdminAgentReport[] }) {
   const [blocked, setBlocked] = useState<ReadonlyMap<string, boolean>>(() => new Map(agents.map((a) => [a.clientId, a.blocked])));
   const [confirming, setConfirming] = useState<AdminAgent | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,93 +63,126 @@ export function AgentsTab({ agents }: { agents: AdminAgent[] }) {
     }
   }
 
-  if (agents.length === 0) return <EmptyState title="No Personal Agent has connected yet." />;
-
   return (
-    <section className="flex flex-col gap-3">
-      {failed !== null ? (
-        <Banner variant="danger" role="alert">
-          {failed}
-        </Banner>
-      ) : null}
-      <div className="overflow-hidden rounded-lg border border-hairline bg-surface shadow-raised">
-        <Table>
-          <THead>
-            <TR className="bg-moss">
-              <TH className="px-3.5 py-3">Agent</TH>
-              <TH className="px-3.5 py-3">Domain</TH>
-              <TH className="px-3.5 py-3 text-right">Sessions, 30 days</TH>
-              <TH className="px-3.5 py-3 text-right">Accounts</TH>
-              <TH className="px-3.5 py-3">Last seen</TH>
-              <TH className="px-3.5 py-3 text-right">
-                <span className="sr-only">Actions</span>
-              </TH>
-            </TR>
-          </THead>
-          <TBody>
-            {agents.map((agent) => {
-              const isBlocked = blocked.get(agent.clientId) ?? agent.blocked;
-              return (
-                <TR key={agent.clientId} className="last:border-b-0">
-                  <TD className="px-3.5 py-3 align-middle">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {agent.logoUri !== null && !logoFailed.has(agent.clientId) ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- an agent's own https logo, which next/image would proxy through our optimizer
-                        <img
-                          src={agent.logoUri}
-                          // Decorative: the name is the next word in the row.
-                          alt=""
-                          data-testid="agent-logo"
-                          className="size-6 rounded"
-                          onError={() => setLogoFailed((current) => new Set(current).add(agent.clientId))}
-                        />
-                      ) : null}
-                      <Text as="span" className="text-sm font-semibold text-ink">
-                        {agent.name ?? agent.domain}
-                      </Text>
-                      {isBlocked ? <Badge variant="danger">Blocked</Badge> : null}
-                    </div>
-                  </TD>
-                  <TD className="px-3.5 py-3 align-middle">
-                    <Text as="span" variant="secondary" className="font-mono text-xs">
-                      {agent.domain}
-                    </Text>
-                  </TD>
-                  <TD className="px-3.5 py-3 text-right align-middle tabular-nums">{agent.sessions30d}</TD>
-                  <TD className="px-3.5 py-3 text-right align-middle tabular-nums">{agent.accounts}</TD>
-                  <TD className="px-3.5 py-3 align-middle">
-                    <Text as="span" variant="secondary" className="text-xs">
-                      {date(agent.lastSeenAt)}
-                    </Text>
-                  </TD>
-                  <TD className="px-3.5 py-3 text-right align-middle">
-                    {isBlocked ? (
-                      <Button variant="secondary" size="sm" disabled={busy} onClick={() => void change(agent, false)}>
-                        Unblock
-                      </Button>
-                    ) : (
-                      <Button variant="secondary" size="sm" disabled={busy} onClick={() => setConfirming(agent)}>
-                        Block
-                      </Button>
-                    )}
-                  </TD>
+    <div className="flex flex-col gap-6">
+      {agents.length === 0 ? (
+        <EmptyState title="No Personal Agent has connected yet." />
+      ) : (
+        <section aria-label="Personal Agents" className="flex flex-col gap-3">
+          {failed !== null ? (
+            <Banner variant="danger" role="alert">
+              {failed}
+            </Banner>
+          ) : null}
+          <div className="overflow-hidden rounded-lg border border-hairline bg-surface shadow-raised">
+            <Table>
+              <THead>
+                <TR className="bg-moss">
+                  <TH className="px-3.5 py-3">Agent</TH>
+                  <TH className="px-3.5 py-3">Domain</TH>
+                  <TH className="px-3.5 py-3 text-right">Sessions, 30 days</TH>
+                  <TH className="px-3.5 py-3 text-right">Accounts</TH>
+                  <TH className="px-3.5 py-3">Last seen</TH>
+                  <TH className="px-3.5 py-3 text-right">
+                    <span className="sr-only">Actions</span>
+                  </TH>
                 </TR>
-              );
-            })}
-          </TBody>
-        </Table>
-      </div>
+              </THead>
+              <TBody>
+                {agents.map((agent) => {
+                  const isBlocked = blocked.get(agent.clientId) ?? agent.blocked;
+                  return (
+                    <TR key={agent.clientId} className="last:border-b-0">
+                      <TD className="px-3.5 py-3 align-middle">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {agent.logoUri !== null && !logoFailed.has(agent.clientId) ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- an agent's own https logo, which next/image would proxy through our optimizer
+                            <img
+                              src={agent.logoUri}
+                              // Decorative: the name is the next word in the row.
+                              alt=""
+                              data-testid="agent-logo"
+                              className="size-6 rounded"
+                              onError={() => setLogoFailed((current) => new Set(current).add(agent.clientId))}
+                            />
+                          ) : null}
+                          <Text as="span" className="text-sm font-semibold text-ink">
+                            {agent.name ?? agent.domain}
+                          </Text>
+                          {isBlocked ? <Badge variant="danger">Blocked</Badge> : null}
+                        </div>
+                      </TD>
+                      <TD className="px-3.5 py-3 align-middle">
+                        <Text as="span" variant="secondary" className="font-mono text-xs">
+                          {agent.domain}
+                        </Text>
+                      </TD>
+                      <TD className="px-3.5 py-3 text-right align-middle tabular-nums">{agent.sessions30d}</TD>
+                      <TD className="px-3.5 py-3 text-right align-middle tabular-nums">{agent.accounts}</TD>
+                      <TD className="px-3.5 py-3 align-middle">
+                        <Text as="span" variant="secondary" className="text-xs">
+                          {date(agent.lastSeenAt)}
+                        </Text>
+                      </TD>
+                      <TD className="px-3.5 py-3 text-right align-middle">
+                        {isBlocked ? (
+                          <Button variant="secondary" size="sm" disabled={busy} onClick={() => void change(agent, false)}>
+                            Unblock
+                          </Button>
+                        ) : (
+                          <Button variant="secondary" size="sm" disabled={busy} onClick={() => setConfirming(agent)}>
+                            Block
+                          </Button>
+                        )}
+                      </TD>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
+          </div>
 
-      {confirming !== null ? (
-        <ConfirmDialog
-          title={`Block ${confirming.name ?? confirming.domain}?`}
-          body="Its sign-ins stop and every request it sends is refused."
-          confirmLabel="Block"
-          busy={busy}
-          onOpenChange={(open) => !open && setConfirming(null)}
-          onConfirm={() => void change(confirming, true)}
-        />
-      ) : null}
+          {confirming !== null ? (
+            <ConfirmDialog
+              title={`Block ${confirming.name ?? confirming.domain}?`}
+              body="Its sign-ins stop and every request it sends is refused."
+              confirmLabel="Block"
+              busy={busy}
+              onOpenChange={(open) => !open && setConfirming(null)}
+              onConfirm={() => void change(confirming, true)}
+            />
+          ) : null}
+        </section>
+      )}
+      <ReportsList reports={reports} />
+    </div>
+  );
+}
+
+/** The reports, newest first as given; no actions. */
+function ReportsList({ reports }: { reports: AdminAgentReport[] }) {
+  return (
+    <section aria-label="Reports from agents" className="flex flex-col gap-3">
+      <Text as="p" className="text-sm font-semibold text-ink">
+        Reports from agents
+      </Text>
+      {reports.length === 0 ? (
+        <Text variant="secondary">No reports from agents yet.</Text>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {reports.map((report) => (
+            <li key={report.id} className="rounded-lg border border-hairline bg-surface p-3.5 shadow-raised">
+              <Text className="font-semibold">{report.task}</Text>
+              <Text variant="secondary" className="whitespace-pre-wrap break-words">
+                {report.description}
+              </Text>
+              <Text variant="muted" className="mt-1">
+                {report.agentName} · {date(report.createdAt)}
+              </Text>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
