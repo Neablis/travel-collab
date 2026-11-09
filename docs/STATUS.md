@@ -21,6 +21,14 @@ general setup.
 
 ## Where the work is right now
 
+**M59 scoped 2026-11-08, current** (*Self-host Caesura on a Coolify VPS*; decisions in
+`docs/milestones/M59-self-host-on-coolify-vps.md`, plan `docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`),
+placed ahead of M53 by Mitchell. Part 0 is `claude/next-milestone-setup-3ccab6` (supersedes PR 695).
+Two tracks: four code parts as one stack (`claude/m59-part1-deploy-env` up to
+`claude/m59-part4-off-vercel`), and ops steps O1–O6, of which O1 (Hetzner account and token) and
+O3 (Coolify admin, GitHub App) are Mitchell's. M58's close is PR 696, which waits on his merge; its
+TODO row stays unticked until then.
+
 **M58 built 2026-11-05, gate 10 of 11** (*A notebook anyone can read, and a poll for the people
 going*; decisions in `docs/milestones/M58-a-notebook-anyone-can-read.md`, mechanisms and
 amendments in ADR-088). Not closed: the [walk] box is open (walk not reported) and

@@ -139,7 +139,7 @@ for collaboration later landing on a product people already want to join.
 | M56 | New trip is a picker, and the assistant never strands you | **Closed 2026-10-30, gate 17 of 17.** New trip as five picker pages and Review, world place search, and the assistant's `ask_user`, `show_options` and `hand_off` (ADR-084): `M56-new-trip-is-a-picker.md` |
 | M57 | The assistant is a graph of personas, and you can watch it work | **Minted, scoped and placed ahead of M44 2026-11-01 by Mitchell; current.** From the candidate and its design (`docs/specs/2026-10-30-assistant-personas-design.md`); see *2026-11-01 — minted and placed: M57*. Six personas in a typed graph with a reachability baseline, persona and outcome columns in the ledger, `switch_persona` once a turn, the trip planner split, and an operator Debug mode in the Ask panel plus a Personas tab in the console (ADR-085): `M57-assistant-personas.md` |
 | M58 | A notebook anyone can read, and a poll for the people going | **Proposed, placed ahead of M53 and scoped 2026-11-04 by Mitchell; current.** All eight decisions answered (ADR-088), three of them not as recommended: every widget shows unless its instance is hidden (with three floors), private link targets render as plain text, and members see the stranger's page. See *2026-11-04 — minted: M58, public notebooks and a poll*. A notebook made public at `/n/<token>` for people without an account, ending in a call to action to plan their own trip. No way to join from it. Make-private answers 404, editors and the owner publish, and a `poll` widget for members, read-only counts in public. Five parts as one stack; plan `docs/plans/2026-11-04-M58-public-notebooks-and-polls.md`: `M58-a-notebook-anyone-can-read.md` |
-| M59 | Self-host Caesura on a Coolify VPS | **Proposed 2026-11-06 by Mitchell, not scoped; placed last, after M53, until he places it.** From his ask to follow the Coolify VPS guide (Saqib Shah, Medium, Feb 2026) off Vercel Pro: decouple from Vercel runtime APIs, provision the VPS and deploy pipeline, cron, migrations and backups on the new host, cutover with dual-run and rollback. Nine open decisions, each with a recommendation: `M59-self-host-on-coolify-vps.md` |
+| M59 | Self-host Caesura on a Coolify VPS | **Scoped 2026-11-08 by Mitchell, placed ahead of M53; current.** Off Vercel onto a Hetzner box running Coolify: one deployment-env module, no Vercel imports, a Docker build, Coolify per-PR previews, self-hosted Redis and Plausible, Coolify crons, hard cutover with Vercel paused. Decisions and gate: `M59-self-host-on-coolify-vps.md` |
 
 *A closed milestone's row is its gate, one line and its file. The longer rows
 they carried until 2026-11-01 are verbatim in `decisions-archive.md`, under
@@ -209,7 +209,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M58 — A notebook anyone can read, and a poll for the people going
+Current milestone: M59 — Self-host Caesura on a Coolify VPS
 
 ### Archived decision notes
 
