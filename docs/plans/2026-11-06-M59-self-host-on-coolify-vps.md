@@ -204,6 +204,11 @@ ask the assistant, watch a pageview arrive in Plausible.
 
 Secrets never enter the repo, a PR, a log or this chat; env values move tool to tool.
 
+**Follow-up (Mitchell, 2026-11-08): plan retrieval is paused.** Coolify has `RAG_PLAN_RETRIEVAL=0`
+until there is an `OPENAI_API_KEY` for embeddings (Anthropic has no embedding model). Restore it
+before the gate closes: add the key, set the flag back to `1`, run `/api/cron/embed-days` once by
+hand. The alternative, Voyage or a self-hosted model, means re-embedding into a new index.
+
 ## Gate
 
 The milestone file's exit gate. CI reads on the top part's head (Part 5) once retargeted to
