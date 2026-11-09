@@ -115,7 +115,6 @@ export default defineConfig({
             "scripts/landing-plans.test.ts",
             "scripts/assistant-live-set.test.ts",
             "scripts/build-migrate.test.ts",
-            "scripts/vercel-ignore-build.test.ts",
           ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,

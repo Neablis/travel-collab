@@ -42,7 +42,7 @@ orientation re-reads across 220 sessions against 9 that ran `/roadmap`.
 
 **Subagents** (`.claude/agents/`): `phase-implementer`, `part-reviewer` (read-only review of
 one part's PR), `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again — `phase-verifier`
-in particular drives the PR's Vercel preview, so the browser walk works from a
+in particular drives the PR's Coolify preview, so the browser walk works from a
 container with no local infra.
 
 **Skills** (`.claude/skills/`): `minimal-check-subset` (narrowest sufficient

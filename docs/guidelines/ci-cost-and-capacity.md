@@ -30,8 +30,8 @@
 > one required check on `main`, in the ruleset "Required checks for main", with
 > no bypass — which also ends Tier 1's direct push to `main`. A prose-only PR
 > now costs two jobs of a few seconds instead of none. `vercel-preview.yml`
-> kept its `paths-ignore` until 2026-10-25, when previews became on demand
-> (a `preview` label or a manual run) and the path filter had nothing left to save.
+> kept its `paths-ignore` until 2026-10-25, when previews became on demand; M59 then
+> deleted it, because Coolify builds previews on the VPS, outside Actions.
 > What follows is the warning as it stood.
 
 The "Still open" section below ends with a warning, written while it was
@@ -248,8 +248,8 @@ recommendations don't apply here — recorded so the same options aren't re-pric
 next quarter:
 
 - **Move deployments out of Actions → already done.** `ci.yml` contains no
-  `vercel build` / `vercel deploy`; Vercel deploys through its native Git
-  integration. Savings available: **zero**.
+  deploy step; Coolify (M59, before it Vercel) deploys through its own GitHub
+  App. Savings available: **zero**.
 - **Turborepo remote caching → N/A.** There is no `turbo.json`; this is a plain
   pnpm workspace.
 - **Concurrency cancellation as the headline fix → oversold.** Modelled against
@@ -324,7 +324,7 @@ Both standing rules survive intact:
 **What this genuinely gives up**, stated plainly so nobody rediscovers it the
 expensive way: a merged migration now sits pending until someone dispatches it,
 and a test failure introduced by merging a stale branch is not caught until the
-next pull request. Vercel still builds `main` on every push, so a broken *build*
+next pull request. Coolify still builds `main` on every push, so a broken *build*
 surfaces immediately — a broken *test* does not.
 
 ## Still open — Mitchell's call

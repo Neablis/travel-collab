@@ -10,7 +10,6 @@
     "dev": "node scripts/copy-maplibre-worker.mjs && next dev --turbopack -p ${WEB_PORT:-3001}",
     "build": "node scripts/copy-maplibre-worker.mjs && next build",
     "build:container": "node scripts/build-migrate.mjs && node scripts/copy-maplibre-worker.mjs && next build",
-    "vercel-build": "node scripts/build-migrate.mjs && node scripts/copy-maplibre-worker.mjs && next build",
     "start": "next start -p ${WEB_PORT:-3001}",
     "lint": "eslint --max-warnings 0 src e2e *.ts",
     "typecheck": "tsc --noEmit",

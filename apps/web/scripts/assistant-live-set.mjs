@@ -22,8 +22,8 @@
  * - `--confirm` is required: every turn is a real model call that costs money
  *   once `ai-live` is on for that deployment. Without it the script prints
  *   what it would run and stops.
- * - `VERCEL_AUTOMATION_BYPASS_SECRET` in the environment is sent as
- *   `x-vercel-protection-bypass` when the preview is protected.
+ * - Previews on the Coolify box are public (and NOINDEX), so nothing but the
+ *   cookie is sent.
  *
  * Each turn is one fresh conversation, so the runs are independent. Nothing
  * is approved: the set measures turns, not commits. Read the results with
@@ -82,35 +82,33 @@ async function readCookie() {
  * Whether a target may be sent paid turns: only when the deployment ITSELF
  * reports `preview` or `development` from `/api/health/ai-mode`.
  *
- * Not decided from the hostname. A production deployment has its own hashed
- * `*.vercel.app` URL exactly like a preview's, so no URL pattern separates
+ * Not decided from the hostname. A production deployment can sit behind a
+ * hostname that looks like a preview's, so no URL pattern separates
  * them (Copilot on #301); the first version of this guard did and would have
  * let a production deployment URL through. Fails closed: an unreachable or
  * unreadable health route, or any other environment, is a refusal.
  */
 export function targetVerdict(environment, hostname) {
   if (environment === "preview" || environment === "development") return { ok: true };
-  // No environment at all: off Vercel. Only this machine is allowed then — a
-  // deployment that hides `VERCEL_ENV` could be production (review of #301).
+  // No environment at all: `APP_ENV` unset. Only this machine is allowed then
+  // — a deployment that hides it could be production (review of #301).
   const local = LOOPBACK.has(hostname);
   if (environment === null && local) return { ok: true };
   return { ok: false, reason: `the deployment reports environment ${JSON.stringify(environment ?? null)}` };
 }
 
 /**
- * Request headers for one call to the target: the account's cookie, plus the
- * protection bypass when `VERCEL_AUTOMATION_BYPASS_SECRET` is set.
+ * Request headers for one call to the target: the account's cookie and
+ * nothing else; a preview has no gate to bypass.
  */
-function headersFor(cookie) {
+export function headersFor(cookie) {
   const headers = { "Content-Type": "application/json", Cookie: cookie };
-  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-  if (bypass) headers["x-vercel-protection-bypass"] = bypass;
   return headers;
 }
 
 /**
  * What the deployment reports as its environment: a string, `null` when it is
- * off Vercel, or `undefined` when the health route could not be read at all —
+ * `APP_ENV` is unset, or `undefined` when the health route could not be read at all —
  * which `targetVerdict` treats as a refusal.
  */
 async function environmentOf(base, cookie) {

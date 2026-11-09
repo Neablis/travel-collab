@@ -1,37 +1,19 @@
 #!/usr/bin/env node
 /**
- * Walk a protected Vercel preview deployment in a real browser, from anywhere —
- * including a Claude Code cloud session, where three separate things had to be
- * solved before a single page would load. `docs/guidelines/cloud-agent-sessions.md`
+ * Walk a Coolify preview deployment in a real browser, from anywhere —
+ * including a Claude Code cloud session, where the network had to be solved
+ * before a single page would load. `docs/guidelines/cloud-agent-sessions.md`
  * records the whole diagnosis; this file is the executable half.
  *
  *   pnpm --filter web walk:preview <url> [path ...]
  *
- * `<url>` is either a plain preview URL (a bypass secret must then be in the
- * environment) or a `?_vercel_share=` URL. Paths default to `/`.
- *
- * ── Getting past Deployment Protection ────────────────────────────────────────
- * The project has Vercel Authentication on (`ssoProtection: all_except_custom_
- * domains`), so every preview 302s to `vercel.com/sso-api`. That 302 carries
- * Vercel's headers, not the app's — do not read it as a response from the app.
- * Two ways through, in preference order:
- *
- *   1. VERCEL_AUTOMATION_BYPASS_SECRET — the durable one, and the only one that
- *      works unattended in CI. Generate it once per project (Vercel → Settings →
- *      Deployment Protection → Protection Bypass for Automation) and it never
- *      expires. Sent as `x-vercel-protection-bypass`, with
- *      `x-vercel-set-bypass-cookie` so subresources are covered too.
- *   2. A `?_vercel_share=` URL, which any Vercel MCP session can mint with
- *      `get_access_to_vercel_url`. Expires in 23 hours and is per-deployment, so
- *      it suits an interactive session and not a scheduled job. One navigation
- *      redeems it and sets the cookie on the browser context; every later
- *      navigation is an ordinary one.
+ * `<url>` is a preview URL (`https://<pr>.preview.caesura.today`). Paths
+ * default to `/`. Previews are public and NOINDEX, so no credential is needed
+ * or sent.
  *
  * ── Getting Chromium onto the network at all (cloud sessions) ─────────────────
- * Two container facts, neither of which affects a laptop:
- *
- *   a. Egress goes through the agent proxy, and Chromium does not read
- *      /etc/ssl/certs. Hosts the gateway inspects (github.com, most of the web)
+ * One container fact, which does not affect a laptop: egress goes through the
+ * agent proxy, and Chromium does not read /etc/ssl/certs. Hosts the gateway inspects (github.com, most of the web)
  *      fail ERR_CERT_AUTHORITY_INVALID until the gateway's own CAs are trusted.
  *      certutil is not installed here, so the CAs are pinned by SPKI hash —
  *      computed from the certificates the environment itself installed, so
@@ -42,17 +24,6 @@
  *      full reasoning, including why the count is computed rather
  *      than written down (this paragraph used to say "five"; the image now
  *      installs six).
- *   b. `*.vercel.app` is on the gateway's TLS-inspection bypass list, so it is
- *      tunnelled rather than inspected — and the tunnel cannot carry Chromium's
- *      TLS 1.3 ClientHello, which runs ~1830 B once the post-quantum key share
- *      is in it. The upstream answers 39 B and resets, which surfaces as
- *      ERR_CONNECTION_RESET with no hint of a cause. Capping at TLS 1.2 shrinks
- *      the ClientHello below whatever the limit is and the tunnel carries it.
- *      Bisected: every `--disable-features=` spelling of the post-quantum flag
- *      still failed on Chromium 141, and `--ssl-version-max=tls1.2` passed.
- *      The cost is that the walk exercises TLS 1.2, so this script is not
- *      evidence about anything TLS-version-dependent. It says nothing about
- *      the app.
  *
  * Exits non-zero if any path fails to load, so it is usable as a check.
  */
@@ -103,21 +74,8 @@ if (!target) {
 }
 if (paths.length === 0) paths.push("/");
 
-const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-const isShareUrl = new URL(target).searchParams.has("_vercel_share");
-if (!bypass && !isShareUrl) {
-  console.error(
-    "No way past Deployment Protection: pass a ?_vercel_share= URL, or set\n" +
-      "VERCEL_AUTOMATION_BYPASS_SECRET. See the header of this file.",
-  );
-  process.exit(2);
-}
-
-// The CA pin lives in container-chromium.mjs, whose header explains it. The
-// TLS 1.2 cap is kept here rather than there: it is
-// needed only because `*.vercel.app` is tunnelled rather than inspected, which
-// is a fact about the host this script walks and about no other.
-const args = ["--ssl-version-max=tls1.2", ...containerChromiumArgs()];
+// The CA pin lives in container-chromium.mjs, whose header explains it.
+const args = containerChromiumArgs();
 
 const browser = await chromium.launch({
   // No `executablePath`. An earlier version of this file pinned
@@ -139,29 +97,7 @@ const browser = await chromium.launch({
 
 const context = await browser.newContext();
 
-// The bypass secret goes on requests to the preview origin and nowhere else.
-//
-// The obvious spelling — `newContext({ extraHTTPHeaders })` — is a credential
-// leak, and not a theoretical one: Playwright applies context headers to EVERY
-// request the context makes, and the pages walked here fetch from
-// tiles.openfreemap.org, vercel.live and fonts. All of them would have received
-// a secret that unlocks every protected deployment this project has. `path` also
-// accepts an absolute URL, so one argument was enough to hand it to any host.
-// Routing per request is the fix; it is also why `paths` are origin-checked
-// below rather than trusted.
 const previewOrigin = new URL(target).origin;
-await context.route("**/*", async (route) => {
-  if (!bypass) return route.continue();
-  if (new URL(route.request().url()).origin !== previewOrigin) return route.continue();
-  return route.continue({
-    headers: {
-      ...route.request().headers(),
-      "x-vercel-protection-bypass": bypass,
-      // Covers subresources on this origin without re-signing each one.
-      "x-vercel-set-bypass-cookie": "true",
-    },
-  });
-});
 
 const page = await context.newPage();
 const consoleErrors = [];
@@ -172,23 +108,10 @@ page.on("pageerror", (e) => consoleErrors.push(`[pageerror] ${e.message}`));
 
 let failed = 0;
 
-if (isShareUrl) {
-  // Redeeming the share token is a navigation like any other; what it leaves
-  // behind is the `_vercel_jwt` cookie the rest of the walk rides on.
-  const res = await page.goto(target, { waitUntil: "domcontentloaded" });
-  console.log(`redeem  ${res?.status()}  -> ${page.url()}`);
-  const names = (await context.cookies()).map((c) => c.name);
-  if (!names.includes("_vercel_jwt")) {
-    console.error("share link did not set _vercel_jwt — it has probably expired (23h).");
-    failed += 1;
-  }
-}
-
 for (const path of paths) {
   // An absolute URL is accepted for convenience, but only onto the deployment
   // being walked. Navigating elsewhere is refused rather than silently walked:
-  // this script exists to look at one deployment, and the routing above is the
-  // only thing keeping the bypass secret off other hosts.
+  // this script exists to look at one deployment.
   let url;
   try {
     const resolved = new URL(path, target);
@@ -207,7 +130,7 @@ for (const path of paths) {
     const landed = new URL(page.url()).pathname;
     const redirected = landed !== new URL(url).pathname ? `  -> ${landed}` : "";
     console.log(`${String(status).padEnd(4)} ${path}${redirected}   ${await page.title()}`);
-    if (status >= 400 || page.url().includes("vercel.com/sso-api")) failed += 1;
+    if (status >= 400) failed += 1;
   } catch (e) {
     console.log(`FAIL ${path}   ${e.message.split("\n")[0]}`);
     failed += 1;

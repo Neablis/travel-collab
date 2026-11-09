@@ -1,15 +1,26 @@
 # Running Caesura on the Coolify VPS (M59)
 
-A skeleton: Part 3 writes the build and the variable names, Part 4 fills the
-rest in from the ops track (O1 to O6 in `docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`).
+How Caesura runs on its own box (M59): the server, the Coolify application, its
+services, its crons and how to roll back. The steps that built it were O1 to O6
+in `docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`.
 **Names only. A value never goes in this file**, a PR or a log; values move from
-tool to tool.
+tool to tool. Tokens and passwords live in Coolify and the operator's password
+manager, not here.
 
 ## The box
 
-- Provider and size: Hetzner, 8 GB, `linux/amd64`. _(fill in: server name, region, IP held in Coolify, not here)_
-- Coolify version: _(fill in)_. Concurrent builds set to 1: a `next build` of this app needs about 4 GB.
+- Provider and size: Hetzner, 8 GB, `linux/amd64`, Ubuntu 24.04. Address `5.161.224.156`.
+- Coolify answers on `http://5.161.224.156:8000` (the dashboard, `coolify.caesura.today`
+  once its DNS record is up). Concurrent builds are set to 1: a `next build` of this
+  app needs about 4 GB, and a stack of PRs builds one after another.
 - Firewall: 22, 80, 443, 8000.
+- The application is `caesura-web`, built from the repo's `Dockerfile`. Its
+  private neighbours, as Coolify services on the same network: Redis with
+  serverless-redis-http (the cache) and Plausible (analytics). Neither is
+  published to the internet.
+- DNS stays on Vercel DNS (`caesura.today`'s nameservers). `staging.`,
+  `coolify.` and `*.preview.` A records point at the box; the apex and `www`
+  point at it from the cutover (see *Rollback*).
 
 ## The image
 
@@ -23,8 +34,14 @@ build passes the real one as a secret, never as a build argument:
 `DATABASE_URL=<url> docker build --secret id=DATABASE_URL,env=DATABASE_URL .`
 
 The image has a `HEALTHCHECK` that runs `node` against `GET /api/health`, which
-answers `{"ok":true}` without a session and without the database, so Coolify's
-container health reads "healthy" only once the server is serving.
+answers `{"ok":true}` without a session and without the database, so Docker's
+container health reads "healthy" only once the server is serving. **Coolify's own
+healthcheck is off** for the application: the Dockerfile's governs. (Two checkers
+disagreeing about the same container is how a healthy deploy gets rolled back.)
+
+The application's build pack is *Dockerfile*, with **"Use Docker Build Secrets" on**,
+which needs Dockerfile syntax 1.10 or newer (the `# syntax=` pin is 1.12). The
+image's port is 3000.
 
 ## Environment variables, by name
 
@@ -73,9 +90,17 @@ Neon branch whose password you can rotate.
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; `STRIPE_TEST_SECRET_KEY`, `STRIPE_TEST_WEBHOOK_SECRET` | runtime | test keys only | |
 | `RESEND_API_KEY`, `RESEND_EMAIL_DOMAIN` | runtime | runtime | Sign-in email |
 | `LOCATIONIQ_API_KEY`, `UNSPLASH_ACCESS_KEY` | runtime | runtime | Geocoding, cover photos |
-| `CACHE_DRIVER`, `KV_REST_API_URL`, `KV_REST_API_TOKEN` | runtime | runtime | Cache through serverless-redis-http on the box |
+| `CACHE_DRIVER`, `KV_REST_API_URL`, `KV_REST_API_TOKEN` | runtime | runtime | Cache through serverless-redis-http on the box. The URL is the private service address, never public |
+| `FLAG_AI_LIVE` | runtime | runtime | The `ai-live` flag; `true` is the only value that turns it on. See `environments-and-deploys.md`, *Feature flags* |
+| `RAG_PLAN_RETRIEVAL` | `0` | `0` | **Plan retrieval is paused** until `OPENAI_API_KEY` exists (Anthropic has no embedding model). To restore: add the key, set this back to `1`, run `/api/cron/embed-days` once by hand |
 
-_(Part 4: reconcile this list against `.env.example` and the env module once the `VERCEL_*` fallbacks go.)_
+There is no `VERCEL_AUTOMATION_BYPASS_SECRET`: previews are public and NOINDEX, so
+there is nothing to bypass. A `VERCEL_*` variable left on the application does
+nothing after the cutover except feed the fallbacks in `lib/deployment/env.ts`;
+delete them.
+
+**Embeddings live in Neon.** `day_embeddings` is a pgvector table in the app's own
+database. There is no Upstash Vector, and no index to move.
 
 ## Deploy
 
@@ -91,9 +116,12 @@ one shared preview Neon branch, without `--prune`
 (`apps/web/scripts/lib/build-steps.mjs`). With the second variable missing the
 build refuses and goes red, by design.
 
-**A preview must not inherit production's `DATABASE_URL`.** Coolify copies the
-production application's variables into a preview unless the preview scope
-overrides them, and the gate trusts the operator's flag alone: a preview that
+A preview is public at `https://<pr number>.preview.caesura.today` and carries a
+NOINDEX header. It has no password and holds nothing secret.
+
+**A preview must not inherit production's `DATABASE_URL`.** Coolify keeps a preview
+copy of **every** environment variable and fills it from the production value
+unless the Preview scope overrides it, and the gate trusts the operator's flag alone: a preview that
 inherited production's URL with `PREVIEW_DB_IS_DISPOSABLE=true` would migrate
 and import into production (the KI-2026-09-06-h failure). So, in this order:
 
@@ -103,16 +131,43 @@ and import into production (the KI-2026-09-06-h failure). So, in this order:
    name are the preview branch's, not production's.
 3. Only then set `PREVIEW_DB_IS_DISPOSABLE=true`, on the Preview scope.
 
+All of this is done **before PR previews are switched on** for the application.
+Do the same for every other variable whose production value must not reach a
+preview: `STRIPE_*` (test keys only), `FLAG_AI_LIVE`, `CRON_SECRET` if a preview
+should not run the sweeps.
+
 ## Crons
 
-_(fill in, O5)_ `/api/cron/embed-days` at 04:00 UTC and `/api/cron/tier-rollup`
-at 04:30 UTC, each a `curl` with `Authorization: Bearer $CRON_SECRET`.
+Two Coolify **scheduled tasks** on `caesura-web`, each a `curl` to the app's own
+route with `Authorization: Bearer $CRON_SECRET` (the app checks it,
+`server/cronAuth.ts`). Never an in-app timer (M59 decision 8).
+
+| Route | When (UTC) | Does |
+|---|---|---|
+| `/api/cron/embed-days` | 04:00 daily | Embeds changed days into pgvector. A no-op while `RAG_PLAN_RETRIEVAL=0` has nothing to read |
+| `/api/cron/tier-rollup` | 04:30 daily | Rewrites this week's plan-tier rollup rows (daily, so a missed day heals) |
+
+Run one by hand to test it: Coolify → the application → Scheduled Tasks → the
+task → *Execute now*, then read the task's execution log. A 401 is a wrong or
+missing `CRON_SECRET` in the task's environment.
 
 ## Backups
 
-_(fill in)_
+The database is Neon's, so its backups and point-in-time restore are Neon's
+(the project's history window). The box holds no data worth restoring: the Redis
+cache rebuilds itself, Plausible's database is the one thing on it that is not
+reproducible, and its Coolify service has scheduled backups turned on.
 
 ## Rollback
 
-_(fill in, O6)_ Redeploy the previous image from Coolify; the Vercel project is
-paused, not deleted, until the gate closes.
+Production is DNS. Before the cutover, `caesura.today` and `www` pointed at Vercel;
+the Vercel project is **paused, not deleted**, so it can serve again.
+
+- **The new deploy is bad, the box is fine:** Coolify → `caesura-web` → Deployments
+  → redeploy the previous one. Minutes.
+- **The box is bad:** un-pause the Vercel project, then repoint the apex and
+  `www` records on Vercel DNS back to Vercel. The preview and staging hosts can stay
+  where they are. DNS is the whole switch, so the time to rollback is the record's TTL.
+- Vercel's project settings and environment still hold the old variables, so
+  nothing needs rebuilding. Delete the project only after the gate has been
+  closed for a while with no rollback.

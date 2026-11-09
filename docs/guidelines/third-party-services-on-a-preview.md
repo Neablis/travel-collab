@@ -8,7 +8,7 @@ dependency gets two things instead:
 
 1. **A common-sense placeholder** in the UI for when the service's data cannot
    load, covered by a test that **stubs** the service — never calls it.
-2. **A manual check on a Vercel preview**, written down below, that confirms the
+2. **A manual check on a Coolify preview**, written down below, that confirms the
    real service works in the real deployed environment (real CSP, real keys,
    real network).
 
@@ -16,7 +16,7 @@ This file is the home for part 2. **Add a section here when a feature starts
 depending on a third-party service**, in the same shape: what it depends on,
 what the automated tests stub instead, and a short numbered check.
 
-How to reach a preview (Deployment Protection, signing in, driving it from a
+How to reach a preview (its URL, signing in, driving it from a
 cloud container with `pnpm --filter web walk:preview`) is in
 `environments-and-deploys.md` → *Testing against a preview deployment*. Record
 what you checked, on which preview URL, in the PR — "the map works" without
@@ -102,6 +102,6 @@ lists the SDK error types that count as the provider's.
 2. The failure path is not something to force on a shared preview (it means
    breaking the key). If a real failure happens during a walk, confirm the rail
    shows exactly the "try again" sentence above with no provider detail, and
-   that the Vercel runtime log's `ai.ask` line carries the real cause. If the
+   that the container log's `ai.ask` line (Coolify's Logs tab) carries the real cause. If the
    rail shows the "on our side" sentence during a provider outage instead, the
    error type the provider threw is missing from `isModelSideFailure`.

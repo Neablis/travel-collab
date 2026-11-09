@@ -1,6 +1,6 @@
 ---
 name: ai-usage
-description: Inspect the travel-collab assistant's live AI cost and quality — from the `ai_usage` ledger tables (per turn, per step, per tool call) and from `ai.ask` / `ai.proposal.apply` records in Vercel runtime logs — cost per turn, tool failure rates, tool efficiency, cached tokens, escalation, classifier health, failure rate. Reporting only; it does not change code. Use when asked "what is the assistant costing", "is usage getting better or worse", or before/after a change to tools, the system instruction, or the intent classifier.
+description: Inspect the travel-collab assistant's live AI cost and quality — from the `ai_usage` ledger tables (per turn, per step, per tool call) and from `ai.ask` / `ai.proposal.apply` records in the app's container logs on Coolify — cost per turn, tool failure rates, tool efficiency, cached tokens, escalation, classifier health, failure rate. Reporting only; it does not change code. Use when asked "what is the assistant costing", "is usage getting better or worse", or before/after a change to tools, the system instruction, or the intent classifier.
 ---
 
 # AI usage
@@ -64,6 +64,10 @@ query 4's token counts and multiply by `modelRates.ts`' entry in force on those
 dates, keeping cached reads separate.
 
 ## What a turn was billed
+
+**Since M59 Part 4 the assistant calls Anthropic and OpenAI directly, with no AI Gateway.**
+The Gateway lookups below apply to turns before the cutover; after it, the billed cost is on
+the provider's own dashboard, and `gateway_generation_id` is empty on new rows.
 
 `modelRates.ts` prices every step of a model at ONE list rate, but AI Gateway sells a
 model through many providers at different prices (`zai/glm-5.3-flash`: $0.075–0.45
@@ -165,28 +169,15 @@ for a bare `question` or `write` will not match it.
 
 ## Fetching
 
-**Primary: the Vercel MCP `get_runtime_logs` tool**, in an interactive
-session — project `prj_UoxcnmAsWMtHXx8jLXyespRqSULM`, team
-`neablis-projects`, `environment: "preview"` or `"production"`,
-`query: "ai.ask"`, a relative `since` like `"2h"`. **Set `limit`.** A record
-carries a full tool-call trace, per-step usage, and up to 1000 chars of
-question text — a wide window with no cap will fill context with one
-afternoon's turns. Start around 20-50 records and widen only if the question
-needs more.
-
-**Fallback: the `vercel` CLI**, verified working from a plain shell with no
-`.vercel` project link needed if you pass `--project` explicitly:
-
-```
-vercel logs --project prj_UoxcnmAsWMtHXx8jLXyespRqSULM \
-  --environment preview --since 2h -n 50 -q "ai.ask" -j
-```
-
-`-j`/`--json` gives JSON Lines with the log line's `message` field holding
-`"ai.ask " + JSON.stringify(record)` — split on the first space and
-`JSON.parse` the rest. `-n`/`--limit` is the same context-budget knob as
-the MCP tool's `limit`; it defaults to 100 if you omit it. Swap
-`--environment production` for the live site.
+**Coolify's logs for the `caesura-web` application** (the dashboard's Logs tab, or
+`GET /api/v1/applications/<uuid>/logs` with a Coolify API token). A preview is its own
+application copy, so pick the preview's logs for a preview window. Each line is
+`"ai.ask " + JSON.stringify(record)`: filter for lines starting `ai.ask`, split on the
+first space and `JSON.parse` the rest. **Cap the window.** A record carries a full tool-call
+trace, per-step usage, and up to 1000 chars of question text; a wide window with no cap
+will fill context with one afternoon's turns. Start around 20-50 records and widen only
+if the question needs more. Coolify keeps only the container's recent output, so a window
+older than the last redeploy may be gone: the `ai_usage` ledger is the durable record.
 
 ## Cost per turn
 
@@ -296,7 +287,7 @@ problem worth a closer look, not this skill's job to fix.
 
 **Exclude `simulated: true` records from any cost figure.** A simulated turn
 costs zero tokens by construction (`simulatedModel`, no provider contacted),
-and flag-off is the default in every Vercel environment — preview included.
+and flag-off is the default in every environment — preview included.
 Averaging cost across a mixed batch silently drags every number toward zero
 and makes a real regression invisible. Filter on `simulated === false` before
 computing anything about tokens or latency; `simulated: true` records are

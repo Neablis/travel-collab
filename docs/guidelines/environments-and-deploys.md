@@ -8,7 +8,7 @@ overwrites an existing one — safe to run any time). Fill in
 (an ops address, never a user's) if you want the weather widget to show a
 forecast — MET Norway's terms require a contact in the User-Agent, and without
 it the widget shows "typical" in the forecast's place (ADR-052). Preview and
-Production need `EXTERNAL_DATA_CONTACT` set in the Vercel dashboard for the
+Production need `EXTERNAL_DATA_CONTACT` set in Coolify for the
 same reason. The rest already default
 to docker-compose's Postgres. Every command below that touches a database or
 starts the app reads this file — `pnpm dev` and `pnpm test:e2e` load it
@@ -57,8 +57,8 @@ coordination between worktrees.
 |---|---|---|---|
 | Local | `pnpm dev` (port 3001) | Docker Postgres (port 5433), or a native cluster on the same port in a web session | `apps/web/src/server/config.ts` default / `.env.local` |
 | CI | GitHub Actions | PG service container | `ci.yml` workflow env |
-| Preview | Vercel preview deploys | **A disposable Neon branch** (pooled), never production's | Vercel env, Preview scope — plus `PREVIEW_DB_IS_DISPOSABLE=true` |
-| Production | Vercel production | The Neon branch the live site reads (pooled) | Vercel env, Production scope |
+| Preview | Coolify per-PR previews on the VPS | **A disposable Neon branch** (pooled), never production's | Coolify env, Preview scope — plus `PREVIEW_DB_IS_DISPOSABLE=true` |
+| Production | Coolify, the same VPS | The Neon branch the live site reads (pooled) | Coolify env, Production scope |
 
 > **The Neon project and branch names are deliberately not written above.** They
 > have been wrong in this file before: it named a `preview` branch that had been
@@ -71,8 +71,10 @@ coordination between worktrees.
 Rules (ADR-004 + M1 retro):
 - Preview and Production `DATABASE_URL` are **never** the same value.
   **This rule was silently violated from 2026-07-21 to 2026-09-06** (fixed since; KI resolved 2026-09-24) — the Neon
-  Vercel integration injects one `DATABASE_URL` scoped "Production and Preview",
-  which is one value for both, and nothing checked. Read
+  Vercel integration injected one `DATABASE_URL` scoped "Production and Preview",
+  which is one value for both, and nothing checked. Coolify has the same trap: it
+  keeps a preview copy of every production variable, so the Preview scope's
+  `DATABASE_URL` is set explicitly (`docs/ops/coolify-vps.md`, *Previews*). Read
   `docs/known-issues/resolved/KI-20260906-h-preview-and-production-shared-one-database.md`
   before changing anything in this section; the rail below is what now enforces
   the half of it that automation can enforce.
@@ -131,9 +133,10 @@ Rules (ADR-004 + M1 retro):
   and two (`0002`, `0005`) carry irreversible data steps, so the wall also
   refuses deleting one that `main` already has, or rewriting the `when` of one
   already applied.
-- Preview migrations: `apps/web/scripts/vercel-build-migrate.mjs` runs
-  `drizzle-kit migrate` during the Vercel build, and needs **both** conditions:
-  `VERCEL_ENV=preview` **and** `PREVIEW_DB_IS_DISPOSABLE=true`. The first says
+- Preview migrations: `apps/web/scripts/build-migrate.mjs` runs
+  `drizzle-kit migrate` during the image build (`pnpm --filter web build:container`),
+  and needs **both** conditions:
+  `APP_ENV=preview` **and** `PREVIEW_DB_IS_DISPOSABLE=true`. The first says
   where the build runs; only the second says anything about which database it is
   pointed at, and it is set by hand on the Preview scope alone. Without it the
   build **fails** rather than skipping — a preview that cannot prove its database
@@ -157,84 +160,34 @@ Rules (ADR-004 + M1 retro):
 
 ## Which pushes build a preview
 
-**Vercel builds `main` on every push, and a preview only when someone asks.**
-Since 2026-09-25, `apps/web/vercel.json` sets `git.deploymentEnabled` to
-`{ "main": true, "**": false }`: a branch that matches any `true` rule deploys,
-so only `main` does. Previews come from `.github/workflows/vercel-preview.yml`,
-and since 2026-10-25 only on request, because Vercel bills preview compute and
-most ready PRs were never walked (Mitchell). Opening a PR, marking it ready and
-pushing to it build nothing. Two ways to ask:
+**Coolify builds `main` to production on every push, and every PR to a preview.**
+A PR's preview lives at `https://<pr number>.preview.caesura.today` (a wildcard
+A record on the VPS) and a push to the PR rebuilds it. Setup, the Preview-scope
+variables and the database rule are in `docs/ops/coolify-vps.md`. Before M59 a
+preview was built on request through a `vercel-preview` workflow and a `preview`
+label, because Vercel billed preview compute; the box has a fixed price, so that
+gate is gone and no label or token is needed.
 
-- **The `preview` label** — add it in the PR's sidebar. It builds the PR's
-  current head, and every later push while the label stays on builds again so
-  the preview keeps up. Remove the label to stop.
-- **A manual run** — Actions → *vercel-preview* → *Run workflow*, with the PR
-  number. One build of the current head, no label. From a session:
-
-      gh api -X POST repos/Neablis/travel-collab/actions/workflows/vercel-preview.yml/dispatches \
-        -f ref=main -f inputs[pr]=<n>
-
-The job's summary shows the deployment id and URL. Once Vercel reports a
-preview built, `.github/workflows/preview-link-check.yml` requests every link
-the landing sea draws on it, and its `sea-links` job fails naming each one
-that does not answer 200. It is not a required check, and it runs only where a
-preview was asked for.
-
-Why on demand: every push to every branch used to build a preview. On
-2026-09-24 that came to about 130 deployments against the Hobby plan's 100 a
-day, and Vercel refused the push that merged #227 without creating any
-deployment record. Production stayed a commit behind until it was deployed by
-hand. An Ignored Build Step would not have helped: a skipped build is still a
-created deployment, and it counts. Building one per ready PR fixed that, and
-then paid for previews nobody opened.
-
-- **No PR has a preview by default.** Ask for one when a walk is about to
-  happen — yours, `phase-verifier`'s or Mitchell's — not "in case".
-- **The workflow needs a `VERCEL_TOKEN` repository secret.** Without it, it warns
-  and passes, and no PR gets a preview. Dependabot PRs never get repository
-  secrets, so they never have previews.
-- **Making the token:** vercel.com → avatar → Account Settings → Tokens →
-  Create. Pick the `neablis-projects` team as the scope, and give it an
-  expiry. A token limited to the one project also works, and is narrower:
-  `vercel tokens add "GitHub preview deploys" --project prj_UoxcnmAsWMtHXx8jLXyespRqSULM`.
-  Store it in GitHub → Settings → Secrets and variables → Actions as `VERCEL_TOKEN`.
-- **A preview that failed or went stale**: run the workflow again with the PR
-  number (or, with the label on, push).
+- **Concurrent builds are set to 1** on the box (a `next build` needs about 4 GB),
+  so a stack of part PRs pushed together builds one after another.
+- Once a preview answers, `.github/workflows/preview-link-check.yml` requests
+  every link the landing sea draws on it, and its `sea-links` job fails naming
+  each one that does not answer 200. It runs on ready PRs, not drafts, and it is
+  not a required check.
+- **A preview that failed or went stale**: read the build log in Coolify; a push
+  or Coolify's *Redeploy* rebuilds it.
 
 ## Testing against a preview deployment
 
-Preview and production deployment URLs are behind **Vercel Authentication**
-(`ssoProtection`, scoped `all_except_custom_domains`), so an unauthenticated
-request 302s to `vercel.com/sso-api`. Three runs have now been lost to agents
-treating that 302 as the app's response, or as proof that the preview cannot be
-tested at all. It can. Pick by who is doing the testing:
+Previews are **public and NOINDEX**: no login, no bypass header, no share link.
+That was a decision (2026-11-08): the Vercel Authentication wall cost three lost
+runs to agents reading its 302 as the app's answer, and a preview holds only a
+disposable database and test keys. Nothing on a preview is secret; do not put
+anything there that is.
 
-| Who | How | Lifetime |
-|---|---|---|
-| An agent or a person, interactively | A `?_vercel_share=` URL — the Vercel MCP's `get_access_to_vercel_url` mints one per deployment | 23 hours |
-| CI, or anything unattended | `VERCEL_AUTOMATION_BYPASS_SECRET` as the `x-vercel-protection-bypass` header | Until revoked |
-
-**The bypass secret is the durable one, and it now exists** — generated
-2026-08-31, injected by Vercel into every Preview and Development deployment as
-`VERCEL_AUTOMATION_BYPASS_SECRET` (confirmed in `vercel env ls`, 2026-09-02;
-this paragraph said "does not exist yet" for two days after it did). Read the
-value with `vercel env pull`, send it as the `x-vercel-protection-bypass`
-header, and add `x-vercel-set-bypass-cookie: true` if you want the rest of the
-browsing session to carry it. **It is also a GitHub Actions repo secret**, so
-a workflow keyed on `deployment_status` can use it:
-`.github/workflows/preview-link-check.yml` does, and its green run on PR 511
-(148 of 148 links answering 200) is the proof. Treat it like `FLAGS_SECRET`: anyone holding it can reach every protected
-deployment this project has.
-
-Either way, `pnpm --filter web walk:preview <url> [path ...]` will drive a real
-browser through it — see `apps/web/scripts/walk-preview.mjs`, and
-`cloud-agent-sessions.md` for the two extra container-specific obstacles a
-cloud session hits on top of the auth one.
-
-What a preview shows that a local production build cannot: whatever Vercel's
-own edge injects. The Vercel Toolbar is the live example — it loads only on
-preview, and our CSP blocked it from the day the CSP landed until 2026-08-29,
-because nothing had ever loaded a preview in a renderer.
+`pnpm --filter web walk:preview <url> [path ...]` drives a real browser through
+one — see `apps/web/scripts/walk-preview.mjs`, and `cloud-agent-sessions.md` for
+the container-specific obstacle a cloud session hits.
 
 ### Signing in with Google on a preview
 
@@ -248,8 +201,8 @@ more**; the entries added before this date are dead and can be deleted.
 
 Two operational facts, both of which have a way of being learned the hard way:
 
-- **Changing either variable requires redeploying both environments.** Vercel
-  injects env vars at deploy time. A preview that has the proxy pointing at a
+- **Changing either variable requires redeploying both environments.** Coolify
+  injects env vars when it starts the container, and `NEXT_PUBLIC_*` at build. A preview that has the proxy pointing at a
   production that has not been redeployed will fail with an invalid-state
   error, because production will try to consume a callback whose `state`
   cookie it never set.
@@ -270,13 +223,7 @@ It reads the `redirect_uri` out of the Google authorization URL that deployment
 builds, checks it is production's callback **exactly** (host and path — a right
 host with a wrong path is a broken proxy, not a working one), then **asks Google
 whether it accepts it** — which needs no credentials,
-because an unregistered URI is refused before any sign-in begins. Export
-`VERCEL_AUTOMATION_BYPASS_SECRET` first; `vercel env pull --environment=development`
-is where it comes back with a value (the Preview scope returns it empty,
-because it is a sensitive variable there). The script will **refuse** to send
-that secret anywhere but `caesura.today` or a `travel-collab-*.vercel.app`
-host — it unlocks every protected deployment this project has, and a
-diagnostic whose only input is a URL must not hand it to whatever was typed.
+because an unregistered URI is refused before any sign-in begins. It sends no credential, so there is nothing to export.
 
 What the script cannot prove is that production **forwards** the callback back
 to the preview — that needs a completed Google sign-in, so it needs a human.
@@ -287,191 +234,74 @@ given deployment; the sign-in is what proved the mechanism once.
 
 ## Feature flags
 
-The project's first flag is `ai-live` (declared in
-`apps/web/src/server/flags.ts`), gating whether `/api/trips/:id/ai` calls a
-real model or returns a simulated plan. See ADR-019 for the mechanism and
-why the kill switch is built as a model swap rather than a branch.
+A flag is an **environment variable** (M59, decision 6): no Flags service, no
+per-user targeting, no override cookie. The declarations are in
+`apps/web/src/server/flags.ts`; the only value that turns one on is the string
+`true`, and a typo, an empty string or an unset variable all mean off. Changing
+a flag is a restart of the container in Coolify. See ADR-019 for why the kill
+switch is a model swap rather than a branch.
+
+The project's flag is `ai-live`, variable `FLAG_AI_LIVE`: whether
+`/api/trips/:id/ask` calls a real model or the simulated one.
 
 | Environment | Where the value lives |
 |---|---|
-| Local / CI | `AI_LIVE` in `.env.local` / the CI env — `false` by default, checked by `aiLive()` (`apps/web/src/server/ai/modelSelection.ts`) before the flag is ever consulted. **Never set this in a Vercel environment** (see below). |
-| Preview | The `ai-live` flag's value in the Vercel dashboard, optionally overridden per session via the Flags Explorer (below). |
-| Production | The `ai-live` flag's value in the Vercel dashboard. **`false` until release; `true` from release onward**, at which point this control is the emergency disable — ADR-019's 2026-09-13 amendment. Do not flip it before M20's entitlement gate is live in production: between the flip and the gate there is no spend control at all. |
+| Local / CI | `AI_LIVE` in `.env.local` / the CI env — `false` by default, checked by `aiLive()` (`apps/web/src/server/ai/modelSelection.ts`) before the flag is ever consulted. **Never set this in a deployment** (see below). |
+| Preview | `FLAG_AI_LIVE` on the Coolify Preview scope. Unset means simulated; set it to `true` on the preview you want to try live AI on. |
+| Production | `FLAG_AI_LIVE` on the Production scope. **`false` until release; `true` from release onward**, at which point it is the emergency disable — ADR-019's 2026-09-13 amendment. Do not flip it before M20's entitlement gate is live in production: between the flip and the gate there is no spend control at all. |
 
-**Flipping `ai-live` for everyone:**
+**Flipping `ai-live` for everyone:** set `FLAG_AI_LIVE` on the Production scope
+in Coolify and restart the application. The value is global to the process:
+there is no per-person rollout any more. Every caller, signed-out visitors
+included, gets whatever that one value says.
 
-```
-vercel flags set ai-live --environment production --variant true
-```
+**From release onward it is `true`, and that is safe only because M20 checks
+entitlement before the flag is consulted** (`modelSelection.ts`): an account
+without `ai.ask` is `denied` and never reaches `aiLive()`, so *who may spend*
+is a database fact about a paid account, not the flag's job. The flag is what its
+name says, whether live AI is on at all, and setting it to `false` is the
+emergency disable, one action reaching everyone. Order is not negotiable: the
+entitlement gate goes live first.
 
-or the equivalent toggle on the project's Flags page in the Vercel
-dashboard. Either writes the same value `vercelAdapter()` reads at request
-time — no deploy needed.
-
-### Turning AI on for specific people (targeting)
-
-`ai-live` is **targetable per user** (ADR-019's 2026-09-08 amendment). On every
-evaluation the app tells Vercel who is asking, via `identify` in
-`apps/web/src/server/flagEntities.ts`, and a dashboard rule decides from that.
-Three attributes are published, and nothing else:
-
-| Attribute | Example | Use it for |
-|---|---|---|
-| `user.id` | `google-11822…` | Percentage rollouts (`--by user.id`) — the only field stable enough to bucket by |
-| `user.email` | `mitchell@example.com` | Naming one person. Always lowercased, so write the rule in lowercase |
-| `user.emailDomain` | `example.com` | Everyone at one company, in one rule |
-
-Turn it on for one person:
-
-```
-vercel flags rules add ai-live --environment production \
-  --condition user.email:eq:mitchell@example.com --variant true \
-  --message "Live AI for Mitchell"
-```
-
-`--variant true` names the variant by its **value** — the same form
-`vercel flags set` uses above, and the values `aiLiveFlag`'s own `options`
-declare (`false` = Simulated, `true` = Live). Vercel's CLI examples show both
-`--variant on` and `--variant false` against boolean flags, so if a token is
-ever rejected, `vercel flags rules ls ai-live` prints the variant names this
-flag actually has — or sidestep it and add the rule in the dashboard, which
-`vercel flags open ai-live` goes straight to.
-
-Everyone else keeps getting the simulated model — which still works, still
-mutates the trip, and still badges itself, so an untargeted visitor sees a
-functioning assistant rather than a dead end.
-
-Roll it out gradually instead:
-
-```
-vercel flags rollout ai-live --environment production --by user.id \
-  --stage 5,6h --stage 25,12h
-```
-
-**Before release, the fallthrough must stay "Simulated".** Rules only ever
-WIDEN who gets live AI. Anyone no rule matches — including every signed-out
-visitor, for whom `identify` publishes no `user` at all — falls through to the
-flag's default value, so that default is the kill switch. Setting it to "Live"
-and relying on rules to hold everyone else back would invert the whole control:
-the code cannot enforce this, which is why it is written down here.
-
-**From release onward the fallthrough is "Live", and the rule above is
-deliberately inverted** — ADR-019's **2026-09-13 amendment**, Mitchell's
-decision. It is safe only because **M20 checks entitlement before the flag is
-consulted** (`modelSelection.ts:215-218`): an account without `ai.ask` is
-`denied` and never reaches `aiLive()`, so *who may spend* stops being the flag's
-job and becomes a database fact about a paid account. The flag is then what its
-name says — is live AI on at all — and flipping the fallthrough back to
-"Simulated" is the emergency disable, one action reaching everyone.
-
-Two things this changes here, and one it does not:
-
-- **Keep Production's rule list empty at release.** Turning everyone on with a
-  widening rule instead would leave the fallthrough Simulated and make the rule
-  load-bearing, so disabling in a hurry would mean finding and removing rules.
-  A kill switch that requires knowing what rules exist is not one. Remove any
-  pre-release targeting rules when you flip.
-- **Order matters and is not negotiable:** the entitlement gate goes live
-  first. The interval between the flip and the gate has no spend control at
-  all, which is the exact condition ADR-019 was written for.
-- **`defaultValue: false` in the declaration does not change.** That is the
-  code's fallback when the Flags service is unreachable, and it must keep
-  failing closed. It and the dashboard fallthrough point opposite ways on
-  purpose; neither is a mistake to tidy.
-
-**What a signed-out or unidentifiable caller gets.** No `user` entity is
-published, so no user-keyed rule matches and the fallthrough applies. If the
-session read itself *fails*, the flag is not consulted at all and `aiLive()`
-answers `false` — simulated, never spending. Off is the answer to every question
+If the session read itself *fails*, the flag is not consulted and `aiLive()`
+answers `false`: simulated, never spending. Off is the answer to every question
 this flag cannot resolve.
 
 **Checking what a deployment is actually doing:** `GET /api/health/ai-mode`
-returns `{ live, source }`. `source: "env"` means `AI_LIVE` decided it and no
-caller on that server can get a different answer; `source: "flag"` means Vercel
-Flags answered **for the caller of that request**, and someone else may well get
-the other answer. Only `"env"` is evidence about anybody but you — which is why
-e2e's `global.setup.ts` refuses to run a suite on anything else.
+returns `{ live, source, tiers, environment }`. `source: "env"` means `AI_LIVE`
+decided it; `source: "flag"` means `FLAG_AI_LIVE` did. With flags as env vars
+both answer the same for every caller; `"env"` marks the local/CI override,
+which is why e2e's `global.setup.ts` refuses to run a suite on anything else.
 
-### `admin-console` — who may open the operator console
+### Who may open the operator console
 
-The project's second flag (M20 link 7, Mitchell 2026-09-14: *"add me also using
-feature flags to turn on admin for accounts so I don't need a redeploy"*).
-Declared beside `ai-live` in `apps/web/src/server/flags.ts`, identified the same
-way, and read in exactly one place — `callerIsAdmin()` in
-`apps/web/src/server/entitlements/admin.ts`.
+Not a flag. A global boolean would make every signed-in caller an operator, so
+it is per account: `users.is_admin` is the durable fact, and `ADMIN_USER_IDS`
+(an env var, so a restart) writes that column on the listed account's next
+sign-in (`apps/web/src/server/entitlements/admin.ts`). **Removing admin is
+clearing the column.** The Vercel `admin-console` flag that once gave a
+no-deploy switch went with the Flags service.
 
-**Turning admin on for somebody, with no deploy and no sign-out:**
+**`AI_LIVE` must never be set in a deployment.** It is a local/CI-only escape
+hatch inside `aiLive()` that short-circuits the flag entirely, and it logs a
+warning every time it decides a turn in a deployment. In Coolify leave it unset
+so `FLAG_AI_LIVE` stays the sole source of truth.
 
-```bash
-vercel flags rules add admin-console --environment production \
-  --if 'user.email eq "mitchell@example.com"' --then true
-```
+## Which models the assistant runs, and paying for them
 
-It takes effect on that person's **next request** — the console's guard resolves
-per request, the same property that makes M20's entitlement grants bite without
-a token refresh.
-
-**Three things about it, and the first is why it is allowed to be a flag at
-all:**
-
-- **This is not entitlement.** ADR-019's 2026-08-25 amendment declines to assume
-  a paid tier is a flag, and M20 built it as a database fact with a pinned plan
-  version behind it. `is_admin` is an operator bit on a staff account: nobody
-  buys it, nothing pins it, and it grants no capability a plan sells. **A
-  capability a customer pays for still may not live here.**
-- **It only ever WIDENS.** `users.is_admin` is the durable fact, and it is what
-  the console's accounts table displays. The flag is a second way to say yes and
-  never a way to say no — **removing admin is clearing the column**, because a
-  Flags outage that revoked every operator would look like an empty console
-  rather than like an outage.
-- **It fails closed**, like every flag here: `defaultValue: false`, an
-  unreachable service answers `false`, and an unconfigured adapter — the
-  ordinary case locally and in CI — answers `false` too. `flags.test.ts` pins
-  that default for every flag in the module.
-
-**The three ways an account becomes an operator**, and why all three exist:
-
-| | Reaches production how | Survives a Flags outage | Use it for |
-|---|---|---|---|
-| `admin-console` flag | A dashboard rule. **No deploy.** | No — the flag answers `false` | The everyday switch: turning the console on for someone now |
-| `ADMIN_USER_IDS` | An env var, so a redeploy, and it writes the column on that account's next sign-in | Yes | Break-glass, and the local/CI path where no Flags adapter is configured |
-| `users.is_admin` directly | A database write | Yes | A permanent operator, and the only way to REVOKE one |
-
-**Per-session overrides on preview deploys:** the Vercel Toolbar's Flags
-Explorer talks to the discovery endpoint at
-`apps/web/src/app/.well-known/vercel/flags/route.ts`, authenticated by the
-`FLAGS_SECRET` environment variable. With `FLAGS_SECRET` set in a Preview
-(and Production) environment, opening the Toolbar on a preview deploy lets a
-reviewer flip `ai-live` to "Live" for their own browser session only — the
-dashboard's stored value, and every other visitor's requests, are
-unaffected. With `FLAGS_SECRET` unset (e.g. local dev), a bare unauthenticated
-probe 401s; a request carrying an `Authorization` header with no
-`FLAGS_SECRET` configured 500s instead (see the route file's comment) —
-either way there's no Toolbar to serve locally, so that's expected, not a bug.
-
-`FLAGS_SECRET` is itself a spend-control credential on this deployment, not
-just an auth token for the discovery endpoint: anyone holding it can override
-`ai-live` to "Live" for their own session via the Flags Explorer toolbar
-cookie, which does spend real tokens. Handle it with the same care as
-`AI_GATEWAY_API_KEY`.
-
-**`AI_LIVE` must never be set in a Vercel environment.** It's a local/CI-only
-escape hatch inside `aiLive()` that short-circuits the flag entirely before
-the adapter is ever asked. On Vercel this variable must stay unset so the
-`ai-live` flag remains the sole source of truth — setting it there would
-make the dashboard and Toolbar controls silently inert.
-
-## Which models the assistant runs, and paying for them on our own key
-
-The assistant's models are four environment variables, set per Vercel
-environment (Production and Preview): `AI_MODEL_CHEAP`, `AI_MODEL_MID`,
+Since M59 Part 4 the assistant calls Anthropic directly, on our own
+`ANTHROPIC_API_KEY`, and embeddings go straight to OpenAI on `OPENAI_API_KEY`:
+no AI Gateway sits between. The models are four environment variables, set per
+Coolify scope (Production and Preview): `AI_MODEL_CHEAP`, `AI_MODEL_MID`,
 `AI_MODEL_STRONG` and `AI_CLASSIFIER_MODEL` (`apps/web/src/server/config.ts`).
-Each holds an AI Gateway model id. Changing one is a redeploy, not a code
-change — but **every id must have a rate in
-`apps/web/src/server/entitlements/modelRates.ts` first**, or every turn on it is
-an unpriced row in the cost console.
+Each holds an id of the form `anthropic/<model>`; `resolveChatModel`
+(`apps/web/src/server/ai/modelId.ts`) turns the dotted version
+(`claude-sonnet-5.5`) into the hyphenated name Anthropic takes, and refuses any
+other provider. Changing one is a restart, not a code change — but **every id
+must have a rate in `apps/web/src/server/entitlements/modelRates.ts` first**, or
+every turn on it is an unpriced row in the cost console.
 
-**Decided 2026-10-10: the Anthropic tiers, on our own Anthropic key (BYOK).**
+**Decided 2026-10-10: the Anthropic tiers.**
 
 | Variable | Model id |
 |---|---|
@@ -480,28 +310,21 @@ an unpriced row in the cost console.
 | `AI_MODEL_MID` | `anthropic/claude-sonnet-5.5` |
 | `AI_MODEL_STRONG` | `anthropic/claude-opus-5.5` |
 
-Gateway ids use dots (`claude-sonnet-5.5`), not the Anthropic API's dashes.
-The code pins every `anthropic/*` model to the Anthropic provider
-(`pinnedToOwnKey`, `apps/web/src/server/ai/gateway.ts`): the Gateway otherwise
-also serves Claude through Vertex and Bedrock, on Vercel's credits rather than
-the key's. To check a request was paid by the key, look its generation id up —
-`GET https://ai-gateway.vercel.sh/v1/generation?id=gen_…` — and read
-`data.is_byok` (true) and `data.provider_name` (`anthropic`).
 The switch, in order:
 
 1. **Anthropic Console** — create an API key in its own workspace, and set that
    workspace's monthly spend limit to the credit it is spending ($100), so
-   usage stops at the credit instead of charging a card.
-2. **Vercel → AI Gateway → Bring Your Own Key** — add Anthropic and paste the
-   key. It applies to every Gateway request from the team; no code reads it.
-3. **Vercel → AI Gateway budget** — set one. When a BYOK request fails (a bad
-   key, an exhausted Anthropic workspace) the Gateway **retries on Vercel's own
-   credentials**, so without a budget an empty Anthropic credit silently
-   becomes a Vercel bill.
-4. **Set the four variables** above for Production and Preview, and redeploy.
-5. **Update `apps/web/src/server/ai/eval/models.json`** to the new ids, then run
+   usage stops at the credit instead of charging a card. With no Gateway in the
+   path there is no second bill to fall back to: an exhausted workspace fails the
+   turn.
+2. **Set `ANTHROPIC_API_KEY`** and the four variables above in Coolify for
+   Production and Preview, and restart.
+3. **Update `apps/web/src/server/ai/eval/models.json`** to the new ids, then run
    the eval once (`EVAL_CONFIRM=1 pnpm --filter web eval`, M33) to check
    quality and cost on the new models.
+
+Plan retrieval needs an `OPENAI_API_KEY` for embeddings; until one exists
+`RAG_PLAN_RETRIEVAL=0` (`docs/ops/coolify-vps.md`).
 
 ## Debug-only routes
 
@@ -509,10 +332,10 @@ The switch, in order:
 wipes the signed-in caller's own trips and reseeds the 14-day/68-stop Japan
 demo trip, for reproducing UI bugs against rich data without a terminal.
 Gated by `isDemoDataResetEnabled()` (`apps/web/src/lib/demoDataReset.ts`)
-requiring **both** `VERCEL_ENV=preview` and `SEED_DEMO_DATA=true` —
-`VERCEL_ENV` is set by Vercel itself, never by us, so **production can never
-satisfy this regardless of `SEED_DEMO_DATA`**. Either condition failing
+requiring **both** `APP_ENV=preview` and `SEED_DEMO_DATA=true` —
+`APP_ENV` is set per Coolify scope (`production` on Production), so **production
+can never satisfy this regardless of `SEED_DEMO_DATA`**. Either condition failing
 404s the route (not 403), so its existence isn't advertised. Set
-`SEED_DEMO_DATA=true` in a Preview environment (Vercel dashboard, Preview
+`SEED_DEMO_DATA=true` in a Preview environment (Coolify, Preview
 scope) to enable it there; leave it unset everywhere else, including local
 `.env.local`, since it has no effect outside Preview.

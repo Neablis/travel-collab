@@ -162,9 +162,9 @@ What each tool does, why it exists and what it measured:
   gate-close checklist; `TODO.md`'s rows ARE the order (KI-2026-09-21-a).
 - **Subagents** (`.claude/agents/`): `phase-implementer`, `part-reviewer`,
   `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again —
-  `phase-verifier` drives the PR's Vercel preview, so the browser walk needs no
-  local infra. Previews are built on demand, not per ready PR (2026-10-25,
-  billed compute): request one only for a walk that will happen
+  `phase-verifier` drives the PR's Coolify preview, so the browser walk needs no
+  local infra. Coolify builds a preview of every PR at
+  `https://<pr number>.preview.caesura.today`, public and NOINDEX
   (`environments-and-deploys.md`, *Which pushes build a preview*).
 - **Skills** (`.claude/skills/`): `github-rest`, `minimal-check-subset`,
   `ci-triage`, `worktree-hygiene`, `write-a-test`, `ai-usage`, and

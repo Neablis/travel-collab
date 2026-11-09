@@ -1,9 +1,9 @@
-// The Vercel Cron entry point for the plan-retrieval embed queue (Part 2 of
-// 5). Once daily at 04:00 UTC (see `apps/web/vercel.json`) Vercel GETs this
-// route with `Authorization: Bearer ${CRON_SECRET}`; the handler verifies the
+// The cron entry point for the plan-retrieval embed queue (Part 2 of
+// 5). Once daily at 04:00 UTC a Coolify scheduled task (`docs/ops/coolify-vps.md`)
+// GETs this route with `Authorization: Bearer ${CRON_SECRET}`; the handler verifies the
 // secret FIRST — before any database work — and runs the sweep.
-// NOTE: daily cadence is the Vercel Hobby plan limit. Bump to sub-daily (e.g.
-// */15 * * * *) when traffic grows — requires Vercel Pro.
+// NOTE: the cadence is the schedule on the Coolify task; sub-daily (e.g.
+// */15 * * * *) is a change there, with no plan limit in the way.
 import { isCronRequestAuthorized } from "@/server/cronAuth";
 import { runEmbedSweep } from "@/server/ai/sweep";
 
