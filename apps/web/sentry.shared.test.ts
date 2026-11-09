@@ -13,22 +13,37 @@ import {
 } from "./sentry.shared";
 
 /**
- * Every environment name `sentry.shared.ts` reads at module scope. Keep this
- * list in step with the `process.env.*` reads over there — a name the module
- * reads and this list omits is a name the fixture below does not control.
+ * Every environment name `sentry.shared.ts` reads itself at module scope. Keep
+ * this list in step with the `process.env.*` reads over there; the registry
+ * test at the bottom makes drift fail.
  */
-const MODULE_ENV_NAMES = [
+const DIRECT_ENV_NAMES = [
   "NEXT_PUBLIC_SENTRY_DSN",
+  "NEXT_PUBLIC_APP_ENV",
   "NEXT_PUBLIC_VERCEL_ENV",
-  "VERCEL_ENV",
   "NODE_ENV",
+  "NEXT_PUBLIC_APP_VERSION",
   "NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA",
-  "VERCEL_GIT_COMMIT_SHA",
   "NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE",
   "SENTRY_TRACES_SAMPLE_RATE",
   "NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE",
   "SENTRY_PROFILE_SESSION_SAMPLE_RATE",
 ] as const;
+
+/**
+ * Names `sentry.shared.ts` reaches only through `src/lib/deployment/env.ts`,
+ * which reads them with a computed `process.env[name]` the scan cannot see.
+ * They still leak in from a shell, so the fixture clears them too.
+ */
+const DEPLOYMENT_MODULE_ENV_NAMES = [
+  "APP_ENV",
+  "APP_VERSION",
+  "VERCEL_ENV",
+  "VERCEL_DEPLOYMENT_ID",
+  "VERCEL_GIT_COMMIT_SHA",
+] as const;
+
+const MODULE_ENV_NAMES = [...DIRECT_ENV_NAMES, ...DEPLOYMENT_MODULE_ENV_NAMES] as const;
 
 /**
  * Re-import the module with a fresh registry so the module-scope `process.env`
@@ -617,7 +632,7 @@ describe("Session Replay", () => {
 });
 
 describe("the fixture's environment registry", () => {
-  // `MODULE_ENV_NAMES` above carries a comment telling the next person to keep
+  // `DIRECT_ENV_NAMES` above carries a comment telling the next person to keep
   // it in step with `sentry.shared.ts`. That was the entire enforcement: a
   // name added to the module and forgotten here is a name `moduleWith` does
   // not clear, which silently reinstates the exact ambient leakage KI-96 was
@@ -633,7 +648,7 @@ describe("the fixture's environment registry", () => {
     // means the list has drifted from the module and can no longer be trusted
     // as a description of it. An empty `read` (a broken scan) fails this too,
     // so the assertion cannot pass vacuously.
-    expect([...new Set(read)].sort()).toEqual([...MODULE_ENV_NAMES].sort());
+    expect([...new Set(read)].sort()).toEqual([...DIRECT_ENV_NAMES].sort());
   });
 });
 
