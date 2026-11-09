@@ -21,13 +21,25 @@ general setup.
 
 ## Where the work is right now
 
+**M59 is current, production cut over 2026-11-09, gate open** (*Self-host Caesura on a Coolify
+VPS*; decisions and evidence in `docs/milestones/M59-self-host-on-coolify-vps.md`, plan
+`docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`, runbook `docs/ops/coolify-vps.md`).
+Vercel blocked the account on 2026-11-08 and production went down; it now serves from the Hetzner
+box through Coolify, built from `main` (`/api/health` version `5504d935`), with DNS on Cloudflare.
+All five code parts are on `main`: PR 702 (`7b390a21`), then PR 707 (`6f07974d`), which carried
+PRs 703, 704 and 706. Migrations `0070` to `0074` are applied (`migrate-production` run
+42561546021). Gate: 8 of 11. **Open, by Mitchell's choice to keep M59 open rather than defer
+them:** the Vercel project is not paused, Coolify PR previews are not on (the preview Neon branch is
+archived), and the retro waits for those two. Part 0 is PR 701 (`claude/next-milestone-setup-3ccab6`,
+prose only); it merges at the close, not before.
+
 **M58 closed 2026-11-06, gate 11 of 11** (*A notebook anyone can read, and a poll for the people
 going*; decisions in `docs/milestones/M58-a-notebook-anyone-can-read.md`, mechanisms and
 amendments in ADR-088), by `pnpm milestone close M58 --confirm`. The [walk] was ticked on
 Mitchell's word that he walked production. All five code parts are on `main` (`2729315`,
 `aac7246`), and part 0 is PR 688 (`10c44a4`). Migrations `0073` and `0074` are applied in
-production, `0074` by `migrate-production` run 42255011247 on `10c44a4`. **M53 is current**: it is
-proposed and not scoped, with seven open decisions.
+production, `0074` by `migrate-production` run 42255011247 on `10c44a4`. M53 was next after it;
+M59 was then placed ahead of M53 (2026-11-08).
 
 **M44 closed 2026-11-03, gate 7 of 7** (*A stop knows what was booked, and what it sits inside*;
 decisions in `docs/milestones/M44-a-stop-knows-what-was-booked.md`, mechanisms in ADR-086), by
@@ -107,11 +119,18 @@ confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
 **Next action:**
+0. **M59 (current):** Mitchell pauses the Vercel project (never deletes it). Then switch on Coolify
+   PR previews only after the Preview-scope `DATABASE_URL` points at a live preview Neon branch
+   (`docs/ops/coolify-vps.md`, *Previews*, steps 1 to 3), and check one PR's preview. Then tick the
+   last two boxes, write the retro with a spend block, `pnpm milestone close M59`, delete the plan,
+   and Mitchell merges PR 701. Deferred out of the gate: KI-20261109-a (plan retrieval, needs an
+   OpenAI key) and KI-20261109-b (three unread env vars); KI-20261108 (stale Vercel mentions).
+   M53 follows M59.
 1. Mitchell merges PR 679 (M44's part 0, prose only). Parts 1 to 5 are merged, so close no lower
    drafts. `migrate-production` is not needed: M44 added no migration.
 2. **M58 closed 2026-11-06, gate 11 of 11**, and `0074` is applied. Follow-ups: KI-20261105-a
-   and -b. **M53 is next** (*A search engine reads every public page the way a person does*). It
-   is proposed and not scoped: scope it with Mitchell (`plan-a-milestone`, seven open
+   and -b. **M53 follows M59** (*A search engine reads every public page the way a person does*).
+   It is proposed and not scoped: scope it with Mitchell (`plan-a-milestone`, seven open
    decisions). M48 stays parked.
 3. Open follow-ups from M44: KI-2026-11-03-a, KI-2026-11-02-a (the flaky `TripProvider.suggest`
    test) and the candidate *The share page shows a stop is booked*.
