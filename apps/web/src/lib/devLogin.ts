@@ -1,4 +1,3 @@
-import { deployEnv } from "@/lib/deployment/env";
 // The single gate on the password-less "dev-login" credentials provider —
 // read here by the sign-in/sign-up pages (to decide whether to show the
 // username box) and by `lib/authConfig.ts` itself (to decide whether to
@@ -26,6 +25,8 @@ import { deployEnv } from "@/lib/deployment/env";
 // Deliberately `!== "production"` rather than `=== "preview"` (which is what
 // the demo-reset gate wants): the deployment environment is unset outside a deployment, and local
 // development is dev login's primary use case.
+
+import { deployEnv } from "@/lib/deployment/env";
 export function isDevLoginEnabled(): boolean {
   return process.env.AUTH_DEV_LOGIN === "true" && deployEnv() !== "production";
 }

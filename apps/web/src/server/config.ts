@@ -1,8 +1,9 @@
-import { deployEnv } from "@/lib/deployment/env";
 // Server/tooling half of the dev config — never import from UI code
 // (DATABASE_URL must not end up in a client bundle).
 // No fallback: a missing DATABASE_URL should fail loudly, not silently
 // connect to a local default that doesn't exist in preview/production.
+
+import { deployEnv } from "@/lib/deployment/env";
 if (!process.env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL is not set. Copy .env.example to apps/web/.env.local for local dev.",

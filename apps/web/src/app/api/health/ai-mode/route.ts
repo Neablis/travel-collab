@@ -46,7 +46,7 @@ import { deployEnv } from "@/lib/deployment/env";
 // a simulated deployment's configured ids are exactly what an operator needs to
 // check BEFORE switching the flag on.
 //
-// `environment` is which Vercel environment answered: `APP_ENV` / `VERCEL_ENV` exactly,
+// `environment` is which deployment environment answered: `APP_ENV` / `VERCEL_ENV` exactly,
 // or null when it is unset — off Vercel, or on a project that does not expose
 // system environment variables. Null is never guessed into "development": the
 // live-set script treats that word as permission, and a production deployment
