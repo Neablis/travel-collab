@@ -15,14 +15,14 @@ vars, Let's Encrypt). Its prices are the guide's, not our bill.
 
 ## Two tracks
 
-This milestone has a **code track** (Parts 1–4, one stack of draft PRs, built by subagents with
+This milestone has a **code track** (Parts 1–5, one stack of draft PRs, built by subagents with
 no one in the room) and an **ops track** (O1–O6, accounts and servers). Ops steps marked
 **Mitchell** need his sign-up, payment or a click GitHub will not let an agent make; the rest
 an agent runs once it holds the token named.
 
-**Invariant for Parts 1–3: Vercel keeps working.** Every part reads the new env vars first and
+**Invariant for Parts 1–4: Vercel keeps working.** Every part reads the new env vars first and
 falls back to the `VERCEL_*` ones, so `main` still deploys to Vercel until the cutover. Only
-Part 4 removes Vercel-only files, and the top PR (Part 4) merges at the cutover (O6), not before.
+Part 5 removes Vercel-only files, and the top PR (Part 5) merges at the cutover (O6), not before.
 
 ## Order
 
@@ -31,9 +31,10 @@ Part 4 removes Vercel-only files, and the top PR (Part 4) merges at the cutover 
 | 1 One deployment-env module | `claude/m59-part1-deploy-env` | `main` | — |
 | 2 Drop the Vercel packages: cache, flags, analytics, headers | `claude/m59-part2-no-vercel-imports` | part 1 | 1 |
 | 3 Docker build, build-time migrate, Coolify previews | `claude/m59-part3-docker-previews` | part 2 | 2 |
-| 4 Docs, agents, workflows; Vercel files removed | `claude/m59-part4-off-vercel` | part 3 | 3, and O1–O5 for its walk |
+| 4 Direct AI providers (no AI Gateway) | `claude/m59-part4-direct-ai` | part 3 | 3 |
+| 5 Docs, agents, workflows; Vercel files removed | `claude/m59-part5-off-vercel` | part 4 | 4, and O1–O5 for its walk |
 
-One stack: each part's draft PR targets the part below; Part 4's PR is retargeted to `main` and
+One stack: each part's draft PR targets the part below; Part 5's PR is retargeted to `main` and
 is the one CI run and the one merge (`docs/guidelines/stacked-prs.md`).
 
 ## Facts the parts share (the survey, 2026-11-08, at `ddcb4027`)
@@ -120,7 +121,7 @@ left in `apps/web/src`.
 | `server/quota.ts`, `server/ai/modelSelection.ts`, `server/flagEntities.ts`, `server/entitlements/admin.ts` | flag callers | only if the flag API changes shape | `server/quota.test.ts`, `server/ai/modelSelection.test.ts` |
 
 `ai-live` on a preview is now an env var on that preview. `apps/web/scripts/assistant-live-set.mjs`
-changes in Part 4 with the other scripts. **Red test:** `flags.test.ts` asserts `FLAG_AI_LIVE=true`
+changes in Part 5 with the other scripts. **Red test:** `flags.test.ts` asserts `FLAG_AI_LIVE=true`
 turns `ai-live` on with no adapter. **Gate check:** `grep -rn "@vercel/\|@flags-sdk/vercel" apps/web/src`
 prints nothing.
 
@@ -138,7 +139,7 @@ migrates the shared disposable preview branch at build time, behind the same gat
 | **New** `Dockerfile` (repo root) | — | pnpm 11, Node 24, multi-stage; build runs the migrate step, `copy-maplibre-worker.mjs`, `next build`; runtime is the standalone server on :3000 | `docker build` in the part's run (see below) |
 | **New** `.dockerignore` | — | node_modules, `.next`, `.git`, worktrees, e2e artefacts | — |
 | `apps/web/scripts/lib/vercel-build-steps.mjs` → **new** `apps/web/scripts/lib/build-steps.mjs` | :10 | gate on `APP_ENV=preview` (falling back to `VERCEL_ENV`) AND `PREVIEW_DB_IS_DISPOSABLE=true`; production never migrates at build (ADR-004) | `apps/web/scripts/vercel-build-migrate.test.ts` (renamed `build-migrate.test.ts`) |
-| `apps/web/scripts/vercel-build-migrate.mjs` | — | renamed `build-migrate.mjs`; `vercel-build` keeps calling it until Part 4 | same test |
+| `apps/web/scripts/vercel-build-migrate.mjs` | — | renamed `build-migrate.mjs`; `vercel-build` keeps calling it until Part 5 | same test |
 | `apps/web/package.json` | :12 | add a `build:container` script; `vercel-build` unchanged | — |
 | **New** `docs/ops/coolify-vps.md` | — | the runbook skeleton: box, Coolify version, every env var by name (never value) per environment, deploy, previews, crons, backups, rollback | — |
 
@@ -150,7 +151,29 @@ migrates the shared disposable preview branch at build time, behind the same gat
 **Preview walk:** the part's Coolify preview (once O4 exists; until then the Vercel preview, which
 must still work) shows the app, signed in, on the preview Neon branch.
 
-## Part 4 — docs, agents, workflows; Vercel files removed (~30 files, mostly prose)
+## Part 4 — direct AI providers, no AI Gateway (added 2026-11-08)
+
+**Why.** The plan missed it: the assistant reaches models through Vercel's AI Gateway
+(`@ai-sdk/gateway`, `AI_GATEWAY_API_KEY`), and the blocked account's key now answers 401.
+**Mitchell, 2026-11-08: a direct Anthropic key.**
+
+**Theme.** Chat, classifier and tool models go through `@ai-sdk/anthropic` with
+`ANTHROPIC_API_KEY`. The `AI_MODEL_*` / `AI_CLASSIFIER_MODEL` values keep their gateway form
+(`anthropic/claude-…`): one resolver strips the provider prefix and refuses any provider other
+than `anthropic`. Embeddings (`openai/text-embedding-3-small`, the vectors already in Upstash
+Vector) go through `@ai-sdk/openai` with `OPENAI_API_KEY`. That is the same model, so no
+re-index. `@ai-sdk/gateway` and `AI_GATEWAY_API_KEY` are removed. Cost and usage telemetry
+(`ai_usage`) keeps its numbers: whatever the gateway's response metadata supplied must come
+from the provider's usage instead.
+
+**Red test:** the model resolver maps `anthropic/claude-haiku-5.5` to the Anthropic provider and
+throws on `openai/gpt-x` for a chat role; the embedding resolver maps
+`openai/text-embedding-3-small` to OpenAI.
+
+**Preview walk:** ask the assistant on staging and get an answer; `embed-days` run by hand writes
+vectors.
+
+## Part 5 — docs, agents, workflows; Vercel files removed (~30 files, mostly prose)
 
 **Theme.** Decisions 7, 8, 9. Everything that tells a person or an agent "Vercel" now says
 Coolify, and the Vercel-only files go. Lands at the cutover (O6).
@@ -183,7 +206,7 @@ Secrets never enter the repo, a PR, a log or this chat; env values move tool to 
 
 ## Gate
 
-The milestone file's exit gate. CI reads on the top part's head (Part 4) once retargeted to
+The milestone file's exit gate. CI reads on the top part's head (Part 5) once retargeted to
 `main`. The **[walk]** is Mitchell's on `staging.caesura.today` before the merge and on
 `caesura.today` after the flip: sign in with Google, open a trip, ask the assistant, watch a
 cron fire, and see the visit in Plausible.
