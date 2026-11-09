@@ -36,10 +36,19 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 FROM deps AS build
 COPY . .
 
-# NEXT_PUBLIC_* are inlined into the browser bundle by `next build`, so they
-# must exist here and cannot be set on the running container. Coolify passes
-# every environment variable it holds as a build argument; only the ones
-# declared here are visible to the build.
+# Everything the build step reads arrives as a BuildKit secret, because Coolify
+# 4.6 with "Use Docker Build Secrets" on passes every variable as
+# `--secret id=<NAME>` and sets no build argument at all (verified in its
+# ApplicationDeploymentJob: generate_build_secrets, then build_args = ''). So
+# an ARG alone is empty on the box. The ARGs below are only the fallback for a
+# plain `docker build --build-arg NAME=value` on a laptop; a secret, when
+# mounted, wins. NEXT_PUBLIC_* are inlined into the browser bundle by `next
+# build`, so they must exist here and cannot be set on the running container;
+# they are public, but go through the same path as the rest. APP_ENV and
+# PREVIEW_DB_IS_DISPOSABLE gate the build-time migrate: unset, it prints that it
+# skipped and the build carries on, which is what a production build does.
+ARG APP_ENV
+ARG PREVIEW_DB_IS_DISPOSABLE
 ARG NEXT_PUBLIC_PLAUSIBLE_DOMAIN
 ARG NEXT_PUBLIC_PLAUSIBLE_SRC
 ARG NEXT_PUBLIC_SENTRY_DSN
@@ -49,28 +58,45 @@ ARG NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE
 ARG NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE
 ARG NEXT_PUBLIC_VERCEL_ENV
 ARG NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
-# APP_ENV and PREVIEW_DB_IS_DISPOSABLE are read by the build-time migrate step.
-# Unset, it prints that it skipped and the build carries on, which is what a
-# production build does. Neither is a secret.
-ARG APP_ENV
-ARG PREVIEW_DB_IS_DISPOSABLE
 
 # A build never needs more than this, and the default heap cap is lower than
 # what `next build` of this app reaches on an 8 GB box.
 ENV NODE_OPTIONS=--max-old-space-size=4096 \
     NEXT_TELEMETRY_DISABLED=1
-# DATABASE_URL is needed in EVERY build, not only a preview's: `next build`
-# evaluates `server/config.ts` while collecting page data, and that throws
-# without it. It comes in as a BuildKit secret, never an ARG, so it is in no
-# layer, no `docker history` and no build-log command line: the file is read
-# into the environment of this one RUN. Production's build only needs the
-# variable to exist (the migrate step's gate decides whether it is used), so
+# The values are exported inside this one RUN only, so they are in no layer, no
+# ENV, no `docker history` and no build-log command line. DATABASE_URL is needed
+# in EVERY build, not only a preview's: `next build` evaluates `server/config.ts`
+# while collecting page data, and that throws without it. Production's build
+# only needs it to exist (the migrate gate decides whether it is used), so
 # without the secret a placeholder stands in; a preview that lost its secret
 # then fails loudly at the first connection, not silently on the wrong database.
-RUN --mount=type=secret,id=DATABASE_URL \
-    DATABASE_URL="$(cat /run/secrets/DATABASE_URL 2>/dev/null || true)" \
-    && export DATABASE_URL="${DATABASE_URL:-postgres://build:build@localhost:5432/build}" \
-    && pnpm --filter web build:container
+# The echo names which branch was taken, never a value.
+#
+# Fallback if a Coolify without build secrets must be used (leaves the URL in
+# this stage's history and the build log, never in the shipped image): add
+#   ARG DATABASE_URL
+# above this RUN. The loop below already prefers a mounted secret and otherwise
+# keeps the ARG.
+RUN --mount=type=secret,id=DATABASE_URL,required=false \
+    --mount=type=secret,id=APP_ENV,required=false \
+    --mount=type=secret,id=PREVIEW_DB_IS_DISPOSABLE,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_PLAUSIBLE_DOMAIN,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_PLAUSIBLE_SRC,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_SENTRY_DSN,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_VERCEL_ENV,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,required=false \
+    set -eu; \
+    for name in DATABASE_URL APP_ENV PREVIEW_DB_IS_DISPOSABLE NEXT_PUBLIC_PLAUSIBLE_DOMAIN NEXT_PUBLIC_PLAUSIBLE_SRC NEXT_PUBLIC_SENTRY_DSN NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE NEXT_PUBLIC_VERCEL_ENV NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA; do \
+      if [ -s "/run/secrets/$name" ]; then export "$name=$(cat "/run/secrets/$name")"; echo "[docker] $name: from build secret"; \
+      elif [ -n "$(printenv "$name" || true)" ]; then echo "[docker] $name: from build arg"; \
+      else echo "[docker] $name: unset"; fi; \
+    done; \
+    if [ -z "${DATABASE_URL:-}" ]; then export DATABASE_URL=postgres://build:build@localhost:5432/build; echo "[docker] DATABASE_URL: placeholder"; fi; \
+    pnpm --filter web build:container
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 ENV NODE_ENV=production \

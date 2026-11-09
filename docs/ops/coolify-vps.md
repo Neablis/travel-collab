@@ -28,17 +28,25 @@ container health reads "healthy" only once the server is serving.
 
 ## Environment variables, by name
 
-Set in Coolify per environment. "Build" means a build argument the Dockerfile
-declares, because Next inlines it into the browser bundle or reads it while
-building; the rest are runtime. `DATABASE_URL` is the exception: it reaches the
-build as a BuildKit **secret** (`RUN --mount=type=secret,id=DATABASE_URL`), so
-it is in no layer, no `docker history` and no build log. Turn on Coolify's
-"Use Docker Build Secrets" for the application; Coolify then passes each of its
-variables as `--secret id=<NAME>`. That toggle's availability and behaviour were
-not checked against the installed Coolify version. If it is missing there, the
-only fallback is an `ARG DATABASE_URL` in the `build` stage, which leaves the
-URL in that stage's history and the build log on the box (never in the shipped
-image): do that knowingly, and for a Neon branch whose password you can rotate.
+Set in Coolify per environment. "Build" means a variable the Dockerfile's build
+stage reads, because Next inlines it into the browser bundle or the migrate step
+reads it while building; the rest are runtime. Every build variable, and
+`DATABASE_URL`, reaches the build as a BuildKit **secret**
+(`--mount=type=secret,id=<NAME>,required=false`), never a build argument, so
+none is in a layer, an `ENV`, `docker history` or a build log. Keep Coolify's
+"Use Docker Build Secrets" on for the application. Verified against Coolify
+4.6.0 (`ApplicationDeploymentJob.php`, lines 5440-5441): with it on, Coolify
+calls `generate_build_secrets` and sets `build_args` to empty, so each variable
+arrives only as `--secret id=<NAME>` and no `ARG` has a value. The build log
+prints one `[docker] <NAME>: from build secret | from build arg | unset` line per
+name (never a value), so a first build shows which path each took. A new
+build-time variable needs a `--mount` line and a name in the loop in the
+Dockerfile, or it is silently absent. The `ARG`s there are only the fallback for
+a laptop `docker build --build-arg`. If Coolify's toggle is ever off, the only
+way to get `DATABASE_URL` in is an `ARG DATABASE_URL` (a comment in the
+Dockerfile marks where), which leaves the URL in that stage's history and the
+build log on the box (never in the shipped image): do that knowingly, and for a
+Neon branch whose password you can rotate.
 
 | Name | Production | Preview | Note |
 |---|---|---|---|
