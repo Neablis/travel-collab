@@ -8,6 +8,7 @@ import { deleteSavedDay, setSavedDayVisibility, storeSavedDay, updatePlaybookCon
 import { executeTripCommand } from "@/server/commands";
 import { enqueueDayChunksForEmbedding } from "@/server/ai/queue";
 import { runEmbedSweep } from "@/server/ai/sweep";
+import { serverConfig } from "@/server/config";
 import { backfillDayEmbeddings } from "../../../scripts/backfill-day-embeddings.mjs";
 
 // Embed-on-write and the cron sweep against REAL Postgres + pgvector: the
@@ -406,8 +407,13 @@ describe("runEmbedSweep", () => {
     await drainQueue();
     const owner = `sweep-jan-${run}`;
     const playbook = await createPlaybook(owner, "Kyoto Stroll", [stop("Fushimi Inari", 0)], 1);
-    // No injected embed: the production path, whose key the lane leaves unset.
-    const summary = await runEmbedSweep();
+    // No injected embed: the production path. serverConfig reads the env once at
+    // import, so a developer's .env.local key would otherwise leak in; blank it here.
+    const keyed = serverConfig.openaiApiKey;
+    serverConfig.openaiApiKey = "";
+    const summary = await runEmbedSweep().finally(() => {
+      serverConfig.openaiApiKey = keyed;
+    });
     expect(summary).toMatchObject({ claimed: 0, dead: 0, pending: 1 });
     expect((await pendingRows("playbook", playbook.savedDayId))[0]).toMatchObject({ status: "pending", attempts: 0 });
   });
