@@ -21,6 +21,12 @@ general setup.
 
 ## Where the work is right now
 
+**M60 is scoped and next, after M59** (*A personal agent can find Caesura, and act for you within
+what you allow*; decisions in `docs/milestones/M60-personal-agents-act-for-you.md`, mechanisms in
+ADR-089, plan `docs/plans/2026-11-09-M60-personal-agents.md`). Scoped 2026-11-09 with every
+decision as recommended; part 0 is PR 712 on `claude/relaxed-pascal-i6125m`, prose only. No part
+is built yet: part 1 starts from `main` as `claude/m60-part1-discovery`.
+
 **M59 is current, production cut over 2026-11-09, gate open** (*Self-host Caesura on a Coolify
 VPS*; decisions and evidence in `docs/milestones/M59-self-host-on-coolify-vps.md`, plan
 `docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`, runbook `docs/ops/coolify-vps.md`).
