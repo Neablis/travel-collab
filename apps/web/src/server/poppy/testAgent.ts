@@ -129,7 +129,7 @@ export async function makeTestAgent(
         header.kid = "k1";
         signer = privateKey;
       } else {
-        const delegated = over.delegated ?? (await delegate({ ...(typeof over.delegation === "object" ? over.delegation : {}), iat }, alg));
+        const delegated = over.delegated ?? (await delegate({ iat, ...(typeof over.delegation === "object" ? over.delegation : {}) }, alg));
         header.kid = over.kid ?? delegated.kid;
         if (over.delegation !== "none") header.poppy_dlg = delegated.dlg;
         signer = delegated.key;

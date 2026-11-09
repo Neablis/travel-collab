@@ -406,8 +406,10 @@ describe("POST /api/mcp with Poppy-Session", () => {
 
   it("refuses an access token issued to another client than the Session names", async () => {
     const owner = await entitled();
-    const res = await withSession({ authorization: `Bearer ${await connect(owner, ["account:read"])}` });
+    const token = await connect(owner, ["account:read"]);
+    // Signed over the token, so the check that fails is whose token it is, not `ath`.
+    const res = await withSession({ authorization: `Bearer ${token}` }, { accessToken: token });
     expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "invalid_session" });
+    expect(await res.json()).toMatchObject({ error: "invalid_session", error_description: expect.stringContaining("issued to another client") });
   });
 });

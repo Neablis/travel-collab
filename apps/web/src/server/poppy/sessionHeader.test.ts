@@ -20,14 +20,14 @@ async function setup() {
   const tokenClientId = vi.fn<(token: string) => Promise<string | null>>(async () => agent.clientId);
   const cache = createRedisCache(createMemoryClient());
   /** Verify `over` as a request for `url`; `token` is the bearer the request carries. */
-  const verify = async (over: Partial<SessionOver> = {}, opts: { token?: string; method?: string; url?: string } = {}) => {
+  const verify = async (over: Partial<SessionOver> = {}, opts: { token?: string; method?: string; url?: string; now?: Date } = {}) => {
     const url = opts.url ?? URL_;
     const jwt = await agent.session({ htu: URL_, ...over });
     const request = new Request(url.replace(ORIGIN, "http://internal.local"), {
       method: opts.method ?? "GET",
       headers: { "poppy-session": jwt },
     });
-    return verifySessionHeader(request, opts.token, { now: NOW, issuer: ISSUER, origin: ORIGIN, cache, loadKeys, tokenClientId });
+    return verifySessionHeader(request, opts.token, { now: opts.now ?? NOW, issuer: ISSUER, origin: ORIGIN, cache, loadKeys, tokenClientId });
   };
   return { agent, verify, loadKeys, tokenClientId };
 }
@@ -64,6 +64,13 @@ describe("verifySessionHeader", () => {
       expect(await verify({ delegation: { exp: nowSeconds + 24 * 3600 + 1, iat: nowSeconds } })).toMatchObject(refused("delegation lifetime"));
     });
 
+    it("measures the lifetime from the delegation's own iat, not the Session's", async () => {
+      const { verify } = await setup();
+      // 24 hours and a second from an iat 100 seconds ago: inside 24 hours from now, so only its own iat refuses it.
+      const iat = nowSeconds - 100;
+      expect(await verify({ delegation: { iat, exp: iat + 24 * 3600 + 1 } })).toMatchObject(refused("delegation lifetime"));
+    });
+
     it("then the Session JWT's own signature and that its kid is the delegated key's thumbprint", async () => {
       const { verify } = await setup();
       expect(await verify({ kid: "not-the-thumbprint" })).toMatchObject(refused("kid"));
@@ -76,6 +83,22 @@ describe("verifySessionHeader", () => {
       expect((await verify({ delegated })).ok).toBe(true);
       // The first verification fetched the key set; the second found the delegation cached.
       expect(loadKeys).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not take a cached delegation for a different one with the same jti", async () => {
+      const { agent, verify, loadKeys } = await setup();
+      expect((await verify({ delegated: await agent.delegate({ jti: "same" }) })).ok).toBe(true);
+      // Another key behind the same jti: the cached key would not verify its Session JWT.
+      expect((await verify({ delegated: await agent.delegate({ jti: "same" }) })).ok).toBe(true);
+      expect(loadKeys).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not serve a cached delegation past its exp", async () => {
+      const { agent, verify } = await setup();
+      const delegated = await agent.delegate({ exp: nowSeconds + 120 });
+      expect((await verify({ delegated })).ok).toBe(true);
+      const later = new Date(NOW.getTime() + 180_000);
+      expect(await verify({ delegated, iat: nowSeconds + 180 }, { now: later })).toMatchObject(refused("delegation expired"));
     });
   });
 
@@ -98,6 +121,14 @@ describe("verifySessionHeader", () => {
     expect(await verify({ htu: `${ORIGIN}/api/v1/other` })).toMatchObject(refused("htu"));
     expect(await verify({ htu: "https://evil.test/api/v1/discover/playbooks" })).toMatchObject(refused("htu"));
     expect((await verify({ htu: `${URL_}?limit=5` }, { url: `${URL_}?cursor=x` })).ok).toBe(true);
+  });
+
+  it("compares htu as a URL: host case and the default port are the same endpoint, an unparseable value is none", async () => {
+    const { verify } = await setup();
+    expect((await verify({ htu: "https://Caesura.TEST/api/v1/discover/playbooks" })).ok).toBe(true);
+    expect((await verify({ htu: "https://caesura.test:443/api/v1/discover/playbooks#top" })).ok).toBe(true);
+    expect(await verify({ htu: "https://caesura.test:8443/api/v1/discover/playbooks" })).toMatchObject(refused("htu"));
+    expect(await verify({ htu: "not a url" })).toMatchObject(refused("htu"));
   });
 
   it("takes an iat within a minute either side and refuses beyond it", async () => {

@@ -148,7 +148,9 @@ export function ConnectedAppsSection() {
                           // eslint-disable-next-line @next/next/no-img-element -- an agent's own https logo, which next/image would proxy through our optimizer
                           <img
                             src={app.personalAgent.logoUri}
-                            alt={`${app.clientName} logo`}
+                            // Decorative: the name is the next word in the row, and a screen reader should not say it twice.
+                            alt=""
+                            data-testid="agent-logo"
                             className="size-6 rounded"
                             onError={() => setLogoFailed((failed) => new Set(failed).add(app.grantId))}
                           />

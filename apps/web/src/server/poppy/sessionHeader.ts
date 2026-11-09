@@ -8,6 +8,7 @@ import { db } from "@/server/db/client";
 import { oauthClients, oauthGrants, oauthTokens } from "@/server/db/schema";
 import { fetchClientKeys, resolveClient, type ClientDeps } from "@/server/oauth/clients";
 import { oauthIssuer } from "@/server/oauth/metadata";
+import { signedOutFetchQuota } from "@/server/quota";
 import { keyedDigestCandidates } from "@/server/secrets/keyedDigest";
 
 // **The `Poppy-Session` header, verified** (Poppy 5.2 and 5.3, ADR-089 decision
@@ -167,8 +168,9 @@ export async function verifySessionHeader(
   if (payload.agent_id !== undefined && (!isString(payload.agent_id) || payload.agent_id.length > 256)) return no("agent_id is not usable");
   if (!isString(payload.jti)) return no("jti is missing");
   if (request.method !== payload.htm) return no("htm is not this request's method");
-  // Without the query or fragment, on both sides, and against the deployment's origin: the Host a proxy forwarded is not ours to trust.
-  if (!isString(payload.htu) || payload.htu.split(/[?#]/)[0] !== `${deps.origin ?? deploymentOrigin()}${new URL(request.url).pathname}`) {
+  // Compared as URLs (RFC 9449 4.3 names RFC 3986 normalisation: host case, a default port),
+  // without the query or fragment, against the deployment's origin: the Host a proxy forwarded is not ours to trust.
+  if (!isString(payload.htu) || !sameEndpoint(payload.htu, deps.origin ?? deploymentOrigin(), new URL(request.url).pathname)) {
     return no("htu is not this request's URL");
   }
   const iat = payload.iat;
@@ -186,11 +188,23 @@ export async function verifySessionHeader(
   return { ok: true, claims: { clientId, sid: payload.sid, userId: payload.sub, agentId: payload.agent_id ?? null } };
 }
 
+/** Whether `htu` names `pathname` on `origin`; a value that does not parse names nothing. */
+function sameEndpoint(htu: string, origin: string, pathname: string): boolean {
+  try {
+    const named = new URL(htu);
+    return named.origin === new URL(origin).origin && named.pathname === pathname;
+  } catch {
+    return false;
+  }
+}
+
 const issuedTo = async (token: string) => (await tokenHolder(token))?.clientId ?? null;
 
 /** A Personal Agent's keys, by its document and `jwks_uri`; a client that is not one has none. */
 async function keysOf(clientId: string, deps: SessionDeps): Promise<{ ok: true; keys: JWK[] } | { ok: false; reason: string }> {
-  const clientDeps = { userId: deps.chargeTo ?? "poppy-session", now: deps.now, ...deps.clientDeps };
+  // Charged to the signed-out quota, never `oauthCimdQuota`: anyone can send this header, naming
+  // any URL, and that must not use up the share `/oauth/authorize` draws on for real clients.
+  const clientDeps = { userId: deps.chargeTo ?? "poppy-session", now: deps.now, quota: signedOutFetchQuota(), ...deps.clientDeps };
   const resolved = await resolveClient(clientId, clientDeps);
   if (!resolved.ok) return { ok: false, reason: `iss is not a usable client: ${resolved.reason}` };
   if (resolved.client.authMethod !== "private_key_jwt") return { ok: false, reason: "iss is not a Personal Agent" };
@@ -202,7 +216,8 @@ async function keysOf(clientId: string, deps: SessionDeps): Promise<{ ok: true; 
  * Who an OAuth access token was issued to: the `client_id` its grant was made
  * to (the document's URL for CIMD, the row's id for DCR) and the account that
  * consented. Read as the token is, by digest, and without judging whether it
- * is still live: that is `verifyAccessToken`'s.
+ * is still live: that is `verifyAccessToken`'s, so nothing is recorded from it
+ * before the actor has accepted the token.
  */
 export async function tokenHolder(token: string): Promise<{ clientId: string; accountId: string } | null> {
   const digests = keyedDigestCandidates(token).map((candidate) => candidate.digest);

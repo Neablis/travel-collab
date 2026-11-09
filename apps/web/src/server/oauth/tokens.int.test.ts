@@ -383,8 +383,21 @@ describe("a public CIMD client", () => {
   it("refreshes while its document cannot be fetched", async () => {
     const { exchange, agent, deps } = await publicAgent();
     const { refresh_token } = tokensOf(await exchange());
-    const outcome = await refresh({ refreshToken: refresh_token, clientId: agent.clientId }, later(), { ...deps, fetch: down });
+    // A cache that knows nothing of the exchange: what is stored on the grant, not remembered, says it is public.
+    const outcome = await refresh(
+      { refreshToken: refresh_token, clientId: agent.clientId },
+      later(),
+      { ...deps, fetch: down, cache: createRedisCache(createMemoryClient()) },
+    );
     expect(errorOf(outcome)).toBe("ok");
+  });
+
+  it("is revoked by a request that names no client, with nothing cached and its document down", async () => {
+    const { exchange, deps, grant } = await publicAgent();
+    const { refresh_token } = tokensOf(await exchange());
+    const cold = { ...deps, fetch: down, cache: createRedisCache(createMemoryClient()) };
+    expect(await revokeSecret(refresh_token, new Date(), {}, cold)).toEqual({ ok: true });
+    expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedReason: "owner" }));
   });
 
   it("is not held to the grant's exact scope on refresh, as before", async () => {

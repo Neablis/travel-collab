@@ -4,18 +4,18 @@
 // and `/api/mcp` call for a request that carries the header.
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryClient } from "@/server/cache/memory";
 import { createRedisCache } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
-import { agentSessions } from "@/server/db/schema";
+import { agentSessions, rateLimitCounters } from "@/server/db/schema";
 import { resolveClient } from "@/server/oauth/clients";
 import { createGrant, issueCode } from "@/server/oauth/grants";
 import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
 import { exchangeCode } from "@/server/oauth/tokens";
 import { connectForTest } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
-import { openOrContinueSession, poppyGate, SESSION_IDLE_MS } from "./sessions";
+import { openOrContinueSession, poppyGate, SESSION_IDLE_MS, SESSION_RETENTION_MS, sweepAgentSessions } from "./sessions";
 import { publicResolve, makeTestAgent } from "./testAgent";
 
 // `poppyGate` reads the bearer through `actor.ts`, which imports the session auth.
@@ -29,6 +29,10 @@ const DAY = 24 * 60 * 60 * 1000;
 /** Claims no other test shares, since the table keeps one row per (client, sid, user). */
 const fresh = (over: Partial<typeof CLAIMS> = {}) => ({ ...CLAIMS, clientId: `https://agent-${randomUUID()}.test/agent.json`, ...over });
 const rowsOf = (clientId: string) => db.select().from(agentSessions).where(eq(agentSessions.clientId, clientId));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("openOrContinueSession", () => {
   it("writes the row on the first request with a new sid, and continues it after", async () => {
@@ -75,6 +79,28 @@ describe("openOrContinueSession", () => {
     expect(await openOrContinueSession({ claims, accountId: null, now: at(1000) })).toEqual({ ok: false });
   });
 
+  it("holds the account that lost a race to set it, rather than letting both in", async () => {
+    // Both read a signed-out row before either writes; only one update matches `account_id IS NULL`.
+    for (let round = 0; round < 15; round++) {
+      const claims = fresh();
+      await openOrContinueSession({ claims, accountId: null, now: T0 });
+      const both = await Promise.all(["acct-a", "acct-b"].map((accountId) => openOrContinueSession({ claims, accountId, now: at(1000) })));
+      expect(both.filter((outcome) => outcome.ok), `round ${round}`).toHaveLength(1);
+    }
+  });
+
+  it("charges only a new row to the client, so invented sids stop at its share and a continuing Session does not", async () => {
+    vi.stubEnv("AGENT_SESSION_OPEN_RATE_LIMIT_PER_CLIENT_HOURLY", "3");
+    const claims = fresh();
+    const opened = [];
+    for (let i = 0; i < 5; i++) opened.push(await openOrContinueSession({ claims: { ...claims, sid: `sid-${i}` }, accountId: null, now: T0 }));
+    expect(opened.map((outcome) => outcome.ok)).toEqual([true, true, true, false, false]);
+    expect(await rowsOf(claims.clientId)).toHaveLength(3);
+    const refused = opened[3]!;
+    expect(!refused.ok && refused.limited?.status).toBe(429);
+    expect((await openOrContinueSession({ claims: { ...claims, sid: "sid-0" }, accountId: null, now: at(1000) })).ok).toBe(true);
+  });
+
   it("records the account on the first signed-in request, and ends on another account's", async () => {
     const claims = fresh();
     await openOrContinueSession({ claims, accountId: null, now: T0 });
@@ -87,7 +113,25 @@ describe("openOrContinueSession", () => {
   });
 });
 
+describe("sweepAgentSessions", () => {
+  it("deletes rows idle past the retention, ended or not, and keeps the rest", async () => {
+    const claims = fresh();
+    for (const sid of ["old", "ended-old", "recent"]) await openOrContinueSession({ claims: { ...claims, sid }, accountId: null, now: T0 });
+    const sweepAt = at(SESSION_RETENTION_MS + DAY);
+    await db.update(agentSessions).set({ lastSeenAt: at(SESSION_RETENTION_MS) }).where(eq(agentSessions.sid, "recent"));
+    await db.update(agentSessions).set({ endedAt: T0 }).where(eq(agentSessions.sid, "ended-old"));
+    expect(await sweepAgentSessions(sweepAt)).toBeGreaterThanOrEqual(2);
+    expect((await rowsOf(claims.clientId)).map((row) => row.sid)).toEqual(["recent"]);
+  });
+});
+
 describe("poppyGate", () => {
+  /** What `route()` does with it: verify, then, the credential accepted, open the Session as `accountId`. */
+  const through = async (request: Request, deps: Parameters<typeof poppyGate>[1], accountId: string | null = null) => {
+    const gate = await poppyGate(request, deps);
+    return "refused" in gate ? gate.refused : gate.open(accountId);
+  };
+
   const URL_ = "https://caesura.test/api/v1/discover/playbooks";
 
   async function agentGate() {
@@ -112,19 +156,43 @@ describe("poppyGate", () => {
   }
 
   it("lets a request without the header through untouched, and writes nothing", async () => {
-    expect(await poppyGate(new Request(URL_))).toBeNull();
-    expect(await poppyGate(new Request(URL_, { headers: { "poppy-version": "9.9" } }))).toBeNull();
+    expect(await through(new Request(URL_), {})).toBeNull();
+    expect(await through(new Request(URL_, { headers: { "poppy-version": "9.9" } }), {})).toBeNull();
   });
 
-  it("verifies a signed-out request against the agent's real document, and opens its Session", async () => {
+  it("verifies a request against the agent's real document and writes nothing until its credential is accepted", async () => {
     const { agent, deps, request } = await agentGate();
-    expect(await poppyGate(await request({ sid: "sid-gate" }), deps)).toBeNull();
+    const gate = await poppyGate(await request({ sid: "sid-gate" }), deps);
+    expect("open" in gate).toBe(true);
+    // A request the actor refuses never calls `open`: no row for a sid anyone with a document can invent.
+    expect(await rowsOf(agent.clientId)).toHaveLength(0);
+    expect(await ("open" in gate ? gate.open("acct-1") : null)).toBeNull();
     expect(await rowsOf(agent.clientId)).toHaveLength(1);
+  });
+
+  it("charges the fetches of a caller with no account to a quota of its own, never the one authorize uses", async () => {
+    const { deps, request } = await agentGate();
+    const hits = async (policy: string) =>
+      (await db.select({ hits: rateLimitCounters.hits }).from(rateLimitCounters).where(eq(rateLimitCounters.bucket, `${policy}:global`)))[0]?.hits ?? 0;
+    const [cimdBefore, signedOutBefore] = [await hits("oauth-cimd-hourly"), await hits("oauth-signed-out-fetch-hourly")];
+    // Throwaway issuers from many addresses: every one is fetched, and none is a client.
+    const outcomes = [];
+    for (let i = 0; i < 8; i++) {
+      const gate = await poppyGate(
+        await request({ iss: `https://flood-${randomUUID()}.test/agent.json` }, { "x-forwarded-for": `2001:db8::${i + 1}` }),
+        deps,
+      );
+      outcomes.push("refused" in gate);
+    }
+    expect(outcomes.every(Boolean)).toBe(true);
+    // The flood was counted against its own policy, and the share a person connecting Claude draws on was not touched.
+    expect(await hits("oauth-signed-out-fetch-hourly")).toBeGreaterThan(signedOutBefore);
+    expect(await hits("oauth-cimd-hourly")).toBe(cimdBefore);
   });
 
   it("answers invalid_session, as a 400 with the bare error, for a header that fails", async () => {
     const { deps, request } = await agentGate();
-    const res = (await poppyGate(await request({ aud: "https://other.test" }), deps))!;
+    const res = (await through(await request({ aud: "https://other.test" }), deps))!;
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid_session" });
   });
@@ -132,18 +200,18 @@ describe("poppyGate", () => {
   it("answers version_unsupported for a missing Poppy-Version or an incompatible one, and takes 0.4", async () => {
     const { deps, request } = await agentGate();
     for (const version of [null, "0.3", "1.4", "0.4.1", "four"]) {
-      const res = (await poppyGate(await request({}, { "poppy-version": version }), deps))!;
+      const res = (await through(await request({}, { "poppy-version": version }), deps))!;
       expect(res.status, String(version)).toBe(400);
       expect(await res.json()).toEqual({ error: "version_unsupported" });
     }
-    expect(await poppyGate(await request({}, { "poppy-version": "0.4" }), deps)).toBeNull();
+    expect(await through(await request({}, { "poppy-version": "0.4" }), deps)).toBeNull();
   });
 
   it("answers session_ended for an ended Session", async () => {
     const { agent, deps, request } = await agentGate();
-    await poppyGate(await request({ sid: "sid-end" }), deps);
+    await through(await request({ sid: "sid-end" }), deps);
     await db.update(agentSessions).set({ endedAt: new Date() }).where(eq(agentSessions.clientId, agent.clientId));
-    const res = (await poppyGate(await request({ sid: "sid-end" }), deps))!;
+    const res = (await through(await request({ sid: "sid-end" }), deps))!;
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "session_ended" });
   });
@@ -153,11 +221,11 @@ describe("poppyGate", () => {
     const owner = `gate-${randomUUID()}`;
     await upsertUser({ id: owner, email: `${owner}@example.test`, name: null, image: null });
     const mine = await agentToken(agent, owner);
-    expect(await poppyGate(await request({ sid: "sid-tok" }, {}, mine), deps)).toBeNull();
+    expect(await through(await request({ sid: "sid-tok" }, {}, mine), deps, owner)).toBeNull();
     expect((await rowsOf(agent.clientId))[0]!.accountId).toBe(owner);
 
     const other = await connectForTest(owner);
-    const res = (await poppyGate(await request({ sid: "sid-tok-2" }, {}, other.access), deps))!;
+    const res = (await through(await request({ sid: "sid-tok-2" }, {}, other.access), deps))!;
     expect(await res.json()).toMatchObject({ error: "invalid_session" });
   });
 });

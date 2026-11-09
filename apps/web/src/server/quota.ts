@@ -411,6 +411,41 @@ export function oauthCimdQuota(): QuotaPolicy[] {
 }
 
 /**
+ * Metadata and key-set fetches for a caller who has no account yet: a Personal
+ * Agent's `Poppy-Session`, or a client assertion that arrives before any grant
+ * is known. A policy of its own, so anyone able to send those cannot spend the
+ * global share `/oauth/authorize` draws on for the clients people are connecting
+ * (`oauthCimdQuota`); the worst they can do is use up this smaller one, which
+ * only refuses more of the same kind of caller.
+ */
+export function signedOutFetchQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "oauth-signed-out-fetch-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_PER_CALLER_HOURLY", 30),
+      global: envCeiling("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_GLOBAL_HOURLY", 300),
+    },
+  ];
+}
+
+/**
+ * Personal Agent Sessions opened (Poppy 5.5), per `client_id`. Only the insert
+ * is charged: continuing one is free. Bounds what one agent can write to
+ * `agent_sessions` however many `sid`s it invents.
+ */
+export function agentSessionOpenQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "agent-session-open-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("AGENT_SESSION_OPEN_RATE_LIMIT_PER_CLIENT_HOURLY", 600),
+      global: envCeiling("AGENT_SESSION_OPEN_RATE_LIMIT_GLOBAL_HOURLY", 20000),
+    },
+  ];
+}
+
+/**
  * Outside-data quota (ADR-052 decision 8): our own ceiling on calls to MET
  * Norway and NASA POWER, charged per upstream call and **only on a cache
  * miss** — a notebook served from `external_data_cache` costs nothing here. A

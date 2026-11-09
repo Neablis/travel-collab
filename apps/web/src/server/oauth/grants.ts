@@ -55,6 +55,7 @@ export async function createGrant(input: {
       expiresAt: new Date(input.now.getTime() + GRANT_LIFETIME_MS),
       revokedAt: null,
       revokedReason: null,
+      tokenEndpointAuthMethod: input.client.authMethod,
     })
     .returning();
   await markClientUsed(clientRowId, input.now);
@@ -159,16 +160,19 @@ export async function touchGrantLastUsed(grantId: string, now: Date = new Date()
   }
 }
 
-/** A listed grant, with what its client's row says of it: a Personal Agent, and its logo. */
+/** A listed grant: a Personal Agent as its own method says, with the logo its client's row holds. */
 export type ListedGrant = GrantRow & { personalAgent: { logoUri: string | null } | null };
 
 /** Every grant this person has made, newest first, dead ones included so a list can say why. */
 export async function listGrants(ownerId: string): Promise<ListedGrant[]> {
   const rows = await db
-    .select({ grant: oauthGrants, personalAgent: oauthClients.personalAgent, logoUri: oauthClients.logoUri })
+    .select({ grant: oauthGrants, logoUri: oauthClients.logoUri })
     .from(oauthGrants)
     .leftJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
     .where(eq(oauthGrants.ownerId, ownerId))
     .orderBy(desc(oauthGrants.createdAt), desc(oauthGrants.id));
-  return rows.map((row) => ({ ...row.grant, personalAgent: row.personalAgent === true ? { logoUri: row.logoUri } : null }));
+  return rows.map((row) => ({
+    ...row.grant,
+    personalAgent: row.grant.tokenEndpointAuthMethod === "private_key_jwt" ? { logoUri: row.logoUri } : null,
+  }));
 }

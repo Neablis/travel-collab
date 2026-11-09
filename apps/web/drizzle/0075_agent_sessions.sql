@@ -24,7 +24,9 @@ CREATE TABLE "oauth_client_blocks" (
 	"blocked_by" text NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "oauth_clients" ADD COLUMN "personal_agent" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "oauth_clients" ADD COLUMN "logo_uri" text;--> statement-breakpoint
+ALTER TABLE "oauth_grants" ADD COLUMN "token_endpoint_auth_method" text DEFAULT 'none' NOT NULL;--> statement-breakpoint
 CREATE INDEX "agent_feedback_created" ON "agent_feedback" USING btree ("created_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "agent_sessions_client_sid_user" ON "agent_sessions" USING btree ("client_id","sid","agent_user_id");
+CREATE UNIQUE INDEX "agent_sessions_client_sid_user" ON "agent_sessions" USING btree ("client_id","sid","agent_user_id");--> statement-breakpoint
+CREATE INDEX "agent_sessions_last_seen" ON "agent_sessions" USING btree ("last_seen_at");--> statement-breakpoint
+ALTER TABLE "oauth_grants" ADD CONSTRAINT "oauth_grants_auth_method" CHECK ("oauth_grants"."token_endpoint_auth_method" in ('none', 'private_key_jwt'));

@@ -602,7 +602,12 @@ describe("a request that carries Poppy-Session", () => {
     const agent = await makeTestAgent({ issuer: oauthIssuer() });
     const cache = createRedisCache(createMemoryClient());
     poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
-    const jwt = await agent.session({ htu: `${deploymentOrigin()}/api/v1/trips`, ...over.session });
+    const jwt = await agent.session({
+      htu: `${deploymentOrigin()}/api/v1/trips`,
+      // Signed over the token it rides with, so the check that fails is whose token it is, not `ath`.
+      ...(over.token === undefined ? {} : { accessToken: over.token }),
+      ...over.session,
+    });
     const headers: Record<string, string> = { "poppy-session": jwt, "poppy-version": "0.4" };
     for (const [name, value] of Object.entries(over.headers ?? {})) {
       if (value === null) delete headers[name];
@@ -628,18 +633,23 @@ describe("a request that carries Poppy-Session", () => {
     }
   });
 
-  it("verifies the header and then leaves the credential's answer as it was", async () => {
-    const { request } = await agentRequest();
+  it("verifies the header and then leaves the credential's answer as it was, writing no Session", async () => {
+    const { agent, request } = await agentRequest();
     const res = await LIST_TRIPS(request, NO_PARAMS);
     expect(res.status).toBe(401);
     expect((await res.json()).error.code).toBe("unauthenticated");
+    // Anyone with a document and a key set can sign a Session for a sid of their choosing: no row until a token is accepted.
+    const { db } = await import("@/server/db/client");
+    const { agentSessions } = await import("@/server/db/schema");
+    const { eq } = await import("drizzle-orm");
+    expect(await db.select().from(agentSessions).where(eq(agentSessions.clientId, agent.clientId))).toHaveLength(0);
   });
 
   it("refuses a tc_ token beside a Session header, since it was issued to no client", async () => {
     const { request } = await agentRequest({ token: await tokenFor(await entitled()) });
     const res = await LIST_TRIPS(request, NO_PARAMS);
     expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "invalid_session" });
+    expect(await res.json()).toMatchObject({ error: "invalid_session", error_description: expect.stringContaining("issued to another client") });
   });
 
   it("answers a failure of its own as the envelope's server-error, never a bare 500", async () => {

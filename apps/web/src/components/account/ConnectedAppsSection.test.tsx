@@ -131,10 +131,12 @@ describe("ConnectedAppsSection", () => {
       render(<ConnectedAppsSection />);
       const row = await screen.findByRole("row", { name: /Muse/ });
       expect(within(row).getByText("Personal agent")).toBeTruthy();
-      expect(within(row).getByRole("img", { name: "Muse logo" }).getAttribute("src")).toBe("https://meta.ai/logo.png");
+      expect(within(row).getByTestId("agent-logo").getAttribute("src")).toBe("https://meta.ai/logo.png");
+      // Decorative beside the name it would repeat.
+      expect(within(row).getByTestId("agent-logo").getAttribute("alt")).toBe("");
       const ordinary = screen.getByRole("row", { name: /Test app/ });
       expect(within(ordinary).queryByText("Personal agent")).toBeNull();
-      expect(within(ordinary).queryByRole("img")).toBeNull();
+      expect(within(ordinary).queryByTestId("agent-logo")).toBeNull();
     });
 
     // The CSP's img-src may refuse the logo, and the consent page leaves a logo
@@ -142,8 +144,8 @@ describe("ConnectedAppsSection", () => {
     it("leaves the logo out when it does not load, keeping the name and the label", async () => {
       serve([muse()]);
       render(<ConnectedAppsSection />);
-      fireEvent.error(await screen.findByRole("img", { name: "Muse logo" }));
-      expect(screen.queryByRole("img", { name: "Muse logo" })).toBeNull();
+      fireEvent.error(await screen.findByTestId("agent-logo"));
+      expect(screen.queryByTestId("agent-logo")).toBeNull();
       expect(within(screen.getByRole("row", { name: /Muse/ })).getByText("Personal agent")).toBeTruthy();
     });
 

@@ -3,15 +3,15 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { decodeJwt } from "jose";
 import { OAUTH_ACCESS_PREFIX, OAUTH_CODE_PREFIX, OAUTH_REFRESH_PREFIX } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { oauthClients, oauthCodes, oauthTokens } from "@/server/db/schema";
+import { oauthCodes, oauthTokens } from "@/server/db/schema";
 import { keyedDigest, keyedDigestCandidates } from "@/server/secrets/keyedDigest";
-import { clientPublicKey } from "@/server/cache/keys";
 import { getCache } from "@/server/cache/redis";
 import { fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps } from "./clients";
 import { verifyClientAssertion } from "./clientAssertion";
 import { cutOffGrant, grantIsLive, grantOf, grantScopes, mintSecret, type GrantRow } from "./grants";
 import { mcpResource, oauthIssuer } from "./metadata";
 import { verifyS256 } from "./pkce";
+import { signedOutFetchQuota } from "@/server/quota";
 
 // **The token endpoint's two grants, and revocation** (ADR-083 §4, RFC 6749
 // §4.1.3 and §6, RFC 7009).
@@ -115,39 +115,32 @@ async function grantFor(
   return { ok: true, grant };
 }
 
-/** How long a CIMD client stays known as public; a day, so a document that turns confidential is read again then at the latest. */
-const CLIENT_PUBLIC_TTL_SECONDS = 24 * 60 * 60;
-
-async function knownPublic(clientId: string, deps: ClientDeps): Promise<boolean> {
-  return (await (deps.cache ?? getCache()).get<true>(clientPublicKey(clientId))) !== null;
-}
-
 /**
- * Poppy 4.1: a CIMD client whose document says `private_key_jwt` is only itself
+ * Poppy 4.1: a grant made to a client that signs in with a key (its
+ * `token_endpoint_auth_method`, stored when it was allowed) is only that client
  * with a client assertion. Such a client's document is read again here (cached
  * for five minutes, fetched on the grant owner's share), so one that went back
  * to `none` is a public client again, and a document that cannot be read fails
- * closed. A client last read as public is not read again for a day: its tokens
- * never depended on its document, and a host that is down or a spent quota must
- * not sign people out of it. Nothing about the method is stored in the database.
+ * closed. **A grant stored as `none` never reads its document**, as before
+ * Personal Agents existed: a host that is down or a spent quota must not sign
+ * people out of Claude Code, whatever any cache holds. `grant` is `null` when
+ * none is known yet (an assertion arrives before the code or token is looked up).
  */
 async function authenticateClient(
   creds: ClientCredentials & { clientId: string },
-  /** Whose fetch quota a document or key-set read is charged to. */
-  quotaUserId: string,
+  grant: GrantRow | null,
+  /** Whose fetch quota a document or key-set read is charged to, and which quota. */
+  charge: { userId: string; quota?: ClientDeps["quota"] },
   deps: ClientDeps,
 ): Promise<{ ok: true; confidential: boolean } | { ok: false; outcome: TokenOutcome }> {
   if (!creds.clientId.startsWith("https://")) return { ok: true, confidential: false };
-  if (await knownPublic(creds.clientId, deps)) return { ok: true, confidential: false };
+  if (grant?.tokenEndpointAuthMethod === "none") return { ok: true, confidential: false };
   const bad = (description: string) => ({ ok: false as const, outcome: refuse("invalid_client", description) });
-  const asked = { userId: quotaUserId, ...deps };
+  const asked = { ...deps, userId: charge.userId, quota: charge.quota };
   const resolved = await resolveClient(creds.clientId, asked);
   if (!resolved.ok) return bad("the client's metadata document could not be read");
   const { client } = resolved;
-  if (client.authMethod === "none") {
-    await (deps.cache ?? getCache()).set(clientPublicKey(creds.clientId), true, CLIENT_PUBLIC_TTL_SECONDS);
-    return { ok: true, confidential: false };
-  }
+  if (client.authMethod === "none") return { ok: true, confidential: false };
   if (creds.clientAssertionType !== CLIENT_ASSERTION_TYPE || !creds.clientAssertion) {
     return bad("this client authenticates with a client_assertion");
   }
@@ -171,8 +164,9 @@ async function authenticateClient(
  * A request that carries an assertion is authenticated before any code or
  * token is looked up (Poppy 4.4, and the kit's validator sends a made-up refresh
  * token with a bad assertion and expects `invalid_client`, not `invalid_grant`).
- * No grant is known yet, so the read is charged to the client_id itself, whose
- * share is as small as one person's. `null` when nothing was presented.
+ * No grant is known yet, so the read is charged to the client_id itself,
+ * on the signed-out quota: anyone can send an assertion naming any URL, and
+ * that must not draw on the share authorize uses. `null` when nothing was presented.
  */
 async function authenticateFirst(
   creds: ClientCredentials,
@@ -181,7 +175,7 @@ async function authenticateFirst(
   const { clientId } = creds;
   if (!clientId?.startsWith("https://")) return null;
   if (creds.clientAssertion === undefined && creds.clientAssertionType === undefined) return null;
-  return authenticateClient({ ...creds, clientId }, `cimd-client:${clientId}`, deps);
+  return authenticateClient({ ...creds, clientId }, null, { userId: `cimd-client:${clientId}`, quota: signedOutFetchQuota() }, deps);
 }
 
 /**
@@ -198,7 +192,7 @@ async function refuseUnauthenticatedReuse(
   if (early !== null || !creds.clientId) return null;
   const grant = await grantOf(grantId);
   if (grant === null) return null;
-  const checked = await authenticateClient({ ...creds, clientId: creds.clientId }, grant.ownerId, deps);
+  const checked = await authenticateClient({ ...creds, clientId: creds.clientId }, grant, { userId: grant.ownerId }, deps);
   return checked.ok ? null : checked.outcome;
 }
 
@@ -225,7 +219,7 @@ export async function exchangeCode(
   if (code.expiresAt.getTime() <= now.getTime()) return refuse("invalid_grant", "the code has expired");
   const checked = await grantFor(code.grantId, input.clientId, input.resource, now);
   if (!checked.ok) return checked.outcome;
-  const authenticated = early ?? (await authenticateClient({ ...input, clientId: input.clientId }, checked.grant.ownerId, { ...deps, now }));
+  const authenticated = early ?? (await authenticateClient({ ...input, clientId: input.clientId }, checked.grant, { userId: checked.grant.ownerId }, { ...deps, now }));
   if (!authenticated.ok) return authenticated.outcome;
   if (code.resource !== checked.grant.resource) {
     return refuse("invalid_target", `the only resource here is ${mcpResource()}`);
@@ -280,7 +274,7 @@ export async function refresh(
   }
   const checked = await grantFor(token.grantId, input.clientId, input.resource, now);
   if (!checked.ok) return checked.outcome;
-  const authenticated = early ?? (await authenticateClient({ ...input, clientId: input.clientId }, checked.grant.ownerId, { ...deps, now }));
+  const authenticated = early ?? (await authenticateClient({ ...input, clientId: input.clientId }, checked.grant, { userId: checked.grant.ownerId }, { ...deps, now }));
   if (!authenticated.ok) return authenticated.outcome;
   // A Personal Agent only (Poppy 4.7); a public client's `scope` was always ignored here.
   if (input.scope !== undefined && authenticated.confidential) {
@@ -302,16 +296,15 @@ export async function refresh(
   return { ok: true, body: await issueTokens(checked.grant, now) };
 }
 
-/** Whether a revocation that authenticated as `authenticatedRowId` (or as no CIMD client) may touch this grant's tokens. */
-async function mayRevoke(grant: GrantRow, authenticatedRowId: string | null, deps: ClientDeps): Promise<boolean> {
+/**
+ * Whether a revocation that authenticated as `authenticatedRowId` (or as no one)
+ * may touch this grant's tokens. A grant stored as `none` is revoked by whoever
+ * holds the token, with nothing fetched; a Personal Agent's by that agent alone,
+ * so anyone holding its token cannot revoke it by waiting out a document's cache.
+ */
+function mayRevoke(grant: GrantRow, authenticatedRowId: string | null): boolean {
   if (authenticatedRowId !== null) return grant.clientId === authenticatedRowId;
-  const [row] = await db.select({ cimdUrl: oauthClients.cimdUrl }).from(oauthClients).where(eq(oauthClients.id, grant.clientId));
-  if (row?.cimdUrl == null || (await knownPublic(row.cimdUrl, deps))) return true;
-  // A CIMD client that signs in with a key is not revoked by a request that does not
-  // sign, and a document that cannot be read is not taken to say it does not: otherwise
-  // anyone holding a token could revoke it by waiting out the document's cache.
-  const resolved = await resolveClient(row.cimdUrl, { userId: grant.ownerId, ...deps });
-  return resolved.ok && resolved.client.authMethod === "none";
+  return grant.tokenEndpointAuthMethod === "none";
 }
 
 /** The `iss` of an assertion, unverified: only names who to authenticate it as, and the check that follows decides. */
@@ -359,13 +352,13 @@ export async function revokeSecret(
     // client_id the caller makes up cannot spend the token owner's fetch quota.
     const named = await storedClientRowId(clientId);
     if (named !== grant.clientId) return { ok: true };
-    const checked = await authenticateClient({ ...creds, clientId }, grant.ownerId, { ...deps, now });
+    const checked = await authenticateClient({ ...creds, clientId }, grant, { userId: grant.ownerId }, { ...deps, now });
     if (!checked.ok) {
       return { ok: false, error: "invalid_client", description: checked.outcome.ok ? "" : checked.outcome.description };
     }
     authenticated = named;
   }
-  if (!(await mayRevoke(grant, authenticated, { ...deps, now }))) return { ok: true };
+  if (!mayRevoke(grant, authenticated)) return { ok: true };
   await db
     .update(oauthTokens)
     .set({ revokedAt: now })

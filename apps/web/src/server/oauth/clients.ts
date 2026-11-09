@@ -13,7 +13,7 @@ import {
   type Fetcher,
 } from "@/server/external/remoteImage/fetchImage";
 import { assertPublicAddress, RemoteImageRefused, resolveHost, type Resolve } from "@/server/external/remoteImage/guard";
-import { consumeQuota, oauthCimdQuota } from "@/server/quota";
+import { consumeQuota, oauthCimdQuota, type QuotaPolicy } from "@/server/quota";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { checkRedirectUri, isLoopback } from "./redirects";
 
@@ -81,6 +81,8 @@ export interface ClientDeps {
   timeoutMs?: number;
   /** Where fetched metadata documents are kept for `CIMD_CACHE_TTL_SECONDS`; the shared cache by default. */
   cache?: CachePort;
+  /** The fetch quota to charge, `oauthCimdQuota()` by default: a caller with no account is charged to a smaller one of its own. */
+  quota?: QuotaPolicy[];
 }
 
 /**
@@ -249,7 +251,7 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
     body = cached.document;
   } else {
     if (deps.userId === undefined) return refused("no account to charge the fetch to");
-    if (!(await consumeQuota(oauthCimdQuota(), deps.userId)).allowed) return { ok: false, reason: "too-many-lookups" };
+    if (!(await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId)).allowed) return { ok: false, reason: "too-many-lookups" };
     let text: string;
     try {
       text = await fetchDocument(parsed, deps);
@@ -336,7 +338,7 @@ export async function fetchClientKeys(
     body = cached.document;
   } else {
     if (deps.userId === undefined) return { ok: false, detail: "no account to charge the fetch to" };
-    if (!(await consumeQuota(oauthCimdQuota(), deps.userId)).allowed) return { ok: false, detail: "too many lookups" };
+    if (!(await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId)).allowed) return { ok: false, detail: "too many lookups" };
     try {
       body = JSON.parse(await fetchDocument(url, deps, KEY_SET_MAX_BYTES));
     } catch (error) {
@@ -358,11 +360,11 @@ export async function fetchClientKeys(
 export async function storeClient(client: OAuthClient, now: Date): Promise<string> {
   if (client.id !== null) return client.id;
   // What a later Allow may change: the row is one per document, so a document
-  // that went from public to `private_key_jwt` (or changed its logo) is read as it is now.
+  // that changed its name, redirects or logo is read as it is now. Its auth method is
+  // not here: that is the grant's, as of the Allow.
   const values = {
     clientName: client.clientName,
     redirectUris: client.redirectUris,
-    personalAgent: client.authMethod === "private_key_jwt",
     logoUri: client.logoUri,
   };
   const [row] = await db

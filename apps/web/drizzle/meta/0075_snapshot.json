@@ -1,5 +1,5 @@
 {
-  "id": "d3c28e66-4ebb-4c07-b6bc-689ad50886f0",
+  "id": "d69b51ba-01a3-410d-b6a3-8bf11648ffca",
   "prevId": "0dcd9ae6-de0c-4636-b57d-298c2e152d86",
   "version": "7",
   "dialect": "postgresql",
@@ -146,6 +146,21 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_sessions_last_seen": {
+          "name": "agent_sessions_last_seen",
+          "columns": [
+            {
+              "expression": "last_seen_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1724,13 +1739,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "personal_agent": {
-          "name": "personal_agent",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "logo_uri": {
           "name": "logo_uri",
           "type": "text",
@@ -1950,6 +1958,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "token_endpoint_auth_method": {
+          "name": "token_endpoint_auth_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'none'"
         }
       },
       "indexes": {
@@ -1989,6 +2004,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "oauth_grants_auth_method": {
+          "name": "oauth_grants_auth_method",
+          "value": "\"oauth_grants\".\"token_endpoint_auth_method\" in ('none', 'private_key_jwt')"
+        },
         "oauth_grants_revoked_reason": {
           "name": "oauth_grants_revoked_reason",
           "value": "\"oauth_grants\".\"revoked_reason\" is null or (\"oauth_grants\".\"revoked_at\" is not null and \"oauth_grants\".\"revoked_reason\" in ('owner', 'code-reuse', 'refresh-reuse'))"

@@ -332,10 +332,8 @@ export const oauthClients = pgTable(
     // Null until its first grant. A `dcr` client still null 24 hours after
     // `created_at` has expired: refused on read, never deleted.
     firstUsedAt: timestamp("first_used_at", { withTimezone: true, mode: "date" }),
-    // A Personal Agent (Poppy 4.1; its document says `private_key_jwt`), and
-    // the logo that document named, both as of the last Allow. Account →
-    // Connected apps reads them without fetching anything.
-    personalAgent: boolean("personal_agent").notNull().default(false),
+    // The logo a Personal Agent's document named, as of the last Allow, so
+    // Account → Connected apps shows it without fetching anything.
     logoUri: text("logo_uri"),
   },
   (t) => [
@@ -372,8 +370,15 @@ export const oauthGrants = pgTable(
     // `owner` disconnected it; `code-reuse` and `refresh-reuse` are the server
     // cutting off a grant whose secret was presented twice (ADR-083 §4).
     revokedReason: text("revoked_reason").$type<"owner" | "code-reuse" | "refresh-reuse">(),
+    // How the client authenticated at the token endpoint when this was allowed:
+    // `private_key_jwt` is a Personal Agent (Poppy 4.1). Stored on the grant, not
+    // read from the client's document or a cache, so a public client's refresh and
+    // revoke never depend on fetching that document, and a Personal Agent's grant
+    // stays one when its document later changes. Grants made before it are `none`.
+    tokenEndpointAuthMethod: text("token_endpoint_auth_method").$type<"none" | "private_key_jwt">().notNull().default("none"),
   },
   (t) => [
+    check("oauth_grants_auth_method", sql`${t.tokenEndpointAuthMethod} in ('none', 'private_key_jwt')`),
     check(
       "oauth_grants_revoked_reason",
       sql`${t.revokedReason} is null or (${t.revokedAt} is not null and ${t.revokedReason} in ('owner', 'code-reuse', 'refresh-reuse'))`,
@@ -2186,7 +2191,11 @@ export const agentSessions = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "date" }).notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
   },
-  (t) => [uniqueIndex("agent_sessions_client_sid_user").on(t.clientId, t.sid, t.agentUserId)],
+  (t) => [
+    uniqueIndex("agent_sessions_client_sid_user").on(t.clientId, t.sid, t.agentUserId),
+    // The retention sweep deletes by it (`sweepAgentSessions`).
+    index("agent_sessions_last_seen").on(t.lastSeenAt),
+  ],
 );
 
 // A Personal Agent the operator cut off (ADR-089 decision 3), by protocol

@@ -474,9 +474,11 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     // its credential (Poppy 5.3); one that does not never enters `poppyGate`.
     // Its refusals are Poppy's own 400s, outside this envelope, because agents
     // read them by that shape (ADR-089). A throw is infrastructure, as below.
+    let session: Exclude<Awaited<ReturnType<typeof poppyGate>>, { refused: Response }>;
     try {
-      const refused = await poppyGate(request);
-      if (refused !== null) return refused;
+      const gate = await poppyGate(request);
+      if ("refused" in gate) return gate.refused;
+      session = gate;
     } catch (error) {
       console.error("v1 session verification threw", { method, scope: def.scope, error });
       return fail("server-error", SERVER_FAILED, 500);
@@ -526,6 +528,17 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
               headers: { "Retry-After": String(decision.retryAfterSeconds) },
             });
       }
+    }
+
+    // ---- Session, once the credential is accepted -------------------------
+    // Opened here and not at the gate: a request refused for its token writes no
+    // row, and the account recorded is one the actor accepted.
+    try {
+      const ended = await session.open(actor.via === "oauth" ? actor.userId : null);
+      if (ended !== null) return ended;
+    } catch (error) {
+      console.error("v1 session open threw", { method, scope: def.scope, error });
+      return fail("server-error", SERVER_FAILED, 500);
     }
 
     // ---- scope -----------------------------------------------------------

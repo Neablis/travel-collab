@@ -51,16 +51,6 @@ export function clientKeySetKey(url: string): string {
 }
 
 /**
- * Whether a CIMD client was last read as public (`none`), by the digest of its
- * URL: lets the token endpoint serve a public client without fetching its
- * document again. A Personal Agent never has one, so it is always re-read.
- * Its TTL is `CLIENT_PUBLIC_TTL_SECONDS` in `server/oauth/tokens.ts`.
- */
-export function clientPublicKey(url: string): string {
-  return `${deployEnv() ?? "dev"}:oauth:public:${digest(url)}`;
-}
-
-/**
  * A client assertion's `jti` seen (RFC 7523 section 3), keyed by the digest of
  * client and `jti` together, since a `jti` is only unique per issuer. Lives as
  * long as the assertion could still verify.

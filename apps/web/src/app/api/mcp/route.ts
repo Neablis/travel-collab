@@ -26,9 +26,11 @@ export async function POST(request: Request): Promise<Response> {
   // A Personal Agent's Session header (Poppy 5.3) is verified first, so its 400
   // is not hidden behind the 401 a client without a token would get. A request
   // without the header never enters it.
+  let session: Exclude<Awaited<ReturnType<typeof poppyGate>>, { refused: Response }>;
   try {
-    const refused = await poppyGate(request);
-    if (refused !== null) return refused;
+    const gate = await poppyGate(request);
+    if ("refused" in gate) return gate.refused;
+    session = gate;
   } catch (error) {
     console.error("mcp session verification threw", { error });
     return Response.json(
@@ -55,6 +57,18 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (!resolution.ok && resolution.refusal.reason === "oauth") return oauthRefusalResponse(resolution.refusal.refusal);
   if (!resolution.ok || resolution.actor.via !== "oauth") return oauthRefusalResponse({ reason: "unknown" });
+
+  // Opened only now that the token is accepted: no row for a request the credential refuses.
+  try {
+    const ended = await session.open(resolution.actor.userId);
+    if (ended !== null) return ended;
+  } catch (error) {
+    console.error("mcp session open threw", { error });
+    return Response.json(
+      { error: { code: "server-error", message: "Something went wrong. The failure has been logged." } },
+      { status: 500 },
+    );
+  }
 
   const caller: McpCaller = { request, userId: resolution.actor.userId, grantId: resolution.actor.grantId };
   const handler = createMcpHandler(() => buildServer(TOOLS, caller), {
