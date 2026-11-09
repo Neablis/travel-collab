@@ -147,8 +147,39 @@ export const tracesSampleRate = envRate(
 export const profileSessionSampleRate = envRate(
   process.env.NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE,
   process.env.SENTRY_PROFILE_SESSION_SAMPLE_RATE,
-  1,
+  // 0 since 2026-11-06, when the free team passed 270% of its 4 Active CPU
+  // hours and was set to pause. "Affordable at this traffic level" (above)
+  // counted people; crawlers render the library's whole lattice, and every one
+  // of those renders ran the V8 profiler. Set the variable to turn it back on
+  // for a session of looking.
+  0,
 );
+
+/**
+ * The server routes whose traces are the point of tracing: the AI turns that
+ * the `gen_ai.*` spans and the AI Agents dashboard read (ADR-032), and the MCP
+ * endpoint the assistant and connectors call. Matched against the root span's
+ * name, which Next writes as `<METHOD> <route>`, e.g. `POST /api/ask` or
+ * `POST /api/trips/[tripId]/chat`.
+ */
+const AI_TRACE_ROUTE = /^[A-Z]+ \/api\/(?:ask|mcp|trips\/\[tripId\]\/(?:ask|chat))(?:\/|$)/;
+
+/**
+ * Every other server trace is kept at most this often. Page renders are mostly
+ * crawlers walking the public library, and tracing each one cost CPU on a plan
+ * that counts it (2026-11-06).
+ */
+export const OTHER_SERVER_TRACES_RATE = 0.05;
+
+/**
+ * The server's trace rate for one root span: `base` (the configured
+ * `tracesSampleRate`) for an AI route, and no more than
+ * `OTHER_SERVER_TRACES_RATE` for anything else.
+ */
+export function serverTraceRate(name: string | undefined, base: number): number {
+  if (name !== undefined && AI_TRACE_ROUTE.test(name)) return base;
+  return Math.min(base, OTHER_SERVER_TRACES_RATE);
+}
 
 /**
  * **URL scrubbing: why this file has to do it at all (KI-2026-09-05-e).**

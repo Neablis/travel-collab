@@ -71,6 +71,11 @@ export type BackOrigin =
   | { from: "profile"; profile: string };
 
 export function backQuery(origin: BackOrigin): string {
+  // Back from a day opened off a plain list is Discover, which is also where
+  // a day with no origin goes back to, so the link says nothing. Saying it
+  // cost a cache miss: a query the page reads sends a signed-out reader to the
+  // per-request copy (`playbooksReader.ts`).
+  if (origin.from === "playbooks" && !origin.discover) return "";
   const params = new URLSearchParams({ from: origin.from });
   if (origin.from === "day") params.set("day", origin.day);
   if (origin.from === "profile") params.set("profile", origin.profile);

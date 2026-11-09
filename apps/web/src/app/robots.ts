@@ -12,10 +12,21 @@ import { deploymentOrigin } from "@/lib/deploymentOrigin";
 // (Twitterbot does) would otherwise draw the link with no card (CodeRabbit,
 // PR #295). The longer path wins, so the token-keyed invite and referral
 // cards stay out.
-/** `/robots.txt`: everything allowed except `/api/` (bar the public Playbooks cards), and where the sitemap is. */
+/**
+ * Paths a crawler is asked to leave alone besides `/api/`. Each is a page that
+ * is rendered per request and is never indexed, so a crawl of it bought
+ * nothing and cost Active CPU (2026-11-06, the free team past 270% of its
+ * hours): profiles and the board are `noindex` and out of the sitemap (M42
+ * D4), and a URL carrying `from=` is a back link's copy of a page whose own
+ * URL is in the sitemap. `*` is honoured by Google and Bing (RFC 9309 leaves
+ * it to them).
+ */
+export const CRAWL_SKIPPED = ["/playbooks/profile/", "/playbooks/board", "/*?*from="] as const;
+
+/** `/robots.txt`: everything allowed except `/api/` (bar the public Playbooks cards) and `CRAWL_SKIPPED`, and where the sitemap is. */
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: ["/", "/api/og/playbooks"], disallow: "/api/" },
+    rules: { userAgent: "*", allow: ["/", "/api/og/playbooks"], disallow: ["/api/", ...CRAWL_SKIPPED] },
     sitemap: `${deploymentOrigin()}/sitemap.xml`,
   };
 }

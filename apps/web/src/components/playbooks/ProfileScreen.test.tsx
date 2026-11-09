@@ -248,6 +248,13 @@ describe("the contextual back link", () => {
     });
   });
 
+  // A plain list's card says nothing: back is Discover either way, and a
+  // query would send the day to the uncached copy (2026-11-06).
+  it("writes no query for a bare Discover origin", () => {
+    expect(backQuery({ from: "playbooks" })).toBe("");
+    expect(backTarget({ from: null })).toEqual(backTarget({ from: "playbooks" }));
+  });
+
   // Back from a day opened under *Yours*, page two, is *Yours*, page two
   // (Mitchell, 2026-10-28), not Discover's first page of Everyone.
   it("returns to the Discover search the day was opened from", () => {
