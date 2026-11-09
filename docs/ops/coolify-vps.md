@@ -17,17 +17,32 @@ The root `Dockerfile`, built from the repo root with Coolify's Dockerfile build 
 It installs with pnpm (the version in the root `package.json`), runs
 `pnpm --filter web build:container` (build-time migrate step, the map worker
 copy, `next build`) and ships only the standalone server, as a non-root user on
-port 3000. Locally: `docker build --platform linux/amd64 --build-arg DATABASE_URL=<any url> .`
+port 3000. Locally: `docker build --platform linux/amd64 .` (the placeholder
+`DATABASE_URL` is enough for a build that does not migrate). A preview-style
+build passes the real one as a secret, never as a build argument:
+`DATABASE_URL=<url> docker build --secret id=DATABASE_URL,env=DATABASE_URL .`
+
+The image has a `HEALTHCHECK` that runs `node` against `GET /api/health`, which
+answers `{"ok":true}` without a session and without the database, so Coolify's
+container health reads "healthy" only once the server is serving.
 
 ## Environment variables, by name
 
 Set in Coolify per environment. "Build" means a build argument the Dockerfile
 declares, because Next inlines it into the browser bundle or reads it while
-building; the rest are runtime.
+building; the rest are runtime. `DATABASE_URL` is the exception: it reaches the
+build as a BuildKit **secret** (`RUN --mount=type=secret,id=DATABASE_URL`), so
+it is in no layer, no `docker history` and no build log. Turn on Coolify's
+"Use Docker Build Secrets" for the application; Coolify then passes each of its
+variables as `--secret id=<NAME>`. That toggle's availability and behaviour were
+not checked against the installed Coolify version. If it is missing there, the
+only fallback is an `ARG DATABASE_URL` in the `build` stage, which leaves the
+URL in that stage's history and the build log on the box (never in the shipped
+image): do that knowingly, and for a Neon branch whose password you can rotate.
 
 | Name | Production | Preview | Note |
 |---|---|---|---|
-| `DATABASE_URL` | build and runtime | build and runtime | Needed by **every** build: `next build` throws without it. Preview: the shared preview Neon branch, never production's |
+| `DATABASE_URL` | build and runtime | build and runtime | Needed by **every** build: `next build` throws without it. Build secret, see above. Preview: set it explicitly on the **Preview scope** to the shared preview Neon branch, never production's (see Previews) |
 | `APP_ENV` | `production` | `preview` | Build and runtime. Gates the build-time migrate |
 | `PREVIEW_DB_IS_DISPOSABLE` | never set | `true` | Build. Preview scope only, after checking the database is a throwaway branch |
 | `PUBLIC_ORIGIN`, `APP_VERSION` | runtime | runtime | `lib/deployment/env.ts` |
@@ -59,6 +74,18 @@ and `PREVIEW_DB_IS_DISPOSABLE=true`, migrates and imports `content/` into the
 one shared preview Neon branch, without `--prune`
 (`apps/web/scripts/lib/build-steps.mjs`). With the second variable missing the
 build refuses and goes red, by design.
+
+**A preview must not inherit production's `DATABASE_URL`.** Coolify copies the
+production application's variables into a preview unless the preview scope
+overrides them, and the gate trusts the operator's flag alone: a preview that
+inherited production's URL with `PREVIEW_DB_IS_DISPOSABLE=true` would migrate
+and import into production (the KI-2026-09-06-h failure). So, in this order:
+
+1. Set `DATABASE_URL` on the **Preview scope** to the disposable Neon preview
+   branch's connection string.
+2. Check it: open the preview's variables and confirm the host and database
+   name are the preview branch's, not production's.
+3. Only then set `PREVIEW_DB_IS_DISPOSABLE=true`, on the Preview scope.
 
 ## Crons
 

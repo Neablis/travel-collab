@@ -37,6 +37,15 @@ describe("the build's database steps", () => {
     expect(buildSteps({ VERCEL_ENV: "production", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("skip");
   });
 
+  // The case that tells the Coolify gate from the old VERCEL_ENV-only one: a
+  // production box that also carries a stale VERCEL_ENV=preview and the
+  // disposable flag. Read from VERCEL_ENV alone this migrates production.
+  it("skips on production even when a stale VERCEL_ENV=preview and the flag are present", () => {
+    expect(
+      buildSteps({ APP_ENV: "production", VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" }),
+    ).toEqual({ skip: "[build-migrate] skipped (APP_ENV=production)" });
+  });
+
   // A self-hosted box sets APP_ENV and no VERCEL_ENV (M59).
   it("migrates a disposable preview that names itself by APP_ENV alone", () => {
     expect(buildSteps({ APP_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("run");
@@ -46,6 +55,13 @@ describe("the build's database steps", () => {
     expect(buildSteps({ APP_ENV: "production", VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty(
       "skip",
     );
+  });
+
+  // `||`, not `??`: Coolify can hold APP_ENV as an empty string, and
+  // `deployEnv()` treats that as unset and falls back to VERCEL_ENV.
+  it("falls back to VERCEL_ENV when APP_ENV is empty, as the env module does", () => {
+    expect(buildSteps({ APP_ENV: "", VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("run");
+    expect(buildSteps({ APP_ENV: "", VERCEL_ENV: "production", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("skip");
   });
 
   it("refuses a preview whose database nobody has marked disposable", () => {

@@ -51,20 +51,26 @@ ARG NEXT_PUBLIC_VERCEL_ENV
 ARG NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
 # APP_ENV and PREVIEW_DB_IS_DISPOSABLE are read by the build-time migrate step.
 # Unset, it prints that it skipped and the build carries on, which is what a
-# production build does. DATABASE_URL is needed in EVERY build, not only a
-# preview's: `next build` evaluates `server/config.ts` while collecting page
-# data, and that throws without it. Production's build only needs the variable
-# to exist; it is the migrate step's gate that decides whether it is used. These
-# live in this stage's history and never reach `runtime`.
+# production build does. Neither is a secret.
 ARG APP_ENV
 ARG PREVIEW_DB_IS_DISPOSABLE
-ARG DATABASE_URL
 
 # A build never needs more than this, and the default heap cap is lower than
 # what `next build` of this app reaches on an 8 GB box.
 ENV NODE_OPTIONS=--max-old-space-size=4096 \
     NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter web build:container
+# DATABASE_URL is needed in EVERY build, not only a preview's: `next build`
+# evaluates `server/config.ts` while collecting page data, and that throws
+# without it. It comes in as a BuildKit secret, never an ARG, so it is in no
+# layer, no `docker history` and no build-log command line: the file is read
+# into the environment of this one RUN. Production's build only needs the
+# variable to exist (the migrate step's gate decides whether it is used), so
+# without the secret a placeholder stands in; a preview that lost its secret
+# then fails loudly at the first connection, not silently on the wrong database.
+RUN --mount=type=secret,id=DATABASE_URL \
+    DATABASE_URL="$(cat /run/secrets/DATABASE_URL 2>/dev/null || true)" \
+    && export DATABASE_URL="${DATABASE_URL:-postgres://build:build@localhost:5432/build}" \
+    && pnpm --filter web build:container
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 ENV NODE_ENV=production \
@@ -72,7 +78,8 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000
 WORKDIR /app
-RUN groupadd --system --gid 1001 app && useradd --system --uid 1001 --gid app app
+# Not `--system`: useradd warns that uid 1001 is above SYS_UID_MAX for one.
+RUN groupadd --gid 1001 app && useradd --uid 1001 --gid app --no-create-home --shell /usr/sbin/nologin app
 
 # The standalone tree is laid out from the tracing root, so the server is at
 # apps/web/server.js. `next build` leaves `public/` and `.next/static` out of
@@ -83,4 +90,8 @@ COPY --from=build --chown=app:app /repo/apps/web/public ./apps/web/public
 
 USER app
 EXPOSE 3000
+# node is already here, and the slim image has neither curl nor wget. The route
+# does not touch the database, so a database outage does not restart the app.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 CMD ["node", "apps/web/server.js"]
