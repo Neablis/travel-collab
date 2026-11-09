@@ -54,7 +54,10 @@ export function createMemoryClient(maxEntries = 1000, now: () => number = Date.n
       }
       return deserialize(entry.raw) as T;
     },
-    async set(key, value, { ex }) {
+    async set(key, value, options) {
+      const { ex } = options;
+      const nx = "nx" in options;
+      if (nx && (await this.get(key)) !== null) return null;
       // Delete first so a rewrite moves the key to the back of the eviction order.
       entries.delete(key);
       entries.set(key, { raw: serialize(value), expiresAt: now() + ex * 1000 });

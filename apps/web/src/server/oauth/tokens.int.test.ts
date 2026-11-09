@@ -304,6 +304,52 @@ describe("a private_key_jwt client", () => {
     expect(errorOf(await again({ ...once, refreshToken: rotated.refresh_token }))).toBe("invalid_client");
   });
 
+  // The kit's validator sends a made-up refresh token (and a made-up code) with the
+  // assertion under test, and reads `invalid_grant` as "the assertion was accepted".
+  it("is authenticated before any code or refresh token is looked up", async () => {
+    const { agent, deps, signed } = await agentConsented();
+    const stranger = await makeTestAgent({ issuer: oauthIssuer(), host: new URL(agent.clientId).host });
+    const forged = { clientAssertion: await stranger.assertion(), clientAssertionType: ASSERTION_TYPE };
+    const madeUp = (over: Partial<Parameters<typeof refresh>[0]>) =>
+      refresh({ refreshToken: mintSecret("tcr_"), clientId: agent.clientId, ...over }, new Date(), deps);
+    expect(errorOf(await madeUp(forged))).toBe("invalid_client");
+    const code = (over: Partial<Parameters<typeof exchangeCode>[0]>) =>
+      exchangeCode({ code: mintSecret("tcc_"), codeVerifier: VERIFIER, redirectUri: REDIRECT, clientId: agent.clientId, ...over }, new Date(), deps);
+    expect(errorOf(await code(forged))).toBe("invalid_client");
+    // The control: a good assertion gets past authentication to the token it does not find.
+    expect(errorOf(await madeUp(await signed()))).toBe("invalid_grant");
+  });
+
+  it("is not signed out by a copied refresh token that has been rotated, presented without an assertion", async () => {
+    const { exchange, signed, agent, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    await refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
+    const replay = await refresh({ refreshToken: refresh_token, clientId: agent.clientId }, new Date(), deps);
+    expect(errorOf(replay)).toBe("invalid_client");
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+    // The agent itself presenting the old token is reuse, and cuts the grant off.
+    const own = await refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
+    expect(errorOf(own)).toBe("invalid_grant");
+    expect((await grantOf(grant.id))!.revokedAt).not.toBeNull();
+  });
+
+  it("is read again, at most once a minute, when its assertion names a key not yet cached", async () => {
+    const { exchange, signed, agent, deps } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const at = (seconds: number) => {
+      const now = new Date(Date.now() + seconds * 1000);
+      const second = Math.floor(now.getTime() / 1000);
+      return { now, over: { alg: "PS384", iat: second - 10, exp: second + 50 } };
+    };
+    const rotatedIn = async (seconds: number) => {
+      const { now, over } = at(seconds);
+      const assertion = await agent.assertion(over);
+      return refresh({ refreshToken: refresh_token, clientId: agent.clientId, clientAssertion: assertion, clientAssertionType: ASSERTION_TYPE }, now, deps);
+    };
+    expect(errorOf(await rotatedIn(20))).toBe("invalid_client");
+    expect(errorOf(await rotatedIn(120))).toBe("ok");
+  });
+
   it("is refused a scope beyond what the grant holds, and a refusal rotates nothing", async () => {
     const { exchange, signed, agent, deps } = await agentConsented();
     const { refresh_token } = tokensOf(await exchange(await signed()));

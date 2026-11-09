@@ -308,20 +308,29 @@ const KEY_SET_MAX_BYTES = 16 * 1024;
 
 export type KeySetOutcome = { ok: true; keys: JWK[] } | { ok: false; detail: string };
 
+/** The youngest a cached key set may be and still be read again for an unknown `kid`. */
+const KEY_SET_REFETCH_SECONDS = 60;
+
 /**
  * The keys a `private_key_jwt` client signs with, fetched from its `jwks_uri`
  * the way its document was: charged to `deps.userId`, through the guarded
  * fetcher, cached for `CIMD_CACHE_TTL_SECONDS`. Never `createRemoteJWKSet`,
  * whose own fetch would bypass the address guard and the quota.
  */
-export async function fetchClientKeys(client: OAuthClient, deps: ClientDeps = {}): Promise<KeySetOutcome> {
+export async function fetchClientKeys(
+  client: OAuthClient,
+  deps: ClientDeps = {},
+  /** `again` is a key set asked for because no key matched: a copy younger than a minute is kept, so that is one fetch a minute at most. */
+  opts: { again?: boolean } = {},
+): Promise<KeySetOutcome> {
   if (client.jwksUri === null) return { ok: false, detail: "the client has no jwks_uri" };
   const url = new URL(client.jwksUri);
   const now = deps.now ?? new Date();
   const cache = deps.cache ?? getCache();
   const key = clientKeySetKey(client.jwksUri);
   const cached = await cache.get<CachedDocument>(key);
-  const fresh = cached !== null && now.getTime() - cached.fetchedAt < CIMD_CACHE_TTL_SECONDS * 1000;
+  const maxAgeSeconds = opts.again === true ? KEY_SET_REFETCH_SECONDS : CIMD_CACHE_TTL_SECONDS;
+  const fresh = cached !== null && now.getTime() - cached.fetchedAt < maxAgeSeconds * 1000;
   let body: unknown;
   if (fresh) {
     body = cached.document;
