@@ -492,7 +492,7 @@ describe("expiry", () => {
   });
 
   // Persisted lazily, inside whichever write on the trip's suggestions comes
-  // next: there is no cron to sweep them (vercel.json declares none).
+  // next: there is no scheduled task to sweep them (the Coolify tasks are embed-days and tier-rollup).
   it("records every aged change on the trip expired inside the next create, dismiss and accept", async () => {
     const [agedBeforeCreate] = await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, createdAt: daysAgo(91) });
     const [toDismiss, toAccept] = await suggest(draft([rename("Sam's Kyoto")], [{ type: "AddDay", tripId, dayId: randomUUID() }]));

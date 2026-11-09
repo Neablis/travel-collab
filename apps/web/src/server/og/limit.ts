@@ -6,15 +6,15 @@ import { consumeQuota, linkPreviewQuota, quotaRefusal, sweepExpiredCounters } fr
 // keeps it an expendable cache, and a limiter spends a command per request.
 //
 // **It sits behind the CDN.** The routes answer with `s-maxage`, so a repeat
-// fetch of the same link is served by Vercel's edge and never runs the
+// fetch of the same link is served by the CDN in front of the VPS and never runs the
 // function, and so never reaches this counter. Only cache misses are charged.
 // That is also why a refusal says `no-store`: a cached 429 would be served to
 // every unfurler of that link, not just the one that tripped the limit.
 
 /**
- * The caller's IP: the first hop of `x-forwarded-for`, which Vercel sets from
- * the connecting client (overwriting whatever the client sent), then
- * `x-real-ip`. Off Vercel both are client-supplied, which is fine for a limiter
+ * The caller's IP: the first hop of `x-forwarded-for`, which the reverse proxy
+ * (Coolify's Traefik) sets from the connecting client, then `x-real-ip`.
+ * Both are client-supplied if the proxy does not overwrite them, which is fine for a limiter
  * whose job is bounding cost, not proving identity.
  */
 export function clientIp(request: Request): string {
@@ -48,8 +48,8 @@ export async function limitLinkPreview(
 // **The sweep rides on this route, not on a cron.** Keyed by IP, every address
 // that unfurls a link leaves a `rate_limit_counters` row, and `bump` never
 // removes one; this is the only caller whose key space is unbounded, so it is
-// the one that cleans up after itself. The deployment has no cron (vercel.json
-// declares none), and adding one for a single DELETE would be a second
+// the one that cleans up after itself. The only crons are the Coolify scheduled tasks
+// (/api/cron/embed-days 04:00 UTC, /api/cron/tier-rollup 04:30 UTC), and adding one for a single DELETE would be a second
 // mechanism with its own secret to forget.
 //
 // One request in a hundred is plenty: rows are one-minute windows, so a sweep
