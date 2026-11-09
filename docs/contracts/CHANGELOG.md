@@ -13,6 +13,19 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-09 — `ConnectedApp.personalAgent`: a Personal Agent's row (M60 part 3)
+- **New required field** on `ConnectedApp` (`packages/contracts/src/publicApi.ts`):
+  `personalAgent: { logoUri: string | null } | null`. Set for a client whose metadata document says
+  `private_key_jwt` (Poppy 4.1); `null` for every other app. Backed by two new `oauth_clients`
+  columns in migration 0075 (`personal_agent`, `logo_uri`), written when the person allows the client.
+- Why: Account → Connected apps shows a Personal Agent with its name, logo and a *Personal agent*
+  label, beside the same Disconnect (ADR-089).
+- Consumers updated: `apps/web` (`oauth/clients.ts` `storeClient`, `oauth/grants.ts` `listGrants`,
+  `api/account/connected-apps/route.ts`, `ConnectedAppsSection.tsx` and its tests). The field is
+  produced only by that route, so no other consumer parses it.
+- Breaking? no for stored data (a column default); a client building a `ConnectedApp` by hand must add
+  the field. `GET /api/account/connected-apps` is session-only and not in the public API.
+
 ## 2026-11-09 — `SCOPE_HINTS`: what each scope can change (M60 part 1)
 - **New export** `SCOPE_HINTS` (`packages/contracts/src/publicApi.ts`), exhaustive over `ApiScope` like
   `SCOPE_CATALOGUE`: `{ changes: "none" | "reversible" | "irreversible", personal_data: boolean }` per

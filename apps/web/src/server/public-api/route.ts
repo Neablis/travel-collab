@@ -8,6 +8,7 @@ import {
 import { touchLastUsed } from "@/server/api-tokens";
 import { touchGrantLastUsed } from "@/server/oauth/grants";
 import { oauthIssuer } from "@/server/oauth/metadata";
+import { poppyGate } from "@/server/poppy/sessions";
 import type { AccessRefusal } from "@/server/oauth/verifyAccess";
 import { PublicApiError } from "./commands";
 import { TOO_LARGE, readCapped } from "@/server/readBody";
@@ -468,6 +469,19 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     request: Request,
     context: { params: Promise<Record<string, string>> },
   ): Promise<Response> => {
+    // ---- Personal Agent Session ------------------------------------------
+    // A request that carries `Poppy-Session` is verified before anything reads
+    // its credential (Poppy 5.3); one that does not never enters `poppyGate`.
+    // Its refusals are Poppy's own 400s, outside this envelope, because agents
+    // read them by that shape (ADR-089). A throw is infrastructure, as below.
+    try {
+      const refused = await poppyGate(request);
+      if (refused !== null) return refused;
+    } catch (error) {
+      console.error("v1 session verification threw", { method, scope: def.scope, error });
+      return fail("server-error", SERVER_FAILED, 500);
+    }
+
     // ---- credential ------------------------------------------------------
     // **The first thing that touches the database, and the first thing that
     // needed its own catch.** `resolveActor` reads `api_tokens` to find the

@@ -292,6 +292,7 @@ describe("ConnectedApp", () => {
     expiresAt: "2027-10-27T10:00:00.000Z",
     revokedAt: null,
     revokedReason: null,
+    personalAgent: null,
   };
 
   it("accepts a live grant and one its owner disconnected", () => {
@@ -322,6 +323,15 @@ describe("ConnectedApp", () => {
       clientId: "c1",
     });
     expect(Object.keys(parsed).sort()).toEqual(Object.keys(app).sort());
+  });
+
+  // A Personal Agent's row names itself (Poppy 4.1); every other app is `null`,
+  // so the field is never absent and a client cannot mistake "unknown" for "no".
+  it("says whether an app is a Personal Agent, and carries its logo only when it has one", () => {
+    expect(ConnectedApp.safeParse({ ...app, personalAgent: { logoUri: "https://meta.ai/logo.png" } }).success).toBe(true);
+    expect(ConnectedApp.safeParse({ ...app, personalAgent: { logoUri: null } }).success).toBe(true);
+    const { personalAgent: _omitted, ...without } = app;
+    expect(ConnectedApp.safeParse(without).success).toBe(false);
   });
 
   it("names its scopes from the API's own set", () => {

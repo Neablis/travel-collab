@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inviteCardKey, referralCardKey } from "./keys";
+import { inviteCardKey, poppyDelegationKey, referralCardKey } from "./keys";
 
 // A cache key is readable by anyone with access to the shared Redis, so it must
 // not carry the credential it caches for (CodeRabbit, PR #259).
@@ -18,5 +18,16 @@ describe("cache keys", () => {
     expect(inviteCardKey(TOKEN)).not.toBe(inviteCardKey(`${TOKEN}x`));
     expect(inviteCardKey(TOKEN)).toMatch(/^[a-z]+:og:invite:[0-9a-f]{64}$/);
     expect(referralCardKey(CODE)).toMatch(/^[a-z]+:og:referral:[0-9a-f]{64}$/);
+  });
+
+  // A `jti` is only unique per issuer, so two agents' delegations must not
+  // share an entry, and a delegation's id is not written into the shared Redis.
+  it("keys a delegation by agent and jti together, without writing either", () => {
+    const key = poppyDelegationKey("https://a.test/agent.json", "dlg-1");
+    expect(key).toMatch(/^[a-z]+:poppy:delegation:[0-9a-f]{64}$/);
+    expect(key).not.toContain("dlg-1");
+    expect(key).toBe(poppyDelegationKey("https://a.test/agent.json", "dlg-1"));
+    expect(key).not.toBe(poppyDelegationKey("https://b.test/agent.json", "dlg-1"));
+    expect(key).not.toBe(poppyDelegationKey("https://a.test/agent.json", "dlg-2"));
   });
 });

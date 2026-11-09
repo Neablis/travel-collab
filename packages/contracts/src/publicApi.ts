@@ -485,6 +485,12 @@ export const ConnectedApp = z.object({
   expiresAt: z.string(),
   revokedAt: z.string().nullable(),
   revokedReason: ConnectedAppRevokedReason.nullable(),
+  /**
+   * Set when the app is a Personal Agent (Poppy 4.1): one that signs in as
+   * itself with a key. `logoUri` is the logo its own metadata document named,
+   * on its own domain, or null. Null for every other app.
+   */
+  personalAgent: z.object({ logoUri: z.string().nullable() }).nullable(),
 });
 export type ConnectedApp = z.infer<typeof ConnectedApp>;
 

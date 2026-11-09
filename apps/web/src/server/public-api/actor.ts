@@ -61,6 +61,12 @@ export type ActorResolution = { ok: true; actor: Actor } | { ok: false; refusal:
 // which would fail verification for a reason nothing in the response names.
 const BEARER = /^Bearer[ \t]+(\S+)[ \t]*$/i;
 
+/** The bearer token a request carries, or `null` when its `Authorization` is absent or not a bearer. */
+export function bearerToken(request: Request): string | null {
+  const header = request.headers.get("authorization");
+  return header === null ? null : (BEARER.exec(header)?.[1] ?? null);
+}
+
 /**
  * Resolve a request to an actor.
  *

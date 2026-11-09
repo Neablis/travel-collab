@@ -49,6 +49,16 @@ export function clientAssertionJtiKey(clientId: string, jti: string): string {
   return `${deployEnv() ?? "dev"}:oauth:jti:${digest(`${clientId}\n${jti}`)}`;
 }
 
+/**
+ * A verified Personal Agent delegation (Poppy 5.2), by agent and delegation
+ * `jti`. A resource sees one delegation on every request for hours, so its
+ * checked form is kept until its `exp`. Keyed by agent too: a `jti` is only
+ * unique per issuer.
+ */
+export function poppyDelegationKey(clientId: string, jti: string): string {
+  return `${deployEnv() ?? "dev"}:poppy:delegation:${digest(`${clientId}\n${jti}`)}`;
+}
+
 /** An hour: a pending invite's card, which is also deleted on revoke and accept. */
 export const INVITE_CARD_TTL_SECONDS = 3600;
 

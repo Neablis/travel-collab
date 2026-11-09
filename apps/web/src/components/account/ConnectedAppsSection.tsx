@@ -52,6 +52,8 @@ export function ConnectedAppsSection() {
   // focus back, is gone, so focus goes to the row's new status rather than
   // dropping to <body>.
   const [disconnected, setDisconnected] = useState<string | null>(null);
+  // Logos that did not load (the CSP's `img-src` may refuse one): left out, as the consent page does.
+  const [logoFailed, setLogoFailed] = useState<ReadonlySet<string>>(new Set());
   const statusIdPrefix = useId();
 
   useEffect(() => {
@@ -142,9 +144,19 @@ export function ConnectedAppsSection() {
                   <TR key={app.grantId} className="last:border-b-0">
                     <TD className="px-3.5 py-3 align-middle">
                       <div className="flex flex-wrap items-center gap-2">
+                        {app.personalAgent?.logoUri && !logoFailed.has(app.grantId) ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- an agent's own https logo, which next/image would proxy through our optimizer
+                          <img
+                            src={app.personalAgent.logoUri}
+                            alt={`${app.clientName} logo`}
+                            className="size-6 rounded"
+                            onError={() => setLogoFailed((failed) => new Set(failed).add(app.grantId))}
+                          />
+                        ) : null}
                         <Text as="span" className="text-sm font-semibold text-ink">
                           {app.clientName}
                         </Text>
+                        {app.personalAgent !== null ? <Badge variant="neutral">Personal agent</Badge> : null}
                         <Badge variant={STATE_BADGE[state]}>{STATE_LABEL[state]}</Badge>
                       </div>
                       {/* Where its codes went is the one thing known about it;

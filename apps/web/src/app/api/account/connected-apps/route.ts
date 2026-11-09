@@ -1,6 +1,6 @@
 import type { ConnectedApp } from "@tc/contracts";
 import { auth } from "@/server/auth";
-import { grantScopes, listGrants, type GrantRow } from "@/server/oauth/grants";
+import { grantScopes, listGrants, type ListedGrant } from "@/server/oauth/grants";
 import { consentMarking } from "@/server/oauth/recognised";
 
 // **Account → Security → Connected apps is session-only, as `account/tokens` is** (M55
@@ -11,7 +11,7 @@ import { consentMarking } from "@/server/oauth/recognised";
 // **Not gated on the entitlement**: a lapsed account must still see, and cut
 // off, the apps it connected (the token list's rule).
 
-function toConnectedApp(grant: GrantRow): ConnectedApp {
+function toConnectedApp(grant: ListedGrant): ConnectedApp {
   return {
     grantId: grant.id,
     clientName: grant.clientName,
@@ -23,6 +23,7 @@ function toConnectedApp(grant: GrantRow): ConnectedApp {
     expiresAt: grant.expiresAt.toISOString(),
     revokedAt: grant.revokedAt?.toISOString() ?? null,
     revokedReason: grant.revokedReason ?? null,
+    personalAgent: grant.personalAgent,
   };
 }
 

@@ -37,6 +37,14 @@ vi.mock("@/server/public-api/actor", async (importOriginal) => {
   };
 });
 
+// `POST` calls `poppyGate` with the real network; the agent's documents are
+// served from memory here, as `sessions.int.test.ts` serves them.
+let poppyDeps: import("@/server/poppy/sessionHeader").SessionDeps = {};
+vi.mock("@/server/poppy/sessions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/poppy/sessions")>();
+  return { ...actual, poppyGate: (request: Request) => actual.poppyGate(request, poppyDeps) };
+});
+
 // A tool whose own code throws after v1 answered (KI-2026-10-28-b): `whoami`'s
 // answer shaping throws a message no client should read, while the flag is set.
 const LEAKED = 'relation "oauth_grants_secret" does not exist';
@@ -362,5 +370,44 @@ describe("the methods a stateless server has no use for", () => {
       expect(res.status).toBe(405);
       expect(res.headers.get("Allow")).toBe("POST");
     }
+  });
+});
+
+// **A Personal Agent's Session header** (Poppy 5.3, M60 part 3), checked before
+// dispatch: a bad one is Poppy's 400 and never reaches the credential's 401, a
+// good one changes nothing about what the credential answers.
+describe("POST /api/mcp with Poppy-Session", () => {
+  async function withSession(headers: Record<string, string> = {}, session: Record<string, unknown> = {}) {
+    const { makeTestAgent, publicResolve } = await import("@/server/poppy/testAgent");
+    const { createMemoryClient } = await import("@/server/cache/memory");
+    const { createRedisCache } = await import("@/server/cache/redis");
+    const { deploymentOrigin } = await import("@/lib/deploymentOrigin");
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    const cache = createRedisCache(createMemoryClient());
+    poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
+    const jwt = await agent.session({ htm: "POST", htu: `${deploymentOrigin()}/api/mcp`, ...session });
+    return mcp(rpc("tools/list", {}), { "poppy-session": jwt, "poppy-version": "0.4", ...headers });
+  }
+
+  it("answers invalid_session and version_unsupported as 400, before the 401 an anonymous call gets", async () => {
+    const bad = await withSession({}, { aud: "https://other.test" });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ error: "invalid_session" });
+    const old = await withSession({ "poppy-version": "0.3" });
+    expect(old.status).toBe(400);
+    expect(await old.json()).toEqual({ error: "version_unsupported" });
+  });
+
+  it("verifies a good header and then leaves the credential's answer as it was", async () => {
+    const res = await withSession();
+    expect(res.status).toBe(401);
+    expect(res.headers.get("WWW-Authenticate")).toBe(`Bearer resource_metadata="${METADATA}"`);
+  });
+
+  it("refuses an access token issued to another client than the Session names", async () => {
+    const owner = await entitled();
+    const res = await withSession({ authorization: `Bearer ${await connect(owner, ["account:read"])}` });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_session" });
   });
 });

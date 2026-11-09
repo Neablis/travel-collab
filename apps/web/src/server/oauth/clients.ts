@@ -344,7 +344,14 @@ export async function fetchClientKeys(client: OAuthClient, deps: ClientDeps = {}
  */
 export async function storeClient(client: OAuthClient, now: Date): Promise<string> {
   if (client.id !== null) return client.id;
-  const values = { clientName: client.clientName, redirectUris: client.redirectUris };
+  // What a later Allow may change: the row is one per document, so a document
+  // that went from public to `private_key_jwt` (or changed its logo) is read as it is now.
+  const values = {
+    clientName: client.clientName,
+    redirectUris: client.redirectUris,
+    personalAgent: client.authMethod === "private_key_jwt",
+    logoUri: client.logoUri,
+  };
   const [row] = await db
     .insert(oauthClients)
     .values({

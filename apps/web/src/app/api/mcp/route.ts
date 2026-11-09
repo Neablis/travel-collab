@@ -2,6 +2,7 @@ import { createMcpHandler } from "@modelcontextprotocol/server";
 import type { McpCaller } from "@/server/mcp/dispatch";
 import { buildServer, reportMcpError } from "@/server/mcp/server";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
+import { poppyGate } from "@/server/poppy/sessions";
 import { resolveActor } from "@/server/public-api/actor";
 import { oauthChallenge, oauthRefusalResponse } from "@/server/public-api/route";
 import { TOOLS } from "./tools";
@@ -22,6 +23,19 @@ import { TOOLS } from "./tools";
 
 /** One JSON-RPC exchange with the connector, as the OAuth token's holder, or the refusal of that token. */
 export async function POST(request: Request): Promise<Response> {
+  // A Personal Agent's Session header (Poppy 5.3) is verified first, so its 400
+  // is not hidden behind the 401 a client without a token would get. A request
+  // without the header never enters it.
+  try {
+    const refused = await poppyGate(request);
+    if (refused !== null) return refused;
+  } catch (error) {
+    console.error("mcp session verification threw", { error });
+    return Response.json(
+      { error: { code: "server-error", message: "Something went wrong. The failure has been logged." } },
+      { status: 500 },
+    );
+  }
   const header = request.headers.get("authorization");
   if (header === null) {
     return Response.json(

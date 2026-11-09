@@ -65,6 +65,14 @@ vi.mock("@/server/public-api/actor", async (importOriginal) => {
   };
 });
 
+// `route()` calls `poppyGate` with the real network; the agent's documents are
+// served from memory here, as `sessions.int.test.ts` serves them.
+let poppyDeps: import("@/server/poppy/sessionHeader").SessionDeps = {};
+vi.mock("@/server/poppy/sessions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/poppy/sessions")>();
+  return { ...actual, poppyGate: (request: Request) => actual.poppyGate(request, poppyDeps) };
+});
+
 const { runInMcpDispatch } = await import("@/server/oauth/dispatchContext");
 const { oauthIssuer } = await import("@/server/oauth/metadata");
 const { db } = await import("@/server/db/client");
@@ -579,5 +587,66 @@ describe("the endpoint declares, and the wrapper does the rest", () => {
         expect(source, `${file} contains ${concern}`).not.toContain(concern);
       }
     }
+  });
+});
+
+// **A Personal Agent's Session header** (Poppy 5.3, M60 part 3): verified
+// before the actor when it is present, and a request without it is the request
+// every test above already sends.
+describe("a request that carries Poppy-Session", () => {
+  async function agentRequest(over: { headers?: Record<string, string | null>; token?: string; session?: Record<string, unknown> } = {}) {
+    const { makeTestAgent, publicResolve } = await import("@/server/poppy/testAgent");
+    const { createMemoryClient } = await import("@/server/cache/memory");
+    const { createRedisCache } = await import("@/server/cache/redis");
+    const { deploymentOrigin } = await import("@/lib/deploymentOrigin");
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    const cache = createRedisCache(createMemoryClient());
+    poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
+    const jwt = await agent.session({ htu: `${deploymentOrigin()}/api/v1/trips`, ...over.session });
+    const headers: Record<string, string> = { "poppy-session": jwt, "poppy-version": "0.4" };
+    for (const [name, value] of Object.entries(over.headers ?? {})) {
+      if (value === null) delete headers[name];
+      else headers[name] = value;
+    }
+    if (over.token !== undefined) headers.authorization = `Bearer ${over.token}`;
+    return { agent, request: new Request("http://localhost/api/v1/trips", { headers }) };
+  }
+
+  it("refuses a header that fails as invalid_session, a 400 outside the envelope, before the credential", async () => {
+    const { request } = await agentRequest({ session: { aud: "https://other.test" } });
+    const res = await LIST_TRIPS(request, NO_PARAMS);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_session" });
+  });
+
+  it("refuses a missing or incompatible Poppy-Version as version_unsupported", async () => {
+    for (const version of [null, "0.3"]) {
+      const { request } = await agentRequest({ headers: { "poppy-version": version } });
+      const res = await LIST_TRIPS(request, NO_PARAMS);
+      expect(res.status, String(version)).toBe(400);
+      expect(await res.json()).toEqual({ error: "version_unsupported" });
+    }
+  });
+
+  it("verifies the header and then leaves the credential's answer as it was", async () => {
+    const { request } = await agentRequest();
+    const res = await LIST_TRIPS(request, NO_PARAMS);
+    expect(res.status).toBe(401);
+    expect((await res.json()).error.code).toBe("unauthenticated");
+  });
+
+  it("refuses a tc_ token beside a Session header, since it was issued to no client", async () => {
+    const { request } = await agentRequest({ token: await tokenFor(await entitled()) });
+    const res = await LIST_TRIPS(request, NO_PARAMS);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_session" });
+  });
+
+  it("answers a failure of its own as the envelope's server-error, never a bare 500", async () => {
+    const { request } = await agentRequest();
+    poppyDeps = { ...poppyDeps, cache: { get: async () => { throw new Error("boom"); }, set: async () => undefined } as never };
+    const res = await LIST_TRIPS(request, NO_PARAMS);
+    expect(res.status).toBe(500);
+    expect((await res.json()).error.code).toBe("server-error");
   });
 });

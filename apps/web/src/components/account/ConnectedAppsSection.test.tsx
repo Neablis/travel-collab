@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConnectedApp } from "@tc/contracts";
@@ -21,6 +21,7 @@ function app(over: Partial<ConnectedApp> = {}): ConnectedApp {
     expiresAt: new Date(Date.now() + 300 * DAY).toISOString(),
     revokedAt: null,
     revokedReason: null,
+    personalAgent: null,
     ...over,
   };
 }
@@ -118,5 +119,41 @@ describe("ConnectedAppsSection", () => {
     render(<ConnectedAppsSection />);
     expect(await screen.findByText(/one of its keys was used twice/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+  });
+
+  // A Personal Agent signs in as itself (Poppy 4.1), so its row says what it is
+  // and shows the logo its own document named; Disconnect is the same one.
+  describe("a Personal Agent", () => {
+    const muse = () => app({ clientName: "Muse", redirectHost: "meta.ai", personalAgent: { logoUri: "https://meta.ai/logo.png" } });
+
+    it("is labelled Personal agent, with its logo, and an ordinary app is not", async () => {
+      serve([muse(), app({ grantId: "3f1a5b6c-7d8e-4f90-a1b2-c3d4e5f60721" })]);
+      render(<ConnectedAppsSection />);
+      const row = await screen.findByRole("row", { name: /Muse/ });
+      expect(within(row).getByText("Personal agent")).toBeTruthy();
+      expect(within(row).getByRole("img", { name: "Muse logo" }).getAttribute("src")).toBe("https://meta.ai/logo.png");
+      const ordinary = screen.getByRole("row", { name: /Test app/ });
+      expect(within(ordinary).queryByText("Personal agent")).toBeNull();
+      expect(within(ordinary).queryByRole("img")).toBeNull();
+    });
+
+    // The CSP's img-src may refuse the logo, and the consent page leaves a logo
+    // that does not load out rather than show it broken.
+    it("leaves the logo out when it does not load, keeping the name and the label", async () => {
+      serve([muse()]);
+      render(<ConnectedAppsSection />);
+      fireEvent.error(await screen.findByRole("img", { name: "Muse logo" }));
+      expect(screen.queryByRole("img", { name: "Muse logo" })).toBeNull();
+      expect(within(screen.getByRole("row", { name: /Muse/ })).getByText("Personal agent")).toBeTruthy();
+    });
+
+    it("has the same Disconnect, confirmed", async () => {
+      const calls = serve([muse()]);
+      render(<ConnectedAppsSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
+      await userEvent.click(within(await screen.findByRole("dialog", { name: "Disconnect Muse?" })).getByRole("button", { name: "Disconnect" }));
+      expect(await screen.findByText("Disconnected")).toBeTruthy();
+      expect(calls).toEqual([{ url: "/api/account/connected-apps/3f1a5b6c-7d8e-4f90-a1b2-c3d4e5f60720", method: "DELETE" }]);
+    });
   });
 });
