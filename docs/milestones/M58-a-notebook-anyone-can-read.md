@@ -270,16 +270,16 @@ Five parts, as one stack. The files are in the plan.
   member can't vote after it closes. On the same notebook's public page the poll shows its
   question and counts with no names and no vote control.
       Evidence: `apps/web/e2e/m58-poll.spec.ts:39-180`: two members vote, one changes theirs, an editor closes (and reopens, round 1), a late vote is 409, and a stranger's page shows the question and counts (`Ramen 2`) with no buttons and no *Not voted yet*, at two widths without overflow; `apps/web/src/server/polls/votes.int.test.ts:51-93`. CI run 41970724615 (https://github.com/Neablis/travel-collab/actions/runs/41970724615) at f2b7574a7669277b384f021bbe375250f35bf3bd, the head PR 693 merged with as aac7246: e2e 1/2 and 2/2, unit, integration, lint, typecheck, scripts and `ci-ok` all success, CodeQL success.
-- [ ] **[walk]** Mitchell publishes a real trip's Overview, opens the link in a private window
+- [x] **[walk]** Mitchell publishes a real trip's Overview, opens the link in a private window
   on his phone, follows a link to a second public notebook, sees a hidden widget's *Not shared*
   state, signs up from the band, then makes the first notebook private and sees the link go dead.
-      Not ticked: walk not reported. There are no toolbar threads or walk comments on the preview, and Mitchell merged PR 693 without reporting results. Tick it on his word, or amend the gate (his call).
+      Ticked on Mitchell's word, 2026-11-06: *"Ive done the real production walk"* (on production, after `migrate-production` run 42255011247 applied `0074_poll_votes` from `main` at `10c44a4`).
 
-## Retro — written 2026-11-05 (10 of 11 boxes ticked)
+## Retro — written 2026-11-05 (10 of 11 boxes ticked; the [walk] ticked 2026-11-06 and the gate closed 11 of 11)
 
-All five code parts are on `main`: PRs 689 to 692 in `2729315`, PR 693 in `aac7246` (merged 2026-11-05 13:02Z from head `f2b7574a7669277b384f021bbe375250f35bf3bd`). The one box left open is the **[walk]**: walk not reported.
+All five code parts are on `main`: PRs 689 to 692 in `2729315`, PR 693 in `aac7246` (merged 2026-11-05 13:02Z from head `f2b7574a7669277b384f021bbe375250f35bf3bd`). The **[walk]** was the last box; Mitchell walked production on 2026-11-06.
 
-**Migrations.** `0073_page_shares` is applied in production (`migrate-production` ran on `2729315`). `0074_poll_votes` (with `poll_closes`) landed with `aac7246` and is **not applied**. The `migration-pending` check on `aac7246` is red for exactly that reason, which is what the detector (`.github/workflows/migration-pending.yml`) is for, not a defect. Applying it is Mitchell's: dispatch `migrate-production` from `main`.
+**Migrations.** `0073_page_shares` is applied in production (`migrate-production` ran on `2729315`). `0074_poll_votes` (with `poll_closes`) landed with `aac7246` and was applied 2026-11-06 by `migrate-production` run 42255011247 on `10c44a4`. The `migration-pending` check on `aac7246` is red for exactly that reason, which is what the detector (`.github/workflows/migration-pending.yml`) is for, not a defect. Applying it is Mitchell's: dispatch `migrate-production` from `main`.
 
 ### What went well
 

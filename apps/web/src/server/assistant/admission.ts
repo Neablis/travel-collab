@@ -1005,7 +1005,7 @@ const resolveSurface: AdmissionStage = {
 // never end up exercising a classifier the turn itself did not use.
 //
 // **This runs BEFORE `admitQuota`, and it has to.** Charging before selection
-// meant a missing AI_GATEWAY_API_KEY (the 503 below) burned the caller's whole
+// meant a missing ANTHROPIC_API_KEY (the 503 below) burned the caller's whole
 // hourly and daily allowance on retries against an outage that produced zero
 // provider calls — the incident outlived its own fix by a day. Spec §7d records
 // that M20's per-tier ceilings need the same order for their own reason:

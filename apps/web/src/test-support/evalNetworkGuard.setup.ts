@@ -1,5 +1,5 @@
 // **The eval lane's network rule** (M33): this machine, the database, and the
-// AI Gateway. Nothing else.
+// two model providers. Nothing else.
 //
 // The eval exists to call a real model, so the integration lane's guard (which
 // refuses every third party) cannot be used as it is. What it still has to
@@ -10,7 +10,7 @@
 // searches still gets an answer.
 import { blockedRequestMessage, isLocalUrl } from "./networkGuard";
 
-export const EVAL_ALLOWED_HOSTS = new Set(["ai-gateway.vercel.sh"]);
+export const EVAL_ALLOWED_HOSTS = new Set(["api.anthropic.com", "api.openai.com"]);
 
 /** True when `url` is this machine or a host the eval may reach. */
 export function evalMayFetch(url: string): boolean {
@@ -31,7 +31,7 @@ globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
 
 // **No socket guard here, unlike the other lanes.** Node's `fetch` (undici)
 // dials through `net.Socket`, so the integration lane's socket guard would
-// refuse the Gateway itself. The fetch allowlist above is the control; what it
+// refuse the providers themselves. The fetch allowlist above is the control; what it
 // does not see is a raw `http`/`https` request, and nothing on the `/ask` path
 // makes one.
 

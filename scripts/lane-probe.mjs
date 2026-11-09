@@ -236,7 +236,7 @@ export function probeBrowser(
   }
   return {
     status: BLOCKED,
-    note: "no Playwright browsers — e2e cannot run here; use the PR's Vercel preview via phase-verifier",
+    note: "no Playwright browsers — e2e cannot run here; use the PR's Coolify preview via phase-verifier",
   };
 }
 

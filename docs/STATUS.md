@@ -26,15 +26,15 @@ general setup.
 placed ahead of M53 by Mitchell. Part 0 is `claude/next-milestone-setup-3ccab6` (supersedes PR 695).
 Two tracks: four code parts as one stack (`claude/m59-part1-deploy-env` up to
 `claude/m59-part4-off-vercel`), and ops steps O1–O6, of which O1 (Hetzner account and token) and
-O3 (Coolify admin, GitHub App) are Mitchell's. M58's close is PR 696, which waits on his merge; its
-TODO row stays unticked until then.
+O3 (Coolify admin, GitHub App) are Mitchell's.
 
-**M58 built 2026-11-05, gate 10 of 11** (*A notebook anyone can read, and a poll for the people
+**M58 closed 2026-11-06, gate 11 of 11** (*A notebook anyone can read, and a poll for the people
 going*; decisions in `docs/milestones/M58-a-notebook-anyone-can-read.md`, mechanisms and
-amendments in ADR-088). Not closed: the [walk] box is open (walk not reported) and
-`pnpm milestone close M58` has not been run. All five code parts are on `main`
-(`2729315`, `aac7246`); migration `0073` is applied, `0074` is not. Evidence, retro and spend
-(session 1 summary-only) are in the milestone file; the plan is deleted.
+amendments in ADR-088), by `pnpm milestone close M58 --confirm`. The [walk] was ticked on
+Mitchell's word that he walked production. All five code parts are on `main` (`2729315`,
+`aac7246`), and part 0 is PR 688 (`10c44a4`). Migrations `0073` and `0074` are applied in
+production, `0074` by `migrate-production` run 42255011247 on `10c44a4`. **M53 is current**: it is
+proposed and not scoped, with seven open decisions.
 
 **M44 closed 2026-11-03, gate 7 of 7** (*A stop knows what was booked, and what it sits inside*;
 decisions in `docs/milestones/M44-a-stop-knows-what-was-booked.md`, mechanisms in ADR-086), by
@@ -116,15 +116,9 @@ confirmed fixed"*). Evidence, retro and spend are in
 **Next action:**
 1. Mitchell merges PR 679 (M44's part 0, prose only). Parts 1 to 5 are merged, so close no lower
    drafts. `migrate-production` is not needed: M44 added no migration.
-2. **M58 is built and waits on one gate box and Mitchell** (2026-11-05, 10 of 11 boxes ticked).
-   All five parts are on `main` (PRs 689 to 692 in `2729315`, PR 693 in `aac7246`, `ci` run
-   41970724615 green at `f2b7574`). Part 0 is PR 688 (draft), holding the retro, ADR-088's
-   amendments 9 to 14 and the plan's deletion. **Open:** the [walk] box, walk not reported (no
-   toolbar threads, PR 693 merged without a report); `pnpm milestone close M58` refuses until
-   Mitchell reports the walk or amends the gate. **Mitchell's hand tasks:** dispatch
-   `migrate-production` from `main` for `0074_poll_votes` (not applied; the red `migration-pending`
-   check on `aac7246` is the detector doing its job), then close the lower drafts (PRs 689 to 692)
-   with one line naming `aac7246`. Follow-ups: KI-20261105-a and -b. After it, M53 (seven open
+2. **M58 closed 2026-11-06, gate 11 of 11**, and `0074` is applied. Follow-ups: KI-20261105-a
+   and -b. **M53 is next** (*A search engine reads every public page the way a person does*). It
+   is proposed and not scoped: scope it with Mitchell (`plan-a-milestone`, seven open
    decisions). M48 stays parked.
 3. Open follow-ups from M44: KI-2026-11-03-a, KI-2026-11-02-a (the flaky `TripProvider.suggest`
    test) and the candidate *The share page shows a stop is booked*.
@@ -273,10 +267,9 @@ filed it as harmless preview noise; it was not. The policy now admits the
 Toolbar's origins on preview only, gated on `VERCEL_ENV`, with a test asserting
 production's policy is untouched.
 
-**One thing is still Mitchell's to do, and nothing unattended can test a preview
-until it is done:** generate **Protection Bypass for Automation** (Vercel → the
-project → Settings → Deployment Protection) and copy the value into a
-`VERCEL_AUTOMATION_BYPASS_SECRET` repo secret.
+**No longer pending (M59):** previews moved to Coolify and are public, so the
+Vercel Protection Bypass secret this paragraph asked for does not exist and is
+not needed.
 
 **The `_vercel_share` fallback was tested on 2026-08-30 and is not a substitute
 — tried while looking for M18b's gate evidence.** A freshly minted link gets

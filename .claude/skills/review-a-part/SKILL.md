@@ -35,14 +35,8 @@ description: Review policy for one milestone part in travel-collab — a part-re
    when every part is done, CI is green on the top part's head after it is retargeted to `main`
    and marked ready (`close-a-milestone` step 1), and the top's own findings are worked. Say so in
    the top PR's body and part 0's tracker, and tell Mitchell then.
-   **Do not request a preview for Mitchell's walk** (2026-10-25: previews are billed and built
-   on demand). The top PR's body's "Ready to merge" section says how to get one: add the `preview`
-   label to the PR, or run `vercel-preview` with the PR number. If one already exists for the
-   head (a `phase-verifier` walk asked for it), that section carries its **URL**, for
-   Mitchell's walk (Mitchell, 2026-10-12: Vercel's own PR comment stays off, `github.silent` in
-   `apps/web/vercel.json`, because its edits woke watching sessions). Take it from
-   `mcp__Vercel__list_deployments` (project `prj_UoxcnmAsWMtHXx8jLXyespRqSULM`, team
-   `team_FOAEiiLfMMxICIFszLWvzfzF`), filtered by the head's `sha`, state `READY`. If that
-   deployment is `ERROR` with `git_info_fail`, re-run the head's `vercel-preview` run
-   (`gh api -X POST repos/Neablis/travel-collab/actions/runs/<id>/rerun`); do not push to retry
-   (KI-20261012-d).
+   **Mitchell's walk is on the PR's Coolify preview**, which Coolify builds on its own for every
+   PR: `https://<pr number>.preview.caesura.today` (public, NOINDEX). The top PR's body's
+   "Ready to merge" section carries that **URL**; confirm `GET /api/health` on it answers
+   before you write it down. If the build failed, read it in Coolify's deployment log and fix
+   the cause; a push rebuilds it.

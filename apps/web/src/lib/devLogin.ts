@@ -13,7 +13,7 @@
 //
 // Both conditions required, fails closed — same shape as
 // `isDemoDataResetEnabled()`. AUTH_DEV_LOGIN is the operator's opt-in;
-// VERCEL_ENV is set by Vercel itself and never by us, so a production
+// the deployment environment (`APP_ENV` / `VERCEL_ENV`) is set by the platform and never by us, so a production
 // deployment cannot satisfy this however the opt-in was scoped. That second
 // clause is the whole point (project review M1): the provider accepts ANY
 // username with no password and yields `dev-${name}`, and post-M11 a dev
@@ -23,8 +23,10 @@
 // production" is documentation, not enforcement.
 //
 // Deliberately `!== "production"` rather than `=== "preview"` (which is what
-// the demo-reset gate wants): VERCEL_ENV is unset outside Vercel, and local
+// the demo-reset gate wants): the deployment environment is unset outside a deployment, and local
 // development is dev login's primary use case.
+
+import { deployEnv } from "@/lib/deployment/env";
 export function isDevLoginEnabled(): boolean {
-  return process.env.AUTH_DEV_LOGIN === "true" && process.env.VERCEL_ENV !== "production";
+  return process.env.AUTH_DEV_LOGIN === "true" && deployEnv() !== "production";
 }

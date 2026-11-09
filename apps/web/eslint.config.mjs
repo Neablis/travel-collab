@@ -211,7 +211,7 @@ export default [
     // server internals. Route handlers and src/server are the exempt shell.
     // `.well-known` routes join that shell: they are protocol endpoints served
     // to tooling, not UI, and their paths are fixed by the spec that defines
-    // them (the Flags Explorer requires exactly .well-known/vercel/flags), so
+    // them (e.g. .well-known/api-catalog, whose path RFC 9727 fixes), so
     // they cannot be moved under src/app/api to inherit its exemption. Scoped
     // to `route.ts` files only (not the whole `.well-known/**` tree) so a
     // future non-route file placed under `.well-known` doesn't inherit the
@@ -236,7 +236,7 @@ export default [
     // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): every AI
     // feature reaches a model by asking `selectAiModel()`, never by
     // constructing one directly. `@/server/ai/gateway` (the only place
-    // AI_GATEWAY_API_KEY is used) is importable ONLY from
+    // ANTHROPIC_API_KEY is used) is importable ONLY from
     // `modelSelection.ts` and its own test. Unlike the walls above, this one
     // is NOT scoped to UI — it covers the whole `src/server` tree too, because
     // the threat this closes is a second SERVER-SIDE entry point (M16's `/ask`

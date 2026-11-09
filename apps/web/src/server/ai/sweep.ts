@@ -9,6 +9,7 @@
 // leaves rows at `processing`; the next run recovers them before claiming.
 import { randomUUID } from "node:crypto";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { serverConfig } from "@/server/config";
 import { db } from "@/server/db/client";
 import { dayEmbeddings, savedDays } from "@/server/db/schema";
 import { parseSavedDayColumns } from "@/server/savedDayRow";
@@ -103,6 +104,14 @@ export async function runEmbedSweep(
     deferred: 0,
     pending: 0,
   };
+
+  // Chat and embeddings are two keys now. Without this one every row would burn
+  // an attempt and dead-letter, so stop before claiming any (an injected `embed` is a test's).
+  if (!options.embed && !serverConfig.openaiApiKey) {
+    console.error("rag: embed sweep skipped, OPENAI_API_KEY is not set");
+    summary.pending = await countPendingRows();
+    return summary;
+  }
 
   summary.recovered = await recoverOrphanedRows();
   const claimed = await claimPendingRows(batchSize);

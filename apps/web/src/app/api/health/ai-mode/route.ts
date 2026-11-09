@@ -1,4 +1,5 @@
 import { aiLiveMode, resolvedTierMap } from "@/server/ai/modelSelection";
+import { deployEnv } from "@/lib/deployment/env";
 
 // KI-25: whether an e2e run is actually simulated depends on how the dev
 // server was started (playwright.config.ts's webServer.env only applies
@@ -9,14 +10,11 @@ import { aiLiveMode, resolvedTierMap } from "@/server/ai/modelSelection";
 // KI-24 names for AI_LIVE on Vercel: the mode is now visible, not just
 // warned about in a log line.
 //
-// `source` says whether that answer is a fact about the SERVER or about the
-// CALLER, and it exists because the `ai-live` flag became per-user targetable
-// (ADR-019 amendment 2026-09-08). `"env"` means AI_LIVE decided it and the flag
-// was never consulted, so no caller on this server can get a different answer;
-// `"flag"` means Vercel Flags answered for whoever sent this request, and a
-// targeting rule may well answer differently for the next person. Only `"env"`
-// is evidence about anyone but the caller — which is exactly the distinction
-// e2e's global setup has to make before it decides a suite is safe to run.
+// `source` says what decided that answer. `"env"` means AI_LIVE decided it,
+// deliberately, for this server; `"flag"` means `FLAG_AI_LIVE` answered, and an
+// unset flag is a default, not a decision. Since M59 both are global to the
+// process, but e2e's global setup still requires `"env"`: a suite must not be
+// cleared to run on a default someone forgot to set.
 //
 // Still unauthenticated, and still safe to be: with a session cookie it reports
 // the caller's own mode, without one it reports the anonymous one. Neither
@@ -45,7 +43,7 @@ import { aiLiveMode, resolvedTierMap } from "@/server/ai/modelSelection";
 // a simulated deployment's configured ids are exactly what an operator needs to
 // check BEFORE switching the flag on.
 //
-// `environment` is which Vercel environment answered: `VERCEL_ENV` exactly,
+// `environment` is which deployment environment answered: `APP_ENV` / `VERCEL_ENV` exactly,
 // or null when it is unset — off Vercel, or on a project that does not expose
 // system environment variables. Null is never guessed into "development": the
 // live-set script treats that word as permission, and a production deployment
@@ -59,6 +57,6 @@ export async function GET() {
     live,
     source,
     tiers: resolvedTierMap(),
-    environment: process.env.VERCEL_ENV ?? null,
+    environment: deployEnv() ?? null,
   });
 }

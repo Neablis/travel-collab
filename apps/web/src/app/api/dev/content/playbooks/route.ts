@@ -36,8 +36,8 @@ export const runtime = "nodejs";
 // bounded three ways:
 //
 //   1. **The gate is the same.** `isDevLoginEnabled()` fails closed to a 404 in
-//      production exactly as its neighbour does — `VERCEL_ENV` is set by Vercel
-//      and never by us — and the caller must also hold a dev session.
+//      production exactly as its neighbour does — the deployment environment (`APP_ENV` / `VERCEL_ENV`) is set by the platform
+//      and never by a request — and the caller must also hold a dev session.
 //   2. **The SERVER validates.** The body is parsed with `parseBundle`, not
 //      trusted: a request whose stops do not satisfy the contract's own schemas
 //      is a 400 here, not a malformed row.

@@ -1,4 +1,4 @@
-// What `vercel-build-migrate.mjs` does, apart from the entry, so the test can
+// What `build-migrate.mjs` does, apart from the entry, so the test can
 // import it without migrating anything. The entry's header says why.
 
 /**
@@ -7,12 +7,15 @@
  * run these commands in order.
  */
 export function buildSteps(environment) {
-  const env = environment.VERCEL_ENV ?? "unset";
-  if (env !== "preview") return { skip: `[vercel-build-migrate] skipped (VERCEL_ENV=${env})` };
+  // The same precedence as `deployEnv()` in `src/lib/deployment/env.ts`, which
+  // a script cannot import: `APP_ENV` first, `VERCEL_ENV` as the fallback, and
+  // an empty string counts as unset.
+  const env = environment.APP_ENV || environment.VERCEL_ENV || "unset";
+  if (env !== "preview") return { skip: `[build-migrate] skipped (APP_ENV=${env})` };
   if (environment.PREVIEW_DB_IS_DISPOSABLE !== "true") {
     return {
       refuse:
-        "[vercel-build-migrate] REFUSING to migrate: PREVIEW_DB_IS_DISPOSABLE is not " +
+        "[build-migrate] REFUSING to migrate: PREVIEW_DB_IS_DISPOSABLE is not " +
         `"true" (got ${JSON.stringify(environment.PREVIEW_DB_IS_DISPOSABLE ?? null)}).\n` +
         "\n" +
         "This build would run the migrations against whatever DATABASE_URL it\n" +

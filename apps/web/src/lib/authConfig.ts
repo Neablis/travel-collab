@@ -4,6 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 import type { Provider } from "next-auth/providers";
 import type { NextAuthConfig } from "next-auth";
 import { isDevLoginEnabled } from "@/lib/devLogin";
+import { deployEnv } from "@/lib/deployment/env";
 
 // Proxy-safe Auth.js configuration (ADR-024, superseding ADR-023). This is
 // deliberately just data: providers, callbacks, and the pages map — nothing
@@ -116,7 +117,7 @@ export function devLoginIdentity(
  * options the 2026-08-28 project review left open under M3, and the one that
  * does not require giving up dev login on previews.
  *
- * `VERCEL_ENV` is set by Vercel and never by us — the same property
+ * The deployment environment (`APP_ENV` / `VERCEL_ENV`) is set by the platform and never by us — the same property
  * `isDevLoginEnabled()` leans on — so a deployment cannot lie about which
  * environment it is. Unset off-Vercel, where "development" covers local dev,
  * `pnpm check` and the Playwright lane alike; those mint and read their own
@@ -124,7 +125,7 @@ export function devLoginIdentity(
  * meaningful.
  */
 export function authEnvironment(): string {
-  return process.env.VERCEL_ENV ?? "development";
+  return deployEnv() ?? "development";
 }
 
 /** The Google OIDC claims we actually consume. `sub` is the only guaranteed one. */
@@ -183,7 +184,7 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
 
 // Gate shared with the sign-in/sign-up pages rather than repeated here: the
 // username box and the provider backing it must never disagree. See
-// `lib/devLogin.ts` for why the gate needs a VERCEL_ENV clause on top of the
+// `lib/devLogin.ts` for why the gate needs a deployment-environment clause on top of the
 // opt-in (project review M1).
 if (isDevLoginEnabled()) {
   providers.push(

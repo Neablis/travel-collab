@@ -33,8 +33,8 @@ export const runtime = "nodejs";
 // Dev-gated, and the gate is `isDevLoginEnabled()` rather than the demo-reset
 // route's preview-only check: this is called by the local seed script, which
 // cannot authenticate at all without dev login, so the two are the same
-// permission. It fails closed on production the same way — VERCEL_ENV is set by
-// Vercel and never by us.
+// permission. It fails closed on production the same way — the deployment environment
+// (`APP_ENV` / `VERCEL_ENV`) is set by the platform and never by a request.
 //
 // The fixture's own ids are used verbatim, which is what makes re-seeding
 // idempotent without a "[Seed] " name prefix: the delete below removes exactly

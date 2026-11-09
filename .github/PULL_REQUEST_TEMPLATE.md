@@ -66,7 +66,7 @@ Red-first (any PR adding a test): <!-- For each new test: the source edit that
 - [ ] Seed/fixture verification — only if contracts or fixtures changed
 - [ ] Manual browser walk of the changed flow
 
-Preview URL walked: <!-- https://travel-collab-git-<branch>-neablis-projects.vercel.app -->
+Preview URL walked: <!-- https://<pr number>.preview.caesura.today -->
 
 What I clicked through, and what I saw:
 

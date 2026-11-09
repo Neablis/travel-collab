@@ -1,6 +1,6 @@
 ---
 name: phase-verifier
-description: Verifies a finished change against the Definition of Done — reads CI on the PR's current head (it never runs a full suite locally), then walks the changed flow in a real browser against the PR's Vercel preview. Use when implementation is complete and you are about to claim it works. Reports evidence, never fixes.
+description: Verifies a finished change against the Definition of Done — reads CI on the PR's current head (it never runs a full suite locally), then walks the changed flow in a real browser against the PR's Coolify preview. Use when implementation is complete and you are about to claim it works. Reports evidence, never fixes.
 tools: Bash, Read, Grep, Glob, Skill, mcp__Claude_Browser__preview_start, mcp__Claude_Browser__navigate, mcp__Claude_Browser__read_page, mcp__Claude_Browser__computer, mcp__Claude_Browser__find, mcp__Claude_Browser__form_input, mcp__Claude_Browser__read_console_messages, mcp__Claude_Browser__resize_window
 ---
 
@@ -56,20 +56,15 @@ Report each check by name, with its conclusion and the run it came from.
 M10 Phases 5 and 6 skipped it. Phase 7 ran it and immediately found a crash
 (`RangeError: Invalid time value`) that the entire unit suite missed.
 
-You do not need local infra, but **a PR has no preview until one is asked for**
-(2026-10-25: previews are billed compute, so they are built on demand). Ask for one when you
-are about to walk, not before: `gh api -X POST
-repos/Neablis/travel-collab/actions/workflows/vercel-preview.yml/dispatches -f ref=main -f
-inputs[pr]=<n>` builds the PR's current head once (`environments-and-deploys.md`, *Which
-pushes build a preview*). It lands at
-`https://travel-collab-git-<branch>-neablis-projects.vercel.app`; the exact URL is the
-`READY` deployment for the head sha in `mcp__Vercel__list_deployments` (`review-a-part`
-step 6 has the project and team ids). Vercel's PR comment is off. If the walk is not going
-to happen, do not request the preview.
+You do not need local infra: Coolify builds a preview of every PR on the box, at
+`https://<pr number>.preview.caesura.today` (`environments-and-deploys.md`, *Previews*). It is
+public and NOINDEX, so no secret is needed. A push rebuilds it, so before walking, poll
+`GET /api/health` on it until its `version` equals the PR head sha (`git rev-parse HEAD` of the PR
+branch). Until then the previous push's build is still answering.
 
 **In a cloud session the walk is `pnpm --filter web walk:preview <url> [path ...]`**
-(`docs/guidelines/cloud-agent-sessions.md`, *The Vercel preview IS reachable from here*):
-it needs `VERCEL_AUTOMATION_BYPASS_SECRET` or a `?_vercel_share=` URL, and it reports
+(`docs/guidelines/cloud-agent-sessions.md`, *The Coolify preview is reachable from here*):
+it needs only the URL, and it reports
 status, title and console errors per path. The `mcp__Claude_Browser__*` tools exist only
 in the desktop app, or as `mcp__remote-devices__Claude_Browser__*` when a cloud session is
 linked to Mitchell's computer: use them when they are in your tool list, `walk:preview`

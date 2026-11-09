@@ -2,6 +2,8 @@
 // (DATABASE_URL must not end up in a client bundle).
 // No fallback: a missing DATABASE_URL should fail loudly, not silently
 // connect to a local default that doesn't exist in preview/production.
+
+import { deployEnv } from "@/lib/deployment/env";
 if (!process.env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL is not set. Copy .env.example to apps/web/.env.local for local dev.",
@@ -46,7 +48,10 @@ export const serverConfig = {
   // KV_URL / REDIS_URL / the read-only token, which nothing here reads.
   kvRestApiUrl: process.env.KV_REST_API_URL ?? "",
   kvRestApiToken: process.env.KV_REST_API_TOKEN ?? "",
-  aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY ?? "",
+  // Direct provider keys (M59 part 4; the Vercel AI Gateway key is gone). Trimmed:
+  // a pasted secret can carry a newline.
+  anthropicApiKey: (process.env.ANTHROPIC_API_KEY ?? "").trim(),
+  openaiApiKey: (process.env.OPENAI_API_KEY ?? "").trim(),
   aiModel: process.env.AI_MODEL ?? DEFAULT_AI_MODEL,
   // The pre-turn intent classifier's model (askIntent.ts). Falls through to
   // AI_MODEL, not to the literal: setting AI_MODEL alone must move both, so
@@ -57,7 +62,7 @@ export const serverConfig = {
   // to guess at.
   aiClassifierModel: process.env.AI_CLASSIFIER_MODEL ?? process.env.AI_MODEL ?? DEFAULT_AI_MODEL,
   // The embedding model for plan-retrieval RAG (`server/ai/embeddings.ts`),
-  // reached through the Vercel AI Gateway like every other model call. One
+  // reached straight through OpenAI (`OPENAI_API_KEY`). One
   // named slot with a built-in default — ADR-019's rule, same as the
   // classifier above: no model id as a literal in kernel code, overrideable
   // with an env var. `text-embedding-3-small` (1536 dims) is the size the
@@ -135,7 +140,7 @@ export const serverConfig = {
 export function coverProxySecret(): string {
   const value = process.env.COVER_PROXY_SECRET ?? "";
   if (value !== "") return value;
-  if (process.env.VERCEL_ENV === "production") {
+  if (deployEnv() === "production") {
     throw new Error("COVER_PROXY_SECRET is not set. URL covers are signed with it, and production has no default.");
   }
   return "dev-cover-proxy-secret-not-for-production";

@@ -1,5 +1,5 @@
 // Per-actor request quotas for the two endpoints that spend a vendor's money
-// on the operator's key: the AI assistant (AI_GATEWAY_API_KEY) and the geocode
+// on the operator's key: the AI assistant (ANTHROPIC_API_KEY) and the geocode
 // proxy (LOCATIONIQ_API_KEY). Security review 2026-08-28, findings H1 and L4 —
 // before this, any signed-in account could loop near-body-limit prompts through
 // a 32-round-trip handler with nothing between it and the bill, and the AI kill
@@ -562,8 +562,8 @@ export function turnOutcomeQuota(): QuotaPolicy[] {
  *
  * FAILS CLOSED. A counter-store error refuses the request rather than waving it
  * through, matching the posture the rest of the server already takes on spend
- * and permission: `aiLiveFlag`'s `defaultValue: false` degrades an unreachable
- * flag service to simulated rather than to spending, `isDemoDataResetEnabled()`
+ * and permission: `aiLiveFlag` reads "true" or nothing, so an unset flag is
+ * simulated rather than spending, `isDemoDataResetEnabled()`
  * resolves anything that is not exactly the opt-in to false, and
  * `requireTripAccess` lets a database error propagate (a 500, i.e. denied)
  * rather than assuming access. It also costs nothing this deployment has not

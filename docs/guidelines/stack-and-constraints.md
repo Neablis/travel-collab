@@ -3,7 +3,7 @@
 ## The stack (ADR-002 is authoritative; this is the working summary)
 
 - **TypeScript strict everywhere**; pnpm workspaces monorepo.
-- **Next.js all-in-one** (App Router) on Vercel — UI and server in one app,
+- **Next.js all-in-one** (App Router), self-hosted in a Docker container on a Coolify VPS (M59) — UI and server in one app,
   separated by the lint wall (`src/server/**` only may import `@tc/domain`).
 - **Postgres** — Docker locally, Neon in prod; **Drizzle** ORM + migrations.
 - **Auth.js** with Google OAuth (no other providers until asked).
@@ -17,8 +17,8 @@
 
 1. **Free tier.** No service or dependency that requires payment. If a task
    seems to need one, stop and surface it with alternatives.
-2. **Serverless limits.** No WebSockets from Vercel functions; no background
-   daemons; projection updates must complete within the request. Long-running
+2. **Request-shaped server.** No WebSockets; no background
+   daemons or in-app timers (scheduled work is a Coolify scheduled task that calls a cron route); projection updates must complete within the request. Long-running
    work is a design problem to escalate, not a `setInterval` to hide.
    **No edge runtime** — the command pipeline needs interactive transactions;
    node runtime + `pg` driver + Neon pooled connection string only (ADR-004).
@@ -43,9 +43,10 @@
   replaying the event log is a standard workflow, not an emergency.
 - **CI is the referee:** the identical suite runs against a Postgres service
   container on every PR.
-- **Preview deployments are the parity environment:** every PR gets a Vercel
-  preview URL; anything serverless-shaped (cold starts, connection reuse,
-  request lifetime) is verified there, never assumed from localhost.
+- **Preview deployments are the parity environment:** every PR gets a Coolify
+  preview URL (`<pr>.preview.caesura.today`); anything deployment-shaped (the
+  container build, connection reuse, request lifetime, headers a proxy adds) is
+  verified there, never assumed from localhost.
 - **Migrations** run as an explicit drizzle-kit step in CI/deploy — never
   implicitly at app startup.
 

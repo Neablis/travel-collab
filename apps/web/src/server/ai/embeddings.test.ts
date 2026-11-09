@@ -3,10 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // `serverConfig` reads process.env once at module load, so every case here
 // stubs the env and re-imports — the same pattern as gateway.test.ts.
 // DATABASE_URL and API_TOKEN_PEPPER are set by vitest.setup.ts; only the
-// AI_GATEWAY_API_KEY and embedding knobs are stubbed per case.
+// OPENAI_API_KEY and embedding knobs are stubbed per case.
 
 // The whole point of this seam: the network never gets touched. The fake
-// below stands in for the Gateway's embedding model, so the REAL `embed`
+// below stands in for OpenAI's embedding model, so the REAL `embed`
 // from the `ai` package still runs against it — including its retry logic —
 // while no request leaves the process (the network guard would fail one).
 //
@@ -17,13 +17,13 @@ const seam = vi.hoisted(() => ({
   receivedModelId: undefined as string | undefined,
 }));
 
-vi.mock("@ai-sdk/gateway", () => ({
-  createGateway: () => ({
-    embeddingModel: (modelId: string) => {
+vi.mock("@ai-sdk/openai", () => ({
+  createOpenAI: () => ({
+    embedding: (modelId: string) => {
       seam.receivedModelId = modelId;
       return {
         specificationVersion: "v3",
-        provider: "test-gateway",
+        provider: "test-openai",
         modelId,
         doEmbed: async ({
           values,
@@ -33,7 +33,7 @@ vi.mock("@ai-sdk/gateway", () => ({
           abortSignal?: AbortSignal;
         }) => {
           // Plain Errors are not retried by the AI SDK (only APICallError /
-          // GatewayError with isRetryable are), so this path is fast.
+          // provider errors with isRetryable are), so this path is fast.
           if (seam.behavior === "throw") throw new Error("provider exploded");
           if (seam.behavior === "hang") {
             // Never resolves; the AbortSignal.timeout in embedText is what
@@ -78,37 +78,37 @@ async function embedTextWithEnv(env: Record<string, string | undefined>) {
 describe("embedText", () => {
   it("returns a 1536-dim embedding for text", async () => {
     const { embedText, serverConfig } = await embedTextWithEnv({
-      AI_GATEWAY_API_KEY: "test-key",
+      OPENAI_API_KEY: "test-key",
     });
     const embedding = await embedText("a food day in Tokyo");
     expect(embedding).not.toBeNull();
     expect(embedding).toHaveLength(1536);
     expect(embedding!.every((n) => typeof n === "number")).toBe(true);
-    // The model id comes from config, never from kernel code (ADR-019):
-    // asserted against the resolved value, not a literal.
-    expect(seam.receivedModelId).toBe(serverConfig.embeddingModel);
+    // The model id comes from config, never from kernel code (ADR-019); the
+    // provider is handed the bare name, without the `openai/` prefix.
+    expect(seam.receivedModelId).toBe(serverConfig.embeddingModel.replace(/^openai\//, ""));
   });
 
   it("honours AI_EMBEDDING_MODEL when set, leaving the default alone otherwise", async () => {
     const { embedText, serverConfig } = await embedTextWithEnv({
-      AI_GATEWAY_API_KEY: "test-key",
-      AI_EMBEDDING_MODEL: "vendor/other-embeddings",
+      OPENAI_API_KEY: "test-key",
+      AI_EMBEDDING_MODEL: "openai/other-embeddings",
     });
     await embedText("hello");
-    expect(serverConfig.embeddingModel).toBe("vendor/other-embeddings");
-    expect(seam.receivedModelId).toBe("vendor/other-embeddings");
+    expect(serverConfig.embeddingModel).toBe("openai/other-embeddings");
+    expect(seam.receivedModelId).toBe("other-embeddings");
   });
 
   it("returns null when the provider throws (fail-open)", async () => {
     seam.behavior = "throw";
-    const { embedText } = await embedTextWithEnv({ AI_GATEWAY_API_KEY: "test-key" });
+    const { embedText } = await embedTextWithEnv({ OPENAI_API_KEY: "test-key" });
     await expect(embedText("a food day in Tokyo")).resolves.toBeNull();
   });
 
   it("returns null when the provider hangs past the timeout (fail-open)", async () => {
     seam.behavior = "hang";
     const { embedText } = await embedTextWithEnv({
-      AI_GATEWAY_API_KEY: "test-key",
+      OPENAI_API_KEY: "test-key",
       AI_EMBEDDING_TIMEOUT_MS: "50",
     });
     await expect(embedText("a food day in Tokyo")).resolves.toBeNull();
@@ -116,18 +116,18 @@ describe("embedText", () => {
 
   it("returns null when the provider answers with the wrong dimensions", async () => {
     seam.behavior = "wrong-dims";
-    const { embedText } = await embedTextWithEnv({ AI_GATEWAY_API_KEY: "test-key" });
+    const { embedText } = await embedTextWithEnv({ OPENAI_API_KEY: "test-key" });
     await expect(embedText("a food day in Tokyo")).resolves.toBeNull();
   });
 
   it("throws on empty text — a programmer error, not a provider failure", async () => {
-    const { embedText } = await embedTextWithEnv({ AI_GATEWAY_API_KEY: "test-key" });
+    const { embedText } = await embedTextWithEnv({ OPENAI_API_KEY: "test-key" });
     await expect(embedText("")).rejects.toThrow("empty");
     await expect(embedText("   ")).rejects.toThrow("empty");
   });
 
-  it("throws when AI_GATEWAY_API_KEY is unset, like aiModel does", async () => {
-    const { embedText } = await embedTextWithEnv({ AI_GATEWAY_API_KEY: "" });
-    await expect(embedText("hello")).rejects.toThrow("AI_GATEWAY_API_KEY not set");
+  it("throws when OPENAI_API_KEY is unset, like aiModel does for its key", async () => {
+    const { embedText } = await embedTextWithEnv({ OPENAI_API_KEY: "" });
+    await expect(embedText("hello")).rejects.toThrow("OPENAI_API_KEY not set");
   });
 });

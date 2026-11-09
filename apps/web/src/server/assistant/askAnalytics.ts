@@ -976,9 +976,11 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
     plan: AskStepPlan | undefined,
     durationMs: number,
   ): StepSpend {
+    const model = plan?.model ?? params.model;
+    const routing = gatewayRoutingOf(step.providerMetadata);
     return {
       index,
-      model: plan?.model ?? params.model,
+      model,
       tier: plan?.tier ?? params.tier ?? null,
       tokensIn: step.usage?.inputTokens ?? null,
       cacheReadTokens: step.usage?.inputTokenDetails?.cacheReadTokens ?? null,
@@ -991,7 +993,11 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       persona: plan?.persona ?? params.entryPersona,
       fromPersona: plan?.fromPersona ?? null,
       edgeKind: plan?.edgeKind ?? null,
-      ...gatewayRoutingOf(step.providerMetadata),
+      // Direct Anthropic carries no Gateway routing metadata (M59 part 4), so a
+      // live Anthropic step names itself; the simulated model stays null.
+      // Spend is computed from these token counts, never read from the Gateway.
+      provider: routing.provider ?? (model.startsWith("anthropic/") ? "anthropic" : null),
+      gatewayGenerationId: routing.gatewayGenerationId,
     };
   }
 

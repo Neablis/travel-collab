@@ -18,21 +18,18 @@ export default async function globalSetup(): Promise<void> {
     // back `undefined` and silently pass the check below — a health check
     // that fails open is worse than no health check.
     const body = res.ok() ? await res.json().catch(() => undefined) : undefined;
-    // `source: "env"` is required, not just `live: false`, and that is a real
-    // tightening rather than belt-and-braces. Since the `ai-live` flag became
-    // per-user targetable (ADR-019 amendment 2026-09-08), a `live: false` that
-    // came from the FLAG was evaluated for this unauthenticated probe — it says
-    // nothing about the signed-in user the specs then sign in as, who a
-    // targeting rule could perfectly well put on a real model. Only AI_LIVE
-    // decides for everyone at once, so only AI_LIVE can clear a whole suite.
-    // Set it (`.env.example` ships `AI_LIVE=false`; CI sets it in the workflow
-    // env) — an unset AI_LIVE is now a refusal, on purpose.
+    // `source: "env"` is required, not just `live: false`: a `live: false` from
+    // the FLAG may be only an unset default, which a later `FLAG_AI_LIVE=true`
+    // turns into a real model for the whole suite. Only an explicit AI_LIVE is
+    // a decision, so only AI_LIVE can clear a suite. Set it (`.env.example`
+    // ships `AI_LIVE=false`; CI sets it in the workflow env) — an unset AI_LIVE
+    // is a refusal, on purpose.
     if (!res.ok() || body?.live !== false || body?.source !== "env") {
       throw new Error(
         `Could not verify AI_LIVE=false (GET /api/health/ai-mode -> ${res.status()}, body: ${JSON.stringify(body)}). ` +
           "Refusing to run e2e against a server whose AI mode isn't confirmed simulated for every user. " +
           'Set AI_LIVE=false in the server\'s environment — a mode resolved from the flag ("source":"flag") ' +
-          "is per-user and cannot clear the suite.",
+          "may be an unset default and cannot clear the suite.",
       );
     }
   } finally {

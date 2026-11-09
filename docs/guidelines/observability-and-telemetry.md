@@ -9,7 +9,7 @@ operating manual.
 
 | Question | Where | Why there |
 |---|---|---|
-| "What happened in *this* turn?" | Vercel runtime logs — the `ai.ask` / `ai.ask.outcome` / `ai.proposal.apply` JSON lines | One self-contained record: the question, the tool trace, the classifier's verdict, the failure cause. Read a week of them with the `ai-usage` skill. |
+| "What happened in *this* turn?" | The container logs in Coolify — the `ai.ask` / `ai.ask.outcome` / `ai.proposal.apply` JSON lines | One self-contained record: the question, the tool trace, the classifier's verdict, the failure cause. Read a week of them with the `ai-usage` skill. |
 | "Where did the four seconds go?" | Sentry → **AI Agents** (and Traces) | The `gen_ai.*` spans: the run, each model round-trip, each tool execution, with per-step token usage. |
 | "Is it getting more expensive / worse?" | Sentry → **Metrics** | Counters and distributions that aggregate over thousands of turns. |
 
@@ -27,7 +27,7 @@ is a bug, not a sampling artefact.
   sampled root span is open. Browser profiling was removed on 2026-10-18.
 - **Session Replay**: 10% of sessions, 100% of sessions that hit an error.
 - **Logs** — `Sentry.logger.*`. Note the app's own analytics lines are
-  `console.info` and go to Vercel, not here.
+  `console.info` and go to the container log (Coolify), not here.
 - **AI agent runs** — see the metric and span reference below.
 - **Metrics** — same.
 
@@ -117,7 +117,7 @@ Five things worth knowing before you chart any of them:
    attribute stayed, so a dashboard built against it does not break and a
    second agent has a dimension to arrive on. There are no `ai.command.*`
    metrics any more.
-3. **Filter `simulated:false` for anything cost-shaped.** Every Vercel
+3. **Filter `simulated:false` for anything cost-shaped.** Every
    environment runs with the `ai-live` flag off by default (ADR-019), and
    those turns contact no provider and cost nothing.
 4. **`ai.vendor.calls` is capacity, never cost — never sum it into one.** A
@@ -205,7 +205,7 @@ children are already gone in their own envelope, correctly parented.
   `/api/sentry-example-api` were deleted on 2026-09-25 (KI-2026-09-05-f; ADR-032
   amendment): the route was unauthenticated and let anyone fill the project with
   errors. A real error in **production** is the round-trip check now:
-- **Sentry is off on Vercel previews** (2026-09-28, PR #269; ADR-032
+- **Sentry is off on previews** (2026-09-28, PR #269; ADR-032
   amendment). `sentry.shared.ts` blanks the DSN whenever the environment is
   `preview`, in all three runtimes, so a preview sends no errors, traces,
   replays or AI spans at all. Nothing you do on a preview will show up in

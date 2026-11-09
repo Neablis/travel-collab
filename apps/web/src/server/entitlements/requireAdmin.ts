@@ -31,8 +31,8 @@ export async function requireAdminApi(): Promise<AdminGuard> {
  *
  * Separate from the endpoint half only because a page cannot return a
  * `Response`; the DECISION is one function, `callerIsAdmin`, and both go
- * through it — the stored `users.is_admin`, or the `admin-console` flag
- * targeted at this caller (M20 link 7, 2026-09-14).
+ * through it — the stored `users.is_admin`, or this caller's id listed in
+ * `ADMIN_USER_IDS` (M20 link 7, 2026-09-14; per caller since M59).
  */
 export async function adminUserId(): Promise<string | null> {
   const session = await auth();

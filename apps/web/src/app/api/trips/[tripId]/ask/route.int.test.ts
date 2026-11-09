@@ -1690,7 +1690,7 @@ describe("POST /api/trips/:id/ask", () => {
     // for caching — its prompt is a few hundred tokens and mostly the question
     // itself, so there is no stable prefix worth paying a cache write for.
     // Asserting every call would encode the opposite decision by accident.
-    it("asks the gateway to cache the turn's prefix", async () => {
+    it("asks the provider to cache the turn's prefix", async () => {
       const tripId = await seedTrip();
       const { model, providerOptions } = recordingModel();
       const res = await handleAskRequest(
@@ -1701,7 +1701,7 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
 
-      expect(providerOptions()).toContainEqual({ gateway: { caching: "auto" } });
+      expect(providerOptions()).toContainEqual({ anthropic: { cacheControl: { type: "ephemeral" } } });
     });
 
     // Left at the provider's default, a reasoning model spent ~8,000 output
@@ -3209,14 +3209,14 @@ describe("POST /api/trips/:id/ask", () => {
     });
 
     // The kill switch's promise, as a test: with AI off the endpoint answers on
-    // a deployment carrying no AI_GATEWAY_API_KEY at all. The only test here
+    // a deployment carrying no ANTHROPIC_API_KEY at all. The only test here
     // that omits the model, so the only one on the real selectAiModel path.
     it("answers with no model injected and no gateway key set", async () => {
       const tripId = await seedTrip();
       const priorLive = process.env.AI_LIVE;
-      const priorKey = process.env.AI_GATEWAY_API_KEY;
+      const priorKey = process.env.ANTHROPIC_API_KEY;
       process.env.AI_LIVE = "false";
-      delete process.env.AI_GATEWAY_API_KEY;
+      delete process.env.ANTHROPIC_API_KEY;
       try {
         const res = await handleAskRequest(
           req(tripId, { messages: [userMessage("how long is this trip?")], scope: { kind: "trip" } }),
@@ -3227,7 +3227,7 @@ describe("POST /api/trips/:id/ask", () => {
       } finally {
         if (priorLive === undefined) delete process.env.AI_LIVE;
         else process.env.AI_LIVE = priorLive;
-        if (priorKey !== undefined) process.env.AI_GATEWAY_API_KEY = priorKey;
+        if (priorKey !== undefined) process.env.ANTHROPIC_API_KEY = priorKey;
       }
     });
   });

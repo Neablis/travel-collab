@@ -15,23 +15,29 @@
 // `withSentryConfig` in next.config.ts, never by this file, and never reaches
 // a bundle.
 
+import { deployEnv, deploymentVersion } from "./src/lib/deployment/env";
+
 /**
  * Which deployment an event came from.
  *
- * `VERCEL_ENV` ("production" | "preview" | "development") is set by Vercel and
- * is the distinction that matters for triage: a production error is a user.
- * A preview sends nothing at all — see `SENTRY_DSN` below. Locally it is unset
- * and `NODE_ENV` answers instead — which is why this is not just `VERCEL_ENV`.
+ * `deployEnv()` ("production" | "preview" | "development": `APP_ENV`, else
+ * Vercel's `VERCEL_ENV`) is the distinction that matters for triage: a
+ * production error is a user. A preview sends nothing at all — see
+ * `SENTRY_DSN` below. Locally it is unset and `NODE_ENV` answers instead —
+ * which is why this is not just `deployEnv()`.
  *
- * `NEXT_PUBLIC_VERCEL_ENV` comes first for the reason `envRate` sets out: in
- * the browser the other two are `undefined` and `NODE_ENV` is "production" on
- * every built app, preview included, so without the public name every preview
- * page would file its errors against production. Vercel exposes it
- * automatically while "Automatically expose System Environment Variables" is
- * on, which is the default — if preview browser events ever start arriving
- * tagged `production`, that setting is the first thing to check.
+ * The `NEXT_PUBLIC_` names come first for the reason `envRate` sets out: in
+ * the browser `deployEnv()` reads `undefined` (the module reads `process.env`
+ * by a computed name, which Next does not inline) and `NODE_ENV` is
+ * "production" on every built app, preview included, so without a public name
+ * every preview page would file its errors against production. A self-hosted
+ * build sets `NEXT_PUBLIC_APP_ENV` for this; Vercel exposes
+ * `NEXT_PUBLIC_VERCEL_ENV` automatically while "Automatically expose System
+ * Environment Variables" is on — if preview browser events ever start arriving
+ * tagged `production`, that is the first thing to check.
  */
-export const SENTRY_ENVIRONMENT = process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "development";
+export const SENTRY_ENVIRONMENT =
+  process.env.NEXT_PUBLIC_APP_ENV ?? process.env.NEXT_PUBLIC_VERCEL_ENV ?? deployEnv() ?? process.env.NODE_ENV ?? "development";
 
 /**
  * Where events go.
@@ -49,8 +55,8 @@ export const SENTRY_ENVIRONMENT = process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.
  * loaded Replay, profiling and tracing, and posted to `/monitoring` often
  * enough to be answered 429, spending the project's quota on sessions nobody
  * triages. The same `""` off switch, keyed on `SENTRY_ENVIRONMENT`, so it
- * holds in all three runtimes: the browser reads `NEXT_PUBLIC_VERCEL_ENV`,
- * the server and edge `VERCEL_ENV`.
+ * holds in all three runtimes: the browser reads the `NEXT_PUBLIC_` name,
+ * the server and edge `deployEnv()`.
  */
 export const SENTRY_DSN =
   SENTRY_ENVIRONMENT === "preview"
@@ -68,7 +74,9 @@ export const SENTRY_DSN =
  * no uploaded source maps to associate with.
  */
 export const SENTRY_RELEASE =
-  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? undefined;
+  process.env.NEXT_PUBLIC_APP_VERSION ??
+  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ??
+  (deploymentVersion() === "local" ? undefined : deploymentVersion());
 
 /** False when the DSN was deliberately blanked — see `SENTRY_DSN`. */
 export const sentryEnabled = SENTRY_DSN !== "";
