@@ -10,6 +10,7 @@ import { db } from "@/server/db/client";
 import { oauthCodes, oauthTokens } from "@/server/db/schema";
 import { createMemoryClient } from "@/server/cache/memory";
 import { createRedisCache } from "@/server/cache/redis";
+import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
 import { makeTestAgent, publicResolve } from "@/server/poppy/testAgent";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { registerClient, resolveClient, type OAuthClient } from "./clients";
@@ -251,8 +252,8 @@ describe("revoking", () => {
 // assertion, at the code exchange, at refresh and at revocation.
 const ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
 
-async function agentConsented() {
-  const agent = await makeTestAgent({ issuer: oauthIssuer() });
+async function agentConsented(document?: Record<string, unknown>) {
+  const agent = await makeTestAgent({ issuer: oauthIssuer(), document });
   const ownerId = `dev-${randomUUID()}`;
   // One cache per agent: a `jti` is spent in it, as in the shared one.
   const deps = { fetch: agent.fetch, resolve: publicResolve, userId: ownerId, cache: createRedisCache(createMemoryClient()) };
@@ -303,6 +304,52 @@ describe("a private_key_jwt client", () => {
     expect(errorOf(await again({ ...once, refreshToken: rotated.refresh_token }))).toBe("invalid_client");
   });
 
+  // The kit's validator sends a made-up refresh token (and a made-up code) with the
+  // assertion under test, and reads `invalid_grant` as "the assertion was accepted".
+  it("is authenticated before any code or refresh token is looked up", async () => {
+    const { agent, deps, signed } = await agentConsented();
+    const stranger = await makeTestAgent({ issuer: oauthIssuer(), host: new URL(agent.clientId).host });
+    const forged = { clientAssertion: await stranger.assertion(), clientAssertionType: ASSERTION_TYPE };
+    const madeUp = (over: Partial<Parameters<typeof refresh>[0]>) =>
+      refresh({ refreshToken: mintSecret("tcr_"), clientId: agent.clientId, ...over }, new Date(), deps);
+    expect(errorOf(await madeUp(forged))).toBe("invalid_client");
+    const code = (over: Partial<Parameters<typeof exchangeCode>[0]>) =>
+      exchangeCode({ code: mintSecret("tcc_"), codeVerifier: VERIFIER, redirectUri: REDIRECT, clientId: agent.clientId, ...over }, new Date(), deps);
+    expect(errorOf(await code(forged))).toBe("invalid_client");
+    // The control: a good assertion gets past authentication to the token it does not find.
+    expect(errorOf(await madeUp(await signed()))).toBe("invalid_grant");
+  });
+
+  it("is not signed out by a copied refresh token that has been rotated, presented without an assertion", async () => {
+    const { exchange, signed, agent, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    await refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
+    const replay = await refresh({ refreshToken: refresh_token, clientId: agent.clientId }, new Date(), deps);
+    expect(errorOf(replay)).toBe("invalid_client");
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+    // The agent itself presenting the old token is reuse, and cuts the grant off.
+    const own = await refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
+    expect(errorOf(own)).toBe("invalid_grant");
+    expect((await grantOf(grant.id))!.revokedAt).not.toBeNull();
+  });
+
+  it("is read again, at most once a minute, when its assertion names a key not yet cached", async () => {
+    const { exchange, signed, agent, deps } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const at = (seconds: number) => {
+      const now = new Date(Date.now() + seconds * 1000);
+      const second = Math.floor(now.getTime() / 1000);
+      return { now, over: { alg: "PS384", iat: second - 10, exp: second + 50 } };
+    };
+    const rotatedIn = async (seconds: number) => {
+      const { now, over } = at(seconds);
+      const assertion = await agent.assertion(over);
+      return refresh({ refreshToken: refresh_token, clientId: agent.clientId, clientAssertion: assertion, clientAssertionType: ASSERTION_TYPE }, now, deps);
+    };
+    expect(errorOf(await rotatedIn(20))).toBe("invalid_client");
+    expect(errorOf(await rotatedIn(120))).toBe("ok");
+  });
+
   it("is refused a scope beyond what the grant holds, and a refusal rotates nothing", async () => {
     const { exchange, signed, agent, deps } = await agentConsented();
     const { refresh_token } = tokensOf(await exchange(await signed()));
@@ -322,5 +369,55 @@ describe("a private_key_jwt client", () => {
     expect((await grantOf(grant.id))!.revokedAt).toBeNull();
     expect(await revokeSecret(refresh_token, new Date(), { clientId: agent.clientId, ...(await signed()) }, deps)).toEqual({ ok: true });
     expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedReason: "owner" }));
+  });
+});
+
+// A public CIMD client (`none`) is served as it was before Personal Agents: the
+// token endpoint does not read its document again, so a host that is down, or a
+// spent fetch quota, cannot sign people out of Claude Code.
+describe("a public CIMD client", () => {
+  const publicAgent = () => agentConsented({ token_endpoint_auth_method: "none", jwks_uri: undefined });
+  const down = vi.fn<Fetcher>(async () => new Response("", { status: 503 }));
+  const later = () => new Date(Date.now() + 10 * 60 * 1000);
+
+  it("refreshes while its document cannot be fetched", async () => {
+    const { exchange, agent, deps } = await publicAgent();
+    const { refresh_token } = tokensOf(await exchange());
+    const outcome = await refresh({ refreshToken: refresh_token, clientId: agent.clientId }, later(), { ...deps, fetch: down });
+    expect(errorOf(outcome)).toBe("ok");
+  });
+
+  it("is not held to the grant's exact scope on refresh, as before", async () => {
+    const { exchange, agent, deps } = await publicAgent();
+    const { refresh_token } = tokensOf(await exchange());
+    const outcome = await refresh({ refreshToken: refresh_token, clientId: agent.clientId, scope: "trips:read library:write" }, new Date(), deps);
+    expect(errorOf(outcome)).toBe("ok");
+  });
+});
+
+describe("revoking a private_key_jwt client's token", () => {
+  const spying = (fetch: Fetcher) => vi.fn<Fetcher>(fetch);
+
+  it("fetches nothing for a client_id that is not the grant's", async () => {
+    const { exchange, signed, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const fetch = spying(async () => new Response("{}", { status: 200 }));
+    const outcome = await revokeSecret(
+      refresh_token,
+      new Date(),
+      { clientId: `https://other-${randomUUID()}.test/client.json` },
+      { ...deps, fetch, cache: createRedisCache(createMemoryClient()) },
+    );
+    expect(outcome).toEqual({ ok: true });
+    expect(fetch).not.toHaveBeenCalled();
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+  });
+
+  it("leaves the grant live when the document cannot be read and the request does not sign", async () => {
+    const { exchange, signed, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const fetch = spying(async () => new Response("", { status: 503 }));
+    expect(await revokeSecret(refresh_token, new Date(), {}, { ...deps, fetch, cache: createRedisCache(createMemoryClient()) })).toEqual({ ok: true });
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
   });
 });

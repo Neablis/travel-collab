@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import type { JWK } from "jose";
 import { z } from "zod";
-import { cimdDocumentKey } from "@/server/cache/keys";
+import { cimdDocumentKey, clientKeySetKey } from "@/server/cache/keys";
 import { getCache, type CachePort } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
 import { oauthClients } from "@/server/db/schema";
@@ -15,7 +15,7 @@ import {
 import { assertPublicAddress, RemoteImageRefused, resolveHost, type Resolve } from "@/server/external/remoteImage/guard";
 import { consumeQuota, oauthCimdQuota } from "@/server/quota";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
-import { checkRedirectUri } from "./redirects";
+import { checkRedirectUri, isLoopback } from "./redirects";
 
 // **Who a `client_id` is** (ADR-083 §6, amendment E).
 //
@@ -149,12 +149,15 @@ const ClientMetadataDocument = z
     if (doc.token_endpoint_auth_method === "private_key_jwt" && doc.jwks_uri === undefined) {
       bad("jwks_uri", "private_key_jwt needs a jwks_uri");
     }
+    // Only a Personal Agent is held to its own domain: a public client's
+    // `jwks_uri` and `logo_uri` were never read, and a CDN logo is ordinary.
+    if (doc.token_endpoint_auth_method !== "private_key_jwt") return;
     if (doc.jwks_uri !== undefined && !onClientsDomain(doc.client_id, doc.jwks_uri)) {
       bad("jwks_uri", "jwks_uri must be an https URL on the client_id's domain");
     }
-    if (doc.logo_uri !== undefined && !onClientsDomain(doc.client_id, doc.logo_uri)) {
-      bad("logo_uri", "logo_uri must be an https URL on the client_id's domain");
-    }
+    // Poppy 4.1: each redirect is on the client_id's domain, or a loopback redirect.
+    const stray = doc.redirect_uris.find((uri) => !onClientsDomain(doc.client_id, uri) && !isLoopback(uri));
+    if (stray !== undefined) bad("redirect_uris", `redirect ${stray} must be on the client_id's domain or a loopback redirect`);
   });
 
 function toClient(row: typeof oauthClients.$inferSelect): OAuthClient {
@@ -285,7 +288,8 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
       cimdHost: parsed.host,
       authMethod: confidential ? "private_key_jwt" : "none",
       jwksUri: confidential ? document.data.jwks_uri! : null,
-      logoUri: document.data.logo_uri ?? null,
+      // Only a Personal Agent's, and only on its own domain: the consent page loads it.
+      logoUri: confidential && onClientsDomain(url, document.data.logo_uri ?? "") ? document.data.logo_uri! : null,
     },
   };
 }
@@ -304,20 +308,29 @@ const KEY_SET_MAX_BYTES = 16 * 1024;
 
 export type KeySetOutcome = { ok: true; keys: JWK[] } | { ok: false; detail: string };
 
+/** The youngest a cached key set may be and still be read again for an unknown `kid`. */
+const KEY_SET_REFETCH_SECONDS = 60;
+
 /**
  * The keys a `private_key_jwt` client signs with, fetched from its `jwks_uri`
  * the way its document was: charged to `deps.userId`, through the guarded
  * fetcher, cached for `CIMD_CACHE_TTL_SECONDS`. Never `createRemoteJWKSet`,
  * whose own fetch would bypass the address guard and the quota.
  */
-export async function fetchClientKeys(client: OAuthClient, deps: ClientDeps = {}): Promise<KeySetOutcome> {
+export async function fetchClientKeys(
+  client: OAuthClient,
+  deps: ClientDeps = {},
+  /** `again` is a key set asked for because no key matched: a copy younger than a minute is kept, so that is one fetch a minute at most. */
+  opts: { again?: boolean } = {},
+): Promise<KeySetOutcome> {
   if (client.jwksUri === null) return { ok: false, detail: "the client has no jwks_uri" };
   const url = new URL(client.jwksUri);
   const now = deps.now ?? new Date();
   const cache = deps.cache ?? getCache();
-  const key = cimdDocumentKey(client.jwksUri);
+  const key = clientKeySetKey(client.jwksUri);
   const cached = await cache.get<CachedDocument>(key);
-  const fresh = cached !== null && now.getTime() - cached.fetchedAt < CIMD_CACHE_TTL_SECONDS * 1000;
+  const maxAgeSeconds = opts.again === true ? KEY_SET_REFETCH_SECONDS : CIMD_CACHE_TTL_SECONDS;
+  const fresh = cached !== null && now.getTime() - cached.fetchedAt < maxAgeSeconds * 1000;
   let body: unknown;
   if (fresh) {
     body = cached.document;

@@ -28,6 +28,12 @@ export interface CachePort {
   get<T>(key: string): Promise<T | null>;
   /** Store `value` for `ttlSeconds`. Best-effort: a failure is ignored. */
   set(key: string, value: unknown, ttlSeconds: number): Promise<void>;
+  /**
+   * Store `value` only if `key` is absent, in one step, and say whether this call
+   * wrote it. A failure or timeout answers `true`: the cache is best-effort, so an
+   * outage lets a claim through rather than refusing everything.
+   */
+  setIfAbsent(key: string, value: unknown, ttlSeconds: number): Promise<boolean>;
   /** Forget `key`. Best-effort: a failure is ignored. */
   del(key: string): Promise<void>;
 }
@@ -35,7 +41,8 @@ export interface CachePort {
 /** The subset of the Upstash client this module calls, so a test can hand in a fake. */
 export interface RedisClient {
   get<T>(key: string): Promise<T | null>;
-  set(key: string, value: unknown, options: { ex: number }): Promise<unknown>;
+  /** With `nx`, writes only an absent key and answers `null` when it was there (Upstash `SET NX`). */
+  set(key: string, value: unknown, options: { ex: number } | { ex: number; nx: true }): Promise<unknown>;
   del(key: string): Promise<unknown>;
 }
 
@@ -46,6 +53,7 @@ export const CACHE_TIMEOUT_MS = 300;
 export const noopCache: CachePort = {
   get: async () => null,
   set: async () => {},
+  setIfAbsent: async () => true,
   del: async () => {},
 };
 
@@ -81,6 +89,8 @@ export function createRedisCache(client: RedisClient, timeoutMs: number = CACHE_
     get: <T>(key: string) => bounded(() => client.get<T>(key), null, timeoutMs),
     set: (key, value, ttlSeconds) =>
       bounded(async () => void (await client.set(key, value, { ex: ttlSeconds })), undefined, timeoutMs),
+    setIfAbsent: (key, value, ttlSeconds) =>
+      bounded(async () => (await client.set(key, value, { ex: ttlSeconds, nx: true })) !== null, true, timeoutMs),
     del: (key) => bounded(async () => void (await client.del(key)), undefined, timeoutMs),
   };
 }

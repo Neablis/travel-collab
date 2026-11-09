@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API_SCOPES, SCOPE_CATALOGUE, SCOPE_HINTS } from "@tc/contracts";
+import { OAUTH_SCOPES } from "@/server/oauth/metadata";
 import { poppyDocument } from "./discovery";
 
 // What a Personal Agent reads first (Poppy spec 3.1). Each field below is one
@@ -18,10 +19,18 @@ describe("poppyDocument", () => {
     const doc = poppyDocument();
     expect(doc.protocol_version).toBe("0.4");
     expect(doc.organization).toMatchObject({ domain: "caesura.today", name: "Caesura" });
-    expect(doc.auth.scopes).toEqual(
+    expect(doc.auth.scopes).toMatchObject(
       Object.fromEntries(API_SCOPES.map((scope) => [scope, SCOPE_CATALOGUE[scope].description])),
     );
     expect(doc.auth.scope_hints).toEqual(SCOPE_HINTS);
+  });
+
+  it("describes every scope the metadata publishes, offline_access included", () => {
+    production();
+    // The kit's metadata.scopes-described check reads scopes_supported against this.
+    for (const scope of OAUTH_SCOPES) {
+      expect(poppyDocument().auth.scopes, scope).toHaveProperty([scope], expect.stringMatching(/\S/));
+    }
   });
 
   it("lists the MCP server and the OpenAPI description, the website, and no agent or tasks yet", () => {

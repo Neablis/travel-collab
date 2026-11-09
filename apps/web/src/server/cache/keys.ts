@@ -41,6 +41,26 @@ export function cimdDocumentKey(url: string): string {
 }
 
 /**
+ * A Personal Agent's key set, by the digest of its `jwks_uri`. Apart from
+ * `cimdDocumentKey`: each is parsed with its own schema, which strips what it
+ * does not know, so one JSON served at both URLs must not be cached as the other.
+ * Its TTL is `CIMD_CACHE_TTL_SECONDS` too.
+ */
+export function clientKeySetKey(url: string): string {
+  return `${deployEnv() ?? "dev"}:oauth:jwks:${digest(url)}`;
+}
+
+/**
+ * Whether a CIMD client was last read as public (`none`), by the digest of its
+ * URL: lets the token endpoint serve a public client without fetching its
+ * document again. A Personal Agent never has one, so it is always re-read.
+ * Its TTL is `CLIENT_PUBLIC_TTL_SECONDS` in `server/oauth/tokens.ts`.
+ */
+export function clientPublicKey(url: string): string {
+  return `${deployEnv() ?? "dev"}:oauth:public:${digest(url)}`;
+}
+
+/**
  * A client assertion's `jti` seen (RFC 7523 section 3), keyed by the digest of
  * client and `jti` together, since a `jti` is only unique per issuer. Lives as
  * long as the assertion could still verify.

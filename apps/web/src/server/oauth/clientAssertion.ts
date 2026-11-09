@@ -1,4 +1,4 @@
-import { createLocalJWKSet, jwtVerify, type JWK } from "jose";
+import { createLocalJWKSet, errors, jwtVerify, type JWK, type JWTVerifyOptions } from "jose";
 import { clientAssertionJtiKey } from "@/server/cache/keys";
 import type { CachePort } from "@/server/cache/redis";
 
@@ -13,7 +13,8 @@ import type { CachePort } from "@/server/cache/redis";
 // **Short means five minutes from `iat`**, and the `jti` is kept until the
 // assertion would have expired anyway. The cache is best-effort (ADR-059), so
 // a replay window opens only while it is down, and the assertion then still
-// has to be unexpired and signed.
+// has to be unexpired and signed. The claim is one `SET NX`, so two requests
+// carrying one assertion at once cannot both pass.
 
 export const CLIENT_ASSERTION_ALGORITHMS = ["ES256", "PS384"] as const;
 /** The longest an assertion may live, `iat` to `exp`. */
@@ -27,18 +28,55 @@ const no = (reason: string): AssertionOutcome => ({ ok: false, reason });
 /** Check `assertion` for `clientId` against its public `keys`, and remember its `jti`. */
 export async function verifyClientAssertion(
   assertion: string,
-  deps: { clientId: string; issuer: string; keys: JWK[]; now: Date; cache: CachePort },
+  deps: {
+    clientId: string;
+    issuer: string;
+    keys: JWK[];
+    now: Date;
+    cache: CachePort;
+    /** Called once when no key matches the assertion's `kid`, for a key set read again; undefined or `null` gives up. */
+    refetchKeys?: () => Promise<JWK[] | null>;
+  },
 ): Promise<AssertionOutcome> {
+  const options: JWTVerifyOptions = {
+    algorithms: [...CLIENT_ASSERTION_ALGORITHMS],
+    issuer: deps.clientId,
+    subject: deps.clientId,
+    currentDate: deps.now,
+    clockTolerance: CLOCK_TOLERANCE_SECONDS,
+    // Also refuses an `iat` ahead of now: without it `exp - iat` alone would let a
+    // far-future assertion stay valid for as long as it is dated ahead.
+    maxTokenAge: CLIENT_ASSERTION_MAX_LIFETIME_SECONDS,
+    requiredClaims: ["iss", "sub", "aud", "exp", "iat", "jti"],
+  };
+  const against = async (keys: JWK[]) => {
+    try {
+      return (await jwtVerify(assertion, createLocalJWKSet({ keys }), options)).payload;
+    } catch (error) {
+      // No `kid` and two keys of the type (a rotation in progress): RFC 7523 does not
+      // require a `kid`, so each candidate is tried rather than refusing the agent.
+      if (!(error instanceof errors.JWKSMultipleMatchingKeys)) throw error;
+      let last: unknown = error;
+      for await (const candidate of error) {
+        try {
+          return (await jwtVerify(assertion, candidate, options)).payload;
+        } catch (inner) {
+          last = inner;
+        }
+      }
+      throw last;
+    }
+  };
   let payload;
   try {
-    ({ payload } = await jwtVerify(assertion, createLocalJWKSet({ keys: deps.keys }), {
-      algorithms: [...CLIENT_ASSERTION_ALGORITHMS],
-      issuer: deps.clientId,
-      subject: deps.clientId,
-      currentDate: deps.now,
-      clockTolerance: CLOCK_TOLERANCE_SECONDS,
-      requiredClaims: ["iss", "sub", "aud", "exp", "iat", "jti"],
-    }));
+    try {
+      payload = await against(deps.keys);
+    } catch (error) {
+      // A key rotated in since the key set was cached: read it again, once.
+      const fresh = error instanceof errors.JWKSNoMatchingKey ? await deps.refetchKeys?.() : null;
+      if (fresh == null) throw error;
+      payload = await against(fresh);
+    }
   } catch (error) {
     return no(error instanceof Error ? error.message : "invalid assertion");
   }
@@ -48,8 +86,7 @@ export async function verifyClientAssertion(
   if (exp - iat > CLIENT_ASSERTION_MAX_LIFETIME_SECONDS) return no("the assertion lives too long");
   if (jti === "" || jti.length > 256) return no("jti is not usable");
   const key = clientAssertionJtiKey(deps.clientId, jti);
-  if ((await deps.cache.get<true>(key)) !== null) return no("jti was already used");
   const ttl = Math.max(1, exp + CLOCK_TOLERANCE_SECONDS - Math.floor(deps.now.getTime() / 1000));
-  await deps.cache.set(key, true, ttl);
+  if (!(await deps.cache.setIfAbsent(key, true, ttl))) return no("jti was already used");
   return { ok: true };
 }

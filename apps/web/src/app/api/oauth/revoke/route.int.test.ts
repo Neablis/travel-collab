@@ -101,5 +101,22 @@ describe("POST /api/oauth/revoke for a Personal Agent", () => {
     expect(accepted.status).toBe(200);
     expect((await grantOf(grant.id))!.revokedAt).not.toBeNull();
   });
-});
 
+  it("revokes for an assertion that names the client and leaves client_id out, and refuses one that names nobody", async () => {
+    const { agent, grant, code, redirectUri } = await agentGrant();
+    const sign = async () => ({ clientAssertion: await agent.assertion(), clientAssertionType: CLIENT_ASSERTION_TYPE });
+    const tokens = await exchangeCode(
+      { code, codeVerifier: VERIFIER, redirectUri, clientId: agent.clientId, ...(await sign()) },
+      new Date(),
+      { cache: shared.cache! },
+    );
+    if (!tokens.ok) throw new Error(tokens.description);
+    const form = async (assertion?: string) =>
+      `token=${tokens.body.refresh_token}&client_assertion_type=${encodeURIComponent(CLIENT_ASSERTION_TYPE)}&client_assertion=${encodeURIComponent(assertion ?? (await sign()).clientAssertion)}`;
+    // An assertion nobody can read is never a quiet 200 that revoked nothing.
+    expect((await revoke(await form("not-a-jwt"))).status).toBe(401);
+    expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+    expect((await revoke(await form())).status).toBe(200);
+    expect((await grantOf(grant.id))!.revokedAt).not.toBeNull();
+  });
+});
