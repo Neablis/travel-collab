@@ -192,7 +192,7 @@ decide that. Three things are Poppy's own:
   *Agents* tab, where the operator can block it. It is limited to 20 reports an hour
   per `client_id`, 30 per caller IP and 500 in all (charged before the Session opens, so
   only a report inside the share records an agent; a 429 with `Retry-After`, in the
-  `rate-limited` envelope the Session gate answers in; `AGENT_FEEDBACK_RATE_LIMIT_*` in
+  `rate-limited` envelope the Session gate answers in, `{ error: { code, message } }`, or a 503 `service-unavailable` with `Retry-After` when the counter is down; `AGENT_FEEDBACK_RATE_LIMIT_*` in
   `.env.example`). `GET /api/poppy/tasks` records no Session row for an agent nobody has
   allowed. Reports are kept for 90 days, at
   most 2000 of them.
@@ -272,7 +272,7 @@ One envelope, always:
 | 404 | `not-found` | No such thing, or not yours |
 | 409 | `conflict` | Somebody else changed this trip first. **Re-read and retry** — this is the one refusal worth sending again unchanged |
 | 422 | `cover-url-rejected` | The cover URL failed its check. `details.reason` says which; nothing was saved |
-| 429 | `rate-limited` | Honour `Retry-After` |
+| 429 | `rate-limited` | Honour `Retry-After`. `/api/poppy/*` answers in the same envelope |
 | 5xx | `server-error`, `service-unavailable` | Ours. Retry `service-unavailable` |
 
 401s carry `WWW-Authenticate: Bearer`. 429s carry `Retry-After`.

@@ -123,7 +123,8 @@ function versionServed(header: string | null): boolean {
 }
 
 /**
- * The refusal for a spent share (new Sessions, or fetches for an agent nobody has allowed), in the `{ error: { code, message } }` envelope
+ * The refusal for a spent share (new Sessions, reports, or fetches for an agent nobody
+ * has allowed), in the `{ error: { code, message } }` envelope
  * `/api/v1/*` and `/api/mcp` both answer in (and `route()`'s 429 and 503 for a spent token's
  * share): a Poppy error is a bare code, and this is not one of the three.
  */

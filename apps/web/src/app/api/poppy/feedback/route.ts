@@ -12,8 +12,10 @@ export const runtime = "nodejs";
  * on an unverified claim; no scope, because a signed-out agent may report, which is
  * why an agent nobody has allowed is let through the gate (under its own fetch
  * quota). Like every route an agent calls, it opens or continues the Session: a
- * report-only agent is then seen and can be blocked, as far as its report was inside the quota, and an ended Session is
- * refused as `session_ended`. Answers `202` with no body; a body that is
+ * report-only agent is then seen and can be blocked, as far as its report was
+ * inside the quota, and an ended Session is refused as `session_ended`. The quota
+ * is charged first, so a report refused as `session_ended` still spends a share
+ * (a blocked id is refused earlier, in the gate). Answers `202` with no body; a body that is
  * malformed or too long is `invalid_request`. The text is data: stored as sent,
  * never read as an instruction.
  */
