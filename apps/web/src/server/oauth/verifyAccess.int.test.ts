@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "@/server/db/client";
-import { oauthGrants, oauthTokens } from "@/server/db/schema";
+import { oauthClientBlocks, oauthClients, oauthGrants, oauthTokens } from "@/server/db/schema";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { connectForTest as connect } from "@/server/test-support/oauthConnection";
@@ -51,6 +51,17 @@ describe("verifyAccessToken", () => {
     expect(await verifyAccessToken(access)).toMatchObject({ ok: true, access: { audience: "domain" } });
     await db.update(oauthGrants).set({ resource: "https://elsewhere.example" }).where(eq(oauthGrants.id, grant.id));
     expect(await verifyAccessToken(access)).toEqual({ ok: false, refusal: { reason: "resource" } });
+  });
+
+  it("refuses a token whose client the operator blocked, and takes it back once unblocked", async () => {
+    const { grant, access } = await connect(await person(true));
+    // Blocks name a protocol client_id, which only a CIMD client has.
+    const cimdUrl = `https://blocked-${randomUUID()}.example/client.json`;
+    await db.update(oauthClients).set({ kind: "cimd", cimdUrl, registeredIpHash: null }).where(eq(oauthClients.id, grant.clientId));
+    await db.insert(oauthClientBlocks).values({ clientId: cimdUrl, blockedAt: new Date(), blockedBy: "dev-operator" });
+    expect(await verifyAccessToken(access)).toEqual({ ok: false, refusal: { reason: "blocked" } });
+    await db.delete(oauthClientBlocks).where(eq(oauthClientBlocks.clientId, cimdUrl));
+    expect(await verifyAccessToken(access)).toMatchObject({ ok: true });
   });
 
   it("refuses as unknown a secret it never issued, a refresh token, and a tc_ token", async () => {

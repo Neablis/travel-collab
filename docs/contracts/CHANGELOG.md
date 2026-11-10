@@ -22,6 +22,14 @@ Format:
   `components/admin/AgentsTab.tsx` and its tests). Admin-only; nothing else parses `AdminAgentList`.
 - Breaking? no: it was added in part 4, which has not shipped.
 
+## 2026-11-09 — `GET /v1/discover/playbooks` is documented as readable signed out (M60 part 4; public API 2.5.0)
+- `openapi.json`: that operation's `security` is `[{}, { bearerAuth: ["library:read"] }]`, so a Personal Agent reading the
+  document learns a Poppy Session alone is enough (Poppy 3.2, ADR-089 decision 5). Every other operation is unchanged.
+  `API_VERSION` 2.5.0 with a new `API_FINGERPRINT`. No schema in `packages/contracts` changed.
+- Text only, still 2.5.0 (unreleased): that operation's description and `info.description` no longer say a token is
+  required, since a Poppy Session alone may read signed out.
+- Breaking? no, additive.
+
 ## 2026-11-09 — `AdminAgent`, `AdminAgentList`, `AdminAgentBlock`: the console's Agents tab (M60 part 4)
 - **New schemas** in `packages/contracts/src/adminAgents.ts`: `AdminAgent` (a Personal Agent seen:
   `clientId`, `name`, `logoUri`, `domain`, `sessions30d`, `accounts`, `lastSeenAt`, `blocked`),

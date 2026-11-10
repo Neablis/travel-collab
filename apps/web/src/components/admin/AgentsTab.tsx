@@ -74,7 +74,8 @@ export function AgentsTab({ agents, reports }: { agents: AdminAgent[]; reports: 
               {failed}
             </Banner>
           ) : null}
-          <div className="overflow-hidden rounded-lg border border-hairline bg-surface shadow-raised">
+          {/* Scrolls rather than clips: the Actions column, the tab's one action, is the last of six. */}
+          <div className="overflow-x-auto rounded-lg border border-hairline bg-surface shadow-raised">
             <Table>
               <THead>
                 <TR className="bg-moss">
@@ -126,11 +127,23 @@ export function AgentsTab({ agents, reports }: { agents: AdminAgent[]; reports: 
                       </TD>
                       <TD className="px-3.5 py-3 text-right align-middle">
                         {isBlocked ? (
-                          <Button variant="secondary" size="sm" disabled={busy} onClick={() => void change(agent, false)}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            aria-label={`Unblock ${agent.name ?? agent.domain}`}
+                            disabled={busy}
+                            onClick={() => void change(agent, false)}
+                          >
                             Unblock
                           </Button>
                         ) : (
-                          <Button variant="secondary" size="sm" disabled={busy} onClick={() => setConfirming(agent)}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            aria-label={`Block ${agent.name ?? agent.domain}`}
+                            disabled={busy}
+                            onClick={() => setConfirming(agent)}
+                          >
                             Block
                           </Button>
                         )}

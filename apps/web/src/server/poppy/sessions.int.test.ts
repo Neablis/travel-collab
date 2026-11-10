@@ -5,11 +5,12 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
 import { createMemoryClient } from "@/server/cache/memory";
 import { createRedisCache } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
-import { agentSessions, rateLimitCounters } from "@/server/db/schema";
-import { resolveClient } from "@/server/oauth/clients";
+import { agentSessions } from "@/server/db/schema";
+import { resolveClient, storeClient } from "@/server/oauth/clients";
 import { createGrant, issueCode } from "@/server/oauth/grants";
 import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
 import { exchangeCode } from "@/server/oauth/tokens";
@@ -25,6 +26,7 @@ const CLAIMS = { clientId: "https://agent.test/agent.json", sid: "sid-1", userId
 const T0 = new Date("2026-11-09T12:00:00Z");
 const at = (ms: number) => new Date(T0.getTime() + ms);
 const DAY = 24 * 60 * 60 * 1000;
+const CALLER = "203.0.113.5";
 
 /** Claims no other test shares, since the table keeps one row per (client, sid, user). */
 const fresh = (over: Partial<typeof CLAIMS> = {}) => ({ ...CLAIMS, clientId: `https://agent-${randomUUID()}.test/agent.json`, ...over });
@@ -37,8 +39,8 @@ afterEach(() => {
 describe("openOrContinueSession", () => {
   it("writes the row on the first request with a new sid, and continues it after", async () => {
     const claims = fresh({ agentId: "agt_1" });
-    const first = await openOrContinueSession({ claims, accountId: null, now: T0 });
-    const second = await openOrContinueSession({ claims, accountId: null, now: at(10 * 60 * 1000) });
+    const first = await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: T0 });
+    const second = await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: at(10 * 60 * 1000) });
     expect(first.ok && second.ok && first.id === second.id).toBe(true);
     const rows = await rowsOf(claims.clientId);
     expect(rows).toHaveLength(1);
@@ -47,76 +49,84 @@ describe("openOrContinueSession", () => {
 
   it("keeps one row when two first requests race", async () => {
     const claims = fresh();
-    const both = await Promise.all([1, 2].map(() => openOrContinueSession({ claims, accountId: null, now: T0 })));
+    const both = await Promise.all([1, 2].map(() => openOrContinueSession({ claims, accountId: null, caller: CALLER, now: T0 })));
     expect(both.every((outcome) => outcome.ok)).toBe(true);
     expect(await rowsOf(claims.clientId)).toHaveLength(1);
   });
 
   it("is a different Session for another User ID, or another sid, under one client", async () => {
     const claims = fresh();
-    await openOrContinueSession({ claims, accountId: null, now: T0 });
-    await openOrContinueSession({ claims: { ...claims, userId: "usr_2" }, accountId: null, now: T0 });
-    await openOrContinueSession({ claims: { ...claims, sid: "sid-2" }, accountId: null, now: T0 });
+    await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: T0 });
+    await openOrContinueSession({ claims: { ...claims, userId: "usr_2" }, accountId: null, caller: CALLER, now: T0 });
+    await openOrContinueSession({ claims: { ...claims, sid: "sid-2" }, accountId: null, caller: CALLER, now: T0 });
     expect(await rowsOf(claims.clientId)).toHaveLength(3);
   });
 
   it("ends after 30 idle days, and stays ended", async () => {
     const claims = fresh();
-    await openOrContinueSession({ claims, accountId: null, now: T0 });
-    expect((await openOrContinueSession({ claims, accountId: null, now: at(SESSION_IDLE_MS - DAY) })).ok).toBe(true);
+    await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: T0 });
+    expect((await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: at(SESSION_IDLE_MS - DAY) })).ok).toBe(true);
     // Idle is measured from the last request, which the line above just was.
     const lastSeen = at(SESSION_IDLE_MS - DAY);
-    expect(await openOrContinueSession({ claims, accountId: null, now: new Date(lastSeen.getTime() + SESSION_IDLE_MS + 1) })).toEqual({ ok: false });
+    expect(await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: new Date(lastSeen.getTime() + SESSION_IDLE_MS + 1) })).toEqual({ ok: false });
     // Ended is remembered: a request moments later is refused, not started afresh.
-    expect(await openOrContinueSession({ claims, accountId: null, now: new Date(lastSeen.getTime() + SESSION_IDLE_MS + 2000) })).toEqual({ ok: false });
+    expect(await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: new Date(lastSeen.getTime() + SESSION_IDLE_MS + 2000) })).toEqual({ ok: false });
     expect((await rowsOf(claims.clientId))[0]!.endedAt).not.toBeNull();
   });
 
   it("refuses a row that was ended", async () => {
     const claims = fresh();
-    await openOrContinueSession({ claims, accountId: null, now: T0 });
+    await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: T0 });
     await db.update(agentSessions).set({ endedAt: T0 }).where(eq(agentSessions.clientId, claims.clientId));
-    expect(await openOrContinueSession({ claims, accountId: null, now: at(1000) })).toEqual({ ok: false });
+    expect(await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: at(1000) })).toEqual({ ok: false });
   });
 
   it("holds the account that lost a race to set it, rather than letting both in", async () => {
     // Both read a signed-out row before either writes; only one update matches `account_id IS NULL`.
     for (let round = 0; round < 15; round++) {
       const claims = fresh();
-      await openOrContinueSession({ claims, accountId: null, now: T0 });
-      const both = await Promise.all(["acct-a", "acct-b"].map((accountId) => openOrContinueSession({ claims, accountId, now: at(1000) })));
+      await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: T0 });
+      const both = await Promise.all(["acct-a", "acct-b"].map((accountId) => openOrContinueSession({ claims, accountId, caller: CALLER, now: at(1000) })));
       expect(both.filter((outcome) => outcome.ok), `round ${round}`).toHaveLength(1);
     }
   });
 
-  it("charges only a new row to the client, so invented sids stop at its share and a continuing Session does not", async () => {
-    vi.stubEnv("AGENT_SESSION_OPEN_RATE_LIMIT_PER_CLIENT_HOURLY", "3");
+  it("charges only a new row, to the account when signed in and the address when not, so invented sids stop at a share and a continuing Session does not", async () => {
+    vi.stubEnv("AGENT_SESSION_OPEN_RATE_LIMIT_PER_ACCOUNT_HOURLY", "3");
     const claims = fresh();
+    const open = (sid: string, accountId: string | null, caller = CALLER) =>
+      openOrContinueSession({ claims: { ...claims, sid }, accountId, caller, now: T0 });
     const opened = [];
-    for (let i = 0; i < 5; i++) opened.push(await openOrContinueSession({ claims: { ...claims, sid: `sid-${i}` }, accountId: null, now: T0 }));
+    for (let i = 0; i < 5; i++) opened.push(await open(`sid-${i}`, "acct-a"));
     expect(opened.map((outcome) => outcome.ok)).toEqual([true, true, true, false, false]);
     expect(await rowsOf(claims.clientId)).toHaveLength(3);
     const refused = opened[3]!;
-    expect(!refused.ok && refused.limited?.status).toBe(429);
-    expect((await openOrContinueSession({ claims: { ...claims, sid: "sid-0" }, accountId: null, now: at(1000) })).ok).toBe(true);
+    expect(!refused.ok && refused.limited?.reason).toBe("user");
+    expect((await open("sid-0", "acct-a")).ok).toBe(true);
+    // Another account of the same agent, and a signed-out caller, each have a share of their own.
+    expect((await open("sid-b", "acct-b")).ok).toBe(true);
+    expect((await open("sid-ip-1", null, "198.51.100.1")).ok).toBe(true);
+    for (const sid of ["sid-ip-2", "sid-ip-3", "sid-ip-4"]) await open(sid, null, "198.51.100.2");
+    expect((await open("sid-ip-5", null, "198.51.100.2")).ok).toBe(false);
+    expect((await open("sid-ip-6", null, "198.51.100.3")).ok).toBe(true);
   });
 
   it("records the account on the first signed-in request, and ends on another account's", async () => {
     const claims = fresh();
-    await openOrContinueSession({ claims, accountId: null, now: T0 });
-    expect((await openOrContinueSession({ claims, accountId: "acct-a", now: at(1000) })).ok).toBe(true);
+    await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: T0 });
+    expect((await openOrContinueSession({ claims, accountId: "acct-a", caller: CALLER, now: at(1000) })).ok).toBe(true);
     expect((await rowsOf(claims.clientId))[0]!.accountId).toBe("acct-a");
-    expect((await openOrContinueSession({ claims, accountId: "acct-a", now: at(2000) })).ok).toBe(true);
-    expect(await openOrContinueSession({ claims, accountId: "acct-b", now: at(3000) })).toEqual({ ok: false });
+    expect((await openOrContinueSession({ claims, accountId: "acct-a", caller: CALLER, now: at(2000) })).ok).toBe(true);
+    expect(await openOrContinueSession({ claims, accountId: "acct-b", caller: CALLER, now: at(3000) })).toEqual({ ok: false });
     // Signed out again is the same account's Session continuing (5.5), not a change.
-    expect((await openOrContinueSession({ claims, accountId: null, now: at(4000) })).ok).toBe(true);
+    expect((await openOrContinueSession({ claims, accountId: null, caller: CALLER, now: at(4000) })).ok).toBe(true);
   });
 });
 
 describe("sweepAgentSessions", () => {
   it("deletes rows idle past the retention, ended or not, and keeps the rest", async () => {
     const claims = fresh();
-    for (const sid of ["old", "ended-old", "recent"]) await openOrContinueSession({ claims: { ...claims, sid }, accountId: null, now: T0 });
+    for (const sid of ["old", "ended-old", "recent"]) await openOrContinueSession({ claims: { ...claims, sid }, accountId: null, caller: CALLER, now: T0 });
     const sweepAt = at(SESSION_RETENTION_MS + DAY);
     await db.update(agentSessions).set({ lastSeenAt: at(SESSION_RETENTION_MS) }).where(eq(agentSessions.sid, "recent"));
     await db.update(agentSessions).set({ endedAt: T0 }).where(eq(agentSessions.sid, "ended-old"));
@@ -137,6 +147,10 @@ describe("poppyGate", () => {
   async function agentGate() {
     const agent = await makeTestAgent({ issuer: oauthIssuer() });
     const cache = createRedisCache(createMemoryClient());
+    // Someone has allowed it: Session verification reads no document for a client that has no row.
+    const resolved = await resolveClient(agent.clientId, { fetch: agent.fetch, resolve: publicResolve, cache, userId: "gate-owner" });
+    if (!resolved.ok) throw new Error("agent did not resolve");
+    await storeClient(resolved.client, new Date());
     // The origin is the deployment's, so `htu` is what `deploymentOrigin()` says.
     const { deploymentOrigin } = await import("@/lib/deploymentOrigin");
     const htu = `${deploymentOrigin()}/api/v1/discover/playbooks`;
@@ -170,24 +184,39 @@ describe("poppyGate", () => {
     expect(await rowsOf(agent.clientId)).toHaveLength(1);
   });
 
-  it("charges the fetches of a caller with no account to a quota of its own, never the one authorize uses", async () => {
+  it("fetches nothing for an iss that names no stored client, from any number of requests, and verifies a known agent after", async () => {
     const { deps, request } = await agentGate();
-    const hits = async (policy: string) =>
-      (await db.select({ hits: rateLimitCounters.hits }).from(rateLimitCounters).where(eq(rateLimitCounters.bucket, `${policy}:global`)))[0]?.hits ?? 0;
-    const [cimdBefore, signedOutBefore] = [await hits("oauth-cimd-hourly"), await hits("oauth-signed-out-fetch-hourly")];
-    // Throwaway issuers from many addresses: every one is fetched, and none is a client.
-    const outcomes = [];
-    for (let i = 0; i < 8; i++) {
-      const gate = await poppyGate(
-        await request({ iss: `https://flood-${randomUUID()}.test/agent.json` }, { "x-forwarded-for": `2001:db8::${i + 1}` }),
-        deps,
-      );
-      outcomes.push("refused" in gate);
+    const fetch = vi.fn<Fetcher>(async () => new Response("{}", { status: 200 }));
+    const flood = { ...deps, clientDeps: { ...deps.clientDeps, fetch } };
+    // One address, throwaway issuers, past what any ceiling of the signed-out quota allows.
+    for (let i = 0; i < 320; i++) {
+      const gate = await poppyGate(await request({ iss: `https://flood-${i}.example.test/agent.json` }, { "x-forwarded-for": "198.51.100.9" }), flood);
+      expect("refused" in gate).toBe(true);
     }
-    expect(outcomes.every(Boolean)).toBe(true);
-    // The flood was counted against its own policy, and the share a person connecting Claude draws on was not touched.
-    expect(await hits("oauth-signed-out-fetch-hourly")).toBeGreaterThan(signedOutBefore);
-    expect(await hits("oauth-cimd-hourly")).toBe(cimdBefore);
+    expect(fetch).not.toHaveBeenCalled();
+    expect("open" in (await poppyGate(await request({ sid: "sid-after" }), deps))).toBe(true);
+  });
+
+  it("verifies against the last known key set while the agent's host is down, and refuses a key it has removed", async () => {
+    const { agent, deps, request } = await agentGate();
+    // Known once: the document and key set are cached by this first request.
+    expect("open" in (await poppyGate(await request({ sid: "sid-1" }), deps))).toBe(true);
+    const later = new Date(Date.now() + 10 * 60 * 1000);
+    const at = { ...deps, now: later };
+    const keysAnswer = (status: number): Fetcher => (url, init) =>
+      url.href === agent.jwksUri ? Promise.resolve(new Response("", { status })) : agent.fetch(url, init);
+    const withHost = (fetch: Fetcher) => ({ ...at, clientDeps: { ...at.clientDeps, fetch } });
+    const iat = Math.floor(later.getTime() / 1000);
+    // A new delegation each time, so the keys are asked for rather than a cached delegation.
+    const down = await poppyGate(await request({ sid: "sid-2", iat }), withHost(keysAnswer(503)));
+    expect("open" in down).toBe(true);
+    // Past the minute the 503 is remembered for, the host is asked again and now says the key is gone.
+    const afterMarker = new Date(later.getTime() + 2 * 60 * 1000);
+    const gone = await poppyGate(
+      await request({ sid: "sid-3", iat: Math.floor(afterMarker.getTime() / 1000) }),
+      { ...withHost(keysAnswer(404)), now: afterMarker },
+    );
+    expect("refused" in gone).toBe(true);
   });
 
   it("answers invalid_session, as a 400 with the bare error, for a header that fails", async () => {
@@ -214,6 +243,16 @@ describe("poppyGate", () => {
     const res = (await through(await request({ sid: "sid-end" }), deps))!;
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "session_ended" });
+  });
+
+  it("answers a spent Session-open share in the error envelope of /api/v1 and /api/mcp, with Retry-After, not a Poppy code", async () => {
+    vi.stubEnv("AGENT_SESSION_OPEN_RATE_LIMIT_PER_ACCOUNT_HOURLY", "1");
+    const { deps, request } = await agentGate();
+    expect(await through(await request({ sid: "sid-one" }), deps, "acct-limited")).toBeNull();
+    const res = (await through(await request({ sid: "sid-two" }), deps, "acct-limited"))!;
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(await res.json()).toMatchObject({ error: { code: "rate-limited", message: expect.any(String) } });
   });
 
   it("takes the access token the agent was issued, and refuses one another client holds", async () => {

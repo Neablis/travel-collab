@@ -7,7 +7,11 @@ import type { OAuthClient, ResolvedClient } from "./clients";
 // redirect would hand the person to whatever URL the request named.
 
 const resolveClient = vi.fn<(clientId: string) => Promise<ResolvedClient>>();
-vi.mock("./clients", () => ({ resolveClient: (clientId: string) => resolveClient(clientId) }));
+const clientIsBlocked = vi.fn<(clientId: string) => Promise<boolean>>(async () => false);
+vi.mock("./clients", () => ({
+  resolveClient: (clientId: string) => resolveClient(clientId),
+  clientIsBlocked: (clientId: string) => clientIsBlocked(clientId),
+}));
 
 const { parseAuthorizeRequest } = await import("./authorizeRequest");
 const { mcpResource, oauthIssuer } = await import("./metadata");
@@ -43,7 +47,11 @@ function backTo(parsed: Awaited<ReturnType<typeof parseAuthorizeRequest>>): URLS
   return new URL(parsed.redirectTo).searchParams;
 }
 
-afterEach(() => resolveClient.mockReset());
+afterEach(() => {
+  resolveClient.mockReset();
+  clientIsBlocked.mockReset();
+  clientIsBlocked.mockResolvedValue(false);
+});
 
 describe("errors before the redirect is validated", () => {
   // Each case also carries a bad scope, which would be redirected if it were
@@ -103,18 +111,37 @@ describe("after the redirect is proven", () => {
     expect(query.get("iss")).toBe(oauthIssuer());
   });
 
-  // Poppy 3.2 makes the domain the `resource`; a request that names none is for it,
-  // and Claude's connector names `/api/mcp` itself as MCP authorization requires.
-  it("takes the domain or /api/mcp as the resource, and the domain when none is named", async () => {
-    resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
-    for (const [asked, granted] of [
-      [oauthIssuer(), oauthIssuer()],
-      [mcpResource(), mcpResource()],
-      [undefined, oauthIssuer()],
+  // Poppy 3.2 makes the domain a Personal Agent's `resource`, and one that names none is for it.
+  // Every other client keeps /api/mcp: an older connector sends none, and a domain token would
+  // be refused by the very endpoint it connected for.
+  it("takes the domain or /api/mcp as the resource, defaulting by kind of client when none is named", async () => {
+    const agent: OAuthClient = {
+      ...CLIENT,
+      kind: "cimd",
+      clientId: "https://agent.example/agent.json",
+      authMethod: "private_key_jwt",
+      jwksUri: "https://agent.example/jwks.json",
+    };
+    const publicCimd: OAuthClient = { ...CLIENT, kind: "cimd", clientId: "https://app.example/client.json" };
+    for (const [client, asked, granted] of [
+      [CLIENT, oauthIssuer(), oauthIssuer()],
+      [CLIENT, mcpResource(), mcpResource()],
+      [CLIENT, undefined, mcpResource()],
+      [publicCimd, undefined, mcpResource()],
+      [agent, undefined, oauthIssuer()],
     ] as const) {
-      const parsed = await parseAuthorizeRequest(valid({ resource: asked }));
-      expect(parsed, String(asked)).toEqual({ request: expect.objectContaining({ resource: granted }) });
+      resolveClient.mockResolvedValue({ ok: true, client });
+      const parsed = await parseAuthorizeRequest(valid({ client_id: client.clientId, scope: "trips:read", resource: asked }));
+      expect(parsed, `${client.clientId} ${String(asked)}`).toEqual({ request: expect.objectContaining({ resource: granted }) });
     }
+  });
+
+  it("sends a blocked client back an error instead of the consent screen", async () => {
+    resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
+    clientIsBlocked.mockResolvedValue(true);
+    const query = backTo(await parseAuthorizeRequest(valid()));
+    expect(query.get("error")).toBe("unauthorized_client");
+    expect(query.get("error_description")).toBe("this client has been blocked");
   });
 
   it("answers an unknown scope with invalid_scope, and a wrong response_type with unsupported_response_type", async () => {

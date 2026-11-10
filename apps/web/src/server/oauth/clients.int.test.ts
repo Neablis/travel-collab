@@ -19,6 +19,7 @@ import type { Resolve } from "@/server/external/remoteImage/guard";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import {
   CIMD_CACHE_TTL_SECONDS,
+  CIMD_LAST_KNOWN_TTL_SECONDS,
   fetchClientKeys,
   markClientUsed,
   registerClient,
@@ -410,6 +411,25 @@ describe("a private_key_jwt client metadata document", () => {
     expect(keys).toHaveBeenCalledTimes(1);
   });
 
+  // The long-lived copy is for the host-down fallback of a Personal Agent only; a public
+  // client's document, which anyone can serve from any domain, is kept five minutes as before.
+  it("keeps its document and key set a day, and a public client's document five minutes", async () => {
+    const ttls = async (body: Record<string, unknown>, url: string) => {
+      const cache = createRedisCache(createMemoryClient());
+      const set = vi.spyOn(cache, "set");
+      const deps = asked({ fetch: serving(body), cache });
+      const client = await resolved(url, deps);
+      if (client.authMethod === "private_key_jwt") {
+        await fetchClientKeys(client, { ...deps, fetch: serving({ keys: [{ kty: "EC", crv: "P-256", x: "x", y: "y", kid: "k1" }] }) });
+      }
+      return set.mock.calls.map((call) => call[2]);
+    };
+    const agentUrl = cimdUrl();
+    expect(await ttls(confidential(agentUrl), agentUrl)).toEqual([CIMD_LAST_KNOWN_TTL_SECONDS, CIMD_LAST_KNOWN_TTL_SECONDS]);
+    const publicUrl = cimdUrl();
+    expect(await ttls(documentFor(publicUrl), publicUrl)).toEqual([CIMD_CACHE_TTL_SECONDS]);
+  });
+
   it("refuses a key set that holds a private member, or is not one", async () => {
     const url = cimdUrl();
     const deps = asked({ fetch: serving(confidential(url)), cache: createRedisCache(createMemoryClient()) });
@@ -421,3 +441,62 @@ describe("a private_key_jwt client metadata document", () => {
   });
 });
 
+
+// A known agent's host failing must not cost a fetch, a charge and five seconds on every request:
+// the failure is remembered briefly, so each URL costs at most one unit a minute whatever the traffic.
+describe("a known agent whose host keeps failing", () => {
+  const minutes = (n: number) => new Date(Date.now() + n * 60_000);
+  /** Three units for the caller: a request that is charged a fourth time is refused. */
+  const threeUnits = [{ name: "test-failed-fetch", windowMs: 3_600_000, perUser: 3, global: 1_000_000 }];
+  const keySet = { keys: [{ kty: "EC", crv: "P-256", x: "x", y: "y", kid: "k1" }] };
+  const agentDocument = (url: string) =>
+    documentFor(url, { token_endpoint_auth_method: "private_key_jwt", jwks_uri: "https://app.example/jwks.json" });
+
+  /** A cached document ten minutes old (stale, within the day), and the deps to ask for it again with its host failing. */
+  async function stale(failing: () => Promise<Response>) {
+    const url = cimdUrl();
+    const cache = createRedisCache(createMemoryClient());
+    const first = asked({ fetch: serving(agentDocument(url)), cache });
+    await resolved(url, first);
+    const fetch = vi.fn<Fetcher>(async () => failing());
+    const deps = { ...first, fetch, cache, now: minutes(10), quota: threeUnits, staleOk: true };
+    return { url, cache, fetch, deps };
+  }
+
+  it("is fetched and charged once a minute for its document, and still served from the last-known copy on a 503", async () => {
+    const { url, fetch, deps } = await stale(async () => new Response("", { status: 503 }));
+    for (let i = 0; i < 10; i++) expect(await resolveClient(url, deps), `request ${i}`).toMatchObject({ ok: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    // The marker is a minute long: past it the host is asked again.
+    await resolveClient(url, { ...deps, now: minutes(11.5) });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("is refused from the marker, without a fetch, once its document answers 404", async () => {
+    const { url, fetch, deps } = await stale(async () => new Response("", { status: 404 }));
+    for (let i = 0; i < 10; i++) expect(await resolveClient(url, deps), `request ${i}`).toMatchObject({ ok: false, reason: expect.not.stringMatching(/too-many/) });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("is fetched and charged once a minute for its key set too, and keeps its last-known keys while the host is down", async () => {
+    const { url, cache, deps } = await stale(async () => new Response("", { status: 503 }));
+    const client = await resolved(url, { ...deps, now: undefined });
+    const keys = serving(keySet);
+    await fetchClientKeys(client, { ...deps, fetch: keys, now: undefined });
+    const down = vi.fn<Fetcher>(async () => new Response("", { status: 503 }));
+    for (let i = 0; i < 10; i++) {
+      expect(await fetchClientKeys(client, { ...deps, fetch: down, cache, now: minutes(10), quota: [{ ...threeUnits[0]!, name: "test-failed-keys" }] }), `request ${i}`).toMatchObject({ ok: true });
+    }
+    expect(down).toHaveBeenCalledTimes(1);
+  });
+
+  // NXDOMAIN is the agent's domain being gone; a resolver that hiccups says nothing about the agent.
+  it("falls back to its last-known copy when DNS fails transiently, and not when the name does not exist", async () => {
+    const dnsError = (code: string) => Object.assign(new Error(`getaddrinfo ${code} app.example`), { code });
+    for (const [code, served] of [["EAI_AGAIN", true], ["SERVFAIL", true], ["ENOTFOUND", false]] as const) {
+      const { url, deps } = await stale(async () => new Response("", { status: 200 }));
+      const resolve: Resolve = async () => Promise.reject(dnsError(code));
+      expect((await resolveClient(url, { ...deps, resolve })).ok, code).toBe(served);
+    }
+  });
+});

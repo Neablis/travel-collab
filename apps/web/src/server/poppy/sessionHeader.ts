@@ -6,9 +6,9 @@ import { poppyDelegationKey } from "@/server/cache/keys";
 import { getCache, type CachePort } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
 import { oauthClients, oauthGrants, oauthTokens } from "@/server/db/schema";
-import { fetchClientKeys, resolveClient, type ClientDeps } from "@/server/oauth/clients";
+import { fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps } from "@/server/oauth/clients";
 import { oauthIssuer } from "@/server/oauth/metadata";
-import { signedOutFetchQuota } from "@/server/quota";
+import { signedOutFetchQuota, unknownAgentFetchQuota } from "@/server/quota";
 import { keyedDigestCandidates } from "@/server/secrets/keyedDigest";
 
 // **The `Poppy-Session` header, verified** (Poppy 5.2 and 5.3, ADR-089 decision
@@ -42,12 +42,26 @@ export interface SessionDeps {
   /** Who the fetches for `loadKeys` are charged to when they are not cached. */
   chargeTo?: string;
   clientDeps?: ClientDeps;
+  /**
+   * Resolve an `iss` that has no stored client row, by a bounded fetch of its document and keys.
+   * Only for a signed-out read (ADR-089 decision 5): nothing is stored, and the Session grants
+   * nothing a signed-out caller does not have. Off by default, so every other route refuses it.
+   */
+  unknownClientOk?: boolean;
   /** The protocol `client_id` an access token was issued to; its grant's client by default. */
   tokenClientId?: (token: string) => Promise<string | null>;
 }
 
 const ACCEPTANCE_WINDOW_SECONDS = 60;
 const MAX_DELEGATION_SECONDS = 24 * 60 * 60;
+/**
+ * How long a verified delegation is trusted from the cache, whatever its `exp`:
+ * a minute, then it is checked against the agent's keys again. That is cheap (the
+ * key set is itself cached for five minutes) and it bounds how long a key the
+ * agent has removed, because it was stolen, keeps working here to those five
+ * minutes and this one, instead of to the delegation's own 24 hours.
+ */
+const DELEGATION_TRUST_SECONDS = 60;
 const DELEGATION_ALGORITHMS = ["ES256", "PS384"];
 /** Conversation IDs' alphabet and length (Poppy 8.2), which `sid` shares. */
 const SID = /^[A-Za-z0-9_-]{1,256}$/;
@@ -65,6 +79,8 @@ interface VerifiedDelegation {
   jwt: string;
   jwk: JWK;
   exp: number;
+  /** When it was checked against the keys (epoch seconds), for `DELEGATION_TRUST_SECONDS`. */
+  verifiedAt: number;
 }
 
 const isString = (value: unknown): value is string => typeof value === "string" && value !== "";
@@ -87,7 +103,7 @@ async function verifyDelegation(
   const key = isString(claims.jti) ? poppyDelegationKey(clientId, claims.jti) : null;
   if (key !== null) {
     const cached = await deps.cache.get<VerifiedDelegation>(key);
-    if (cached !== null && cached.jwt === dlg && cached.exp > nowSeconds) return { ok: true, delegation: cached };
+    if (cached !== null && cached.jwt === dlg && cached.exp > nowSeconds && nowSeconds - cached.verifiedAt < DELEGATION_TRUST_SECONDS) return { ok: true, delegation: cached };
   }
 
   // 1. The key in `jwks_uri` named by `kid` signed it.
@@ -109,8 +125,8 @@ async function verifyDelegation(
   if (jwk === undefined || typeof jwk !== "object" || PRIVATE_MEMBERS.some((member) => member in jwk)) {
     return { ok: false, reason: "delegation cnf.jwk must be a public key" };
   }
-  const delegation = { jwt: dlg, jwk, exp };
-  if (key !== null) await deps.cache.set(key, delegation, exp - nowSeconds);
+  const delegation = { jwt: dlg, jwk, exp, verifiedAt: nowSeconds };
+  if (key !== null) await deps.cache.set(key, delegation, Math.min(exp - nowSeconds, DELEGATION_TRUST_SECONDS));
   return { ok: true, delegation };
 }
 
@@ -202,9 +218,22 @@ const issuedTo = async (token: string) => (await tokenHolder(token))?.clientId ?
 
 /** A Personal Agent's keys, by its document and `jwks_uri`; a client that is not one has none. */
 async function keysOf(clientId: string, deps: SessionDeps): Promise<{ ok: true; keys: JWK[] } | { ok: false; reason: string }> {
-  // Charged to the signed-out quota, never `oauthCimdQuota`: anyone can send this header, naming
-  // any URL, and that must not use up the share `/oauth/authorize` draws on for real clients.
-  const clientDeps = { userId: deps.chargeTo ?? "poppy-session", now: deps.now, quota: signedOutFetchQuota(), ...deps.clientDeps };
+  // Only a client someone has allowed has a row, and authorize alone makes one: an `iss` that
+  // names none is refused without a fetch, so a header naming made-up URLs costs nothing,
+  // unless the route is a signed-out read (`unknownClientOk`), where it is fetched under its own quota.
+  const unknown = (await storedClientRowId(clientId)) === null;
+  if (unknown && deps.unknownClientOk !== true) return { ok: false, reason: "iss is not a usable client: unknown-client" };
+  // Charged to the caller's IP on the signed-out quota, never `oauthCimdQuota`: that is the share
+  // `/oauth/authorize` draws on for real clients. `staleOk` is the token endpoint's own fallback:
+  // a host that is down does not stop an agent whose delegations are not yet cached, and it is
+  // also what keeps a failed fetch's one-minute marker, for a stranger's bad domain.
+  const clientDeps = {
+    userId: deps.chargeTo ?? "poppy-session",
+    now: deps.now,
+    quota: unknown ? unknownAgentFetchQuota() : signedOutFetchQuota(),
+    staleOk: true,
+    ...deps.clientDeps,
+  };
   const resolved = await resolveClient(clientId, clientDeps);
   if (!resolved.ok) return { ok: false, reason: `iss is not a usable client: ${resolved.reason}` };
   if (resolved.client.authMethod !== "private_key_jwt") return { ok: false, reason: "iss is not a Personal Agent" };

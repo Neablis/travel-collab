@@ -13,7 +13,7 @@ import { createRedisCache } from "@/server/cache/redis";
 import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
 import { makeTestAgent, publicResolve } from "@/server/poppy/testAgent";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
-import { registerClient, resolveClient, type OAuthClient } from "./clients";
+import { registerClient, resolveClient, storeClient, type OAuthClient } from "./clients";
 import { createGrant, grantOf, issueCode, mintSecret } from "./grants";
 import { mcpResource, oauthIssuer } from "./metadata";
 import { exchangeCode, refresh, revokeSecret, type TokenOutcome } from "./tokens";
@@ -95,6 +95,7 @@ function holdBothAtTheUpdate(): { arrived: () => number } {
 }
 
 const errorOf = (outcome: TokenOutcome) => (outcome.ok ? "ok" : outcome.error);
+const describedAs = (outcome: TokenOutcome) => (outcome.ok ? "ok" : outcome.description);
 const tokensOf = (outcome: TokenOutcome) => {
   if (!outcome.ok) throw new Error(`expected tokens, got ${outcome.error}: ${outcome.description}`);
   return outcome.body;
@@ -341,6 +342,140 @@ describe("a private_key_jwt client", () => {
     expect((await grantOf(grant.id))!.revokedAt).not.toBeNull();
   });
 
+  // Only authorize creates an `oauth_clients` row, under its own quota. A client_id with
+  // none is answered without a fetch, so no address can spend a pool by inventing URLs.
+  it("fetches nothing for a client_id that names no stored client, from any number of requests, and a known agent still connects", async () => {
+    const { exchange, signed, deps } = await agentConsented();
+    const fetch = vi.fn<Fetcher>(async () => new Response("{}", { status: 200 }));
+    const cold = { ...deps, fetch, cache: createRedisCache(createMemoryClient()) };
+    const junk = { clientAssertion: "a.b.c", clientAssertionType: ASSERTION_TYPE };
+    for (let sent = 0; sent < 320; sent += 1) {
+      const clientId = `https://made-up-${sent}.example.test/client.json`;
+      const outcome = await refresh({ refreshToken: mintSecret("tcr_"), clientId, callerIp: "198.51.100.7", ...junk }, new Date(), cold);
+      expect(errorOf(outcome)).toBe("invalid_client");
+    }
+    expect(fetch).not.toHaveBeenCalled();
+    // The first code exchange of an agent whose key set is not cached yet needs a fetch of its own.
+    expect(errorOf(await exchange(await signed()))).toBe("ok");
+  });
+
+  it("charges the fetches made before a grant is known to the caller's address, not to a client_id it names", async () => {
+    const { exchange, signed, agent, deps } = await agentConsented();
+    let token = tokensOf(await exchange(await signed())).refresh_token;
+    vi.stubEnv("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_PER_CALLER_HOURLY", "2");
+    try {
+      const noisy = randomUUID();
+      const quiet = randomUUID();
+      // Ten minutes apart, so the cached document and key set are stale each time and want a fetch (two units).
+      const refreshAs = async (callerIp: string, minutes: number) => {
+        const now = new Date(Date.now() + minutes * 60_000);
+        const second = Math.floor(now.getTime() / 1000);
+        const clientAssertion = await agent.assertion({ iat: second - 10, exp: second + 50 });
+        const outcome = await refresh({ refreshToken: token, clientId: agent.clientId, callerIp, clientAssertion, clientAssertionType: ASSERTION_TYPE }, now, deps);
+        if (outcome.ok) token = outcome.body.refresh_token;
+        return errorOf(outcome);
+      };
+      expect(await refreshAs(noisy, 10)).toBe("ok");
+      expect(await refreshAs(noisy, 20)).toBe("invalid_client");
+      expect(await refreshAs(quiet, 20)).toBe("ok");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  // The failure is remembered for a minute, so a down host costs its caller two units a minute,
+  // not two per refresh: an agent with many users is not locked out of its own token endpoint.
+  it("keeps refreshing a known agent whose host is down, from the last-known copy, past the caller's fetch ceiling", async () => {
+    const { exchange, signed, agent, deps } = await agentConsented();
+    let token = tokensOf(await exchange(await signed())).refresh_token;
+    vi.stubEnv("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_PER_CALLER_HOURLY", "2");
+    try {
+      const callerIp = randomUUID();
+      const fetch = vi.fn<Fetcher>(async () => new Response("", { status: 503 }));
+      const now = new Date(Date.now() + 10 * 60_000);
+      const second = Math.floor(now.getTime() / 1000);
+      for (let sent = 0; sent < 6; sent += 1) {
+        const clientAssertion = await agent.assertion({ iat: second - 10, exp: second + 50 });
+        const outcome = await refresh({ refreshToken: token, clientId: agent.clientId, callerIp, clientAssertion, clientAssertionType: ASSERTION_TYPE }, now, { ...deps, fetch });
+        expect(errorOf(outcome), `refresh ${sent}`).toBe("ok");
+        if (outcome.ok) token = outcome.body.refresh_token;
+      }
+      // One try at the document and one at the key set, then the marker answers.
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  // The key set is a fallback for a host that is down, never for one that answered.
+  describe("a key the agent has removed", () => {
+    const later = (minutes: number) => {
+      const now = new Date(Date.now() + minutes * 60_000);
+      return { now, second: Math.floor(now.getTime() / 1000) };
+    };
+    /** The agent signs with its old key, `minutes` on, while its key-set URL answers `jwks`. */
+    async function oldKeyAfter(minutes: number, jwks: () => Promise<Response>) {
+      const { exchange, signed, agent, deps } = await agentConsented();
+      const { refresh_token } = tokensOf(await exchange(await signed()));
+      const { now, second } = later(minutes);
+      const clientAssertion = await agent.assertion({ iat: second - 10, exp: second + 50 });
+      const fetch: Fetcher = (url, init) => (url.href === agent.jwksUri ? jwks() : agent.fetch(url, init));
+      return errorOf(
+        await refresh({ refreshToken: refresh_token, clientId: agent.clientId, clientAssertion, clientAssertionType: ASSERTION_TYPE }, now, { ...deps, fetch }),
+      );
+    }
+
+    it("is refused once its key-set URL serves a set without it, or answers 404 or 410", async () => {
+      const successor = await makeTestAgent({ issuer: oauthIssuer() });
+      expect(await oldKeyAfter(10, async () => new Response(JSON.stringify(successor.jwks), { status: 200 }))).toBe("invalid_client");
+      expect(await oldKeyAfter(10, async () => new Response("", { status: 404 }))).toBe("invalid_client");
+      expect(await oldKeyAfter(10, async () => new Response("", { status: 410 }))).toBe("invalid_client");
+    });
+
+    it("is still accepted while the host is down, for a day and no longer", async () => {
+      expect(await oldKeyAfter(10, async () => new Response("", { status: 503 }))).toBe("ok");
+      expect(await oldKeyAfter(10, async () => Promise.reject(new TypeError("connection refused")))).toBe("ok");
+      expect(await oldKeyAfter(23 * 60, async () => new Response("", { status: 503 }))).toBe("ok");
+      expect(await oldKeyAfter(25 * 60, async () => new Response("", { status: 503 }))).toBe("invalid_client");
+    });
+  });
+
+  // Poppy 4.4: a grant that was a Personal Agent's is only that agent with its assertion.
+  it("still wants an assertion for a grant stored as private_key_jwt after the document says none", async () => {
+    const { exchange, signed, agent, deps } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    const downgraded = { ...agent.document, token_endpoint_auth_method: "none" };
+    const fetch: Fetcher = async (url, init) =>
+      url.href === agent.clientId ? new Response(JSON.stringify(downgraded), { status: 200 }) : agent.fetch(url, init);
+    const cold = { ...deps, fetch, cache: createRedisCache(createMemoryClient()) };
+    expect(errorOf(await refresh({ refreshToken: refresh_token, clientId: agent.clientId }, new Date(), cold))).toBe("invalid_client");
+    // A made-up assertion does not stand in for one: the document no longer asks for it, the grant does.
+    const junk = { clientAssertion: "a.b.c", clientAssertionType: ASSERTION_TYPE };
+    expect(errorOf(await refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...junk }, new Date(), cold))).toBe("invalid_client");
+  });
+
+  it("leaves the grant live when a rotated refresh token is presented under another client_id", async () => {
+    const { exchange, signed, agent, deps, grant } = await agentConsented();
+    const { refresh_token } = tokensOf(await exchange(await signed()));
+    await refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
+    // A thief's own agent, signing properly as itself.
+    const thief = await makeTestAgent({ issuer: oauthIssuer() });
+    // A thief's agent has been allowed by someone, or its assertion is refused before any token is looked at.
+    const thiefsClient = await resolveClient(thief.clientId, { fetch: thief.fetch, resolve: publicResolve, userId: `dev-${randomUUID()}`, cache: createRedisCache(createMemoryClient()) });
+    if (!thiefsClient.ok) throw new Error("thief's agent did not resolve");
+    await storeClient(thiefsClient.client, new Date());
+    const both = {
+      ...deps,
+      fetch: ((url, init) => (url.host === new URL(thief.clientId).host ? thief.fetch(url, init) : agent.fetch(url, init))) as Fetcher,
+    };
+    const signedAsThief = { clientAssertion: await thief.assertion(), clientAssertionType: ASSERTION_TYPE };
+    for (const as of [{ clientId: "x" }, { clientId: thief.clientId, ...signedAsThief }]) {
+      const replay = await refresh({ refreshToken: refresh_token, ...as }, new Date(), both);
+      expect(errorOf(replay)).toBe("invalid_grant");
+      expect((await grantOf(grant.id))!.revokedAt).toBeNull();
+    }
+  });
+
   it("is read again, at most once a minute, when its assertion names a key not yet cached", async () => {
     const { exchange, signed, agent, deps } = await agentConsented();
     const { refresh_token } = tokensOf(await exchange(await signed()));
@@ -456,11 +591,18 @@ describe("a blocked client_id", () => {
     const { refresh_token } = tokensOf(await exchange(await signed()));
     const refreshed = async () => refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
     await block(agent.clientId);
-    expect(errorOf(await exchange(await signed()))).toBe("invalid_client");
-    expect(errorOf(await refreshed())).toBe("invalid_client");
-    expect(await revokeSecret(refresh_token, new Date(), { clientId: agent.clientId, ...(await signed()) }, deps)).toMatchObject({
+    // The description tells a block from the other ways an assertion is refused, all `invalid_client`.
+    const BLOCKED = "this client has been blocked";
+    const refusedExchange = await exchange(await signed());
+    expect(errorOf(refusedExchange)).toBe("invalid_client");
+    expect(describedAs(refusedExchange)).toBe(BLOCKED);
+    const refusedRefresh = await refreshed();
+    expect(errorOf(refusedRefresh)).toBe("invalid_client");
+    expect(describedAs(refusedRefresh)).toBe(BLOCKED);
+    expect(await revokeSecret(refresh_token, new Date(), { clientId: agent.clientId, ...(await signed()) }, deps)).toEqual({
       ok: false,
       error: "invalid_client",
+      description: BLOCKED,
     });
     expect((await grantOf(grant.id))!.revokedAt).toBeNull();
     await unblock(agent.clientId);
@@ -470,6 +612,8 @@ describe("a blocked client_id", () => {
   it("is refused though it is a public client, whose document is never read", async () => {
     const { app, exchange } = await consented();
     await block(app.clientId);
-    expect(errorOf(await exchange())).toBe("invalid_client");
+    const refused = await exchange();
+    expect(errorOf(refused)).toBe("invalid_client");
+    expect(describedAs(refused)).toBe("this client has been blocked");
   });
 });

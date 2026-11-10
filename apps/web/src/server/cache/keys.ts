@@ -51,6 +51,16 @@ export function clientKeySetKey(url: string): string {
 }
 
 /**
+ * That fetching `url` (a client's document or key set) just failed, by the
+ * URL's digest: a known agent whose host is failing is asked about once a
+ * minute rather than on every request. Its TTL is `FETCH_FAILURE_SECONDS` in
+ * `server/oauth/clients.ts`.
+ */
+export function fetchFailureKey(url: string): string {
+  return `${deployEnv() ?? "dev"}:oauth:failed:${digest(url)}`;
+}
+
+/**
  * A client assertion's `jti` seen (RFC 7523 section 3), keyed by the digest of
  * client and `jti` together, since a `jti` is only unique per issuer. Lives as
  * long as the assertion could still verify.
@@ -62,8 +72,9 @@ export function clientAssertionJtiKey(clientId: string, jti: string): string {
 /**
  * A verified Personal Agent delegation (Poppy 5.2), by agent and delegation
  * `jti`. A resource sees one delegation on every request for hours, so its
- * checked form is kept until its `exp`. Keyed by agent too: a `jti` is only
- * unique per issuer.
+ * checked form is kept, but for `DELEGATION_TRUST_SECONDS` (`poppy/sessionHeader.ts`)
+ * at most, not to its `exp`: a key the agent removed must stop working. Keyed
+ * by agent too: a `jti` is only unique per issuer.
  */
 export function poppyDelegationKey(clientId: string, jti: string): string {
   return `${deployEnv() ?? "dev"}:poppy:delegation:${digest(`${clientId}\n${jti}`)}`;
