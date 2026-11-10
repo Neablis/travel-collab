@@ -48,6 +48,14 @@ export interface SessionDeps {
 
 const ACCEPTANCE_WINDOW_SECONDS = 60;
 const MAX_DELEGATION_SECONDS = 24 * 60 * 60;
+/**
+ * How long a verified delegation is trusted from the cache, whatever its `exp`:
+ * a minute, then it is checked against the agent's keys again. That is cheap (the
+ * key set is itself cached for five minutes) and it bounds how long a key the
+ * agent has removed, because it was stolen, keeps working here to those five
+ * minutes and this one, instead of to the delegation's own 24 hours.
+ */
+const DELEGATION_TRUST_SECONDS = 60;
 const DELEGATION_ALGORITHMS = ["ES256", "PS384"];
 /** Conversation IDs' alphabet and length (Poppy 8.2), which `sid` shares. */
 const SID = /^[A-Za-z0-9_-]{1,256}$/;
@@ -65,6 +73,8 @@ interface VerifiedDelegation {
   jwt: string;
   jwk: JWK;
   exp: number;
+  /** When it was checked against the keys (epoch seconds), for `DELEGATION_TRUST_SECONDS`. */
+  verifiedAt: number;
 }
 
 const isString = (value: unknown): value is string => typeof value === "string" && value !== "";
@@ -87,7 +97,7 @@ async function verifyDelegation(
   const key = isString(claims.jti) ? poppyDelegationKey(clientId, claims.jti) : null;
   if (key !== null) {
     const cached = await deps.cache.get<VerifiedDelegation>(key);
-    if (cached !== null && cached.jwt === dlg && cached.exp > nowSeconds) return { ok: true, delegation: cached };
+    if (cached !== null && cached.jwt === dlg && cached.exp > nowSeconds && nowSeconds - cached.verifiedAt < DELEGATION_TRUST_SECONDS) return { ok: true, delegation: cached };
   }
 
   // 1. The key in `jwks_uri` named by `kid` signed it.
@@ -109,8 +119,8 @@ async function verifyDelegation(
   if (jwk === undefined || typeof jwk !== "object" || PRIVATE_MEMBERS.some((member) => member in jwk)) {
     return { ok: false, reason: "delegation cnf.jwk must be a public key" };
   }
-  const delegation = { jwt: dlg, jwk, exp };
-  if (key !== null) await deps.cache.set(key, delegation, exp - nowSeconds);
+  const delegation = { jwt: dlg, jwk, exp, verifiedAt: nowSeconds };
+  if (key !== null) await deps.cache.set(key, delegation, Math.min(exp - nowSeconds, DELEGATION_TRUST_SECONDS));
   return { ok: true, delegation };
 }
 

@@ -210,7 +210,12 @@ describe("poppyGate", () => {
     // A new delegation each time, so the keys are asked for rather than a cached delegation.
     const down = await poppyGate(await request({ sid: "sid-2", iat }), withHost(keysAnswer(503)));
     expect("open" in down).toBe(true);
-    const gone = await poppyGate(await request({ sid: "sid-3", iat }), withHost(keysAnswer(404)));
+    // Past the minute the 503 is remembered for, the host is asked again and now says the key is gone.
+    const afterMarker = new Date(later.getTime() + 2 * 60 * 1000);
+    const gone = await poppyGate(
+      await request({ sid: "sid-3", iat: Math.floor(afterMarker.getTime() / 1000) }),
+      { ...withHost(keysAnswer(404)), now: afterMarker },
+    );
     expect("refused" in gone).toBe(true);
   });
 
