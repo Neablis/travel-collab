@@ -110,6 +110,7 @@ const DAY_MS = 24 * HOUR_MS;
 const MAX_INT4 = 2_147_483_647;
 const MAX_COUNTER_HITS = MAX_INT4 - 1;
 
+/** The positive integer the env var names, or `fallback` when it is unset or unusable (so a bad value never lifts a ceiling). */
 export function envCeiling(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === "") return fallback;
