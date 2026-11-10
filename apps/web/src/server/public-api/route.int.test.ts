@@ -70,7 +70,7 @@ vi.mock("@/server/public-api/actor", async (importOriginal) => {
 let poppyDeps: import("@/server/poppy/sessionHeader").SessionDeps = {};
 vi.mock("@/server/poppy/sessions", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/poppy/sessions")>();
-  return { ...actual, poppyGate: (request: Request) => actual.poppyGate(request, poppyDeps) };
+  return { ...actual, poppyGate: (request: Request, deps?: import("@/server/poppy/sessionHeader").SessionDeps) => actual.poppyGate(request, { ...poppyDeps, ...deps }) };
 });
 
 const { runInMcpDispatch } = await import("@/server/oauth/dispatchContext");
@@ -602,7 +602,7 @@ const agentAddress = (agent: object) =>
   agentAddresses.get(agent) ?? agentAddresses.set(agent, `203.0.113.${1 + Math.floor(Math.random() * 250)}`).get(agent)!;
 describe("a request that carries Poppy-Session", () => {
   async function agentRequest(
-    over: { headers?: Record<string, string | null>; token?: string; session?: Record<string, unknown>; path?: string; agent?: Awaited<ReturnType<typeof import("@/server/poppy/testAgent").makeTestAgent>> } = {},
+    over: { headers?: Record<string, string | null>; token?: string; session?: Record<string, unknown>; path?: string; agent?: Awaited<ReturnType<typeof import("@/server/poppy/testAgent").makeTestAgent>>; unknown?: true } = {},
   ) {
     const path = over.path ?? "/api/v1/trips";
     const { makeTestAgent, publicResolve } = await import("@/server/poppy/testAgent");
@@ -614,10 +614,11 @@ describe("a request that carries Poppy-Session", () => {
     // fetch quota, once however many requests a test sends; and an address of its own, so the
     // other suites that sign Sessions do not share this one's per-address share.
     const cache = (agentCaches.get(agent) ?? agentCaches.set(agent, createRedisCache(createMemoryClient())).get(agent))!;
-    // Someone has allowed it: a Session header naming a client with no row is refused without a fetch.
+    // Someone has allowed it: a Session header naming a client with no row is refused without a fetch,
+    // except on a route that declares `signedOut`. `unknown` leaves it with no row.
     const { resolveClient, storeClient } = await import("@/server/oauth/clients");
-    const known = await resolveClient(agent.clientId, { fetch: agent.fetch, resolve: publicResolve, cache, userId: "route-test-owner" });
-    if (known.ok) await storeClient(known.client, new Date());
+    const known = over.unknown === true ? null : await resolveClient(agent.clientId, { fetch: agent.fetch, resolve: publicResolve, cache, userId: "route-test-owner" });
+    if (known?.ok) await storeClient(known.client, new Date());
     poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
     const jwt = await agent.session({
       htu: `${deploymentOrigin()}${path}`,
@@ -744,6 +745,83 @@ describe("a request that carries Poppy-Session", () => {
     } finally {
       if (previous === undefined) delete process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY;
       else process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY = previous;
+    }
+  });
+
+  // **An agent nobody has Allowed** (ADR-089 decision 5): signed-out reads work for any conforming
+  // agent, so on a `signedOut` route its metadata is fetched without a stored row, under a
+  // quota of its own. Everywhere else a client with no row is refused as before.
+  describe("an agent with no stored client row", () => {
+    const DISCOVER_PATH = "/api/v1/discover/playbooks";
+
+    it("reads signed-out Discover, and nothing else, and is not stored as a client", async () => {
+      const { makeTestAgent } = await import("@/server/poppy/testAgent");
+      const agent = await makeTestAgent({ issuer: oauthIssuer() });
+      const read = await agentRequest({ path: DISCOVER_PATH, agent, unknown: true });
+      expect((await DISCOVER(read.request, NO_PARAMS)).status).toBe(200);
+
+      const trips = await agentRequest({ agent, unknown: true });
+      const refused = await LIST_TRIPS(trips.request, NO_PARAMS);
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({ error: "invalid_session", error_description: expect.stringContaining("unknown-client") });
+
+      const { storedClientRowId } = await import("@/server/oauth/clients");
+      expect(await storedClientRowId(agent.clientId)).toBeNull();
+    });
+
+    it("is refused once its address has fetched its share of unknown agents", async () => {
+      const previous = process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY;
+      process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY = "2";
+      try {
+        // An agent costs two fetches, its document and its key set.
+        const { makeTestAgent } = await import("@/server/poppy/testAgent");
+        const address = `198.51.100.${1 + Math.floor(Math.random() * 250)}`;
+        const statuses: number[] = [];
+        for (let call = 0; call < 2; call++) {
+          const agent = await makeTestAgent({ issuer: oauthIssuer() });
+          const { request } = await agentRequest({ path: DISCOVER_PATH, agent, unknown: true, headers: { "x-forwarded-for": address } });
+          statuses.push((await DISCOVER(request, NO_PARAMS)).status);
+        }
+        expect(statuses).toEqual([200, 400]);
+      } finally {
+        if (previous === undefined) delete process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY;
+        else process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY = previous;
+      }
+    });
+  });
+
+  // An agent over its own ceiling is served nothing, so its refused requests must not spend the
+  // global share every other agent draws on.
+  it("does not let one agent over its ceiling starve another through the global share", async () => {
+    const { rateLimitCounters } = await import("@/server/db/schema");
+    const { like } = await import("drizzle-orm");
+    const saved = {
+      client: process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY,
+      global: process.env.SIGNED_OUT_READ_RATE_LIMIT_GLOBAL_HOURLY,
+    };
+    // Earlier tests in this file have already read signed out in this hour.
+    await db.delete(rateLimitCounters).where(like(rateLimitCounters.bucket, "signed-out-read%"));
+    process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY = "2";
+    process.env.SIGNED_OUT_READ_RATE_LIMIT_GLOBAL_HOURLY = "4";
+    try {
+      const { makeTestAgent } = await import("@/server/poppy/testAgent");
+      const greedy = await makeTestAgent({ issuer: oauthIssuer() });
+      const statuses: number[] = [];
+      for (let call = 0; call < 6; call++) {
+        const { request } = await agentRequest({ path: "/api/v1/discover/playbooks", session: { sid: randomUUID() }, agent: greedy });
+        statuses.push((await DISCOVER(request, NO_PARAMS)).status);
+      }
+      expect(statuses).toEqual([200, 200, 429, 429, 429, 429]);
+      const other = await agentRequest({ path: "/api/v1/discover/playbooks" });
+      expect((await DISCOVER(other.request, NO_PARAMS)).status).toBe(200);
+    } finally {
+      for (const [name, value] of [
+        ["SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY", saved.client],
+        ["SIGNED_OUT_READ_RATE_LIMIT_GLOBAL_HOURLY", saved.global],
+      ] as const) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
     }
   });
 

@@ -453,6 +453,25 @@ export function agentSessionOpenQuota(): QuotaPolicy[] {
 }
 
 /**
+ * Metadata and key-set fetches for an agent nobody has Allowed, made only to
+ * answer a signed-out read (ADR-089 decision 5). Its own policy, charged to the
+ * caller's IP, so a caller naming made-up domains spends neither the share
+ * `signedOutFetchQuota` keeps for known agents nor `/oauth/authorize`'s. A
+ * failed fetch is remembered for a minute (`FETCH_FAILURE_SECONDS`), so one bad
+ * domain costs one unit a minute whatever the traffic.
+ */
+export function unknownAgentFetchQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "oauth-signed-out-unknown-fetch-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY", 30),
+      global: envCeiling("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_GLOBAL_HOURLY", 500),
+    },
+  ];
+}
+
+/**
  * What a Personal Agent's signed-out Session may read (Poppy 5.4, ADR-089
  * decision 5), per `(client_id, sid)`: a Session is the unit an agent can make
  * as many of as it likes, and `agentSessionOpenQuota` bounds that, so the two

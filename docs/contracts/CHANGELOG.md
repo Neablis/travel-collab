@@ -17,6 +17,8 @@ Format:
 - `openapi.json`: that operation's `security` is `[{}, { bearerAuth: ["library:read"] }]`, so a Personal Agent reading the
   document learns a Poppy Session alone is enough (Poppy 3.2, ADR-089 decision 5). Every other operation is unchanged.
   `API_VERSION` 2.5.0 with a new `API_FINGERPRINT`. No schema in `packages/contracts` changed.
+- Text only, still 2.5.0 (unreleased): that operation's description and `info.description` no longer say a token is
+  required, since a Poppy Session alone may read signed out.
 - Breaking? no, additive.
 
 ## 2026-11-09 — `AdminAgent`, `AdminAgentList`, `AdminAgentBlock`: the console's Agents tab (M60 part 4)

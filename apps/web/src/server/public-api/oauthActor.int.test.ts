@@ -52,8 +52,6 @@ describe("a tco_ token outside an MCP dispatch", () => {
   // tells the two apart.
   // The challenge names v1's own metadata (the domain's), not /api/mcp's: an agent that
   // followed the latter would ask for a resource this grant is not for.
-  // The challenge names v1's own metadata (the domain's), not /api/mcp's: an agent that
-  // followed the latter would ask for a resource this grant is not for.
   it("is 401 on a bare /v1/account call, with the resource_metadata challenge, though it is valid", async () => {
     const { access } = await connect(await entitled(), ["account:read"]);
     const res = await account(access);

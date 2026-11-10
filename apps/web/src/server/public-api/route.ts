@@ -490,7 +490,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     // read them by that shape (ADR-089). A throw is infrastructure, as below.
     let session: Exclude<Awaited<ReturnType<typeof poppyGate>>, { refused: Response }>;
     try {
-      const gate = await poppyGate(request);
+      const gate = await poppyGate(request, { unknownClientOk: def.signedOut === true });
       if ("refused" in gate) return gate.refused;
       session = gate;
     } catch (error) {
@@ -541,9 +541,10 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     const charges: { policy: readonly QuotaPolicy[]; key: string }[] =
       session.claims !== null && actor.via === "signed-out"
         ? [
-            { policy: signedOutReadQuota(), key: `${session.claims.clientId}:${session.claims.sid}` },
-            // After the Session's own share, so a refused Session spends none of the client's.
+            // The client's own ceiling first: a request over it is refused before any global share is
+            // charged, so one agent hammering its limit cannot spend what every other agent draws on.
             { policy: signedOutClientReadQuota(), key: session.claims.clientId },
+            { policy: signedOutReadQuota(), key: `${session.claims.clientId}:${session.claims.sid}` },
           ]
         : credential !== null
           ? [{ policy: [API_TOKEN_QUOTA], key: credential }]

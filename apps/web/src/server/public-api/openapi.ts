@@ -40,7 +40,7 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
 export const API_VERSION = "2.5.0";
-export const API_FINGERPRINT = "35d57b995f61ebd99276f93fe4950975784901334d9cf68464778d7cc57292a4";
+export const API_FINGERPRINT = "aba422185d59b220afcdb405b219edab862d69eff3fa7c971ffa789c3ddd95d3";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -430,7 +430,9 @@ export function buildOpenApi(
       paths[url]![method.toLowerCase()] = {
         summary: def.summary,
         description: [
-          `Requires the \`${declared.scope}\` scope.`,
+          def.signedOut === true
+            ? `Requires the \`${declared.scope}\` scope when called with a token; a Personal Agent's Poppy Session alone, with no token, may also read it.`
+            : `Requires the \`${declared.scope}\` scope.`,
           declared.role === undefined
             ? undefined
             : declared.trip === "path"
@@ -484,7 +486,9 @@ export function buildOpenApi(
       version: API_VERSION,
       description: [
         "The public REST API. Every endpoint takes an account API token as",
-        "`Authorization: Bearer tc_...`, minted in Account settings.",
+        "`Authorization: Bearer tc_...`, minted in Account settings, or an OAuth access token.",
+        "The endpoints marked with an empty security requirement are public reads, which a Personal Agent",
+        "may also call signed out, with a `Poppy-Session` header and no token.",
         "",
         "Scopes:",
         ...API_SCOPES.map((scope) => `- \`${scope}\` — ${SCOPE_CATALOGUE[scope].description}`),

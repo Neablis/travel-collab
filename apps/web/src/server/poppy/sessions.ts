@@ -162,7 +162,12 @@ export async function poppyGate(
   if (request.headers.get("poppy-session") === null) return { claims: null, open: async () => null };
   const token = bearerToken(request) ?? undefined;
   const caller = clientIp(request);
-  const verified = await verifySessionHeader(request, token, { chargeTo: `poppy:${caller}`, ...deps });
+  // An unknown client is only for a read with no access token: a token names a grant, and so a stored client.
+  const verified = await verifySessionHeader(request, token, {
+    chargeTo: `poppy:${caller}`,
+    ...deps,
+    unknownClientOk: deps.unknownClientOk === true && token === undefined,
+  });
   if (!verified.ok) return { refused: poppyError("invalid_session", verified.reason) };
   // The operator's kill switch (ADR-089 decision 3). Poppy 7 answers a refused
   // `client_id` as `invalid_session`, and a Session that verified is the first
