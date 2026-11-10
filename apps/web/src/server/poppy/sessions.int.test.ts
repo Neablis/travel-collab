@@ -16,6 +16,7 @@ import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
 import { exchangeCode } from "@/server/oauth/tokens";
 import { connectForTest } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
+import { blockClient } from "./agentsSeen";
 import { openOrContinueSession, poppyGate, SESSION_IDLE_MS, SESSION_RETENTION_MS, sweepAgentSessions } from "./sessions";
 import { publicResolve, makeTestAgent } from "./testAgent";
 
@@ -195,6 +196,69 @@ describe("poppyGate", () => {
     }
     expect(fetch).not.toHaveBeenCalled();
     expect("open" in (await poppyGate(await request({ sid: "sid-after" }), deps))).toBe(true);
+  });
+
+  // An agent nobody has Allowed (ADR-089 decision 5): a signed-out read is served, and records nothing.
+  describe("an agent with no stored client row, on a signed-out read", () => {
+    async function strangerGate() {
+      const agent = await makeTestAgent({ issuer: oauthIssuer() });
+      const cache = createRedisCache(createMemoryClient());
+      const { deploymentOrigin } = await import("@/lib/deploymentOrigin");
+      const htu = `${deploymentOrigin()}/api/v1/discover/playbooks`;
+      const fetch = vi.fn<Fetcher>(agent.fetch);
+      const deps = { cache, clientDeps: { fetch, resolve: publicResolve, cache }, now: new Date(), unknownClientOk: true };
+      const request = async (token?: string) => {
+        const jwt = await agent.session({ htu, ...(token === undefined ? {} : { accessToken: token }) });
+        // An address of its own, so the per-address share is this test's.
+        const headers: Record<string, string> = { "poppy-session": jwt, "poppy-version": "0.4", "x-forwarded-for": `192.0.2.${1 + Math.floor(Math.random() * 250)}` };
+        if (token !== undefined) headers.authorization = `Bearer ${token}`;
+        return new Request(URL_, { headers });
+      };
+      return { agent, deps, request, fetch };
+    }
+
+    it("is served, and leaves no agent_sessions row", async () => {
+      const { agent, deps, request } = await strangerGate();
+      const gate = await poppyGate(await request(), deps);
+      expect("open" in gate).toBe(true);
+      expect(await ("open" in gate ? gate.open(null) : "refused")).toBeNull();
+      expect(await rowsOf(agent.clientId)).toHaveLength(0);
+    });
+
+    it("still gives an agent someone has allowed its row when signed out", async () => {
+      const { agent, deps, request } = await agentGate();
+      const gate = await poppyGate(await request({ sid: "sid-known" }), { ...deps, unknownClientOk: true });
+      expect(await ("open" in gate ? gate.open(null) : "refused")).toBeNull();
+      expect(await rowsOf(agent.clientId)).toHaveLength(1);
+    });
+
+    // A token names a grant and so a stored client; the guard saves the fetch that the later `ath` and
+    // token-client checks would only refuse after.
+    it("is not fetched when the request carries an access token", async () => {
+      const { deps, request, fetch } = await strangerGate();
+      const gate = await poppyGate(await request("some-token"), deps);
+      expect("refused" in gate).toBe(true);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("is not fetched once the operator has blocked its client_id", async () => {
+      const { agent, deps, request, fetch } = await strangerGate();
+      await blockClient(agent.clientId, "operator-1");
+      const gate = await poppyGate(await request(), deps);
+      expect("refused" in gate).toBe(true);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("is refused as 429 with Retry-After when the unknown-agent share is spent, not as invalid_session", async () => {
+      vi.stubEnv("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY", "1");
+      const { deps, request } = await strangerGate();
+      const gate = await poppyGate(await request(), deps);
+      expect("refused" in gate).toBe(true);
+      if (!("refused" in gate)) return;
+      expect(gate.refused.status).toBe(429);
+      expect(Number(gate.refused.headers.get("retry-after"))).toBeGreaterThan(0);
+      expect(await gate.refused.json()).toMatchObject({ error: { code: "rate-limited" } });
+    });
   });
 
   it("verifies against the last known key set while the agent's host is down, and refuses a key it has removed", async () => {

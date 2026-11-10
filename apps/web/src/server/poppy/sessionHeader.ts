@@ -6,7 +6,7 @@ import { poppyDelegationKey } from "@/server/cache/keys";
 import { getCache, type CachePort } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
 import { oauthClients, oauthGrants, oauthTokens } from "@/server/db/schema";
-import { fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps } from "@/server/oauth/clients";
+import { clientIsBlocked, fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps, type FetchLimited } from "@/server/oauth/clients";
 import { oauthIssuer } from "@/server/oauth/metadata";
 import { signedOutFetchQuota, unknownAgentFetchQuota } from "@/server/quota";
 import { keyedDigestCandidates } from "@/server/secrets/keyedDigest";
@@ -28,7 +28,10 @@ export interface SessionClaims {
   agentId: string | null;
 }
 
-export type SessionOutcome = { ok: true; claims: SessionClaims } | { ok: false; reason: string };
+/** `limited` marks a refusal that is capacity, not a fault in the Session: the caller answers it as 429 with Retry-After. */
+export type SessionOutcome = { ok: true; claims: SessionClaims } | { ok: false; reason: string; limited?: FetchLimited };
+
+type KeysOutcome = { ok: true; keys: JWK[] } | { ok: false; reason: string; limited?: FetchLimited };
 
 export interface SessionDeps {
   now?: Date;
@@ -38,7 +41,7 @@ export interface SessionDeps {
   origin?: string;
   cache?: CachePort;
   /** The public keys of the agent `clientId` names; its CIMD document and `jwks_uri`, guarded and cached, by default. */
-  loadKeys?: (clientId: string) => Promise<{ ok: true; keys: JWK[] } | { ok: false; reason: string }>;
+  loadKeys?: (clientId: string) => Promise<KeysOutcome>;
   /** Who the fetches for `loadKeys` are charged to when they are not cached. */
   chargeTo?: string;
   clientDeps?: ClientDeps;
@@ -90,7 +93,7 @@ async function verifyDelegation(
   dlg: string,
   clientId: string,
   deps: Required<Pick<SessionDeps, "cache" | "loadKeys">> & { now: Date },
-): Promise<{ ok: true; delegation: VerifiedDelegation } | { ok: false; reason: string }> {
+): Promise<{ ok: true; delegation: VerifiedDelegation } | { ok: false; reason: string; limited?: FetchLimited }> {
   const nowSeconds = Math.floor(deps.now.getTime() / 1000);
   let claims;
   let header;
@@ -108,7 +111,7 @@ async function verifyDelegation(
 
   // 1. The key in `jwks_uri` named by `kid` signed it.
   const keys = await deps.loadKeys(clientId);
-  if (!keys.ok) return { ok: false, reason: keys.reason };
+  if (!keys.ok) return keys;
   try {
     await compactVerify(dlg, createLocalJWKSet({ keys: keys.keys }), { algorithms: DELEGATION_ALGORITHMS });
   } catch {
@@ -160,7 +163,7 @@ export async function verifySessionHeader(
 
   const loadKeys = deps.loadKeys ?? ((id: string) => keysOf(id, deps));
   const verified = await verifyDelegation(header.poppy_dlg, clientId, { now, cache: deps.cache ?? getCache(), loadKeys });
-  if (!verified.ok) return no(verified.reason);
+  if (!verified.ok) return verified;
 
   // 3. The delegated key signed the Session JWT, and its `kid` is that key's thumbprint.
   if (header.typ !== "poppy-session+jwt") return no("typ must be poppy-session+jwt");
@@ -217,7 +220,9 @@ function sameEndpoint(htu: string, origin: string, pathname: string): boolean {
 const issuedTo = async (token: string) => (await tokenHolder(token))?.clientId ?? null;
 
 /** A Personal Agent's keys, by its document and `jwks_uri`; a client that is not one has none. */
-async function keysOf(clientId: string, deps: SessionDeps): Promise<{ ok: true; keys: JWK[] } | { ok: false; reason: string }> {
+async function keysOf(clientId: string, deps: SessionDeps): Promise<KeysOutcome> {
+  // Before any fetch, so a blocked agent costs the quota nothing: the gate checks it again after verification.
+  if (await clientIsBlocked(clientId)) return { ok: false, reason: "this client_id is refused" };
   // Only a client someone has allowed has a row, and authorize alone makes one: an `iss` that
   // names none is refused without a fetch, so a header naming made-up URLs costs nothing,
   // unless the route is a signed-out read (`unknownClientOk`), where it is fetched under its own quota.
@@ -235,10 +240,10 @@ async function keysOf(clientId: string, deps: SessionDeps): Promise<{ ok: true; 
     ...deps.clientDeps,
   };
   const resolved = await resolveClient(clientId, clientDeps);
-  if (!resolved.ok) return { ok: false, reason: `iss is not a usable client: ${resolved.reason}` };
+  if (!resolved.ok) return { ok: false, reason: `iss is not a usable client: ${resolved.reason}`, ...(resolved.limited && { limited: resolved.limited }) };
   if (resolved.client.authMethod !== "private_key_jwt") return { ok: false, reason: "iss is not a Personal Agent" };
   const keys = await fetchClientKeys(resolved.client, clientDeps);
-  return keys.ok ? keys : { ok: false, reason: `its keys could not be had: ${keys.detail}` };
+  return keys.ok ? keys : { ok: false, reason: `its keys could not be had: ${keys.detail}`, ...(keys.limited && { limited: keys.limited }) };
 }
 
 /**

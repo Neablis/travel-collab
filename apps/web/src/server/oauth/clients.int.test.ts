@@ -139,7 +139,7 @@ describe("the bound on CIMD fetches", () => {
     const fetch = vi.fn<Fetcher>(async (url) => new Response(JSON.stringify(documentFor(url.href))));
     expect((await resolveClient(cimdUrl(), asked({ fetch, userId }))).ok).toBe(true);
     expect((await resolveClient(cimdUrl(), asked({ fetch, userId }))).ok).toBe(true);
-    expect(await resolveClient(cimdUrl(), asked({ fetch, userId }))).toEqual({ ok: false, reason: "too-many-lookups" });
+    expect(await resolveClient(cimdUrl(), asked({ fetch, userId }))).toMatchObject({ ok: false, reason: "too-many-lookups" });
     expect(fetch).toHaveBeenCalledTimes(2);
     expect((await resolveClient(cimdUrl(), asked({ fetch }))).ok).toBe(true);
   });
@@ -164,7 +164,7 @@ describe("the bound on CIMD fetches", () => {
     expect(await globalHits()).toBe(before);
     // Past the TTL it is a miss again, and this account's one fetch is spent.
     const later = new Date(now.getTime() + (CIMD_CACHE_TTL_SECONDS + 1) * 1000);
-    expect(await resolveClient(url, asked({ fetch, userId, cache, now: later }))).toEqual({
+    expect(await resolveClient(url, asked({ fetch, userId, cache, now: later }))).toMatchObject({
       ok: false,
       reason: "too-many-lookups",
     });

@@ -13,7 +13,7 @@ import {
   type Fetcher,
 } from "@/server/external/remoteImage/fetchImage";
 import { assertPublicAddress, RemoteImageRefused, resolveHost, type Resolve } from "@/server/external/remoteImage/guard";
-import { consumeQuota, oauthCimdQuota, type QuotaPolicy } from "@/server/quota";
+import { consumeQuota, oauthCimdQuota, type QuotaDecision, type QuotaPolicy } from "@/server/quota";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { checkRedirectUri, isLoopback } from "./redirects";
 
@@ -57,7 +57,12 @@ export type ClientRefusal =
   /** A CIMD not fetched, because the account asking has fetched its hourly share (`oauthCimdQuota`). */
   | "too-many-lookups";
 
-export type ResolvedClient = { ok: true; client: OAuthClient } | { ok: false; reason: ClientRefusal; detail?: string };
+/** Why a fetch was not made for want of quota: the decision, so a caller that answers over HTTP can say when to come back. */
+export type FetchLimited = Extract<QuotaDecision, { allowed: false }>;
+
+export type ResolvedClient =
+  | { ok: true; client: OAuthClient }
+  | { ok: false; reason: ClientRefusal; detail?: string; limited?: FetchLimited };
 
 /** A DCR client that has not been used this long after registering is refused. */
 export const UNUSED_CLIENT_LIFETIME_MS = 24 * 60 * 60 * 1000;
@@ -363,7 +368,8 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
     let failure = await rememberedFailure(cache, cimdDocumentKey(url), deps, now);
     if (failure === null) {
       if (deps.userId === undefined) return refused("no account to charge the fetch to");
-      if (!(await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId)).allowed) return { ok: false, reason: "too-many-lookups" };
+      const charged = await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId);
+      if (!charged.allowed) return { ok: false, reason: "too-many-lookups", limited: charged };
       try {
         body = JSON.parse(await fetchDocument(parsed, deps));
       } catch (error) {
@@ -428,7 +434,7 @@ const KeySet = z.object({
 /** A key set is a few small keys; more than this is not one. */
 const KEY_SET_MAX_BYTES = 16 * 1024;
 
-export type KeySetOutcome = { ok: true; keys: JWK[] } | { ok: false; detail: string };
+export type KeySetOutcome = { ok: true; keys: JWK[] } | { ok: false; detail: string; limited?: FetchLimited };
 
 /** The youngest a cached key set may be and still be read again for an unknown `kid`. */
 const KEY_SET_REFETCH_SECONDS = 60;
@@ -462,7 +468,8 @@ export async function fetchClientKeys(
     let failure = await rememberedFailure(cache, failedKey, deps, now);
     if (failure === null) {
       if (deps.userId === undefined) return { ok: false, detail: "no account to charge the fetch to" };
-      if (!(await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId)).allowed) return { ok: false, detail: "too many lookups" };
+      const charged = await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId);
+      if (!charged.allowed) return { ok: false, detail: "too many lookups", limited: charged };
       try {
         body = JSON.parse(await fetchDocument(url, deps, KEY_SET_MAX_BYTES));
       } catch (error) {
