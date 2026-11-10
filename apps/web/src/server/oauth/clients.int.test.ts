@@ -450,11 +450,11 @@ describe("a known agent whose host keeps failing", () => {
   const threeUnits = [{ name: "test-failed-fetch", windowMs: 3_600_000, perUser: 3, global: 1_000_000 }];
   const keySet = { keys: [{ kty: "EC", crv: "P-256", x: "x", y: "y", kid: "k1" }] };
   const agentDocument = (url: string) =>
-    documentFor(url, { token_endpoint_auth_method: "private_key_jwt", jwks_uri: "https://app.example/jwks.json" });
+    documentFor(url, { redirect_uris: [`https://${new URL(url).host}/callback`], token_endpoint_auth_method: "private_key_jwt", jwks_uri: `https://${new URL(url).host}/jwks.json` });
 
   /** A cached document ten minutes old (stale, within the day), and the deps to ask for it again with its host failing. */
-  async function stale(failing: () => Promise<Response>) {
-    const url = cimdUrl();
+  async function stale(failing: () => Promise<Response>, host?: string) {
+    const url = cimdUrl(host);
     const cache = createRedisCache(createMemoryClient());
     const first = asked({ fetch: serving(agentDocument(url)), cache });
     await resolved(url, first);
@@ -498,6 +498,19 @@ describe("a known agent whose host keeps failing", () => {
       const resolve: Resolve = async () => Promise.reject(dnsError(code));
       expect((await resolveClient(url, { ...deps, resolve })).ok, code).toBe(served);
     }
+  });
+
+  // The fetcher looks the name up again when it connects; that lookup must be the noted one,
+  // or a resolver that fails between the two checks is never read as transient. The host is a
+  // `.localhost` name because the network guard refuses any other at connect, before the lookup runs.
+  it("falls back to its last-known copy when the connect-time lookup fails transiently", async () => {
+    const { url, deps } = await stale(async () => new Response("", { status: 200 }), "agent.localhost");
+    let calls = 0;
+    const resolve: Resolve = async () => {
+      if (calls++ === 0) return [{ address: "93.184.216.34", family: 4 }];
+      throw Object.assign(new Error("getaddrinfo EAI_AGAIN agent.localhost"), { code: "EAI_AGAIN" });
+    };
+    expect(await resolveClient(url, { ...deps, fetch: undefined, resolve })).toMatchObject({ ok: true });
   });
 
   // A refused or reset connection is the host being down, the same as a timeout.

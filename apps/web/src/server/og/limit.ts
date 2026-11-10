@@ -1,6 +1,5 @@
-import { isIPv6 } from "node:net";
 import { after } from "next/server";
-import { consumeQuota, linkPreviewQuota, quotaRefusal, sweepExpiredCounters } from "../quota";
+import { consumeQuota, linkPreviewQuota, quotaRefusal, registrationAddress, sweepExpiredCounters } from "../quota";
 
 // The rate limit on the four `/api/og/**` routes (Mitchell, 2026-09-27): the
 // Postgres counter `quota.ts` already keeps. Never the shared Redis: ADR-059
@@ -16,32 +15,14 @@ import { consumeQuota, linkPreviewQuota, quotaRefusal, sweepExpiredCounters } fr
  * The caller's IP: the first hop of `x-forwarded-for`, which the reverse proxy
  * (Coolify's Traefik) sets from the connecting client, then `x-real-ip`.
  * Both are client-supplied if the proxy does not overwrite them, which is fine for a limiter
- * whose job is bounding cost, not proving identity.
+ * whose job is bounding cost, not proving identity. An IPv6 address stands as its /64 and a
+ * mapped IPv4 as its IPv4 (`registrationAddress`), so one subscriber is one bucket.
  */
 export function clientIp(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  if (forwarded) return bucketOf(forwarded);
+  if (forwarded) return registrationAddress(forwarded);
   const real = request.headers.get("x-real-ip")?.trim();
-  return real ? bucketOf(real) : "unknown";
-}
-
-/**
- * An IPv6 address as its /64, the smallest block one subscriber is routinely
- * given: per address, one host could rotate through 2^64 buckets and never meet
- * its limit. IPv4, and anything that is not an IPv6 address, stands as sent.
- */
-function bucketOf(ip: string): string {
-  if (!isIPv6(ip)) return ip;
-  // An IPv4 behind a dual-stack socket is still one IPv4 address; and a dotted tail
-  // counts as two groups, which the arithmetic below does not know.
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
-  if (mapped) return mapped[1]!;
-  if (ip.includes(".")) return ip;
-  const [head = "", tail] = ip.toLowerCase().replace(/%.*$/, "").split("::");
-  const groups = head === "" ? [] : head.split(":");
-  const rest = tail === undefined || tail === "" ? [] : tail.split(":");
-  const padding = tail === undefined ? [] : Array<string>(8 - groups.length - rest.length).fill("0");
-  return [...groups, ...padding, ...rest].slice(0, 4).map((group) => Number.parseInt(group, 16).toString(16)).join(":") + "::/64";
+  return real ? registrationAddress(real) : "unknown";
 }
 
 /**

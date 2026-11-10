@@ -37,6 +37,8 @@ describe("clientIp", () => {
     expect(clientIp(from("2001:db8:1:2::1"))).not.toBe(clientIp(from("2001:db8:1:3::1")));
     expect(clientIp(from("2001:db8::1:2:3:4"))).toBe(clientIp(from("2001:db8:0:0:9::")));
     expect(clientIp(from("::ffff:198.51.100.7"))).toBe("198.51.100.7");
+    // A proxy that spells the mapped address in hex still names one IPv4 client, not a shared bucket.
+    expect(clientIp(from("::ffff:c633:6407"))).toBe("198.51.100.7");
     expect(clientIp(from("198.51.100.7"))).toBe("198.51.100.7");
     expect(clientIp(from("198.51.100.8"))).not.toBe(clientIp(from("198.51.100.7")));
   });
