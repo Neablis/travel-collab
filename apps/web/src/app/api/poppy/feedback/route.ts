@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   if ("refused" in gate) return gate.refused;
   if (gate.claims === null) return poppyError("invalid_session", "a report needs a Poppy-Session header");
 
-  const ended = await gate.open(null);
+  const ended = await gate.open(null, { recordStranger: true });
   if (ended !== null) return ended;
 
   // Charged before the body is read, so a stream of malformed ones is limited too.

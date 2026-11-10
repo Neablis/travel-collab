@@ -157,7 +157,7 @@ export async function poppyGate(
   request: Request,
   deps: SessionDeps = {},
 ): Promise<
-  { refused: Response } | { claims: SessionClaims | null; open: (accountId: string | null) => Promise<Response | null> }
+  { refused: Response } | { claims: SessionClaims | null; open: (accountId: string | null, opts?: { recordStranger?: boolean }) => Promise<Response | null> }
 > {
   if (request.headers.get("poppy-session") === null) return { claims: null, open: async () => null };
   const token = bearerToken(request) ?? undefined;
@@ -178,10 +178,11 @@ export async function poppyGate(
   if (!versionServed(request.headers.get("poppy-version"))) return { refused: poppyError("version_unsupported") };
   return {
     claims: verified.claims,
-    open: async (accountId) => {
+    open: async (accountId, opts) => {
       // A stranger's signed-out read is served and recorded nowhere (ADR-089 decision 8): a row per
       // made-up client_id would fill the console's Agents tab with whatever it chose to be called.
-      if (accountId === null && (await storedClientRowId(verified.claims.clientId)) === null) return null;
+      // A report route (feedback, tasks) passes `recordStranger`: its agent gets a row so it can be blocked, bounded by that route's own quota.
+      if (accountId === null && opts?.recordStranger !== true && (await storedClientRowId(verified.claims.clientId)) === null) return null;
       const opened = await openOrContinueSession({ claims: verified.claims, accountId, caller, now: deps.now ?? new Date() });
       if (opened.ok) return null;
       return opened.limited === undefined ? poppyError("session_ended") : limitedResponse(opened.limited, "new Sessions");

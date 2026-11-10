@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const gate = await poppyGate(request, { unknownClientOk: true });
   if ("refused" in gate) return gate.refused;
-  const ended = await gate.open(null);
+  const ended = await gate.open(null, { recordStranger: true });
   if (ended !== null) return ended;
   return Response.json(tasksResponse(), { headers: { "Cache-Control": "public, max-age=300" } });
 }
