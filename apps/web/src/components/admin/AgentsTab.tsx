@@ -29,7 +29,7 @@ function refusalOf(status: number): string {
 }
 
 /** The agents table, with Block and Unblock on each row. */
-export function AgentsTab({ agents }: { agents: AdminAgent[] }) {
+export function AgentsTab({ agents, seenCap }: { agents: AdminAgent[]; seenCap?: number }) {
   const [blocked, setBlocked] = useState<ReadonlyMap<string, boolean>>(() => new Map(agents.map((a) => [a.clientId, a.blocked])));
   const [confirming, setConfirming] = useState<AdminAgent | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,6 +58,8 @@ export function AgentsTab({ agents }: { agents: AdminAgent[] }) {
   }
 
   if (agents.length === 0) return <EmptyState title="No Personal Agent has connected yet." />;
+  // The server read stops at its cap, so a full list may be hiding older agents.
+  const capped = seenCap !== undefined && agents.length >= seenCap;
 
   return (
     <section className="flex flex-col gap-3">
@@ -65,6 +67,11 @@ export function AgentsTab({ agents }: { agents: AdminAgent[] }) {
         <Banner variant="danger" role="alert">
           {failed}
         </Banner>
+      ) : null}
+      {capped ? (
+        <Text variant="secondary" className="text-xs">
+          Showing the {seenCap} most recently seen agents, and every blocked one.
+        </Text>
       ) : null}
       {/* Scrolls rather than clips: the Actions column, the tab's one action, is the last of six. */}
       <div className="overflow-x-auto rounded-lg border border-hairline bg-surface shadow-raised">

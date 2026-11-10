@@ -62,6 +62,15 @@ describe("AgentsTab", () => {
     expect(screen.getByRole("button", { name: "Unblock other.example" })).toBeTruthy();
   });
 
+  // agentsSeen stops reading at its cap; without a word, an agent past it just looks absent.
+  it("says it shows only the most recently seen when the list is at the cap", () => {
+    const full = Array.from({ length: 3 }, (_, i) => agent({ clientId: `https://a${i}.example/c.json`, domain: `a${i}.example` }));
+    const { rerender } = render(<AgentsTab agents={full} seenCap={3} />);
+    expect(screen.getByText("Showing the 3 most recently seen agents, and every blocked one.")).toBeTruthy();
+    rerender(<AgentsTab agents={full.slice(0, 2)} seenCap={3} />);
+    expect(screen.queryByText(/most recently seen/)).toBeNull();
+  });
+
   it("says so when no agent has been seen", () => {
     render(<AgentsTab agents={[]} />);
     expect(screen.getByText("No Personal Agent has connected yet.")).toBeTruthy();

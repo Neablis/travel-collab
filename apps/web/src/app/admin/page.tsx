@@ -23,7 +23,7 @@ import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitleme
 import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { personaReport } from "@/server/entitlements/personaReport";
 import { grantForPersona, toolsFor } from "@/server/assistant/grants";
-import { agentsSeen } from "@/server/poppy/agentsSeen";
+import { AGENTS_SEEN_CAP, agentsSeen } from "@/server/poppy/agentsSeen";
 import { EDGES, ENTRY, PERSONAS, type PersonaId } from "@/server/assistant/personas";
 import type { PersonaMapDef } from "@/lib/adminPersonas";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
@@ -153,7 +153,7 @@ export default async function AdminPage({
     const agents = await agentsSeen();
     return (
       <ConsoleShell tab={tab}>
-        <AgentsTab agents={agents} />
+        <AgentsTab agents={agents} seenCap={AGENTS_SEEN_CAP} />
       </ConsoleShell>
     );
   }
