@@ -3,7 +3,7 @@ import { and, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { agentSessions } from "@/server/db/schema";
 import { clientIp } from "@/server/og/limit";
-import { bearerToken } from "@/server/public-api/actor";
+import { bearerToken } from "@/server/bearerToken";
 import { agentSessionOpenQuota, consumeQuota, type QuotaDecision } from "@/server/quota";
 import { poppyError } from "./errors";
 import { POPPY_PROTOCOL_VERSION } from "./discovery";

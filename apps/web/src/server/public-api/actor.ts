@@ -2,6 +2,7 @@ import { OAUTH_ACCESS_PREFIX, type ApiScope } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { verifyToken, type TokenRefusal } from "@/server/api-tokens";
 import { inMcpDispatch } from "@/server/oauth/dispatchContext";
+import { bearerToken } from "@/server/bearerToken";
 import { verifyAccessToken, type AccessRefusal } from "@/server/oauth/verifyAccess";
 
 // **Who is asking, and by what authority** (M22 Phase 2, Decision 3).
@@ -53,20 +54,6 @@ export type ActorRefusal =
 
 export type ActorResolution = { ok: true; actor: Actor } | { ok: false; refusal: ActorRefusal };
 
-// **Case-insensitive, and the token is the non-space run.** RFC 7235 makes the
-// auth-scheme case-insensitive, so `bearer tc_…` from a client that lowercases
-// its headers is a real credential — and answering it as "anonymous" is the
-// 401 an integrator cannot debug, because their token IS valid. `\S+` rather
-// than `.+` also stops a trailing space or `\r` riding along into the digest,
-// which would fail verification for a reason nothing in the response names.
-const BEARER = /^Bearer[ \t]+(\S+)[ \t]*$/i;
-
-/** The bearer token a request carries, or `null` when its `Authorization` is absent or not a bearer. */
-export function bearerToken(request: Request): string | null {
-  const header = request.headers.get("authorization");
-  return header === null ? null : (BEARER.exec(header)?.[1] ?? null);
-}
-
 /**
  * Resolve a request to an actor.
  *
@@ -84,10 +71,10 @@ export function bearerToken(request: Request): string | null {
  */
 export async function resolveActor(request: Request, now: Date = new Date()): Promise<ActorResolution> {
   const header = request.headers.get("authorization");
-  const bearer = header === null ? null : BEARER.exec(header);
-  if (bearer !== null && bearer[1]!.startsWith(OAUTH_ACCESS_PREFIX)) return resolveOAuth(bearer[1]!, now);
+  const bearer = bearerToken(request);
+  if (bearer !== null && bearer.startsWith(OAUTH_ACCESS_PREFIX)) return resolveOAuth(bearer, now);
   if (bearer !== null) {
-    const verified = await verifyToken(bearer[1]!, now);
+    const verified = await verifyToken(bearer, now);
     if (!verified.ok) return { ok: false, refusal: { reason: "token", refusal: verified.refusal } };
     return {
       ok: true,
