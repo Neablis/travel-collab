@@ -105,20 +105,33 @@ outside MCP dispatch with `audience`).
   cache is off.
 - **A client with no stored row is never fetched for.** Only `/oauth/authorize` creates an
   `oauth_clients` row (at Allow, under its own quota). The token endpoint, revocation and Session
-  verification answer a `client_id` with no row `invalid_client` / `invalid_session` without a
-  fetch, so inventing URLs costs an attacker nothing and spends no pool. For a stored client,
+  verification answer a `client_id` with no row without a fetch, so inventing URLs costs an
+  attacker nothing and spends no pool. What they answer: the token endpoint `invalid_client` when
+  the request carries an assertion and `invalid_grant` when it does not; revocation 200 and
+  nothing done (RFC 7009), since it only looks at a client once it has found a real token;
+  Session verification `invalid_session`. For a stored client,
   fetches made before an account is known are charged to the caller's IP on the signed-out fetch
   quota (120 per caller, 3,000 an hour global), never to a `client_id` the caller names and never
   to the authorize share. Sizing: a busy agent refetches its document and key set every 5 minutes,
-  about 24 units an hour, so 3,000 carries over a hundred of them; the 429 a stranger could cause
-  is bounded by how many known agents there are, since each costs at most that.
+  about 24 units an hour, so 3,000 carries over a hundred of them. A failing fetch of a stored
+  client's document or key set is remembered for 60 seconds (`FETCH_FAILURE_SECONDS`) and answered
+  from that marker without a fetch or a charge, so each known URL costs at most one unit a minute
+  however often it is asked, and a stranger can cause a 429 only by the number of known agents
+  times that, not by repetition. A host that is down no longer costs its callers a unit and five
+  seconds per request. The marker is for the token endpoint and Session verification only;
+  authorize reads a document as it is now.
 - **A key set that cannot be read does not lock an agent out, and a removed key does not outlive
   the removal.** The last known good document and key set of a `private_key_jwt` client are kept
   for 24 hours (fresh for 5 minutes; a public client's copies keep the 5 minutes), and the token
   endpoint and Session verification fall back to them **only when the host cannot be reached**: a
-  transport failure, a timeout or a 5xx. Never on a 404, a 410 or another answer, on a set that
-  omits the key, or on a spent quota. The longest a key an agent has removed can still be
-  accepted is therefore 5 minutes when its host answers (the cache), and 24 hours when it is down.
+  transport failure, a timeout, a 5xx or a resolver that failed (EAI_AGAIN, SERVFAIL; our lookup
+  failing says nothing about the agent). Never on a 404, a 410 or another answer, a name that does
+  not exist (NXDOMAIN), a body that is not a document or key set, a set that omits the key, or on
+  a spent quota. The longest a key an agent has removed can still be accepted is therefore 5
+  minutes when its host answers (the cache), and 24 hours when it is down. A verified delegation
+  is trusted from the cache for 60 seconds at most, whatever its `exp`, and is then checked
+  against the key set again, so on Session verification the removed-key window is the key set's 5
+  minutes plus that minute, not the delegation's 24 hours.
   A key set asked for again (an unknown `kid`) gets no fallback and is read at most once a minute
   per cached copy. A rotated refresh token or spent code cuts a grant off only when presented
   under the grant's own `client_id`.
