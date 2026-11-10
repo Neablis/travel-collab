@@ -215,8 +215,9 @@ reopened; ADR-089 carries the mechanism.
 **Gate status, 2026-11-10 (Mitchell).** "Preview of PR 718 exists and was walked" is an **open** gate
 item, not a pass: PR 718 has no preview (https://718.preview.caesura.today answers with Traefik's
 default certificate, no router for the host), and `preview-link-check` run 42738117800 still
-concluded success (KI-2026-11-10). Likely, not proven, cause: PR 718 opened against the part-4
-branch and was retargeted to `main` later. Mitchell is deploying it by hand; the walk, the kit
-validator run and claude.ai's connector check wait on it. The preview-DB check for migration `0075`
+concluded success (KI-2026-11-10). Cause: Coolify PR previews were never switched on (no PR has had a
+preview since the M59 cutover; KI-20261110). The PR 718 walk waits on M59's open "Coolify previews
+work for PRs" gate box, not on a by-hand deploy; the walk, the kit validator run and claude.ai's
+connector check wait on it. The preview-DB check for migration `0075`
 came back clean (Mitchell, 2026-11-10): no preview applied the pre-review `0075`
 (`created_at` 1794264391750 is absent from the preview DB), so there is nothing to recover.
