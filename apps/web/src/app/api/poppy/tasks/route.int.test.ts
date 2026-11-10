@@ -8,6 +8,7 @@ import { createRedisCache } from "@/server/cache/redis";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { agentSessions } from "@/server/db/schema";
+import { resolveClient, storeClient } from "@/server/oauth/clients";
 import { oauthIssuer } from "@/server/oauth/metadata";
 import { tasksResponse } from "@/server/poppy/tasks";
 import { makeTestAgent, publicResolve, type TestAgent } from "@/server/poppy/testAgent";
@@ -27,9 +28,15 @@ const { GET } = await import("./route");
 
 const PATH = "/api/poppy/tasks";
 
-async function tasksRequest(over: { session?: Record<string, unknown>; header?: boolean; agent?: TestAgent } = {}) {
+async function tasksRequest(over: { session?: Record<string, unknown>; header?: boolean; agent?: TestAgent; allowed?: boolean } = {}) {
   const agent = over.agent ?? (await makeTestAgent({ issuer: oauthIssuer() }));
   const cache = createRedisCache(createMemoryClient());
+  if (over.allowed === true) {
+    // Someone has allowed it: it has a stored client row, so its Session is recorded.
+    const resolved = await resolveClient(agent.clientId, { fetch: agent.fetch, resolve: publicResolve, cache, userId: "tasks-owner" });
+    if (!resolved.ok) throw new Error("agent did not resolve");
+    await storeClient(resolved.client, new Date());
+  }
   poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
   const headers: Record<string, string> = {
     "poppy-version": "0.4",
@@ -57,11 +64,24 @@ describe("GET /api/poppy/tasks", () => {
   it("refuses a Session that has ended as session_ended, like every other route", async () => {
     const agent = await makeTestAgent({ issuer: oauthIssuer() });
     const session = { sid: "sid-ends" };
-    expect((await GET(await tasksRequest({ agent, session }))).status).toBe(200);
+    expect((await GET(await tasksRequest({ agent, session, allowed: true }))).status).toBe(200);
     await db.update(agentSessions).set({ endedAt: new Date() }).where(eq(agentSessions.clientId, agent.clientId));
     const res = await GET(await tasksRequest({ agent, session }));
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "session_ended" });
+  });
+
+  // tasks is a read: a stranger's made-up client_id must not become a row in the operator's Agents tab.
+  it("serves an agent nobody has allowed and records no Session row for it", async () => {
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    expect((await GET(await tasksRequest({ agent }))).status).toBe(200);
+    expect(await db.select().from(agentSessions).where(eq(agentSessions.clientId, agent.clientId))).toHaveLength(0);
+  });
+
+  it("records the Session of an agent someone has allowed", async () => {
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    expect((await GET(await tasksRequest({ agent, allowed: true }))).status).toBe(200);
+    expect(await db.select().from(agentSessions).where(eq(agentSessions.clientId, agent.clientId))).toHaveLength(1);
   });
 
   it("gives every Session the same body, with or without a header", async () => {

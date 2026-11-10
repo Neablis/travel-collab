@@ -127,7 +127,7 @@ function versionServed(header: string | null): boolean {
  * `/api/v1/*` and `/api/mcp` both answer in (and `route()`'s 429 and 503 for a spent token's
  * share): a Poppy error is a bare code, and this is not one of the three.
  */
-function limitedResponse(decision: Extract<QuotaDecision, { allowed: false }>, what: string): Response {
+export function limitedResponse(decision: Extract<QuotaDecision, { allowed: false }>, what: string): Response {
   const unavailable = decision.reason === "unavailable";
   return Response.json(
     {
@@ -181,7 +181,7 @@ export async function poppyGate(
     open: async (accountId, opts) => {
       // A stranger's signed-out read is served and recorded nowhere (ADR-089 decision 8): a row per
       // made-up client_id would fill the console's Agents tab with whatever it chose to be called.
-      // A report route (feedback, tasks) passes `recordStranger`: its agent gets a row so it can be blocked, bounded by that route's own quota.
+      // The report route (feedback) passes `recordStranger`: its agent gets a row so it can be blocked, bounded by that route's own quota.
       if (accountId === null && opts?.recordStranger !== true && (await storedClientRowId(verified.claims.clientId)) === null) return null;
       const opened = await openOrContinueSession({ claims: verified.claims, accountId, caller, now: deps.now ?? new Date() });
       if (opened.ok) return null;

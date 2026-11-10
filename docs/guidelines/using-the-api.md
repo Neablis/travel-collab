@@ -190,8 +190,11 @@ decide that. Three things are Poppy's own:
   may report, and it opens or continues the Session as every other route does: an
   ended Session is `session_ended`, and a report-only agent shows in the console's
   *Agents* tab, where the operator can block it. It is limited to 20 reports an hour
-  per `client_id`, 30 per caller IP and 500 in all (a 429 with `Retry-After`;
-  `AGENT_FEEDBACK_RATE_LIMIT_*` in `.env.example`). Reports are kept for 90 days, at
+  per `client_id`, 30 per caller IP and 500 in all (charged before the Session opens, so
+  only a report inside the share records an agent; a 429 with `Retry-After`, in the
+  `rate-limited` envelope the Session gate answers in; `AGENT_FEEDBACK_RATE_LIMIT_*` in
+  `.env.example`). `GET /api/poppy/tasks` records no Session row for an agent nobody has
+  allowed. Reports are kept for 90 days, at
   most 2000 of them.
 
 **Report text is the agent's, and untrusted.** It is stored as it arrived and

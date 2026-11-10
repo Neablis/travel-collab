@@ -143,10 +143,24 @@ describe("POST /api/poppy/feedback", () => {
 
   it("refuses a body far over any valid report without storing it", async () => {
     const agent = await makeTestAgent({ issuer: oauthIssuer() });
-    const res = await report(agent, null, { raw: JSON.stringify({ task: "x", description: "y".repeat(200_000) }) });
+    // Valid under the schema (zod strips the extra key), so only the byte ceiling can refuse it.
+    const raw = JSON.stringify({ task: "x", description: "y", pad: "p".repeat(40_000) });
+    const res = await report(agent, null, { raw });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid_request" });
     expect(await stored(agent)).toHaveLength(0);
+  });
+
+  it("refuses over the share with one 429 shape, in the agent routes' envelope, before the Session opens", async () => {
+    vi.stubEnv("AGENT_FEEDBACK_RATE_LIMIT_PER_CLIENT_HOURLY", "1");
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    expect((await report(agent, { task: "x", description: "y" })).status).toBe(202);
+    const res = await report(agent, { task: "x", description: "y" }, { sid: "sid-second" });
+    expect(res.status).toBe(429);
+    expect(await res.json()).toMatchObject({ error: { code: "rate-limited" } });
+    expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
+    // The refused report's Session was never opened: only the first sid has a row.
+    expect(await db.select().from(agentSessions).where(eq(agentSessions.clientId, agent.clientId))).toHaveLength(1);
   });
 });
 

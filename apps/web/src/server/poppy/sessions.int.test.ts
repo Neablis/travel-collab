@@ -225,6 +225,14 @@ describe("poppyGate", () => {
       expect(await rowsOf(agent.clientId)).toHaveLength(0);
     });
 
+    // The report route's choice: its agent gets a row so the operator can block it.
+    it("records a stranger's row when the route says recordStranger", async () => {
+      const { agent, deps, request } = await strangerGate();
+      const gate = await poppyGate(await request(), deps);
+      expect(await ("open" in gate ? gate.open(null, { recordStranger: true }) : "refused")).toBeNull();
+      expect(await rowsOf(agent.clientId)).toHaveLength(1);
+    });
+
     it("still gives an agent someone has allowed its row when signed out", async () => {
       const { agent, deps, request } = await agentGate();
       const gate = await poppyGate(await request({ sid: "sid-known" }), { ...deps, unknownClientOk: true });

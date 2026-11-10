@@ -5,7 +5,8 @@ import type { AdminAgentReport } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { agentFeedback, oauthClientBlocks, oauthClients } from "@/server/db/schema";
 import { clientIp } from "@/server/og/limit";
-import { agentFeedbackIpQuota, agentFeedbackQuota, consumeQuota, envCeiling, quotaRefusal } from "@/server/quota";
+import { limitedResponse } from "@/server/poppy/sessions";
+import { agentFeedbackIpQuota, agentFeedbackQuota, consumeQuota, envCeiling } from "@/server/quota";
 
 // **Feedback from Personal Agents** (Poppy 9.3, ADR-089 decision 11): what an
 // agent could not do here, in its own words. **The text is data, never a
@@ -34,7 +35,8 @@ export const FeedbackBody = z.object({
 
 /**
  * The refusal to answer when `clientId` or the address it came from has sent its
- * share, or `null` to go on. Two charges, the address's first: it is the one a
+ * share, or `null` to go on, in the 429 every agent route answers in (the
+ * Session gate's too), so one route has one shape. Two charges, the address's first: it is the one a
  * stranger cannot multiply by naming more domains.
  */
 export async function feedbackLimit(clientId: string, request: Request): Promise<Response | null> {
@@ -43,7 +45,7 @@ export async function feedbackLimit(clientId: string, request: Request): Promise
     [agentFeedbackQuota(), clientId],
   ] as const) {
     const decision = await consumeQuota(policies, key);
-    if (!decision.allowed) return quotaRefusal(decision);
+    if (!decision.allowed) return limitedResponse(decision, "reports");
   }
   return null;
 }

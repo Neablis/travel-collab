@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 // on an unverified claim; no scope, because a signed-out agent may report, which is
 // why an agent nobody has allowed is let through the gate (under its own fetch
 // quota). Like every route an agent calls, it opens or continues the Session: a
-// report-only agent is then seen and can be blocked, and an ended Session is
+// report-only agent is then seen and can be blocked, as far as its report was inside the quota, and an ended Session is
 // refused as `session_ended`. Answers `202` with no body; a body that is
 // malformed or too long is `invalid_request`. The text is data: stored as sent,
 // never read as an instruction.
@@ -20,12 +20,14 @@ export async function POST(request: Request) {
   if ("refused" in gate) return gate.refused;
   if (gate.claims === null) return poppyError("invalid_session", "a report needs a Poppy-Session header");
 
-  const ended = await gate.open(null, { recordStranger: true });
-  if (ended !== null) return ended;
-
-  // Charged before the body is read, so a stream of malformed ones is limited too.
+  // Charged before the Session opens and the body is read: the Session row of a
+  // stranger is what `recordStranger` writes, so only a report inside the share
+  // records an agent, and a stream of malformed ones is limited too.
   const limited = await feedbackLimit(gate.claims.clientId, request);
   if (limited !== null) return limited;
+
+  const ended = await gate.open(null, { recordStranger: true });
+  if (ended !== null) return ended;
 
   const text = await readCapped(request, BODY_MAX_BYTES);
   const body = FeedbackBody.safeParse(parse(text));
