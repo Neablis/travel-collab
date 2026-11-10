@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Heading } from "@/components/ui/heading";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
@@ -176,21 +177,19 @@ export function AgentsTab({ agents, reports }: { agents: AdminAgent[]; reports: 
 function ReportsList({ reports }: { reports: AdminAgentReport[] }) {
   return (
     <section aria-label="Reports from agents" className="flex flex-col gap-3">
-      <Text as="p" className="text-sm font-semibold text-ink">
-        Reports from agents
-      </Text>
+      <Heading level={3}>Reports from agents</Heading>
       {reports.length === 0 ? (
         <Text variant="secondary">No reports from agents yet.</Text>
       ) : (
         <ul className="flex flex-col gap-3">
           {reports.map((report) => (
             <li key={report.id} className="rounded-lg border border-hairline bg-surface p-3.5 shadow-raised">
-              <Text className="font-semibold">{report.task}</Text>
+              <Text className="break-words font-semibold">{report.task}</Text>
               <Text variant="secondary" className="whitespace-pre-wrap break-words">
                 {report.description}
               </Text>
               <Text variant="muted" className="mt-1">
-                {report.agentName} · {date(report.createdAt)}
+                {report.agentName} · {report.domain} · {date(report.createdAt)}
               </Text>
             </li>
           ))}

@@ -180,17 +180,25 @@ decide that. Three things are Poppy's own:
   Playbooks (`GET /api/v1/discover/playbooks`) and nothing else; any other v1
   route challenges as it always did.
 - **Tasks and feedback.** `GET /api/poppy/tasks` (listed as `tasks.endpoint`)
-  returns `excluded_tasks`, each a short phrase with an `alternative`, and
+  returns `excluded_tasks`, each a short phrase with an `alternative` where there is one, and
   `feedback.endpoint`. It takes no token and is the same for every Session, so
   it is cacheable (`public, max-age=300`); a header that is sent is still
   verified. `POST /api/poppy/feedback` takes `{ task, description }`, `task` 1 to
-  200 and `description` 1 to 2000 characters, answers `202` with no body, and is
-  `invalid_request` (400) otherwise. It needs a verified header and no scope, and
-  is limited to 20 reports an hour per `client_id` (a 429 with `Retry-After`).
+  200 and `description` 1 to 2000 characters (counted as characters, not bytes), answers
+  `202` with no body, and is `invalid_request` (400) otherwise, an oversize body
+  included. It needs a verified header and no scope, so an agent nobody has allowed
+  may report, and it opens or continues the Session as every other route does: an
+  ended Session is `session_ended`, and a report-only agent shows in the console's
+  *Agents* tab, where the operator can block it. It is limited to 20 reports an hour
+  per `client_id`, 30 per caller IP and 500 in all (a 429 with `Retry-After`;
+  `AGENT_FEEDBACK_RATE_LIMIT_*` in `.env.example`). Reports are kept for 90 days, at
+  most 2000 of them.
 
 **Report text is the agent's, and untrusted.** It is stored as it arrived and
 shown in the console's *Agents* tab as plain text: no markdown, no markup, and
-never given to a model. Anything that reads it keeps it so. The excluded tasks
+never given to a model. Anything that reads it keeps it so; each is listed with the
+agent's verified domain, since its name is its own claim, and a blocked agent's are
+left out. The excluded tasks
 are the list in `server/poppy/tasks.ts`, kept beside `exposure.ts`'s `never`
 rows: a task that stands on one cites it, and `tasks.test.ts` fails if the row
 stops being `never`. The operator blocks an agent from the same tab.

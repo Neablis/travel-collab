@@ -15,7 +15,7 @@ Format:
 
 ## 2026-11-09 — `AdminAgentReport`, and `AdminAgentList.reports`: reports in the Agents tab (M60 part 5)
 - **New schema** `AdminAgentReport` in `packages/contracts/src/adminAgents.ts` (`id`, `clientId`,
-  `agentName`, `task`, `description`, `createdAt`); **new required field** `reports` on `AdminAgentList`.
+  `agentName`, `domain`, `task`, `description`, `createdAt`); **new required field** `reports` on `AdminAgentList`.
 - Why: a Personal Agent's feedback (Poppy 9.3, ADR-089 decision 11) is listed under the agents table,
   newest first, as plain text.
 - Consumers updated: `apps/web` (`app/api/admin/agents/route.ts`, `app/admin/page.tsx`,

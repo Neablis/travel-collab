@@ -110,7 +110,7 @@ const DAY_MS = 24 * HOUR_MS;
 const MAX_INT4 = 2_147_483_647;
 const MAX_COUNTER_HITS = MAX_INT4 - 1;
 
-function envCeiling(name: string, fallback: number): number {
+export function envCeiling(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === "") return fallback;
   const parsed = Number(raw);
@@ -467,6 +467,39 @@ export function unknownAgentFetchQuota(): QuotaPolicy[] {
       windowMs: HOUR_MS,
       perUser: envCeiling("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY", 30),
       global: envCeiling("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_GLOBAL_HOURLY", 500),
+    },
+  ];
+}
+
+/**
+ * Reports a Personal Agent sends (Poppy 9.3, ADR-089 decision 11), per
+ * `client_id`: 9.3 asks for one report per task, so 20 an hour is generous for an
+ * honest agent and bounds what a dishonest one can write. Charged before the body
+ * is read, so a stream of malformed ones is limited too.
+ */
+export function agentFeedbackQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "agent-feedback-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("AGENT_FEEDBACK_RATE_LIMIT_PER_CLIENT_HOURLY", 20),
+      global: envCeiling("AGENT_FEEDBACK_RATE_LIMIT_GLOBAL_HOURLY", 500),
+    },
+  ];
+}
+
+/**
+ * The same reports per caller IP. A `client_id` is a URL anyone can mint, so the
+ * per-client share alone is multiplied by every domain one stranger can name; this
+ * is the ceiling on the stranger.
+ */
+export function agentFeedbackIpQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "agent-feedback-ip-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("AGENT_FEEDBACK_RATE_LIMIT_PER_IP_HOURLY", 30),
+      global: envCeiling("AGENT_FEEDBACK_RATE_LIMIT_IP_GLOBAL_HOURLY", 1000),
     },
   ];
 }

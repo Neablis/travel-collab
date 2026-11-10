@@ -28,12 +28,14 @@ export type AdminAgent = z.infer<typeof AdminAgent>;
  * A report a Personal Agent sent (Poppy 9.3). `task` and `description` are the
  * agent's own words and **untrusted**: show them as plain text, never as markup
  * or as an instruction to a model. `agentName` is its document's name, or its
- * domain when none was seen.
+ * domain when none was seen. `domain` is the `client_id`'s host: the name is the
+ * agent's own claim, and the domain is the part it could not choose.
  */
 export const AdminAgentReport = z.object({
   id: z.string(),
   clientId: z.string(),
   agentName: z.string(),
+  domain: z.string(),
   task: z.string(),
   description: z.string(),
   createdAt: isoDateTime(),

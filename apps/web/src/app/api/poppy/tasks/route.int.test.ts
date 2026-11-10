@@ -5,9 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { createMemoryClient } from "@/server/cache/memory";
 import { createRedisCache } from "@/server/cache/redis";
+import { eq } from "drizzle-orm";
+import { db } from "@/server/db/client";
+import { agentSessions } from "@/server/db/schema";
 import { oauthIssuer } from "@/server/oauth/metadata";
 import { tasksResponse } from "@/server/poppy/tasks";
-import { makeTestAgent, publicResolve } from "@/server/poppy/testAgent";
+import { makeTestAgent, publicResolve, type TestAgent } from "@/server/poppy/testAgent";
 
 // Nothing here is a person's: the route reads no cookie, and the module only has to load.
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -17,15 +20,15 @@ vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 let poppyDeps: import("@/server/poppy/sessionHeader").SessionDeps = {};
 vi.mock("@/server/poppy/sessions", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/poppy/sessions")>();
-  return { ...actual, poppyGate: (request: Request) => actual.poppyGate(request, poppyDeps) };
+  return { ...actual, poppyGate: (request: Request, deps?: object) => actual.poppyGate(request, { ...deps, ...poppyDeps }) };
 });
 
 const { GET } = await import("./route");
 
 const PATH = "/api/poppy/tasks";
 
-async function tasksRequest(over: { session?: Record<string, unknown>; header?: boolean } = {}) {
-  const agent = await makeTestAgent({ issuer: oauthIssuer() });
+async function tasksRequest(over: { session?: Record<string, unknown>; header?: boolean; agent?: TestAgent } = {}) {
+  const agent = over.agent ?? (await makeTestAgent({ issuer: oauthIssuer() }));
   const cache = createRedisCache(createMemoryClient());
   poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
   const headers: Record<string, string> = {
@@ -49,6 +52,16 @@ describe("GET /api/poppy/tasks", () => {
     const res = await GET(await tasksRequest({ session: { aud: "https://other.test" } }));
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid_session" });
+  });
+
+  it("refuses a Session that has ended as session_ended, like every other route", async () => {
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    const session = { sid: "sid-ends" };
+    expect((await GET(await tasksRequest({ agent, session }))).status).toBe(200);
+    await db.update(agentSessions).set({ endedAt: new Date() }).where(eq(agentSessions.clientId, agent.clientId));
+    const res = await GET(await tasksRequest({ agent, session }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "session_ended" });
   });
 
   it("gives every Session the same body, with or without a header", async () => {

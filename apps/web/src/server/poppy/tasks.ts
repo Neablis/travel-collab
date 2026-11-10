@@ -12,8 +12,12 @@ import { deploymentOrigin } from "@/lib/deploymentOrigin";
 export interface ExcludedTask {
   /** A short phrase (9.1), at most 200 characters. */
   task: string;
-  /** The alternative (9.2), natural language: the agent reads it as content, not as an instruction. */
-  instructions: string;
+  /**
+   * The alternative (9.2), natural language: the agent reads it as content, not as an
+   * instruction. Absent when there is nowhere to send the person: pointing at a
+   * control that does not exist would be worse than saying nothing.
+   */
+  instructions?: string;
   /** `EXPOSURE` keys, all `never`, that this task stands on. */
   rows: readonly string[];
 }
@@ -26,12 +30,11 @@ export const EXCLUDED_TASKS: readonly ExcludedTask[] = [
   },
   {
     task: "Delete the account",
-    instructions: "Deleting an account is done by the person in Caesura's account settings, signed in to the website.",
     rows: [],
   },
   {
-    task: "Invite people to a trip or remove them from it",
-    instructions: "Inviting and removing trip members is done by the trip's owner in the trip's sharing settings, in the app.",
+    task: "Remove a member from a trip or change their role",
+    instructions: "Members and roles are managed by the trip's owner in the trip's sharing settings, in the app.",
     rows: [],
   },
   {
@@ -49,7 +52,10 @@ export const EXCLUDED_TASKS: readonly ExcludedTask[] = [
 /** The body of `GET /api/poppy/tasks`: the same for every Session, so it can be cached. */
 export function tasksResponse() {
   return {
-    excluded_tasks: EXCLUDED_TASKS.map(({ task, instructions }) => ({ task, alternative: { instructions } })),
+    excluded_tasks: EXCLUDED_TASKS.map(({ task, instructions }) => ({
+      task,
+      ...(instructions === undefined ? {} : { alternative: { instructions } }),
+    })),
     feedback: { endpoint: `${deploymentOrigin()}/api/poppy/feedback` },
   };
 }
