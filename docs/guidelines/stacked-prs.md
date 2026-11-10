@@ -96,6 +96,13 @@ only because `main`'s content equals the old part tip, which this branch already
 that the diff against `main` lists exactly this part's files and line counts before pushing. Then
 retarget the PR to `main`.
 
+**A retargeted top PR gets no preview by itself (likely, not proven).** Coolify appears to create a
+preview when a PR *opens* against `main`; PR 718 (M60's top part) opened against the part below it,
+was retargeted later, and has no preview (`718.preview.caesura.today` answers with Traefik's default
+certificate). `preview-link-check` still concluded success on it (`docs/known-issues/open/KI-20261110-preview-link-check-passes-when-the-preview-never-answers.md`),
+so a green check is not evidence of a preview. Deploy it by hand: Coolify → Preview Deployments →
+Load Pull Requests → Deploy.
+
 ## 5. The whole-stack check runs before the first merge
 
 A stack spreads final review over several merges, and none of them feels like the last. So:

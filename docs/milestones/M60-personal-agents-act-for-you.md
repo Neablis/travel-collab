@@ -211,3 +211,12 @@ reopened; ADR-089 carries the mechanism.
       by then), Mitchell signs in on the consent page, approves read-only scopes, and the agent
       lists his trips; then he disconnects it in Connected apps.
 - [ ] A retro is appended at gate close.
+
+**Gate status, 2026-11-10 (Mitchell).** "Preview of PR 718 exists and was walked" is an **open** gate
+item, not a pass: PR 718 has no preview (https://718.preview.caesura.today answers with Traefik's
+default certificate, no router for the host), and `preview-link-check` run 42738117800 still
+concluded success (KI-2026-11-10). Likely, not proven, cause: PR 718 opened against the part-4
+branch and was retargeted to `main` later. Mitchell is deploying it by hand; the walk, the kit
+validator run and claude.ai's connector check wait on it. The preview-DB check for migration `0075`
+came back clean (Mitchell, 2026-11-10): no preview applied the pre-review `0075`
+(`created_at` 1794264391750 is absent from the preview DB), so there is nothing to recover.
