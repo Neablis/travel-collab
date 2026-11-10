@@ -456,7 +456,8 @@ export function agentSessionOpenQuota(): QuotaPolicy[] {
  * What a Personal Agent's signed-out Session may read (Poppy 5.4, ADR-089
  * decision 5), per `(client_id, sid)`: a Session is the unit an agent can make
  * as many of as it likes, and `agentSessionOpenQuota` bounds that, so the two
- * together bound what one agent can pull without an account.
+ * together bound what one agent can pull without an account. Those Sessions
+ * still add up, so `signedOutClientReadQuota` caps them as one.
  */
 export function signedOutReadQuota(): QuotaPolicy[] {
   return [
@@ -464,6 +465,23 @@ export function signedOutReadQuota(): QuotaPolicy[] {
       name: "signed-out-read-hourly",
       windowMs: HOUR_MS,
       perUser: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_PER_SESSION_HOURLY", 300),
+      global: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_GLOBAL_HOURLY", 20000),
+    },
+  ];
+}
+
+/**
+ * Everything one `client_id` may read signed out, across all its Sessions. Without it a single
+ * agent opening Sessions at `agentSessionOpenQuota`'s rate reaches the global ceiling
+ * above alone, and every other agent's signed-out read is refused for the rest of the hour.
+ * The ceiling is a fraction of the global one, so it takes several agents to exhaust it.
+ */
+export function signedOutClientReadQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "signed-out-read-client-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY", 2000),
       global: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_GLOBAL_HOURLY", 20000),
     },
   ];

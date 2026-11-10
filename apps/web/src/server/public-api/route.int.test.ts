@@ -151,7 +151,8 @@ describe("credential resolution", () => {
   it("refuses an anonymous request with a bearer challenge and the envelope", async () => {
     const res = await LIST_TRIPS(get("http://localhost/api/v1/trips"), NO_PARAMS);
     expect(res.status).toBe(401);
-    expect(res.headers.get("WWW-Authenticate")).toBe("Bearer");
+    // Poppy 7: a signed-out caller learns which scope to sign in for.
+    expect(res.headers.get("WWW-Authenticate")).toBe('Bearer scope="trips:read"');
     const body = await res.json();
     expect(body.error.code).toBe("unauthenticated");
     // The envelope, not the BFF's bare string — `{ error: "unauthenticated" }`
@@ -350,6 +351,7 @@ describe("the two gates, in order", () => {
     // and saves a support round trip.
     expect(body.error.message).toContain("trips:read");
     expect(body.error.details).toEqual({ required: "trips:read" });
+    expect(res.headers.get("WWW-Authenticate")).toBe('Bearer error="insufficient_scope", scope="trips:read"');
   });
 
   // `trips:write` does not imply `trips:read`. A scope is a set, not a rank.
@@ -722,18 +724,65 @@ describe("a request that carries Poppy-Session", () => {
     });
   });
 
+  // One agent opens as many Sessions as `agentSessionOpenQuota` allows, each with its own read
+  // share, so the Session share alone lets one client_id spend the deployment's whole ceiling.
+  it("limits signed-out reads per client_id across its Sessions", async () => {
+    const previous = process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY;
+    process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY = "2";
+    try {
+      const { makeTestAgent } = await import("@/server/poppy/testAgent");
+      const agent = await makeTestAgent({ issuer: oauthIssuer() });
+      const statuses: number[] = [];
+      for (let call = 0; call < 3; call++) {
+        const { request } = await agentRequest({ path: "/api/v1/discover/playbooks", session: { sid: randomUUID() }, agent });
+        statuses.push((await DISCOVER(request, NO_PARAMS)).status);
+      }
+      expect(statuses).toEqual([200, 200, 429]);
+      // Another client_id has its own share.
+      const other = await agentRequest({ path: "/api/v1/discover/playbooks" });
+      expect((await DISCOVER(other.request, NO_PARAMS)).status).toBe(200);
+    } finally {
+      if (previous === undefined) delete process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY;
+      else process.env.SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY = previous;
+    }
+  });
+
   // The kill switch (ADR-089 decision 3): Poppy 7 names a refused `client_id` as `invalid_session`.
-  it("refuses a blocked client_id as invalid_session, signed out or not, until it is unblocked", async () => {
-    const { oauthClientBlocks } = await import("@/server/db/schema");
-    const { request, agent } = await agentRequest({ path: "/api/v1/discover/playbooks" });
-    expect((await DISCOVER(request, NO_PARAMS)).status).toBe(200);
-    await db.insert(oauthClientBlocks).values({ clientId: agent.clientId, blockedAt: new Date(), blockedBy: "dev-operator" });
-    const again = await agentRequest({ path: "/api/v1/discover/playbooks", agent });
-    const blocked = await DISCOVER(again.request, NO_PARAMS);
-    expect(blocked.status).toBe(400);
-    expect(await blocked.json()).toMatchObject({ error: "invalid_session" });
-    await db.delete(oauthClientBlocks).where(eq(oauthClientBlocks.clientId, agent.clientId));
-    const back = await agentRequest({ path: "/api/v1/discover/playbooks", agent });
-    expect((await DISCOVER(back.request, NO_PARAMS)).status).toBe(200);
+  // The description is what tells a block from any other Session failure, which share the code.
+  describe("a blocked client_id", () => {
+    const REFUSED = { error: "invalid_session", error_description: "this client_id is refused" };
+
+    it("is refused signed out, until it is unblocked", async () => {
+      const { oauthClientBlocks } = await import("@/server/db/schema");
+      const { request, agent } = await agentRequest({ path: "/api/v1/discover/playbooks" });
+      expect((await DISCOVER(request, NO_PARAMS)).status).toBe(200);
+      await db.insert(oauthClientBlocks).values({ clientId: agent.clientId, blockedAt: new Date(), blockedBy: "dev-operator" });
+      const again = await agentRequest({ path: "/api/v1/discover/playbooks", agent });
+      const blocked = await DISCOVER(again.request, NO_PARAMS);
+      expect(blocked.status).toBe(400);
+      expect(await blocked.json()).toEqual(REFUSED);
+      await db.delete(oauthClientBlocks).where(eq(oauthClientBlocks.clientId, agent.clientId));
+      const back = await agentRequest({ path: "/api/v1/discover/playbooks", agent });
+      expect((await DISCOVER(back.request, NO_PARAMS)).status).toBe(200);
+    });
+
+    // A token it already holds outlives the block by up to an hour, and an agent the operator
+    // no longer trusts is one that may leave the Session header off.
+    it("is refused with an access token it already holds, even without a Session header", async () => {
+      const { oauthClientBlocks, oauthClients } = await import("@/server/db/schema");
+      const { connectForTest } = await import("@/server/test-support/oauthConnection");
+      const { access, grant } = await connectForTest(await entitled(), ["trips:read"], new Date(), oauthIssuer());
+      const open = await LIST_TRIPS(get("http://localhost/api/v1/trips", access), NO_PARAMS);
+      expect(open.status).toBe(200);
+      // Blocks name a protocol client_id, which only a CIMD client has.
+      const cimdUrl = `https://blocked-${randomUUID()}.example/client.json`;
+      await db.update(oauthClients).set({ kind: "cimd", cimdUrl, registeredIpHash: null }).where(eq(oauthClients.id, grant.clientId));
+      await db.insert(oauthClientBlocks).values({ clientId: cimdUrl, blockedAt: new Date(), blockedBy: "dev-operator" });
+      const blocked = await LIST_TRIPS(get("http://localhost/api/v1/trips", access), NO_PARAMS);
+      expect(blocked.status).toBe(400);
+      expect(await blocked.json()).toEqual(REFUSED);
+      await db.delete(oauthClientBlocks).where(eq(oauthClientBlocks.clientId, cimdUrl));
+      expect((await LIST_TRIPS(get("http://localhost/api/v1/trips", access), NO_PARAMS)).status).toBe(200);
+    });
   });
 });

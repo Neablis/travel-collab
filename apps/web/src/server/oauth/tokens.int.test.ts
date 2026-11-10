@@ -95,6 +95,7 @@ function holdBothAtTheUpdate(): { arrived: () => number } {
 }
 
 const errorOf = (outcome: TokenOutcome) => (outcome.ok ? "ok" : outcome.error);
+const describedAs = (outcome: TokenOutcome) => (outcome.ok ? "ok" : outcome.description);
 const tokensOf = (outcome: TokenOutcome) => {
   if (!outcome.ok) throw new Error(`expected tokens, got ${outcome.error}: ${outcome.description}`);
   return outcome.body;
@@ -566,11 +567,18 @@ describe("a blocked client_id", () => {
     const { refresh_token } = tokensOf(await exchange(await signed()));
     const refreshed = async () => refresh({ refreshToken: refresh_token, clientId: agent.clientId, ...(await signed()) }, new Date(), deps);
     await block(agent.clientId);
-    expect(errorOf(await exchange(await signed()))).toBe("invalid_client");
-    expect(errorOf(await refreshed())).toBe("invalid_client");
-    expect(await revokeSecret(refresh_token, new Date(), { clientId: agent.clientId, ...(await signed()) }, deps)).toMatchObject({
+    // The description tells a block from the other ways an assertion is refused, all `invalid_client`.
+    const BLOCKED = "this client has been blocked";
+    const refusedExchange = await exchange(await signed());
+    expect(errorOf(refusedExchange)).toBe("invalid_client");
+    expect(describedAs(refusedExchange)).toBe(BLOCKED);
+    const refusedRefresh = await refreshed();
+    expect(errorOf(refusedRefresh)).toBe("invalid_client");
+    expect(describedAs(refusedRefresh)).toBe(BLOCKED);
+    expect(await revokeSecret(refresh_token, new Date(), { clientId: agent.clientId, ...(await signed()) }, deps)).toEqual({
       ok: false,
       error: "invalid_client",
+      description: BLOCKED,
     });
     expect((await grantOf(grant.id))!.revokedAt).toBeNull();
     await unblock(agent.clientId);
@@ -580,6 +588,8 @@ describe("a blocked client_id", () => {
   it("is refused though it is a public client, whose document is never read", async () => {
     const { app, exchange } = await consented();
     await block(app.clientId);
-    expect(errorOf(await exchange())).toBe("invalid_client");
+    const refused = await exchange();
+    expect(errorOf(refused)).toBe("invalid_client");
+    expect(describedAs(refused)).toBe("this client has been blocked");
   });
 });

@@ -48,6 +48,20 @@ describe("AgentsTab", () => {
     expect(within(rows[1]!).getAllByText("other.example").length).toBeGreaterThan(0);
   });
 
+  // Tabbing through the rows, "Block, Block, Block" names nobody.
+  it("names the agent on each row's Block and Unblock button, the domain standing in for no name", () => {
+    render(
+      <AgentsTab
+        agents={[
+          agent(),
+          agent({ clientId: "https://other.example/c.json", name: null, domain: "other.example", blocked: true }),
+        ]}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Block Wayfinder" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Unblock other.example" })).toBeTruthy();
+  });
+
   it("says so when no agent has been seen", () => {
     render(<AgentsTab agents={[]} />);
     expect(screen.getByText("No Personal Agent has connected yet.")).toBeTruthy();
@@ -56,7 +70,7 @@ describe("AgentsTab", () => {
   it("asks before blocking, in the words of what it does, and Cancel sends nothing", async () => {
     const user = userEvent.setup();
     render(<AgentsTab agents={[agent()]} />);
-    await user.click(screen.getByRole("button", { name: "Block" }));
+    await user.click(screen.getByRole("button", { name: "Block Wayfinder" }));
     expect(screen.getByText("Block Wayfinder?")).toBeTruthy();
     expect(screen.getByText("Its sign-ins stop and every request it sends is refused.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
@@ -70,30 +84,30 @@ describe("AgentsTab", () => {
     const user = userEvent.setup();
     render(<AgentsTab agents={[agent()]} />);
 
-    await user.click(screen.getByRole("button", { name: "Block" }));
+    await user.click(screen.getByRole("button", { name: "Block Wayfinder" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Block" }));
     expect(fetchMock).toHaveBeenCalledWith(`/api/admin/agents/${encodeURIComponent(clientId)}/block`, expect.objectContaining({ method: "PUT" }));
     expect(await screen.findByText("Blocked")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "Unblock" }));
+    await user.click(screen.getByRole("button", { name: "Unblock Wayfinder" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(fetchMock).toHaveBeenLastCalledWith(`/api/admin/agents/${encodeURIComponent(clientId)}/block`, expect.objectContaining({ method: "DELETE" }));
-    expect(await screen.findByRole("button", { name: "Block" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Block Wayfinder" })).toBeTruthy();
     expect(screen.queryByText("Blocked")).toBeNull();
   });
 
   it("starts a blocked agent on Blocked and Unblock", () => {
     render(<AgentsTab agents={[agent({ blocked: true })]} />);
     expect(screen.getByText("Blocked")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Unblock" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Block" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Unblock Wayfinder" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Block Wayfinder" })).toBeNull();
   });
 
   it("leaves the row as it was and says so when the server refuses", async () => {
     fetchMock.mockResolvedValue(answer({ error: "not-found" }, 404));
     const user = userEvent.setup();
     render(<AgentsTab agents={[agent()]} />);
-    await user.click(screen.getByRole("button", { name: "Block" }));
+    await user.click(screen.getByRole("button", { name: "Block Wayfinder" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Block" }));
     expect((await screen.findByRole("alert")).textContent).toContain("Nothing changed");
     expect(screen.queryByText("Blocked")).toBeNull();

@@ -1,9 +1,10 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { OAUTH_ACCESS_PREFIX, type ApiScope } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { oauthTokens } from "@/server/db/schema";
+import { oauthClients, oauthTokens } from "@/server/db/schema";
 import { accountCan } from "@/server/entitlements/resolver";
 import { keyedDigestCandidates } from "@/server/secrets/keyedDigest";
+import { clientIsBlocked } from "./clients";
 import { grantOf, grantScopes } from "./grants";
 import { mcpResource, oauthIssuer } from "./metadata";
 
@@ -24,6 +25,8 @@ export type AccessRefusal =
   | { reason: "audience" }
   /** The grant was made for neither this server's domain nor its `/api/mcp` (amendment C). */
   | { reason: "resource" }
+  /** The operator blocked the grant's client (ADR-089 decision 3). The grant is untouched, so unblocking restores it. */
+  | { reason: "blocked" }
   /** Real and live, but its owner's plan no longer grants `api.tokens`. */
   | { reason: "not-entitled"; ownerId: string };
 
@@ -44,7 +47,7 @@ const refuse = (refusal: AccessRefusal): AccessResult => ({ ok: false, refusal }
  * Verifies an OAuth access token presented as a bearer, reading the token, its
  * grant and the owner's plan afresh. Returns the grant's owner, client name and
  * scopes, or the first refusal in order: unknown, revoked, expired, resource,
- * not-entitled. Never refuses for `audience`: it names it, and the caller decides.
+ * blocked, not-entitled. Never refuses for `audience`: it names it, and the caller decides.
  */
 export async function verifyAccessToken(secret: string, now: Date = new Date()): Promise<AccessResult> {
   if (!secret.startsWith(OAUTH_ACCESS_PREFIX)) return refuse({ reason: "unknown" });
@@ -70,6 +73,12 @@ export async function verifyAccessToken(secret: string, now: Date = new Date()):
   // arrived: a grant made for another deployment's resource is not ours to honour.
   const audience = grant.resource === mcpResource() ? "mcp" : grant.resource === oauthIssuer() ? "domain" : null;
   if (audience === null) return refuse({ reason: "resource" });
+
+  // The kill switch, here because every surface that takes an access token passes through
+  // this function: a token the client already holds must not outlive the block, whether or
+  // not it sends a Session header. Blocks name a protocol `client_id`, which only a CIMD client has.
+  const [client] = await db.select({ cimdUrl: oauthClients.cimdUrl }).from(oauthClients).where(eq(oauthClients.id, grant.clientId));
+  if (client?.cimdUrl != null && (await clientIsBlocked(client.cimdUrl))) return refuse({ reason: "blocked" });
 
   // A lapse disables, as it does a `tc_` token: re-subscribing restores the
   // connection with no writes and no new consent.

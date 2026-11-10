@@ -1,5 +1,5 @@
 import { API_SCOPES, ApiScope } from "@tc/contracts";
-import { resolveClient, type ClientDeps, type OAuthClient } from "./clients";
+import { clientIsBlocked, resolveClient, type ClientDeps, type OAuthClient } from "./clients";
 import { isAudience, mcpResource, OAUTH_SCOPES, oauthIssuer } from "./metadata";
 import { isS256Challenge } from "./pkce";
 import { consentMarking, type ConsentMarking } from "./recognised";
@@ -107,6 +107,9 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
     automatic: marking === "recognised",
     description,
   });
+  // ADR-089 decision 3: a blocked client's sign-ins stop here, before a person is shown consent
+  // for it or a grant is written, not only when the code is exchanged.
+  if (await clientIsBlocked(client.clientId)) return back("unauthorized_client", "this client has been blocked");
   if (param("response_type") !== "code") return back("unsupported_response_type", "response_type must be code");
   // Amendment I: no challenge, or any method but S256, is refused before a code exists.
   const codeChallenge = param("code_challenge");
@@ -131,8 +134,10 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
   if (scopes.length === 0) return back("invalid_scope", "no scope this server grants was requested");
   // Amendment C, with the domain beside `/api/mcp` (ADR-089 decision 4): the
   // connector asks for the MCP endpoint, a Personal Agent for the domain (Poppy
-  // 3.2), and one that names none is the latter, the API this server is.
-  const resource = param("resource") ?? oauthIssuer();
+  // 3.2). A Personal Agent that names none is the latter; every other client keeps
+  // `/api/mcp`, since an older connector sends none and a domain token would be
+  // refused by the very endpoint it connected for.
+  const resource = param("resource") ?? (client.authMethod === "private_key_jwt" ? oauthIssuer() : mcpResource());
   if (!isAudience(resource)) return back("invalid_target", `the resources here are ${oauthIssuer()} and ${mcpResource()}`);
 
   return {

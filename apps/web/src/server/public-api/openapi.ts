@@ -39,8 +39,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "2.4.0";
-export const API_FINGERPRINT = "e3a105ba7977b4804a078e2e380abdf006f975e7b3ebdb31d13f2ca401efcb06";
+export const API_VERSION = "2.5.0";
+export const API_FINGERPRINT = "35d57b995f61ebd99276f93fe4950975784901334d9cf68464778d7cc57292a4";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -440,7 +440,9 @@ export function buildOpenApi(
         ]
           .filter(Boolean)
           .join(" "),
-        security: [{ bearerAuth: [declared.scope] }],
+        // `{}` is OpenAPI's "no credential": a route that answers a signed-out Personal Agent
+        // Session says so, or an agent reading this never makes the read.
+        security: def.signedOut === true ? [{}, { bearerAuth: [declared.scope] }] : [{ bearerAuth: [declared.scope] }],
         ...(parameters.length === 0 ? {} : { parameters }),
         ...(def.body === undefined
           ? {}
