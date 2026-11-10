@@ -374,6 +374,30 @@ describe("a private_key_jwt client", () => {
     }
   });
 
+  // The failure is remembered for a minute, so a down host costs its caller two units a minute,
+  // not two per refresh: an agent with many users is not locked out of its own token endpoint.
+  it("keeps refreshing a known agent whose host is down, from the last-known copy, past the caller's fetch ceiling", async () => {
+    const { exchange, signed, agent, deps } = await agentConsented();
+    let token = tokensOf(await exchange(await signed())).refresh_token;
+    vi.stubEnv("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_PER_CALLER_HOURLY", "2");
+    try {
+      const callerIp = randomUUID();
+      const fetch = vi.fn<Fetcher>(async () => new Response("", { status: 503 }));
+      const now = new Date(Date.now() + 10 * 60_000);
+      const second = Math.floor(now.getTime() / 1000);
+      for (let sent = 0; sent < 6; sent += 1) {
+        const clientAssertion = await agent.assertion({ iat: second - 10, exp: second + 50 });
+        const outcome = await refresh({ refreshToken: token, clientId: agent.clientId, callerIp, clientAssertion, clientAssertionType: ASSERTION_TYPE }, now, { ...deps, fetch });
+        expect(errorOf(outcome), `refresh ${sent}`).toBe("ok");
+        if (outcome.ok) token = outcome.body.refresh_token;
+      }
+      // One try at the document and one at the key set, then the marker answers.
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   // The key set is a fallback for a host that is down, never for one that answered.
   describe("a key the agent has removed", () => {
     const later = (minutes: number) => {

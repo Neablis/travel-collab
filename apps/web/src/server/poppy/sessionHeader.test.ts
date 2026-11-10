@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createMemoryClient } from "@/server/cache/memory";
 import { createRedisCache } from "@/server/cache/redis";
 import { makeTestAgent, type SessionOver } from "./testAgent";
-import { verifySessionHeader } from "./sessionHeader";
+import { verifySessionHeader, type SessionDeps } from "./sessionHeader";
 
 // Poppy 5.2 and 5.3. Each refusal is a way a copied, replayed or misaddressed
 // Session JWT could be believed: a key that was never delegated, a JWT meant
@@ -16,7 +16,7 @@ const nowSeconds = NOW.getTime() / 1000;
 
 async function setup() {
   const agent = await makeTestAgent({ issuer: ISSUER, now: NOW });
-  const loadKeys = vi.fn(async () => ({ ok: true as const, keys: agent.jwks.keys }));
+  const loadKeys = vi.fn<NonNullable<SessionDeps["loadKeys"]>>(async () => ({ ok: true, keys: agent.jwks.keys }));
   const tokenClientId = vi.fn<(token: string) => Promise<string | null>>(async () => agent.clientId);
   const cache = createRedisCache(createMemoryClient());
   /** Verify `over` as a request for `url`; `token` is the bearer the request carries. */
@@ -91,6 +91,19 @@ describe("verifySessionHeader", () => {
       // Another key behind the same jti: the cached key would not verify its Session JWT.
       expect((await verify({ delegated: await agent.delegate({ jti: "same" }) })).ok).toBe(true);
       expect(loadKeys).toHaveBeenCalledTimes(2);
+    });
+
+    // A delegation is good for 24 hours, but a key the agent has removed must not be: the
+    // cached form is trusted for as long as the key set it was checked against is fresh, no longer.
+    it("checks a cached delegation against the agent's keys again after a minute, so a removed key stops working", async () => {
+      const { agent, verify, loadKeys } = await setup();
+      const delegated = await agent.delegate();
+      expect((await verify({ delegated })).ok).toBe(true);
+      loadKeys.mockResolvedValue({ ok: false, reason: "its keys could not be had: 404" });
+      const soon = new Date(NOW.getTime() + 30_000);
+      expect((await verify({ delegated, iat: nowSeconds + 30 }, { now: soon })).ok).toBe(true);
+      const later = new Date(NOW.getTime() + 90_000);
+      expect(await verify({ delegated, iat: nowSeconds + 90 }, { now: later })).toMatchObject(refused("its keys could not be had"));
     });
 
     it("does not serve a cached delegation past its exp", async () => {
