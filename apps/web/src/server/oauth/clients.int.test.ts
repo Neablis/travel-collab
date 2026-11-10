@@ -15,7 +15,7 @@ import { createRedisCache } from "@/server/cache/redis";
 import { db } from "@/server/db/client";
 import { oauthClients, rateLimitCounters } from "@/server/db/schema";
 import type { Fetcher } from "@/server/external/remoteImage/fetchImage";
-import type { Resolve } from "@/server/external/remoteImage/guard";
+import { RemoteImageRefused, type Resolve } from "@/server/external/remoteImage/guard";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import {
   CIMD_CACHE_TTL_SECONDS,
@@ -498,5 +498,14 @@ describe("a known agent whose host keeps failing", () => {
       const resolve: Resolve = async () => Promise.reject(dnsError(code));
       expect((await resolveClient(url, { ...deps, resolve })).ok, code).toBe(served);
     }
+  });
+
+  // A refused or reset connection is the host being down, the same as a timeout.
+  it("falls back to its last-known copy when the connection is refused", async () => {
+    const { url, deps } = await stale(async () => new Response("", { status: 200 }));
+    const fetch = vi.fn<Fetcher>(async () => {
+      throw new RemoteImageRefused("unreachable");
+    });
+    expect(await resolveClient(url, { ...deps, fetch })).toMatchObject({ ok: true });
   });
 });

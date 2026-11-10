@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { limitLinkPreview, scheduleSweep } from "./limit";
+import { clientIp, limitLinkPreview, scheduleSweep } from "./limit";
 
 // When the link-preview limiter may start a counter sweep (CodeRabbit, PR
 // #259): only behind an allowed request, and never twice at once on one
@@ -28,6 +28,17 @@ describe("limitLinkPreview", () => {
     const refused = await limitLinkPreview(from(ip), onAllowed);
     expect(refused?.status).toBe(429);
     expect(onAllowed).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("clientIp", () => {
+  it("is one bucket for a whole IPv6 /64, and one per IPv4 address", () => {
+    expect(clientIp(from("2001:db8:1:2:aaaa::1"))).toBe(clientIp(from("2001:db8:1:2:bbbb:cccc:dddd:eeee")));
+    expect(clientIp(from("2001:db8:1:2::1"))).not.toBe(clientIp(from("2001:db8:1:3::1")));
+    expect(clientIp(from("2001:db8::1:2:3:4"))).toBe(clientIp(from("2001:db8:0:0:9::")));
+    expect(clientIp(from("::ffff:198.51.100.7"))).toBe("198.51.100.7");
+    expect(clientIp(from("198.51.100.7"))).toBe("198.51.100.7");
+    expect(clientIp(from("198.51.100.8"))).not.toBe(clientIp(from("198.51.100.7")));
   });
 });
 

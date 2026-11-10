@@ -1,3 +1,4 @@
+import { isIPv6 } from "node:net";
 import { after } from "next/server";
 import { consumeQuota, linkPreviewQuota, quotaRefusal, sweepExpiredCounters } from "../quota";
 
@@ -19,8 +20,28 @@ import { consumeQuota, linkPreviewQuota, quotaRefusal, sweepExpiredCounters } fr
  */
 export function clientIp(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  if (forwarded) return forwarded;
-  return request.headers.get("x-real-ip")?.trim() || "unknown";
+  if (forwarded) return bucketOf(forwarded);
+  const real = request.headers.get("x-real-ip")?.trim();
+  return real ? bucketOf(real) : "unknown";
+}
+
+/**
+ * An IPv6 address as its /64, the smallest block one subscriber is routinely
+ * given: per address, one host could rotate through 2^64 buckets and never meet
+ * its limit. IPv4, and anything that is not an IPv6 address, stands as sent.
+ */
+function bucketOf(ip: string): string {
+  if (!isIPv6(ip)) return ip;
+  // An IPv4 behind a dual-stack socket is still one IPv4 address; and a dotted tail
+  // counts as two groups, which the arithmetic below does not know.
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  if (mapped) return mapped[1]!;
+  if (ip.includes(".")) return ip;
+  const [head = "", tail] = ip.toLowerCase().replace(/%.*$/, "").split("::");
+  const groups = head === "" ? [] : head.split(":");
+  const rest = tail === undefined || tail === "" ? [] : tail.split(":");
+  const padding = tail === undefined ? [] : Array<string>(8 - groups.length - rest.length).fill("0");
+  return [...groups, ...padding, ...rest].slice(0, 4).map((group) => Number.parseInt(group, 16).toString(16)).join(":") + "::/64";
 }
 
 /**
