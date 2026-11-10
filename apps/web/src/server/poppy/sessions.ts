@@ -3,7 +3,7 @@ import { and, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { agentSessions } from "@/server/db/schema";
 import { clientIp } from "@/server/og/limit";
-import { clientIsBlocked } from "@/server/oauth/clients";
+import { clientIsBlocked, storedClientRowId } from "@/server/oauth/clients";
 import { bearerToken } from "@/server/public-api/actor";
 import { agentSessionOpenQuota, consumeQuota, type QuotaDecision } from "@/server/quota";
 import { poppyError } from "./errors";
@@ -123,17 +123,17 @@ function versionServed(header: string | null): boolean {
 }
 
 /**
- * The refusal for a spent Session-open share, in the `{ error: { code, message } }` envelope
+ * The refusal for a spent share (new Sessions, or fetches for an agent nobody has allowed), in the `{ error: { code, message } }` envelope
  * `/api/v1/*` and `/api/mcp` both answer in (and `route()`'s 429 and 503 for a spent token's
  * share): a Poppy error is a bare code, and this is not one of the three.
  */
-function limitedResponse(decision: Extract<QuotaDecision, { allowed: false }>): Response {
+function limitedResponse(decision: Extract<QuotaDecision, { allowed: false }>, what: string): Response {
   const unavailable = decision.reason === "unavailable";
   return Response.json(
     {
       error: unavailable
         ? { code: "service-unavailable", message: "Try again shortly." }
-        : { code: "rate-limited", message: "Too many new Sessions. Try again later." },
+        : { code: "rate-limited", message: `Too many ${what}. Try again later.` },
     },
     { status: unavailable ? 503 : 429, headers: { "Retry-After": String(decision.retryAfterSeconds) } },
   );
@@ -163,12 +163,14 @@ export async function poppyGate(
   const token = bearerToken(request) ?? undefined;
   const caller = clientIp(request);
   // An unknown client is only for a read with no access token: a token names a grant, and so a stored client.
+  // Without the guard a tokened request would be fetched and then refused for its token, which costs quota for nothing.
   const verified = await verifySessionHeader(request, token, {
     chargeTo: `poppy:${caller}`,
     ...deps,
     unknownClientOk: deps.unknownClientOk === true && token === undefined,
   });
-  if (!verified.ok) return { refused: poppyError("invalid_session", verified.reason) };
+  // A spent fetch share is capacity, not a bad Session: `invalid_session` is terminal to an agent.
+  if (!verified.ok) return { refused: verified.limited === undefined ? poppyError("invalid_session", verified.reason) : limitedResponse(verified.limited, "agents looked up") };
   // The operator's kill switch (ADR-089 decision 3). Poppy 7 answers a refused
   // `client_id` as `invalid_session`, and a Session that verified is the first
   // moment it is known whose it is.
@@ -177,9 +179,12 @@ export async function poppyGate(
   return {
     claims: verified.claims,
     open: async (accountId) => {
+      // A stranger's signed-out read is served and recorded nowhere (ADR-089 decision 8): a row per
+      // made-up client_id would fill the console's Agents tab with whatever it chose to be called.
+      if (accountId === null && (await storedClientRowId(verified.claims.clientId)) === null) return null;
       const opened = await openOrContinueSession({ claims: verified.claims, accountId, caller, now: deps.now ?? new Date() });
       if (opened.ok) return null;
-      return opened.limited === undefined ? poppyError("session_ended") : limitedResponse(opened.limited);
+      return opened.limited === undefined ? poppyError("session_ended") : limitedResponse(opened.limited, "new Sessions");
     },
   };
 }

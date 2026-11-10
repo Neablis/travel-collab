@@ -27,7 +27,8 @@ Format:
   document learns a Poppy Session alone is enough (Poppy 3.2, ADR-089 decision 5). Every other operation is unchanged.
   `API_VERSION` 2.5.0 with a new `API_FINGERPRINT`. No schema in `packages/contracts` changed.
 - Text only, still 2.5.0 (unreleased): that operation's description and `info.description` no longer say a token is
-  required, since a Poppy Session alone may read signed out.
+  required, since a Poppy Session alone may read signed out; `info.description` also says an unallowed agent's lookups
+  are limited per address and answered 429 with `Retry-After`.
 - Breaking? no, additive.
 
 ## 2026-11-09 — `AdminAgent`, `AdminAgentList`, `AdminAgentBlock`: the console's Agents tab (M60 part 4)

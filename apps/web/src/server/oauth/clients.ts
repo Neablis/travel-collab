@@ -13,7 +13,7 @@ import {
   type Fetcher,
 } from "@/server/external/remoteImage/fetchImage";
 import { assertPublicAddress, RemoteImageRefused, resolveHost, type Resolve } from "@/server/external/remoteImage/guard";
-import { consumeQuota, oauthCimdQuota, type QuotaPolicy } from "@/server/quota";
+import { consumeQuota, oauthCimdQuota, type QuotaDecision, type QuotaPolicy } from "@/server/quota";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { checkRedirectUri, isLoopback } from "./redirects";
 
@@ -57,7 +57,12 @@ export type ClientRefusal =
   /** A CIMD not fetched, because the account asking has fetched its hourly share (`oauthCimdQuota`). */
   | "too-many-lookups";
 
-export type ResolvedClient = { ok: true; client: OAuthClient } | { ok: false; reason: ClientRefusal; detail?: string };
+/** Why a fetch was not made for want of quota: the decision, so a caller that answers over HTTP can say when to come back. */
+export type FetchLimited = Extract<QuotaDecision, { allowed: false }>;
+
+export type ResolvedClient =
+  | { ok: true; client: OAuthClient }
+  | { ok: false; reason: ClientRefusal; detail?: string; limited?: FetchLimited };
 
 /** A DCR client that has not been used this long after registering is refused. */
 export const UNUSED_CLIENT_LIFETIME_MS = 24 * 60 * 60 * 1000;
@@ -152,7 +157,7 @@ class ResolverFailure extends RemoteImageRefused {
 function isHostDown(error: unknown): boolean {
   if (error instanceof UpstreamStatus) return error.status >= 500;
   if (error instanceof ResolverFailure) return error.transient;
-  if (error instanceof RemoteImageRefused) return error.reason === "timeout";
+  if (error instanceof RemoteImageRefused) return error.reason === "timeout" || error.reason === "unreachable";
   return !(error instanceof SyntaxError);
 }
 
@@ -360,15 +365,16 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
   if (fresh) {
     body = cached.document;
   } else {
-    let failure = await rememberedFailure(cache, cimdDocumentKey(url), deps, now);
+    let failure = await rememberedFailure(cache, url, deps, now);
     if (failure === null) {
       if (deps.userId === undefined) return refused("no account to charge the fetch to");
-      if (!(await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId)).allowed) return { ok: false, reason: "too-many-lookups" };
+      const charged = await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId);
+      if (!charged.allowed) return { ok: false, reason: "too-many-lookups", limited: charged };
       try {
         body = JSON.parse(await fetchDocument(parsed, deps));
       } catch (error) {
         const reason = error instanceof SyntaxError ? "not JSON" : error instanceof RemoteImageRefused ? error.reason : String(error);
-        failure = await rememberFailure(cache, cimdDocumentKey(url), deps, now, { hostDown: isHostDown(error), reason });
+        failure = await rememberFailure(cache, url, deps, now, { hostDown: isHostDown(error), reason });
       }
     }
     if (failure !== null) {
@@ -380,7 +386,7 @@ async function resolveMetadataDocument(url: string, deps: ClientDeps): Promise<R
   }
   // A body that arrived and is not a client is the host answering, so it is remembered like a 404.
   const refuse = async (reason: string) => {
-    if (!reused) await rememberFailure(cache, cimdDocumentKey(url), deps, now, { hostDown: false, reason });
+    if (!reused) await rememberFailure(cache, url, deps, now, { hostDown: false, reason });
     return refused(reason);
   };
   // A cached document is checked as if it had just arrived: the cache is a
@@ -428,7 +434,7 @@ const KeySet = z.object({
 /** A key set is a few small keys; more than this is not one. */
 const KEY_SET_MAX_BYTES = 16 * 1024;
 
-export type KeySetOutcome = { ok: true; keys: JWK[] } | { ok: false; detail: string };
+export type KeySetOutcome = { ok: true; keys: JWK[] } | { ok: false; detail: string; limited?: FetchLimited };
 
 /** The youngest a cached key set may be and still be read again for an unknown `kid`. */
 const KEY_SET_REFETCH_SECONDS = 60;
@@ -450,7 +456,6 @@ export async function fetchClientKeys(
   const now = deps.now ?? new Date();
   const cache = deps.cache ?? getCache();
   const key = clientKeySetKey(client.jwksUri);
-  const failedKey = fetchFailureKey(client.jwksUri);
   const cached = await cache.get<CachedDocument>(key);
   const maxAgeSeconds = opts.again === true ? KEY_SET_REFETCH_SECONDS : CIMD_CACHE_TTL_SECONDS;
   const fresh = cached !== null && now.getTime() - cached.fetchedAt < maxAgeSeconds * 1000;
@@ -459,15 +464,16 @@ export async function fetchClientKeys(
   if (fresh) {
     body = cached.document;
   } else {
-    let failure = await rememberedFailure(cache, failedKey, deps, now);
+    let failure = await rememberedFailure(cache, client.jwksUri, deps, now);
     if (failure === null) {
       if (deps.userId === undefined) return { ok: false, detail: "no account to charge the fetch to" };
-      if (!(await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId)).allowed) return { ok: false, detail: "too many lookups" };
+      const charged = await consumeQuota(deps.quota ?? oauthCimdQuota(), deps.userId);
+      if (!charged.allowed) return { ok: false, detail: "too many lookups", limited: charged };
       try {
         body = JSON.parse(await fetchDocument(url, deps, KEY_SET_MAX_BYTES));
       } catch (error) {
         const reason = error instanceof RemoteImageRefused ? error.reason : "not a key set";
-        failure = await rememberFailure(cache, failedKey, deps, now, { hostDown: isHostDown(error), reason });
+        failure = await rememberFailure(cache, client.jwksUri, deps, now, { hostDown: isHostDown(error), reason });
       }
     }
     if (failure !== null) {
@@ -481,7 +487,7 @@ export async function fetchClientKeys(
   const keySet = KeySet.safeParse(body);
   if (!keySet.success) {
     const detail = keySet.error.issues[0]?.message ?? "not a key set";
-    if (!reused) await rememberFailure(cache, failedKey, deps, now, { hostDown: false, reason: detail });
+    if (!reused) await rememberFailure(cache, client.jwksUri, deps, now, { hostDown: false, reason: detail });
     return { ok: false, detail };
   }
   if (!reused) await cache.set(key, { document: keySet.data, fetchedAt: now.getTime() }, CIMD_LAST_KNOWN_TTL_SECONDS);
@@ -524,7 +530,6 @@ async function fetchDocument(url: URL, deps: ClientDeps, maxBytes: number = CIMD
   // Like every outside fetch, none while external data is offline (the e2e server).
   if (process.env.EXTERNAL_DATA_OFFLINE === "true") throw new RemoteImageRefused("offline");
   const resolve = deps.resolve ?? resolveHost;
-  const fetch = deps.fetch ?? guardedHttpsFetcher(resolve);
   // `assertPublicAddress` keeps only the message of a resolver's error; this keeps its code.
   let resolverError: unknown;
   const noted: Resolve = (host) =>
@@ -532,7 +537,11 @@ async function fetchDocument(url: URL, deps: ClientDeps, maxBytes: number = CIMD
       resolverError = error;
       throw error;
     });
+  // The fetcher looks the name up again when it connects, through the same `noted`.
+  const fetch = deps.fetch ?? guardedHttpsFetcher(noted);
   const signal = AbortSignal.timeout(deps.timeoutMs ?? CIMD_LIMITS.timeoutMs);
+  const asResolverFailure = (error: unknown) =>
+    resolverError !== undefined && error instanceof RemoteImageRefused && error.reason === "unresolvable" ? new ResolverFailure(resolverError) : error;
   // Refuses a private name before any socket exists; the fetcher's own lookup
   // then checks the address it really connects to. Inside the deadline: the
   // resolver takes no signal, and a nameserver that never answers would hold
@@ -540,12 +549,14 @@ async function fetchDocument(url: URL, deps: ClientDeps, maxBytes: number = CIMD
   try {
     await beforeDeadline(assertPublicAddress(url.hostname, noted), signal);
   } catch (error) {
-    throw resolverError !== undefined && error instanceof RemoteImageRefused && error.reason === "unresolvable" ? new ResolverFailure(resolverError) : error;
+    throw asResolverFailure(error);
   }
   const response = await fetch(url, {
     signal,
     redirect: "manual",
     headers: { accept: "application/json", "user-agent": "Caesura-OAuth/1" },
+  }).catch((error: unknown) => {
+    throw asResolverFailure(error);
   });
   if (response.status !== 200) {
     await response.body?.cancel();

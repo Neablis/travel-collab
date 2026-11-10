@@ -465,7 +465,7 @@ export function unknownAgentFetchQuota(): QuotaPolicy[] {
     {
       name: "oauth-signed-out-unknown-fetch-hourly",
       windowMs: HOUR_MS,
-      perUser: envCeiling("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY", 30),
+      perUser: envCeiling("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY", 120),
       global: envCeiling("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_GLOBAL_HOURLY", 500),
     },
   ];

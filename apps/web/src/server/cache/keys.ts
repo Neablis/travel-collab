@@ -44,7 +44,7 @@ export function cimdDocumentKey(url: string): string {
  * A Personal Agent's key set, by the digest of its `jwks_uri`. Apart from
  * `cimdDocumentKey`: each is parsed with its own schema, which strips what it
  * does not know, so one JSON served at both URLs must not be cached as the other.
- * Its TTL is `CIMD_CACHE_TTL_SECONDS` too.
+ * Fresh for `CIMD_CACHE_TTL_SECONDS`; kept for `CIMD_LAST_KNOWN_TTL_SECONDS`, as a fallback.
  */
 export function clientKeySetKey(url: string): string {
   return `${deployEnv() ?? "dev"}:oauth:jwks:${digest(url)}`;

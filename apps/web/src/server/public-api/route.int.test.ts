@@ -767,6 +767,25 @@ describe("a request that carries Poppy-Session", () => {
 
       const { storedClientRowId } = await import("@/server/oauth/clients");
       expect(await storedClientRowId(agent.clientId)).toBeNull();
+      // A stranger's read records nothing, so it cannot fill the console's Agents tab.
+      const { agentSessions } = await import("@/server/db/schema");
+      const { eq } = await import("drizzle-orm");
+      const { db } = await import("@/server/db/client");
+      expect(await db.select().from(agentSessions).where(eq(agentSessions.clientId, agent.clientId))).toHaveLength(0);
+    });
+
+    // A cached delegation skips the key fetch, so the unknown-client refusal is not reached: the
+    // request is answered as an anonymous one, which a protected route refuses as unauthenticated.
+    it("on a reused delegation is answered as anonymous off a signed-out route, not read", async () => {
+      const { makeTestAgent } = await import("@/server/poppy/testAgent");
+      const agent = await makeTestAgent({ issuer: oauthIssuer() });
+      const delegated = await agent.delegate();
+      const first = await agentRequest({ path: DISCOVER_PATH, agent, unknown: true, session: { delegated } });
+      expect((await DISCOVER(first.request, NO_PARAMS)).status).toBe(200);
+      const again = await agentRequest({ agent, unknown: true, session: { delegated } });
+      const res = await LIST_TRIPS(again.request, NO_PARAMS);
+      expect(res.status).toBe(401);
+      expect((await res.json()).error.code).toBe("unauthenticated");
     });
 
     it("is refused once its address has fetched its share of unknown agents", async () => {
@@ -782,12 +801,41 @@ describe("a request that carries Poppy-Session", () => {
           const { request } = await agentRequest({ path: DISCOVER_PATH, agent, unknown: true, headers: { "x-forwarded-for": address } });
           statuses.push((await DISCOVER(request, NO_PARAMS)).status);
         }
-        expect(statuses).toEqual([200, 400]);
+        expect(statuses).toEqual([200, 429]);
+        // A bad session is terminal to an agent; a spent share is capacity, so it says when to come back.
+        const spent = await makeTestAgent({ issuer: oauthIssuer() });
+        const { request } = await agentRequest({ path: DISCOVER_PATH, agent: spent, unknown: true, headers: { "x-forwarded-for": address } });
+        const refused = await DISCOVER(request, NO_PARAMS);
+        expect(refused.status).toBe(429);
+        expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
+        expect(await refused.json()).toMatchObject({ error: { code: "rate-limited" } });
       } finally {
         if (previous === undefined) delete process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY;
         else process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY = previous;
       }
     });
+  });
+
+  it("stops fetching unknown agents once the global share is spent, whoever asks", async () => {
+    const { rateLimitCounters } = await import("@/server/db/schema");
+    const { like } = await import("drizzle-orm");
+    await db.delete(rateLimitCounters).where(like(rateLimitCounters.bucket, "oauth-signed-out-unknown-fetch%"));
+    const previous = process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_GLOBAL_HOURLY;
+    process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_GLOBAL_HOURLY = "2";
+    try {
+      const { makeTestAgent } = await import("@/server/poppy/testAgent");
+      const statuses: number[] = [];
+      for (let call = 0; call < 2; call++) {
+        const agent = await makeTestAgent({ issuer: oauthIssuer() });
+        // Each from an address of its own: it is the global ceiling that refuses the second.
+        const { request } = await agentRequest({ path: "/api/v1/discover/playbooks", agent, unknown: true });
+        statuses.push((await DISCOVER(request, NO_PARAMS)).status);
+      }
+      expect(statuses).toEqual([200, 429]);
+    } finally {
+      if (previous === undefined) delete process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_GLOBAL_HOURLY;
+      else process.env.OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_GLOBAL_HOURLY = previous;
+    }
   });
 
   // An agent over its own ceiling is served nothing, so its refused requests must not spend the

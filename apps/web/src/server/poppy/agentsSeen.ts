@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { AdminAgent } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { agentSessions, oauthClientBlocks, oauthClients } from "@/server/db/schema";
@@ -8,8 +8,10 @@ import { agentSessions, oauthClientBlocks, oauthClients } from "@/server/db/sche
 // `agent_sessions`, which the retention sweep trims, plus the operator's blocks.
 
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+/** The most `client_id`s read from Sessions, so a tab never grows with what a stranger can make; blocks are the operator's own and always list. */
+export const AGENTS_SEEN_CAP = 50;
 
-/** Every `client_id` with a Session in the last 30 days or a block on it, most recently seen first. */
+/** The `AGENTS_SEEN_CAP` most recently seen `client_id`s with a Session in the last 30 days, and every one the operator has blocked. */
 export async function agentsSeen(now: Date = new Date()): Promise<AdminAgent[]> {
   const since = new Date(now.getTime() - WINDOW_MS);
   const seen = await db
@@ -21,7 +23,9 @@ export async function agentsSeen(now: Date = new Date()): Promise<AdminAgent[]> 
     })
     .from(agentSessions)
     .where(gte(agentSessions.lastSeenAt, since))
-    .groupBy(agentSessions.clientId);
+    .groupBy(agentSessions.clientId)
+    .orderBy(desc(sql`max(${agentSessions.lastSeenAt})`))
+    .limit(AGENTS_SEEN_CAP);
   const blocks = await db.select({ clientId: oauthClientBlocks.clientId, blockedAt: oauthClientBlocks.blockedAt }).from(oauthClientBlocks);
   const blocked = new Set(blocks.map((block) => block.clientId));
 
