@@ -37,8 +37,11 @@ outside MCP dispatch with `audience`).
    document declares `token_endpoint_auth_method: "private_key_jwt"` and a same-domain `jwks_uri`
    is a Personal Agent. There is no allowlist. A refused `client_id` (a new
    `oauth_client_blocks` row, set in the operator console) answers `invalid_client` at the token
-   and revocation endpoints and `invalid_session` at every resource, and a blocked client's authorize
-   request is refused before consent. A block revokes no grant, so unblocking restores it. **One
+   and revocation endpoints and `invalid_session` at the Session gate and at `/api/v1`, and a
+   blocked client's authorize request is refused before consent. At `/api/mcp` a blocked token is
+   answered `401 invalid_token` (`Bearer resource_metadata=..., error="invalid_token"`). Blocks
+   apply to CIMD clients, whose `client_id` is a URL; a DCR client has no stable identity and is
+   not blocked individually, the registration limits bound it instead. A block revokes no grant, so unblocking restores it. **One
    recorded exception:** a blocked *public* client's revocation request that names no client
    is not authenticated and still revokes, which RFC 7009 permits because it only reduces access.
 4. **Signed out is free; the account is Premium.** A request with a verified Session header and
@@ -49,7 +52,13 @@ outside MCP dispatch with `audience`).
    nothing that spends a paid quota (geocode is excluded), under a per-`(client_id, sid)` rate
    limit with `429` and `Retry-After`, and a per-`client_id` ceiling across its Sessions so one agent
    cannot spend the global one. A route opts in by declaring `signedOut: true` in
-   `declare()`; the default is no.
+   `declare()`; the default is no. **Signed-out reads work for any conforming agent.** A Session
+   whose `iss` has no stored client row is resolved on routes that declare `signedOut`, with no
+   access token, by a bounded fetch of its client metadata and keys: charged to a per-IP (120/h)
+   and a global ceiling of its own (`OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_*`), a failed fetch
+   remembered for 60 s, nothing stored as an Allowed client, no grant beyond signed-out reads. Past
+   the share the answer is 429 with `Retry-After`, not `invalid_session`. Every other route refuses
+   an unknown client.
 6. **The v1 API accepts OAuth access tokens** whose audience is the domain
    (`https://caesura.today`), through every gate `route()` already applies (scope, trip
    confinement, role, entitlement). An `/api/mcp`-audience token is still refused outside MCP
@@ -59,14 +68,16 @@ outside MCP dispatch with `audience`).
 7. **The bare protected-resource document names the domain.**
    `/.well-known/oauth-protected-resource` answers `resource: https://caesura.today` with our
    issuer; `/.well-known/oauth-protected-resource/api/mcp` keeps answering the MCP resource; the
-   MCP 401's `resource_metadata` already points at the `/api/mcp` form (`route.ts:865`). The
+   MCP 401's `resource_metadata` already points at the `/api/mcp` form. The
    issuer's metadata gains `protected_resources: [domain, domain/api/mcp]`. Claude's connector is
    walked on the preview before this merges.
 8. **A Session is one row.** `agent_sessions (client_id, sid, agent_user_id, agent_id?,
    account_id?, created_at, last_seen_at, ended_at)`, unique on `(client_id, sid, agent_user_id)`,
    created by the first request with a new `sid` **whose access token the actor has accepted**: a
    request refused for its credential, and a signed-out request, write nothing (part 4's signed-out
-   Discover surface calls `open(null)` itself). Idle for 30 days, it ends; a request on
+   Discover surface calls `open(null)` itself); a signed-out read by an agent with no stored client
+   row writes no Session row either; a row is made for an Allowed agent, or (part 5) a report-only
+   agent. Idle for 30 days, it ends; a request on
    an ended row answers `session_ended`. A signed-in request records the account; a later request
    on another account answers `session_ended` (§5.4). `agent_user_id` is the agent's pairwise ID
    and is joined to nothing but `account_id`. Verified delegations are cached until their `exp`
@@ -78,9 +89,11 @@ outside MCP dispatch with `audience`).
 10. **Direct Sign-In only.** No Device Sign-In; `grant_types_supported` stays
     `authorization_code` and `refresh_token`.
 11. **A tasks endpoint, with excluded tasks and feedback.** `GET /api/poppy/tasks` lists
-    `excluded_tasks` (billing and plan changes, deleting the account, inviting or removing trip
-    members, and what part 5's survey of `exposure.ts`'s `never` rows adds), and
-    `feedback.endpoint` = `POST /api/poppy/feedback`, which stores `{task, description}` with the
+    `excluded_tasks`: "Caesura does not offer an agent billing and plan changes, removing a member
+    or changing a role, account deletion, API tokens and connected apps, or referrals. Inviting
+    people to a trip is offered in v1." Account deletion has no alternative (the settings have no
+    such control); the others point to the web app. Part 5's survey of `exposure.ts`'s `never`
+    rows may add to it. `feedback.endpoint` = `POST /api/poppy/feedback`, which stores `{task, description}` with the
     verified `client_id` and answers `202`. The operator console lists reports in a new *Agents*
     tab, beside the kill switch. Report text is data, never a prompt. No `skill_index`.
 12. **No Gemini-specific work.** Gemini reaches Caesura through MCP and OpenAPI, as any MCP client
@@ -103,13 +116,14 @@ outside MCP dispatch with `audience`).
   is down or `CACHE_DRIVER=off` (ADR-059), a replayed `jti` passes; the assertion must still be
   unexpired and signed. The kit validator's `assertion.jti-reuse` check cannot pass where the
   cache is off.
-- **A client with no stored row is never fetched for.** Only `/oauth/authorize` creates an
-  `oauth_clients` row (at Allow, under its own quota). The token endpoint, revocation and Session
-  verification answer a `client_id` with no row without a fetch, so inventing URLs costs an
-  attacker nothing and spends no pool. What they answer: the token endpoint `invalid_client` when
+- **A client with no stored row is never fetched for, except on a `signedOut` route.** Only
+  `/oauth/authorize` creates an `oauth_clients` row (at Allow, under its own quota). The token
+  endpoint, revocation and Session verification answer a `client_id` with no row without a fetch.
+  On a `signedOut` route the fetch is bounded per IP and in all (decision 5), and a made-up URL
+  costs the attacker one unit and records nothing. What they answer: the token endpoint `invalid_client` when
   the request carries an assertion and `invalid_grant` when it does not; revocation 200 and
   nothing done (RFC 7009), since it only looks at a client once it has found a real token;
-  Session verification `invalid_session`. For a stored client,
+  Session verification `invalid_session`, except on a `signedOut` route (429 past the share). For a stored client,
   fetches made before an account is known are charged to the caller's IP on the signed-out fetch
   quota (120 per caller, 3,000 an hour global), never to a `client_id` the caller names and never
   to the authorize share. Sizing: a busy agent refetches its document and key set every 5 minutes,

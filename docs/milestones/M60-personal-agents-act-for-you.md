@@ -117,7 +117,7 @@ The decisions as they were put:
 10. **Device Sign-In.** *Recommended:* no. Direct Sign-In is the spec's preferred flow (§4), and
     Device Sign-In carries RFC 10027's phishing obligations.
 11. **The tasks endpoint.** *Recommended:* yes, with `excluded_tasks` for what the API does not
-    offer (billing and plan changes, deleting the account, inviting or removing trip members,
+    offer (billing and plan changes, removing a member or changing a role, account deletion, API tokens and connected apps, referrals; inviting is offered in v1,
     and whatever else the scoping survey finds) and a `feedback.endpoint` whose reports land in a
     table the operator console lists, treated as data and never as instructions (§9.3).
     `skill_index` is a candidate.
@@ -132,6 +132,19 @@ The decisions as they were put:
     the checklist. The validator's output goes in this file as evidence.
 14. **Placement.** *Recommended:* last, after M59, since nothing is hurting and Muse traffic does
     not exist yet. Mitchell's call. **Answered: next in queue**, so after M59 and ahead of M53.
+
+**Answered later, during the build (Mitchell, 2026-11-10 unless noted).** Recorded so none is
+reopened; ADR-089 carries the mechanism.
+
+- **Signed-out reach for never-allowed agents.** A bounded fetch on `signedOut` routes only. It
+  stores no row, and past the share the answer is 429 with `Retry-After`. Per IP 120 an hour, global
+  500 an hour, both tunable by environment variable.
+- **Report-only agents.** An agent that has never been allowed gets a Session row through
+  feedback only, and its quota is charged before `gate.open`. Tasks records none.
+- **Agents tab.** Capped at 50 rows, with a note when the cap is reached.
+- **Client IP.** Traefik's `forwardedHeaders` are untouched and Cloudflare is DNS-only, so keying
+  on the first-hop `clientIp` is fine.
+- **IPv6.** `clientIp` keys an IPv6 address by its /64.
 
 ## Scope
 

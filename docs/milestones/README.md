@@ -141,6 +141,7 @@ for collaboration later landing on a product people already want to join.
 | M58 | A notebook anyone can read, and a poll for the people going | **Closed 2026-11-06, gate 11 of 11** ([walk] on Mitchell's word, after `0074` was applied). A notebook made public at `/n/<token>` for people without an account. Every widget shows unless its instance is hidden, behind three floors. Make-private answers 404, and the page ends in a sign-up band with no way to join. Adds a `poll` widget for members (ADR-088): `M58-a-notebook-anyone-can-read.md` |
 | M59 | Self-host Caesura on a Coolify VPS | **Scoped 2026-11-08 by Mitchell, placed ahead of M53; current.** Off Vercel onto a Hetzner box running Coolify: one deployment-env module, no Vercel imports, a Docker build, Coolify per-PR previews, self-hosted Redis and Plausible, Coolify crons, hard cutover with Vercel paused. Decisions and gate: `M59-self-host-on-coolify-vps.md` |
 | M60 | A personal agent can find Caesura, and act for you within what you allow | **Scoped 2026-11-09 by Mitchell, placed next after M59, ahead of M53.** All fourteen decisions answered as recommended (ADR-089). From the Personal Agent Protocol (Poppy, draft 0.4, Sierra and Meta; Meta's Muse speaks it); see *2026-11-09 — minted: M60, Personal Agent Protocol*. `poppy.json`, signed client assertions for agents, the `Poppy-Session` header on v1 and MCP, v1 accepting OAuth tokens, signed-out public reads free and account access Premium, a kill switch, tasks and feedback, on top of M55's OAuth server; five parts as one stack: `M60-personal-agents-act-for-you.md` |
+| M61 | Discover ranks what's worth borrowing now | **Minted 2026-11-09 by Mitchell, placed directly after M60 (scoped in PR 712), ahead of M53; not scoped.** See *2026-11-09 — minted: M61, a ranked Discover*. One stored score per public day from decayed adds and comments, Bayesian stars and a new-day lift, recomputed hourly by a Coolify cron into `saved_day_ranks` and cached under its own tag; a `top` sort as Discover's default. Ten recommended decisions: `M61-discover-ranks-what-is-worth-borrowing.md` |
 
 *A closed milestone's row is its gate, one line and its file. The longer rows
 they carried until 2026-11-01 are verbatim in `decisions-archive.md`, under
@@ -269,6 +270,17 @@ last, after M59, since he named no place for it. Fourteen recommended decisions 
 Premium + free like you suggested, D3 - Recommended, D14 - Next in queue."* M59 had been scoped and
 made current on 2026-11-08, so *next in queue* is directly after it. **Order: M59 → M60 → M53**,
 with M48 parked. The decisions and ADR-089 are in the milestone file.
+
+### 2026-11-09 — minted: M61, a ranked Discover
+
+**Asked 2026-11-09.** Mitchell: *"Create a new milestone going after the current in program one
+M60, That makes the discover page have a better way of showing relevant pages. There should be a
+ranking algorithm based on age, how often its added, how many stars it has, has many comments, and
+have it recalculating and caching on a reasonable interval."* **M61 is minted, not scoped**, and
+placed directly after M60 as asked. M60 is scoped in PR 712 and not yet on `main`. Days have no
+comments of their own, so decision 4 recommends counting a review's note as one. Ten recommended
+decisions are in `M61-discover-ranks-what-is-worth-borrowing.md`. **Order: M59 → M60 → M61 →
+M53**, with M48 parked.
 
 ### 2026-11-04 — minted: M58, public notebooks and a poll
 
