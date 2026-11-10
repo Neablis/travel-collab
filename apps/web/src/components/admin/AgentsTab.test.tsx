@@ -76,6 +76,15 @@ describe("AgentsTab", () => {
     expect(screen.getByRole("button", { name: "Unblock other.example" })).toBeTruthy();
   });
 
+  // agentsSeen stops reading at its cap; without a word, an agent past it just looks absent.
+  it("says it shows only the most recently seen when the list is at the cap", () => {
+    const full = Array.from({ length: 3 }, (_, i) => agent({ clientId: `https://a${i}.example/c.json`, domain: `a${i}.example` }));
+    const { rerender } = render(<AgentsTab agents={full} reports={[]} seenCap={3} />);
+    expect(screen.getByText("Showing the 3 most recently seen agents, and every blocked one.")).toBeTruthy();
+    rerender(<AgentsTab agents={full.slice(0, 2)} reports={[]} seenCap={3} />);
+    expect(screen.queryByText(/most recently seen/)).toBeNull();
+  });
+
   it("says so when no agent has been seen", () => {
     render(<AgentsTab agents={[]} reports={[]} />);
     expect(screen.getByText("No Personal Agent has connected yet.")).toBeTruthy();
@@ -137,7 +146,7 @@ describe("AgentsTab", () => {
   });
 
   describe("reports from agents", () => {
-    it("lists them in the order given, each with its task, description, agent and date, and no actions", () => {
+    it("lists them in the order given, each with its task, description, agent and date", () => {
       render(
         <AgentsTab
           agents={[agent()]}
@@ -158,7 +167,6 @@ describe("AgentsTab", () => {
       expect(within(items[0]!).getByText(/agent\.example/)).toBeTruthy();
       expect(within(items[0]!).getByText(/8 Nov 2026/)).toBeTruthy();
       expect(within(items[1]!).getByText("Older task")).toBeTruthy();
-      expect(within(region).queryAllByRole("button")).toHaveLength(0);
     });
 
     it("shows an agent's text as the plain text it sent, never as markdown or markup", () => {
@@ -176,6 +184,21 @@ describe("AgentsTab", () => {
       unmount();
       render(<AgentsTab agents={[agent()]} reports={[]} />);
       expect(screen.getByText("No reports from agents yet.")).toBeTruthy();
+    });
+
+    // A report-only agent may be past the table's cap; the report is where it is found to block.
+    it("blocks the reporting agent from beside its report, through the same confirm, and offers Unblock after", async () => {
+      fetchMock.mockResolvedValue(answer({ clientId: "https://agent.example/poppy-client.json", blocked: true }));
+      const user = userEvent.setup();
+      render(<AgentsTab agents={[]} reports={[report()]} />);
+      await user.click(screen.getByRole("button", { name: "Block Wayfinder, report: Pay with a gift card" }));
+      expect(screen.getByText("Block Wayfinder?")).toBeTruthy();
+      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Block" }));
+      expect(await screen.findByRole("button", { name: "Unblock Wayfinder, report: Pay with a gift card" })).toBeTruthy();
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/agents/https%3A%2F%2Fagent.example%2Fpoppy-client.json/block",
+        expect.objectContaining({ method: "PUT" }),
+      );
     });
   });
 });

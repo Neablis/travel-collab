@@ -23,7 +23,7 @@ import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitleme
 import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { personaReport } from "@/server/entitlements/personaReport";
 import { grantForPersona, toolsFor } from "@/server/assistant/grants";
-import { agentsSeen } from "@/server/poppy/agentsSeen";
+import { AGENTS_SEEN_CAP, agentsSeen } from "@/server/poppy/agentsSeen";
 import { recentReports } from "@/server/poppy/feedback";
 import { EDGES, ENTRY, PERSONAS, type PersonaId } from "@/server/assistant/personas";
 import type { PersonaMapDef } from "@/lib/adminPersonas";
@@ -154,7 +154,7 @@ export default async function AdminPage({
     const [agents, reports] = await Promise.all([agentsSeen(), recentReports()]);
     return (
       <ConsoleShell tab={tab}>
-        <AgentsTab agents={agents} reports={reports} />
+        <AgentsTab agents={agents} reports={reports} seenCap={AGENTS_SEEN_CAP} />
       </ConsoleShell>
     );
   }
