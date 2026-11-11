@@ -189,35 +189,102 @@ reopened; ADR-089 carries the mechanism.
 - [x] **Decisions D1–D14 are answered and recorded here**, and the ADR is written (ADR-089, 2026-11-09).
 - [ ] **`poppy.json` passes** the kit validator's `check --file` and `--milestone foundation`
       against the preview, with the run's output recorded here.
-- [ ] **The metadata agrees with itself**: the bare protected-resource document names
+      Open: needs the validator run against the preview, which waits on sign-in there. In CI, the
+      document's shape is asserted by `apps/web/src/server/poppy/discovery.test.ts` (cases: pinned
+      version and sign-in details; every published scope described; MCP server, OpenAPI, tasks
+      endpoint listed; origin from configuration) and `apps/web/src/server/oauth/wellKnown.test.ts`
+      ("serves the document for the configured origin, never the request's Host"). That is not the
+      kit validator's verdict.
+- [x] **The metadata agrees with itself**: the bare protected-resource document names
       `https://caesura.today`, the issuer's `protected_resources` lists it, and `/api/mcp`'s
       document still names `/api/mcp`.
+      CI run 42738117635 on 4254305 (PR 718's head, which holds the whole milestone; 9 of 9 jobs success, `ci-ok` included): `apps/web/src/server/oauth/metadata.test.ts` (cases: "names the origin as the bare
+      document's resource, and the issuer lists both resources"; "names the MCP endpoint as the
+      resource, exactly, under the configured origin") and
+      `apps/web/src/server/oauth/wellKnown.test.ts` ("names the origin bare and the MCP endpoint on
+      the MCP path, whatever Host says").
 - [ ] **A Session header is verified or refused** on v1 and MCP: a valid one starts a session; a
       missing delegation, a wrong `aud`, `htm` or `htu`, a stale `iat` or a wrong `ath` answers
       `invalid_session` (400, JSON); a missing `Poppy-Version` answers `version_unsupported`; an
       ended session answers `session_ended`. Each case is a test seen failing first.
+      CI run 42738117635 on 4254305 (PR 718's head, which holds the whole milestone; 9 of 9 jobs success, `ci-ok` included): `apps/web/src/server/poppy/sessionHeader.test.ts` (cases: accepts a delegated Session
+      JWT; refuses no delegation; refuses an aud that is not the issuer; refuses an htm or htu that
+      is not this request; takes an iat within a minute and refuses beyond; "with an access token":
+      refuses a missing and a wrong ath), `apps/web/src/server/poppy/sessions.int.test.ts` (cases:
+      writes the row on the first request; "answers invalid_session, as a 400 with the bare error";
+      "answers version_unsupported for a missing Poppy-Version or an incompatible one";
+      "answers session_ended for an ended Session"), `apps/web/src/server/public-api/route.int.test.ts`
+      (v1: "refuses a header that fails as invalid_session"; "refuses a missing or incompatible
+      Poppy-Version as version_unsupported") and `apps/web/src/app/api/mcp/route.int.test.ts` (MCP:
+      "answers invalid_session and version_unsupported as 400, before the 401 an anonymous call
+      gets"). Red-first: the failure texts are in PR 716's body, not repeated here.
 - [ ] **A client assertion is required and checked** for a `private_key_jwt` client: a wrong
       `aud` (including the token endpoint's URL) or a reused `jti` is `invalid_client`.
+      CI run 42738117635 on 4254305 (PR 718's head, which holds the whole milestone; 9 of 9 jobs success, `ci-ok` included): `apps/web/src/server/oauth/clientAssertion.test.ts` (cases: "refuses any aud but the
+      issuer, character for character", which lists the token endpoint's URL; "refuses an assertion
+      with no jti, and a jti presented twice"), `apps/web/src/server/oauth/tokens.int.test.ts` (cases:
+      "is refused at the code exchange without an assertion, and with one that is not its own";
+      "is refused at refresh without an assertion, and an assertion works once", where a reused jti
+      is `invalid_client`) and `apps/web/src/app/api/oauth/token/route.int.test.ts` ("answers 401
+      invalid_client without its client_assertion, and 200 with one"). Every verifier refusal is
+      one `invalid_client` path in `tokens.ts`.
 - [ ] **No scope beyond what was asked** is ever granted, and a sign-in without `scope` is
       `invalid_scope`.
+      CI run 42738117635 on 4254305 (PR 718's head, which holds the whole milestone; 9 of 9 jobs success, `ci-ok` included): `apps/web/src/server/oauth/authorizeRequest.test.ts` ("requires scope from a
+      private_key_jwt client, and still defaults it for a public one": no `scope`, and only
+      `offline_access`, are `invalid_scope`; a named scope is exactly that scope"),
+      `apps/web/src/app/api/oauth/authorize/route.int.test.ts` ("refuses a scope the client did not
+      ask for, and an empty choice") and `apps/web/src/server/oauth/tokens.int.test.ts` ("is refused
+      a scope beyond what the grant holds, and a refusal rotates nothing").
 - [ ] **The v1 API takes a Poppy access token** with every gate `route()` already applies, and an
       `/api/mcp`-audience token is still refused outside MCP.
-- [ ] **Signed out reaches only the public reads** (D5), and nothing that writes.
+      Open, partly covered. The audience clauses are tested: `apps/web/src/server/public-api/oauthActor.int.test.ts`
+      ("is accepted on v1 when the grant was made for the domain, and refused inside an MCP
+      dispatch"; "is refused on v1 when the grant was made for /api/mcp, and accepted inside the
+      dispatch"; "is 401 on a bare /v1/account call"). The gates (scope, 402 on a lapsed plan, the
+      owner's trip reach) are asserted there only for a token made for `/api/mcp`, run inside an MCP
+      dispatch; no test sends a domain-audience token through them on v1. The code path is shared,
+      but that is an inference, not an assertion.
+- [x] **Signed out reaches only the public reads** (D5), and nothing that writes.
+      CI run 42738117635 on 4254305 (PR 718's head, which holds the whole milestone; 9 of 9 jobs success, `ci-ok` included): `apps/web/src/server/public-api/route.int.test.ts` (cases: "reaches a route that
+      declares signedOut and no other"; "is still 401 without a Session header, and with a
+      credential that is not a bearer token"; "reads signed-out Discover, and nothing else, and is
+      not stored as a client") and `apps/web/src/server/public-api/openapi.test.ts` ("publishes the
+      signed-out read as optional security, and every other operation as requiring a bearer", which
+      runs over every operation including the writes).
 - [ ] **Claude's connector still connects and works** on the preview, outside any Poppy Session
       (D7, D12).
+      Open: needs claude.ai's connector check on the preview, which waits on sign-in there. In CI,
+      `apps/web/src/app/api/mcp/route.int.test.ts` covers the connector's own token and the MCP
+      dispatch ("lists every tool with its annotations, statelessly"; "answers tools/call with and
+      without the Mcp-Method and Mcp-Name headers"), not claude.ai itself.
 - [ ] **The tasks endpoint answers**, and a feedback report shows in the operator console.
+      Open, split. Tasks endpoint, covered by CI run 42738117635 on 4254305:
+      `apps/web/src/app/api/poppy/tasks/route.int.test.ts` ("answers a verified Session with the
+      excluded tasks and the feedback endpoint, cacheable") and `apps/web/src/server/poppy/tasks.test.ts`.
+      Feedback stored and listed in code: `apps/web/src/app/api/poppy/feedback/route.int.test.ts`
+      ("answers 202 with no body and stores the report under the verified client_id"; "recentReports"),
+      `apps/web/src/app/api/admin/agents/route.int.test.ts` ("lists the reports newest first") and
+      `apps/web/src/components/admin/AgentsTab.test.tsx` ("reports from agents"). Remaining: a report
+      sent to the preview shows in its operator console, which needs the walk.
 - [ ] **Disconnect in Connected apps signs the agent out**: its next refresh is `invalid_grant`.
+      Open, partly covered by CI run 42738117635 on 4254305:
+      `apps/web/src/app/api/account/connected-apps/[grantId]/route.int.test.ts` ("revokes the grant
+      as the owner, and its tokens stop on their next use": refresh is `invalid_grant`) and
+      `apps/web/src/components/account/ConnectedAppsSection.test.tsx` ("a Personal Agent ... has the
+      same Disconnect, confirmed"). That refresh uses an ordinary registered client; no test
+      refreshes a `private_key_jwt` agent's revoked grant with a valid assertion. Walk-covered.
 - [ ] **[walk]** With the validator's test identity (or Muse, if Meta's agent can reach a preview
       by then), Mitchell signs in on the consent page, approves read-only scopes, and the agent
       lists his trips; then he disconnects it in Connected apps.
 - [ ] A retro is appended at gate close.
 
-**Gate status, 2026-11-10 (Mitchell).** "Preview of PR 718 exists and was walked" is an **open** gate
-item, not a pass: PR 718 has no preview (https://718.preview.caesura.today answers with Traefik's
-default certificate, no router for the host), and `preview-link-check` run 42738117800 still
-concluded success (KI-2026-11-10). Cause: Coolify PR previews were never switched on (no PR has had a
-preview since the M59 cutover; KI-20261110). The PR 718 walk waits on M59's open "Coolify previews
-work for PRs" gate box, not on a by-hand deploy; the walk, the kit validator run and claude.ai's
-connector check wait on it. The preview-DB check for migration `0075`
+**Gate status, 2026-11-11.** As of 2026-11-10 Coolify PR previews are on (KI-20261110) and
+https://718.preview.caesura.today/api/health reports version
+4254305ad01386281d67ad84a63b4f61d5a742b8, PR 718's head. Sign-in on the preview is not working yet
+("Sign-in isn't set up on this deployment"): the Preview-scope env (`AUTH_URL` and the rest) is
+being corrected in Coolify. The walk, the kit validator run and claude.ai's connector check wait on
+that. The boxes ticked above are the test-backed ones, from CI run 42738117635 on PR 718's head;
+the unticked ones need the preview. The preview-DB check for migration `0075`
 came back clean (Mitchell, 2026-11-10): no preview applied the pre-review `0075`
 (`created_at` 1794264391750 is absent from the preview DB), so there is nothing to recover.
