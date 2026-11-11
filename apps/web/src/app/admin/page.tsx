@@ -24,6 +24,7 @@ import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { personaReport } from "@/server/entitlements/personaReport";
 import { grantForPersona, toolsFor } from "@/server/assistant/grants";
 import { AGENTS_SEEN_CAP, agentsSeen } from "@/server/poppy/agentsSeen";
+import { recentReports } from "@/server/poppy/feedback";
 import { EDGES, ENTRY, PERSONAS, type PersonaId } from "@/server/assistant/personas";
 import type { PersonaMapDef } from "@/lib/adminPersonas";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
@@ -148,12 +149,12 @@ export default async function AdminPage({
   }
 
   if (tab === "agents") {
-    // **The Personal Agents seen and the operator's blocks** (M60 part 4): read
+    // **The Personal Agents seen, the operator's blocks and the reports** (M60 parts 4 and 5): read
     // after the gate, on its own, like every tab.
-    const agents = await agentsSeen();
+    const [agents, reports] = await Promise.all([agentsSeen(), recentReports()]);
     return (
       <ConsoleShell tab={tab}>
-        <AgentsTab agents={agents} seenCap={AGENTS_SEEN_CAP} />
+        <AgentsTab agents={agents} reports={reports} seenCap={AGENTS_SEEN_CAP} />
       </ConsoleShell>
     );
   }

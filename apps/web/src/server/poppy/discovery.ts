@@ -10,7 +10,7 @@ import { mcpResource } from "@/server/oauth/metadata";
 // (ADR-083 amendment B): the spec has the agent check `organization.domain`
 // against the host that served the document, and a `Host` we echoed would make
 // that check pass for anyone. No `agent` (the assistant is not offered as a
-// Poppy conversation) and no `tasks` until part 5 adds the endpoint.
+// Poppy conversation).
 
 /** The pinned protocol version; no `supported_versions` (ADR-089 decision 1). */
 export const POPPY_PROTOCOL_VERSION = "0.4";
@@ -35,6 +35,8 @@ export function poppyDocument() {
       { type: "mcp", url: mcpResource(), description: "Trips, the Notebook and your library, as tools" },
       { type: "openapi", url: `${origin}/api/v1/openapi`, description: "The same capabilities as a REST API" },
     ],
+    // Excluded tasks, and where to send feedback (spec 9).
+    tasks: { endpoint: `${origin}/api/poppy/tasks` },
     // Agents browse the public site as signed-out visitors: no browser sign-in.
     web: {},
   };

@@ -13,6 +13,15 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-09 — `AdminAgentReport`, and `AdminAgentList.reports`: reports in the Agents tab (M60 part 5)
+- **New schema** `AdminAgentReport` in `packages/contracts/src/adminAgents.ts` (`id`, `clientId`,
+  `agentName`, `domain`, `task`, `description`, `createdAt`); **new required field** `reports` on `AdminAgentList`.
+- Why: a Personal Agent's feedback (Poppy 9.3, ADR-089 decision 11) is listed under the agents table,
+  newest first, as plain text.
+- Consumers updated: `apps/web` (`app/api/admin/agents/route.ts`, `app/admin/page.tsx`,
+  `components/admin/AgentsTab.tsx` and its tests). Admin-only; nothing else parses `AdminAgentList`.
+- Breaking? no: it was added in part 4, which has not shipped.
+
 ## 2026-11-09 — `GET /v1/discover/playbooks` is documented as readable signed out (M60 part 4; public API 2.5.0)
 - `openapi.json`: that operation's `security` is `[{}, { bearerAuth: ["library:read"] }]`, so a Personal Agent reading the
   document learns a Poppy Session alone is enough (Poppy 3.2, ADR-089 decision 5). Every other operation is unchanged.
