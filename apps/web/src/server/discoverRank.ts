@@ -3,6 +3,19 @@ import { SavedDayVisibility } from "@tc/contracts";
 import type { DiscoverRankRow } from "@/lib/adminDiscoverRank";
 import { db } from "./db/client";
 
+
+/**
+ * The library's "listed" rule as SQL over alias `d` (public, not deleted, not
+ * moderated), shared by the recompute's `live` set and the operator's read so
+ * the two cannot drift. It restates playbooks.ts' `notDeleted`, `notModerated`
+ * and public-visibility predicates: change them together.
+ */
+const LISTED = sql`(
+  d.visibility = ${SavedDayVisibility.enum.public}
+  and d.deleted_at is null
+  and d.moderated_at is null
+)`;
+
 /**
  * The knobs of Discover's score (M61 decisions 1 to 4, ADR-090), in one place
  * so that tuning is a one-line change with a test. They are starting values:
@@ -63,14 +76,15 @@ export async function recomputeDiscoverRanks(
     with live as (
       select d.id, coalesce(d.first_published_at, d.created_at) as since
       from saved_days d
-      where d.visibility = ${SavedDayVisibility.enum.public}
-        and d.deleted_at is null
-        and d.moderated_at is null
+      where ${LISTED}
     ),
     gone as (
       delete from saved_day_ranks
       where saved_day_id not in (select id from live)
         and (${only}::uuid is null or saved_day_id = ${only}::uuid)
+        -- A one-day run that committed after this statement's snapshot wrote a
+        -- newer row for a day this snapshot thinks is not live; keep it.
+        and computed_at < ${now}::timestamptz
     ),
     lib as (
       select coalesce(avg(r.stars), 0)::float8 as mean
@@ -154,9 +168,7 @@ export async function topDiscoverRanks(limit: number): Promise<DiscoverRankRow[]
            r.quality, r.new_day_lift, r.computed_at
     from saved_day_ranks r
     join saved_days d on d.id = r.saved_day_id
-    where d.visibility = ${SavedDayVisibility.enum.public}
-      and d.deleted_at is null
-      and d.moderated_at is null
+    where ${LISTED}
     order by r.score desc, r.saved_day_id
     limit ${limit}
   `);

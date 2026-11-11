@@ -827,8 +827,8 @@ export type PlaybookEditOutcome =
  * is one atomic step. Name and summary may change while published: they
  * describe the content rather than being it.
  *
- * **A visibility-only edit bumps nothing**, and moves `published_at` exactly as
- * `setSavedDayVisibility` does. `expectedVersion`, if sent with one, is still
+ * **A visibility-only edit bumps nothing**, and moves `published_at` and
+ * `first_published_at` exactly as `setSavedDayVisibility` does. `expectedVersion`, if sent with one, is still
  * honoured as a precondition.
  *
  * When nothing matched, the row is re-read under the same owner scope to say
@@ -881,6 +881,12 @@ export async function updatePlaybookContent(
       edit.visibility === SavedDayVisibility.enum.public
         ? sql`coalesce(${savedDays.publishedAt}, ${new Date(now)})`
         : null;
+    // `setSavedDayVisibility`'s reason: set once, never cleared, so the new-day
+    // lift cannot be re-earned (M61 decision 11). This is the path behind
+    // `PATCH /v1/playbooks` and MCP's `publish_playbook`.
+    if (edit.visibility === SavedDayVisibility.enum.public) {
+      set.firstPublishedAt = sql`coalesce(${savedDays.firstPublishedAt}, ${new Date(now)})`;
+    }
   }
   if (content) set.version = sql`${savedDays.version} + 1`;
 
@@ -909,6 +915,15 @@ export async function updatePlaybookContent(
     // browser keeps and loops on once the cache catches up.
     const renamedInPublic = edit.name !== undefined && updated[0].visibility === SavedDayVisibility.enum.public;
     if (edit.visibility !== undefined || renamedInPublic) await invalidatePublicDay(savedDayId, ownerId);
+    // `setSavedDayVisibility`'s rule: placed in this request, and a failure is
+    // logged, not thrown, because the write has committed.
+    if (edit.visibility === SavedDayVisibility.enum.public) {
+      try {
+        await recomputeDiscoverRanks({ savedDayId });
+      } catch (error) {
+        console.error("discover rank: publish-time recompute failed", { savedDayId, error: String(error) });
+      }
+    }
     const day = fromRow(updated[0]);
     // `setSavedDayVisibility`'s reason: the UPDATE has committed, so "not
     // found" would be a lie about a row that is there.

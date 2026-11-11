@@ -48,16 +48,16 @@ export function DiscoverRankTab({
       ) : (
         <Panel title={`Top ${rows.length} ranked days`}>
           <div className="overflow-x-auto">
-            <Table>
+            <Table aria-label="Top ranked days">
               <THead>
                 <TR>
-                  <TH className={HEAD}>Day</TH>
-                  <TH className={HEAD}>Score</TH>
-                  <TH className={HEAD}>Adds</TH>
-                  <TH className={HEAD}>Comments</TH>
-                  <TH className={HEAD}>Quality</TH>
-                  <TH className={HEAD}>New-day lift</TH>
-                  <TH className={HEAD}>Computed</TH>
+                  <TH scope="col" className={HEAD}>Day</TH>
+                  <TH scope="col" className={HEAD}>Score</TH>
+                  <TH scope="col" className={HEAD}>Adds</TH>
+                  <TH scope="col" className={HEAD}>Comments</TH>
+                  <TH scope="col" className={HEAD}>Quality</TH>
+                  <TH scope="col" className={HEAD}>New-day lift</TH>
+                  <TH scope="col" className={HEAD}>Computed</TH>
                 </TR>
               </THead>
               <TBody>

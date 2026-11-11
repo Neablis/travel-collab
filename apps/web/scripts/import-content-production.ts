@@ -62,7 +62,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { and, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import {
   bundleActivityCommands,
   bundleTripCommandGroups,
@@ -285,9 +285,14 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
     // first publish as this run's `keptOn` or now. Put the old one back: the
     // new-day lift ages from the first publish, set once (M61 decision 11), and
     // a bundle with no `keptOn` would otherwise re-earn it on every import.
+    // `least`: a later `keptOn` can date the day before the old stamp, and a
+    // first publish never comes after the current publish.
     for (const { id, firstPublishedAt } of before) {
       if (firstPublishedAt === null) continue;
-      await tx.update(savedDays).set({ firstPublishedAt }).where(eq(savedDays.id, id));
+      await tx
+        .update(savedDays)
+        .set({ firstPublishedAt: sql`least(${savedDays.firstPublishedAt}, ${firstPublishedAt.toISOString()}::timestamptz)` })
+        .where(eq(savedDays.id, id));
     }
   });
 

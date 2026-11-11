@@ -31,6 +31,14 @@ describe("the Discover rank tab", () => {
     }
   });
 
+  it("names the table and scopes each header to its column", () => {
+    render(<DiscoverRankTab rows={[ROW]} constants={CONSTANTS} />);
+    expect(screen.getByRole("table", { name: "Top ranked days" })).toBeTruthy();
+    for (const header of screen.getAllByRole("columnheader")) {
+      expect(header.getAttribute("scope"), header.textContent ?? "").toBe("col");
+    }
+  });
+
   it("states each constant it is given, name and value", () => {
     render(<DiscoverRankTab rows={[ROW]} constants={CONSTANTS} />);
     const items = within(screen.getByRole("list", { name: "Constants in force" })).getAllByRole("listitem");

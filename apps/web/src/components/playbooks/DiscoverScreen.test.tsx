@@ -1168,9 +1168,9 @@ describe("Discover place search", () => {
 // forbids the desktop's shape outright: a popover opening from a row of
 // popovers, on a screen where each one covers the list it is filtering.
 describe("the phone's one filter sheet", () => {
-  const openSheet = async () => {
+  const openSheet = async (initial?: Partial<DiscoverUrlState>) => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<DiscoverScreen />);
+    render(initial === undefined ? <DiscoverScreen /> : at(initial));
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     await user.click(screen.getByTestId("discover-phone-filters"));
@@ -1183,6 +1183,16 @@ describe("the phone's one filter sheet", () => {
     const sheet = screen.getByTestId("discover-filter-sheet");
     expect(within(sheet).getByTestId("sheet-budget-under200")).toBeTruthy();
     expect(within(sheet).getByTestId("sheet-length-two-three")).toBeTruthy();
+  });
+
+  // M61 decision 12: Newest is offered on every scope, and the sheet is where a
+  // phone reader picks a sort; the desktop menu's test cannot see this list.
+  it.each(["yours", "saved"] as const)("offers Newest on the %s scope too", async (scope) => {
+    const user = await openSheet({ scope });
+    await user.click(screen.getByTestId("sheet-sort-newest"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope, sort: "newest" })),
+    );
   });
 
   // Sort is a property of the list, and with only one place to put the
