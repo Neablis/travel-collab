@@ -70,6 +70,9 @@ export async function recomputeDiscoverRanks(
       delete from saved_day_ranks
       where saved_day_id not in (select id from live)
         and (${only}::uuid is null or saved_day_id = ${only}::uuid)
+        -- A one-day run that committed after this statement's snapshot wrote a
+        -- newer row for a day this snapshot thinks is not live; keep it.
+        and computed_at < ${now}::timestamptz
     ),
     lib as (
       select coalesce(avg(r.stars), 0)::float8 as mean
