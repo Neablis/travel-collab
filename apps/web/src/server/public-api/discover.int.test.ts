@@ -164,6 +164,21 @@ describe("GET /v1/discover/playbooks", () => {
     expect(new Set(seen)).toEqual(new Set(made));
   });
 
+  // The API default is not `top` (Decision 7): a caller who sends no sort keeps the order they had.
+  it("answers sort=top, and with no sort still ranks most-added", async () => {
+    const city = `Discoverville-${RUN}-g`;
+    const { secret } = await entitledToken();
+    const first = await playbookIn(secret, city);
+    const second = await playbookIn(secret, city);
+    await db.update(savedDays).set({ adds: 5 }).where(eq(savedDays.id, second.savedDayId));
+    await db.insert(savedDayRanks).values({ savedDayId: first.savedDayId, score: 9, addsRecent: 0, commentsRecent: 0, quality: 1, newDayLift: 1, computedAt: new Date() });
+
+    const top = await discover(secret, { city, sort: "top" });
+    expect(top.items.map((d) => d.savedDayId)).toEqual([first.savedDayId, second.savedDayId]);
+    const bare = await discover(secret, { city });
+    expect(bare.items.map((d) => d.savedDayId)).toEqual([second.savedDayId, first.savedDayId]);
+  });
+
   it("treats a cursor that names no row as no cursor", async () => {
     const city = `Discoverville-${RUN}-f`;
     const { secret } = await entitledToken();
@@ -202,8 +217,7 @@ describe("GET /v1/discover/playbooks", () => {
         .values({ savedDayId: ids[i]!, score, addsRecent: 0, commentsRecent: 0, quality: 1, newDayLift: 1, computedAt: new Date() });
     }
 
-    // `top` is web-only until the API part, which adds it back here.
-    for (const sort of ["most-added", "highest-rated", "most-reviewed", "newest"] as DiscoverSort[]) {
+    for (const sort of ["most-added", "highest-rated", "most-reviewed", "newest", "top"] as DiscoverSort[]) {
       const app = await discoverDays({
         cities: [city],
         scope: "everyone",

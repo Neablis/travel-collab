@@ -178,6 +178,14 @@ describe("the MCP tools", () => {
     expect(TOOLS.flatMap((tool) => schemaProblems(tool, served.get(tool.name)!))).toEqual([]);
   });
 
+  it("offer Discover's top order, and name no default that differs from the API's", () => {
+    const schema = inputSchemaFor(TOOLS.find((t) => t.name === "list_discover_playbooks")!) as {
+      properties: Record<string, { enum?: string[]; default?: unknown }>;
+    };
+    expect(schema.properties.sort!.enum).toContain("top");
+    expect(schema.properties.sort!.default).toBeUndefined();
+  });
+
   it("refuse a schema that differs from its route's", () => {
     const update = TOOLS.find((t) => t.name === "update_playbook")!;
     const schema = inputSchemaFor(update);

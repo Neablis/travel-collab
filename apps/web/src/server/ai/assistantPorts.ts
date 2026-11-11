@@ -63,9 +63,8 @@ import type { GeocodeResult, Geocoder } from "@/server/geocoding";
  * bad: narrower proposes days that 404 on approval, wider enumerates what
  * people have kept private.
  *
- * Most-added first: the ledger is the library's own answer to "which of these
- * is worth taking", and it is the ranking Discover offers a person making the
- * same choice.
+ * Top first: the rank is the library's own answer to "which of these is worth
+ * taking", and it is the ranking Discover offers a person making the same choice.
  *
  * It costs one extra `count(*)` (`publishedPlaybookCount`) that this caller does not
  * read. That is the price of the shared query, and it is one indexed count over
@@ -73,7 +72,7 @@ import type { GeocodeResult, Geocoder } from "@/server/geocoding";
  */
 export const playbookLibrary: PlaybookLibrary = {
   discover: async ({ cities, readerId }) =>
-    (await discoverDays({ cities, scope: "everyone", sort: "most-added", budget: "any", length: "any", readerId }))
+    (await discoverDays({ cities, scope: "everyone", sort: "top", budget: "any", length: "any", readerId }))
       .days,
 };
 
