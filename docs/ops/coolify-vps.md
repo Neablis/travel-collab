@@ -9,7 +9,10 @@ manager, not here.
 
 ## The box
 
-- Provider and size: Hetzner, 8 GB, `linux/amd64`, Ubuntu 24.04. The address is in Coolify, not here.
+- Provider and size: Hetzner `cpx31` in Ashburn (4 vCPU, 8 GB), `linux/amd64`, Ubuntu 24.04,
+  **73.49/mo**. That's about 3.5x the same box in Hetzner's EU regions, and over the ~$20 target. A
+  move to OVHcloud Hillsboro, near Neon's `aws-us-west-2`, is planned in
+  `docs/plans/2026-11-09-move-vps-to-ovhcloud.md`. The address is in Coolify, not here.
 - Coolify answers on `http://<the box>:8000` (the dashboard, `coolify.caesura.today`
   once its DNS record is up). Concurrent builds are set to 1: a `next build` of this
   app needs about 4 GB, and a stack of PRs builds one after another.
