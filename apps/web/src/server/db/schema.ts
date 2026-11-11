@@ -1256,7 +1256,8 @@ export const savedDays = pgTable(
     // author could re-earn it by unpublishing and publishing again, and a
     // content re-import without `keptOn` would re-earn it for a whole bundle.
     // Null while never published; the lift falls back to `created_at`. Written
-    // by `setSavedDayVisibility` (coalesce), `newSavedDayRow`, and carried
+    // by `setSavedDayVisibility` and `updatePlaybookContent` (coalesce),
+    // `newSavedDayRow`, and carried
     // across the importer's delete and re-insert.
     firstPublishedAt: timestamp("first_published_at", { withTimezone: true, mode: "date" }),
     // A SOFT delete: when the owner removes this day from their library, the
