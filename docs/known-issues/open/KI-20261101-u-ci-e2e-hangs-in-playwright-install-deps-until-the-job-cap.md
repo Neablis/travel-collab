@@ -39,6 +39,15 @@
   most likely matter to its baselines (not verified). Tripwire: **hit on 2026-11-11** (a second occurrence); the
   entry stays open until the step is bounded and cached, and any edit to the e2e job should include
   that.
+- **Fix:** in flight, PR 721. The e2e job now writes `/etc/apt/apt.conf.d/99-ci-fail-fast`
+  (`Acquire::Retries "2"`, 15s http/https timeouts) and runs `install-deps` in its own step with
+  `timeout-minutes: 4`, wrapped in three attempts with 10s/20s backoff that exits non-zero if all
+  fail. A mirror blip recovers; an outage like the 2026-11-11 one (apt retrying every 20s, about
+  10 minutes per attempt) fails in minutes. Left out on purpose: an apt package cache (needs
+  root-owned `/var/cache/apt` handling, out of scope for a small fix) and skipping the fonts
+  (`apps/web/e2e/m42-demo-trips.spec.ts` uses `toHaveScreenshot`). The entry stays open: the
+  outage cannot be reproduced on demand, so it closes once a CI run shows the new step passing
+  on the normal path.
 - **Cross-reference:** KI-20261111-a (a separate e2e flake seen on the same day); M43 retro (*What could be better*); M56's retro records a different
   runner stall (`test / unit` cancelled at its cap, run 41100755426).
 - **First noted:** 2026-11-01, review of PR 660 at `d2c9470`.
