@@ -28,6 +28,7 @@ import { tripDetailFactory, tripMemberFactory } from "@tc/factories";
 import { ASK_FAILED_MESSAGE, type Page, type TripDetail, type TripRole } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { DISCOVER_URL_DEFAULTS } from "@/components/playbooks/discoverUrl";
 import type { AskIntentRecord } from "@/server/assistant/askAnalytics";
 import {
   ADMISSION,
@@ -933,5 +934,18 @@ describe("a Discover scope", () => {
       scope: { kind: "playbook", page: { kind: "discover", search: { sort: "top" } } },
     });
     expect(parsed.error?.issues[0]?.message).toBeUndefined();
+  });
+
+  // The schema promises a field the screen leaves out is the route's own
+  // default; a client that omits `sort` must read the list the page shows.
+  it("defaults the sort to Discover's own, so an omitted sort reads the list on screen", () => {
+    const parsed = AskRequest.safeParse({
+      messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: "which is the cheapest?" }] }],
+      scope: { kind: "playbook", page: { kind: "discover", search: {} } },
+    });
+    const scope = parsed.data?.scope;
+    expect(scope?.kind === "playbook" && scope.page.kind === "discover" ? scope.page.search.sort : undefined).toBe(
+      DISCOVER_URL_DEFAULTS.sort,
+    );
   });
 });

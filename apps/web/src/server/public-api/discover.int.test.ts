@@ -171,7 +171,8 @@ describe("GET /v1/discover/playbooks", () => {
     const first = await playbookIn(secret, city);
     const second = await playbookIn(secret, city);
     await db.update(savedDays).set({ adds: 5 }).where(eq(savedDays.id, second.savedDayId));
-    await db.insert(savedDayRanks).values({ savedDayId: first.savedDayId, score: 9, addsRecent: 0, commentsRecent: 0, quality: 1, newDayLift: 1, computedAt: new Date() });
+    // Publishing seeds a rank row of its own (part 2); raise the first day's.
+    await db.update(savedDayRanks).set({ score: 9 }).where(eq(savedDayRanks.savedDayId, first.savedDayId));
 
     const top = await discover(secret, { city, sort: "top" });
     expect(top.items.map((d) => d.savedDayId)).toEqual([first.savedDayId, second.savedDayId]);
@@ -249,8 +250,8 @@ describe("GET /v1/discover/playbooks", () => {
     }
   });
 
-  // `top` is web-only until the API part, so its keyset (`rankKeys`) is held to
-  // `orderBy` here by paging the app's own `discoverPage`.
+  // `top`'s keyset (`rankKeys`) is also held to `orderBy` through the app's own
+  // `discoverPage`, which the API's pager does not use.
   it("pages top by keyset in the order the place pages list it", async () => {
     const { city, owner } = await rankedCity("top");
     const query: Parameters<typeof discoverPage>[0] = { cities: [city], scope: "everyone", sort: "top", length: "any", publishedOnly: true, readerId: owner };
