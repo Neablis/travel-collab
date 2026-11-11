@@ -21,7 +21,7 @@
 - **Cross-reference:** M43 retro (*What could be better*); M56's retro records a different
   runner stall (`test / unit` cancelled at its cap, run 41100755426).
 - **First noted:** 2026-11-01, review of PR 660 at `d2c9470`.
-- **Fix:** in flight, PR PRNUM. The e2e job now writes `/etc/apt/apt.conf.d/99-ci-fail-fast`
+- **Fix:** in flight, PR 721. The e2e job now writes `/etc/apt/apt.conf.d/99-ci-fail-fast`
   (`Acquire::Retries "2"`, 15s http/https timeouts) and runs `install-deps` in its own step with
   `timeout-minutes: 4`, wrapped in three attempts with 10s/20s backoff that exits non-zero if all
   fail. A mirror blip recovers; an outage (runners that cannot resolve Ubuntu's mirrors, apt
