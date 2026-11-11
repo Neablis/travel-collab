@@ -64,7 +64,7 @@ const FIELDS: { [K in keyof DiscoverUrlState]: Field<DiscoverUrlState[K]> } = {
     write: (countries) => countries,
   },
   scope: one("scope", DiscoverScope, "everyone"),
-  sort: one("sort", DiscoverSort, "most-added"),
+  sort: one("sort", DiscoverSort, "top"),
   length: one("length", LengthBand, "any"),
   rating: one("rating", RatingFloor, "any"),
   // Ticketed and Lodging are no value of it (ADR-070 §2, §4), so they read as no filter.

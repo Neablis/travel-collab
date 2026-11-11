@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { slugify } from "@/lib/playbookUrls";
 import { db } from "./db/client";
-import { savedDays } from "./db/schema";
+import { savedDayRanks, savedDays } from "./db/schema";
 import { publishedDaysPage, publishedPlaces } from "./playbooks";
 // Read live under test (`libraryCache.ts`); here for its slug match.
 import { placeFor, publishedDaysInCity } from "./publicLibrary";
@@ -121,6 +121,57 @@ describe("place pages", () => {
     expect(first.days).toHaveLength(1);
     expect(second.days).toHaveLength(1);
     expect(second.days[0]!.savedDayId).not.toBe(first.days[0]!.savedDayId);
+  });
+
+  // Decision 6: a day with no `saved_day_ranks` row ranks after every scored
+  // day, and on an empty table the order is adds desc, created_at desc.
+  it("lists by top: scored days first, unscored ones by adds then age, and an empty table is most-added", async () => {
+    const city = `Toptest${randomUUID().slice(0, 6)}`;
+    const old = new Date("2030-01-01T00:00:00Z");
+    const recent = new Date("2030-06-01T00:00:00Z");
+    const fewAdds = await day("Few adds", { cities: [city], adds: 1, createdAt: recent });
+    const manyAdds = await day("Many adds", { cities: [city], adds: 5, createdAt: old });
+    const newerTie = await day("Newer tie", { cities: [city], adds: 5, createdAt: recent });
+    const scored = await day("Scored", { cities: [city], adds: 0, createdAt: old });
+    const order = async () =>
+      (await publishedDaysPage({ cities: [city] }, { limit: 24, offset: 0 })).days.map((d) => d.savedDayId);
+
+    // No row, no failure: nothing is scored, and the order is most-added's.
+    expect(await order()).toEqual([newerTie, manyAdds, fewAdds, scored]);
+
+    await db.insert(savedDayRanks).values({
+      savedDayId: scored,
+      score: 0.1,
+      addsRecent: 0,
+      commentsRecent: 0,
+      quality: 1,
+      newDayLift: 1,
+      computedAt: new Date(),
+    });
+    expect(await order()).toEqual([scored, newerTie, manyAdds, fewAdds]);
+    await db.delete(savedDayRanks).where(eq(savedDayRanks.savedDayId, scored));
+  });
+
+  // The stored score is not a licence to list: the read joins through the
+  // predicate, so a day that left the library is gone whatever its score.
+  it("does not list an unpublished day however high its score", async () => {
+    const city = `Gonetest${randomUUID().slice(0, 6)}`;
+    const kept = await day("Kept", { cities: [city] });
+    const gone = await day("Gone", { cities: [city], visibility: "private", publishedAt: null });
+    await db.insert(savedDayRanks).values({
+      savedDayId: gone,
+      score: 99,
+      addsRecent: 0,
+      commentsRecent: 0,
+      quality: 1,
+      newDayLift: 1,
+      computedAt: new Date(),
+    });
+
+    const listed = await publishedDaysPage({ cities: [city] }, { limit: 24, offset: 0 });
+
+    expect(listed.days.map((d) => d.savedDayId)).toEqual([kept]);
+    await db.delete(savedDayRanks).where(eq(savedDayRanks.savedDayId, gone));
   });
 
   it("has no page for a slug no published day touches", async () => {

@@ -360,6 +360,9 @@ function orderBy(sort: DiscoverSort): SQL {
   // is a type error, not a sort that silently falls through to "newest".
   const then = {
     "most-added": sql`d.adds desc, d.created_at desc`,
+    // A day with no `saved_day_ranks` row ranks after every scored day, by the
+    // `most-added` order, so an empty table is that order (decision 6).
+    top: sql`r.score desc nulls last, d.adds desc, d.created_at desc`,
     "highest-rated": sql`d.rating desc nulls last, d.review_count desc`,
     "most-reviewed": sql`d.review_count desc, d.rating desc nulls last`,
     newest: sql`coalesce(d.published_at, d.created_at) desc`,
@@ -510,6 +513,13 @@ function matchedCount(query: Pick<DiscoverQuery, "cities" | "countries">): SQL {
 }
 
 /**
+ * Each day's stored rank, `top`'s first key. A left join: a day with no row
+ * (a fresh database, a cron that has not run) still lists. Every read joins it
+ * whatever its sort, so `orderBy` and `rankKeys` can name `r` unconditionally.
+ */
+const SAVED_DAY_RANK_JOIN = sql`left join saved_day_ranks r on r.saved_day_id = d.id`;
+
+/**
  * The columns a `DiscoverRow` is read from. `cover` needs `SAVED_DAY_COVER_JOIN`
  * after `from saved_days d`: a row the predicates keep brings its cover, and a
  * row they drop — private, moderated, deleted — takes it with it.
@@ -553,7 +563,7 @@ export async function discoverDays(query: DiscoverQuery, after: string | null = 
     db.execute<DiscoverRow>(sql`
       select ${discoverColumns}, ${matchedCount(query)}::int as matched_count,
         count(*) over ()::int as total_count
-      from saved_days d ${SAVED_DAY_COVER_JOIN}
+      from saved_days d ${SAVED_DAY_COVER_JOIN} ${SAVED_DAY_RANK_JOIN}
       where ${matchPredicate(query)}
       order by ${orderBy(query.sort)}
       limit ${CANDIDATE_LIMIT}
@@ -670,6 +680,9 @@ function rankKeys(query: DiscoverQuery): SQL {
   const matched = matchedCount(query);
   const then = {
     "most-added": sql`-d.adds, -extract(epoch from d.created_at)`,
+    // `r.score is null` first: false sorts before true, so scored days lead,
+    // and a null score has no negation to rank by.
+    top: sql`(r.score is null), -coalesce(r.score, 0), -d.adds, -extract(epoch from d.created_at)`,
     "highest-rated": sql`-coalesce(d.rating, 0), -d.review_count`,
     "most-reviewed": sql`-d.review_count, -coalesce(d.rating, 0)`,
     newest: sql`-extract(epoch from coalesce(d.published_at, d.created_at))`,
@@ -721,14 +734,14 @@ export async function discoverPage(
     const want = Math.max(page.limit - out.length, batch);
     const rows = await db.execute<DiscoverRow>(sql`
       select ${discoverColumns}, ${matchedCount(full)}::int as matched_count
-      from saved_days d ${SAVED_DAY_COVER_JOIN}
+      from saved_days d ${SAVED_DAY_COVER_JOIN} ${SAVED_DAY_RANK_JOIN}
       where ${matchPredicate(full)}
         ${
           after === null
             ? sql``
             : sql`and (
                 not exists (select 1 from saved_days c where c.id = ${after})
-                or (${keys}) > (select ${keys} from saved_days d where d.id = ${after})
+                or (${keys}) > (select ${keys} from saved_days d ${SAVED_DAY_RANK_JOIN} where d.id = ${after})
               )`
         }
       order by ${keys}
@@ -1289,7 +1302,7 @@ export async function publishedCountryCityPages(): Promise<CountryCityPage[]> {
 }
 
 /**
- * Published days for a place or an author, most-added first, one offset page.
+ * Published days for a place or an author, top first, one offset page.
  *
  * `matchPredicate` with a reader who owns nothing and `publishedOnly`, so the
  * rows are exactly what a stranger can open, and `toDiscoverDay`, so each is
@@ -1297,7 +1310,7 @@ export async function publishedCountryCityPages(): Promise<CountryCityPage[]> {
  * a place page is addressed by `?page=N`, which a crawler follows as a link.
  * `total` is 0 for a page past the end. A `tag` keeps the days whose
  * description names it: a tag page, or a city's. `sort` is for the test that
- * holds `orderBy` and `rankKeys` to one order; every page is most-added.
+ * holds `orderBy` and `rankKeys` to one order; every page is top.
  */
 export async function publishedDaysPage(
   filter: {
@@ -1325,7 +1338,7 @@ export async function publishedDaysPage(
     countries: filter.countries ?? [],
     authorId: filter.authorId ?? null,
     scope: "everyone",
-    sort: filter.sort ?? "most-added",
+    sort: filter.sort ?? "top",
     budget: "any",
     length: filter.length ?? "any",
     tag: filter.tag ?? "any",
@@ -1339,7 +1352,7 @@ export async function publishedDaysPage(
   // whole, which a tag page does.
   const rows = await db.execute<DiscoverRow>(sql`
     select ${discoverColumns}, ${matchedCount(query)}::int as matched_count
-    from saved_days d ${SAVED_DAY_COVER_JOIN}
+    from saved_days d ${SAVED_DAY_COVER_JOIN} ${SAVED_DAY_RANK_JOIN}
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
   `);

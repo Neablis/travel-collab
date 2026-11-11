@@ -165,4 +165,16 @@ describe("Discover's server read", () => {
     // the Everyone list a stranger's search left in the cache.
     expect((await discoverFor(search, READER)).days).toEqual([]);
   });
+
+  // Publish and unpublish clear `LIBRARY_TAG` and never `discover-rank`; the
+  // cron clears `discover-rank` and never the library. The one list must hang
+  // from both, or a day that left stays listed until the other tag clears.
+  it("holds the signed-out page under the library tag and the rank tag", async () => {
+    await day();
+
+    await discoverFor(search, null);
+
+    const [entry] = [...cache.entries].filter(([key]) => key.includes("discover"));
+    expect([...entry![1].tags].sort()).toEqual(["discover-rank", "library"]);
+  });
 });

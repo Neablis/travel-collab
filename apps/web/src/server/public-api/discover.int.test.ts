@@ -13,7 +13,7 @@ import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
 import { db } from "@/server/db/client";
-import { savedDays, users } from "@/server/db/schema";
+import { savedDayRanks, savedDays, users } from "@/server/db/schema";
 import { discoverDays, publishedDaysPage } from "@/server/playbooks";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -193,7 +193,16 @@ describe("GET /v1/discover/playbooks", () => {
       await db.update(savedDays).set({ adds, rating, reviewCount }).where(eq(savedDays.id, ids[i]!));
     }
 
-    for (const sort of ["most-added", "highest-rated", "most-reviewed", "newest"] as DiscoverSort[]) {
+    // `top` has scored days, tied scores, a zero score and unscored days, so
+    // its null-last key and its adds tie-break are both walked by the pager.
+    const scores: [number, number][] = [[0, 5], [1, 5], [2, 0], [4, 0.5]];
+    for (const [i, score] of scores) {
+      await db
+        .insert(savedDayRanks)
+        .values({ savedDayId: ids[i]!, score, addsRecent: 0, commentsRecent: 0, quality: 1, newDayLift: 1, computedAt: new Date() });
+    }
+
+    for (const sort of ["top", "most-added", "highest-rated", "most-reviewed", "newest"] as DiscoverSort[]) {
       const app = await discoverDays({
         cities: [city],
         scope: "everyone",

@@ -29,6 +29,15 @@ describe("Discover's state as a URL", () => {
     expect(discoverQueryString(DISCOVER_URL_DEFAULTS)).toBe("");
   });
 
+  // M61 decision 7: `top` is the default, so the old implicit default, a
+  // `?sort=most-added` link, has to be spelled out and still read as itself.
+  it("defaults to top, and a most-added link still asks for most-added", () => {
+    expect(DISCOVER_URL_DEFAULTS.sort).toBe("top");
+    expect(fromQuery("").sort).toBe("top");
+    expect(fromQuery("sort=most-added").sort).toBe("most-added");
+    expect(discoverQueryString({ ...DISCOVER_URL_DEFAULTS, sort: "most-added" })).toBe("sort=most-added");
+  });
+
   // A hand-edited or stale URL falls back per field rather than failing the
   // page — and a country code is normalised to the stored upper case.
   it("drops what it cannot read and keeps the rest", () => {

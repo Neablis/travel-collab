@@ -208,6 +208,7 @@ describe("Discover", () => {
   // M50 part 6: the grid has a title a person would write, chosen by what the
   // list is (the sort, or whose days).
   it.each([
+    ["everyone", "top", "Worth borrowing right now"],
     ["everyone", "most-added", "The days people keep adding to their trips"],
     ["everyone", "highest-rated", "Rated best by the people who went"],
     ["everyone", "most-reviewed", "The days with the most said about them"],
@@ -246,13 +247,13 @@ describe("Discover", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
     expect(
-      await screen.findByRole("heading", { level: 2, name: "The days people keep adding to their trips" }),
+      await screen.findByRole("heading", { level: 2, name: "Worth borrowing right now" }),
     ).toBeTruthy();
 
     searchPlaybooksMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom" } });
     await user.click(screen.getByRole("tab", { name: "Saved" }));
     expect(await screen.findByTestId("library-sync-failure")).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 2, name: "The days people keep adding to their trips" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Worth borrowing right now" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Days you have taken into a trip" })).toBeNull();
   });
 
@@ -316,7 +317,7 @@ describe("Discover", () => {
   // rating and a review count. Each one has to REACH the endpoint — a menu
   // offering "Highest rated" that sent `most-added` would look right and order
   // wrong — and the trigger on the results sentence reads back the choice.
-  it("offers all four sorts on the results sentence, and each one reaches the endpoint", async () => {
+  it("offers all five sorts on the results sentence, and each one reaches the endpoint", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
     await screen.findByTestId("discover-results");
@@ -326,6 +327,8 @@ describe("Discover", () => {
       ["most-reviewed", "Most reviewed"],
       ["newest", "Newest"],
       ["most-added", "Most added"],
+      // Last: Top is the default, so choosing it first would change nothing.
+      ["top", "Top"],
     ] as const;
     for (const [value, label] of sorts) {
       await user.click(screen.getByTestId("discover-sort"));
