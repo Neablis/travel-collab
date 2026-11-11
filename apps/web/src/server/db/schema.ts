@@ -1400,6 +1400,30 @@ export const savedDayReviews = pgTable(
   ],
 );
 
+// Discover's stored score (M61, ADR-090): one row per public day, written by
+// `recomputeDiscoverRanks` and by nothing else. A derived projection in the
+// sense of invariant 2 — rebuildable from `saved_day_adds`, `saved_day_reviews`
+// and `saved_days` by running the recompute — and so it holds no history and
+// stays out of the event log, on `saved_day_reviews`' terms.
+//
+// **No foreign key, and a row for a day that left the library is left alone.**
+// The reads join through `matchPredicate`, so an unpublished, deleted or
+// moderated day is never listed whatever its stored score; the next recompute
+// does not touch it and a republish overwrites it.
+//
+// The components are columns, not just the product, so the operator tab can
+// show why a day ranks where it does (decision 8) without redoing the maths.
+export const savedDayRanks = pgTable("saved_day_ranks", {
+  savedDayId: uuid("saved_day_id").primaryKey(),
+  score: doublePrecision("score").notNull(),
+  addsRecent: doublePrecision("adds_recent").notNull(),
+  commentsRecent: doublePrecision("comments_recent").notNull(),
+  quality: doublePrecision("quality").notNull(),
+  newDayLift: doublePrecision("new_day_lift").notNull(),
+  // `mode: "date"` — see the `savedDays` note above (KI-53).
+  computedAt: timestamp("computed_at", { withTimezone: true, mode: "date" }).notNull(),
+});
+
 // A playbook day's cover photo (M37 part 5): `trip_covers`' columns, one row
 // per saved day, set and cleared by the day's author through
 // `server/savedDayCovers.ts`. Community CRUD beside a CRUD table, so not a
