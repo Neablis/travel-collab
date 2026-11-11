@@ -4,6 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "./db/client";
 import { savedDayAdds, savedDayRanks, savedDayReviews, savedDays } from "./db/schema";
 import { recomputeDiscoverRanks } from "./discoverRank";
+import { setSavedDayVisibility } from "./savedDays";
 
 // M61 part 1's gate boxes: *each signal moves a day the right way*, *stars
 // can't carry a day alone*, and the score half of *new days are seen*. The
@@ -278,6 +279,18 @@ describe("stars can't carry a day alone", () => {
 });
 
 describe("new days are seen", () => {
+  it("ages the lift from the first publish, not from a republish (decision 11)", async () => {
+    const id = await day({ visibility: "private", publishedAt: ago(365) });
+    await db.update(savedDays).set({ publishedAt: null }).where(eq(savedDays.id, id));
+    await setSavedDayVisibility(id, "owner", "public", ago(10).toISOString());
+    await setSavedDayVisibility(id, "owner", "private", ago(9).toISOString());
+    await setSavedDayVisibility(id, "owner", "public", NOW.toISOString());
+
+    await recompute(NOW);
+    // 4 * 0.5^(10/7) from the first publish; republishing today would give 4.
+    expect((await rank(id)).newDayLift).toBeCloseTo(4 * 0.5 ** (10 / 7), 9);
+  });
+
   it("lifts a day published now above a steady one, then lets the steady one pass it after 14 days", async () => {
     const fresh = await day({ publishedAt: NOW });
     const stale = await day();

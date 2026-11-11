@@ -60,7 +60,7 @@ export async function recomputeDiscoverRanks(
 
   await db.execute(sql`
     with live as (
-      select d.id, coalesce(d.published_at, d.created_at) as since
+      select d.id, coalesce(d.first_published_at, d.created_at) as since
       from saved_days d
       where d.visibility = ${SavedDayVisibility.enum.public}
         and d.deleted_at is null
