@@ -302,6 +302,14 @@ describe("new days are seen", () => {
     expect((await rank(id)).newDayLift).toBeCloseTo(4, 9);
   });
 
+  it("places a day in the same call when it is published through the playbook edit path (API and MCP)", async () => {
+    const id = await day({ visibility: "private", publishedAt: ago(365) });
+    expect(await db.select().from(savedDayRanks).where(eq(savedDayRanks.savedDayId, id))).toHaveLength(0);
+    await updatePlaybookContent(id, "owner", { visibility: "public" }, NOW.toISOString());
+    // No recompute() here: the row must have come from the publish itself.
+    expect(await db.select().from(savedDayRanks).where(eq(savedDayRanks.savedDayId, id))).toHaveLength(1);
+  });
+
   it("lifts a day published now above a steady one, then lets the steady one pass it after 14 days", async () => {
     const fresh = await day({ publishedAt: NOW });
     const stale = await day();

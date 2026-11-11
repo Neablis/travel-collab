@@ -915,6 +915,15 @@ export async function updatePlaybookContent(
     // browser keeps and loops on once the cache catches up.
     const renamedInPublic = edit.name !== undefined && updated[0].visibility === SavedDayVisibility.enum.public;
     if (edit.visibility !== undefined || renamedInPublic) await invalidatePublicDay(savedDayId, ownerId);
+    // `setSavedDayVisibility`'s rule: placed in this request, and a failure is
+    // logged, not thrown, because the write has committed.
+    if (edit.visibility === SavedDayVisibility.enum.public) {
+      try {
+        await recomputeDiscoverRanks({ savedDayId });
+      } catch (error) {
+        console.error("discover rank: publish-time recompute failed", { savedDayId, error: String(error) });
+      }
+    }
     const day = fromRow(updated[0]);
     // `setSavedDayVisibility`'s reason: the UPDATE has committed, so "not
     // found" would be a lie about a row that is there.
