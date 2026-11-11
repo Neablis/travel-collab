@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "./db/client";
 import { savedDayAdds, savedDayRanks, savedDayReviews, savedDays } from "./db/schema";
-import { RANK_CONSTANTS, recomputeDiscoverRanks } from "./discoverRank";
+import { recomputeDiscoverRanks } from "./discoverRank";
+import { setSavedDayVisibility } from "./savedDays";
 
 // M61 part 1's gate boxes: *each signal moves a day the right way*, *stars
 // can't carry a day alone*, and the score half of *new days are seen*. The
@@ -14,16 +15,18 @@ import { RANK_CONSTANTS, recomputeDiscoverRanks } from "./discoverRank";
 // The library mean is global, so the tables are emptied first: another file's
 // leftover reviews would move it. The files run one after another against one
 // database (`fileParallelism: false`) and mint their own rows, so nothing here
-// is read by another file.
+// is read by another file. `afterAll` empties them again so that stays true.
 
 const NOW = new Date("2026-06-01T12:00:00.000Z");
 const DAY = 86_400_000;
 const ago = (days: number) => new Date(NOW.getTime() - days * DAY);
 const ahead = (days: number) => new Date(NOW.getTime() + days * DAY);
 
-beforeEach(async () => {
-  await db.execute(sql`truncate saved_day_ranks, saved_day_reviews, saved_day_adds, saved_days`);
-});
+const empty = () =>
+  db.execute(sql`truncate saved_day_ranks, saved_day_reviews, saved_day_adds, saved_days`);
+
+beforeEach(empty);
+afterAll(empty);
 
 type DayOpts = {
   publishedAt?: Date;
@@ -61,7 +64,7 @@ async function addedBy(savedDayId: string, adds: { by: string; at: Date }[]) {
 
 async function review(
   savedDayId: string,
-  r: { stars: number; note?: string | null; at?: Date; hidden?: boolean },
+  r: { stars: number; note?: string | null; at?: Date; createdAt?: Date; hidden?: boolean },
 ) {
   await db.insert(savedDayReviews).values({
     savedDayId,
@@ -69,7 +72,7 @@ async function review(
     stars: r.stars,
     note: r.note ?? null,
     hiddenAt: r.hidden ? NOW : null,
-    createdAt: r.at ?? NOW,
+    createdAt: r.createdAt ?? r.at ?? NOW,
     updatedAt: r.at ?? NOW,
   });
 }
@@ -186,6 +189,49 @@ describe("each signal moves a day the right way", () => {
   });
 });
 
+/**
+ * A library worked out by hand. Day T: one add 14 days ago, one 4-star comment
+ * whose note was last edited 30 days ago (written 60 days ago), published 7
+ * days ago. Day L: two 2-star reviews. Reviews that must not move the library
+ * mean: a hidden 5 star on L, and two 5 stars on a private day.
+ */
+async function handWorkedLibrary() {
+  const t = await day({ publishedAt: ago(7) });
+  const l = await day();
+  const hiddenElsewhere = await day({ visibility: "private" });
+  await addedBy(t, [{ by: "a", at: ago(14) }]);
+  await review(t, { stars: 4, note: "Good", createdAt: ago(60), at: ago(30) });
+  await reviews(l, [2, 2]);
+  await review(l, { stars: 5, hidden: true });
+  await reviews(hiddenElsewhere, [5, 5]);
+  return t;
+}
+
+// m = (4 + 2 + 2) / 3 = 8/3. bayes = (5 * 8/3 + 4) / (5 + 1) = 26/9.
+// quality = (26/9) / (8/3) = 13/12. adds = 0.5, comments = 0.5 (30 days is one
+// half-life), lift = 4 * 0.5 (7 days is one). interest = 3 * 0.5 + 2 * 0.5 = 2.5.
+// score = 13/12 * (2.5 + 2) = 4.875.
+describe("the score, worked by hand from literals", () => {
+  it("gives a full run the hand-worked score, quality and lift", async () => {
+    const t = await handWorkedLibrary();
+    await recompute();
+    const row = await rank(t);
+    expect(row.addsRecent).toBeCloseTo(0.5, 9);
+    expect(row.commentsRecent).toBeCloseTo(0.5, 9);
+    expect(row.newDayLift).toBeCloseTo(2, 9);
+    expect(row.quality).toBeCloseTo(13 / 12, 9);
+    expect(row.score).toBeCloseTo(4.875, 9);
+  });
+
+  it("gives a one-day run the same row as a full run, the library mean taken library-wide", async () => {
+    const t = await handWorkedLibrary();
+    await recomputeDiscoverRanks({ savedDayId: t, now: NOW });
+    const row = await rank(t);
+    expect(row.quality).toBeCloseTo(13 / 12, 9);
+    expect(row.score).toBeCloseTo(4.875, 9);
+  });
+});
+
 describe("stars can't carry a day alone", () => {
   it("ranks one 5-star review below twenty reviews averaging 4.6, adds equal", async () => {
     const lone = await day();
@@ -211,8 +257,9 @@ describe("stars can't carry a day alone", () => {
     await reviews(dire, Array<number>(100).fill(1));
     await reviews(filler, Array<number>(100).fill(3));
     await recompute();
-    expect((await rank(glowing)).quality).toBe(RANK_CONSTANTS.qualityMax);
-    expect((await rank(dire)).quality).toBe(RANK_CONSTANTS.qualityMin);
+    // Literals, not `RANK_CONSTANTS`: unclamped these are about 1.64 and 0.37.
+    expect((await rank(glowing)).quality).toBe(1.3);
+    expect((await rank(dire)).quality).toBe(0.7);
   });
 
   it("scores an unrated day the same as a day rated exactly the library mean", async () => {
@@ -232,28 +279,48 @@ describe("stars can't carry a day alone", () => {
 });
 
 describe("new days are seen", () => {
-  it("lifts a day published now above a stale one, and lets a steadily added day pass it after 14 days", async () => {
+  it("ages the lift from the first publish, not from a republish (decision 11)", async () => {
+    const id = await day({ visibility: "private", publishedAt: ago(365) });
+    await db.update(savedDays).set({ publishedAt: null }).where(eq(savedDays.id, id));
+    await setSavedDayVisibility(id, "owner", "public", ago(10).toISOString());
+    await setSavedDayVisibility(id, "owner", "private", ago(9).toISOString());
+    await setSavedDayVisibility(id, "owner", "public", NOW.toISOString());
+
+    await recompute(NOW);
+    // 4 * 0.5^(10/7) from the first publish; republishing today would give 4.
+    expect((await rank(id)).newDayLift).toBeCloseTo(4 * 0.5 ** (10 / 7), 9);
+  });
+
+  it("lifts a day published now above a steady one, then lets the steady one pass it after 14 days", async () => {
     const fresh = await day({ publishedAt: NOW });
     const stale = await day();
     const steady = await day();
     await addedBy(stale, [{ by: "a", at: ago(30) }]);
-    // Added about weekly, through the whole window.
+    // Only adds that are already in the past at each recompute: an add dated
+    // after `now` would be counted at full weight.
     await addedBy(steady, [
-      { by: "a", at: ago(8) },
-      { by: "b", at: ago(1) },
-      { by: "c", at: ahead(7) },
-      { by: "d", at: ahead(13) },
+      { by: "a", at: ago(20) },
+      { by: "b", at: ago(13) },
     ]);
 
     await recompute(NOW);
     const first = await rank(fresh);
-    expect(first.newDayLift).toBeCloseTo(RANK_CONSTANTS.newDayWeight, 9);
+    // No adds and no reviews: the score is the lift alone, 4.
+    expect(first.newDayLift).toBeCloseTo(4, 9);
+    expect(first.score).toBeCloseTo(4, 9);
     expect(first.score).toBeGreaterThan((await rank(stale)).score);
+    expect(first.score).toBeGreaterThan((await rank(steady)).score);
 
+    // About weekly through the window, so by day 14 two more have landed.
+    await addedBy(steady, [
+      { by: "c", at: ahead(7) },
+      { by: "d", at: ahead(13) },
+    ]);
     await recompute(ahead(14));
     const after = await rank(fresh);
     // Two half-lives of seven days: a quarter of the lift is left.
-    expect(after.newDayLift).toBeCloseTo(RANK_CONSTANTS.newDayWeight / 4, 9);
+    expect(after.newDayLift).toBeCloseTo(1, 9);
+    expect(after.score).toBeCloseTo(1, 9);
     expect(after.score).toBeLessThan((await rank(steady)).score);
   });
 });
@@ -272,5 +339,29 @@ describe("which days are scored", () => {
     await recomputeDiscoverRanks({ savedDayId: live, now: ahead(1) });
     expect((await rank(live)).computedAt).toEqual(ahead(1));
     expect((await rank(other)).computedAt).toEqual(NOW);
+  });
+
+  it("removes the rows of days that have left the library, on a full run", async () => {
+    const stays = await day();
+    const priv = await day();
+    const gone = await day();
+    const modded = await day();
+    await recompute();
+    await db.update(savedDays).set({ visibility: "private" }).where(eq(savedDays.id, priv));
+    await db.update(savedDays).set({ deletedAt: NOW }).where(eq(savedDays.id, gone));
+    await db.update(savedDays).set({ moderatedAt: NOW }).where(eq(savedDays.id, modded));
+    await recompute(ahead(1));
+    const ids = (await db.select().from(savedDayRanks)).map((r) => r.savedDayId);
+    expect(ids).toEqual([stays]);
+  });
+
+  it("removes only that day's row when a one-day run finds it has left the library", async () => {
+    const a = await day();
+    const b = await day();
+    await recompute();
+    await db.update(savedDays).set({ visibility: "private" }).where(eq(savedDays.visibility, "public"));
+    await recomputeDiscoverRanks({ savedDayId: a, now: ahead(1) });
+    const ids = (await db.select().from(savedDayRanks)).map((r) => r.savedDayId);
+    expect(ids).toEqual([b]);
   });
 });

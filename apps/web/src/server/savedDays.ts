@@ -423,6 +423,9 @@ export function newSavedDayRow(input: {
     // Moves with `visibility` and only with it (see `setSavedDayVisibility`):
     // a row that is public has a publish time, a row that is private has none.
     publishedAt: visibility === SavedDayVisibility.enum.public ? input.createdAt : null,
+    // The first publish, which is this row's creation when it is born public.
+    // `setSavedDayVisibility` sets it once and nothing clears it (M61 decision 11).
+    firstPublishedAt: visibility === SavedDayVisibility.enum.public ? input.createdAt : null,
     // Never deleted. Only `deleteSavedDay` ever moves this, and nothing moves
     // it back yet — the restore path the column exists for is a future button,
     // not a code path (see the schema note).
@@ -724,6 +727,12 @@ export async function setSavedDayVisibility(
         visibility === SavedDayVisibility.enum.public
           ? sql`coalesce(${savedDays.publishedAt}, ${at})`
           : null,
+      // Set once and never cleared, so Discover's new-day lift cannot be
+      // re-earned by unpublishing and publishing again (M61 decision 11).
+      // Unpublishing leaves it be: the column is simply not in this `set`.
+      ...(visibility === SavedDayVisibility.enum.public
+        ? { firstPublishedAt: sql`coalesce(${savedDays.firstPublishedAt}, ${at})` }
+        : {}),
     })
     // `deleted_at is null` as well as owner-scoped: a deleted day cannot be
     // published back into Discover. Without this an author could delete a day
