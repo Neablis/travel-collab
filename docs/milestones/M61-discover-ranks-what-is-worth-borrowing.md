@@ -1,13 +1,14 @@
 # M61 — Discover ranks what's worth borrowing now
 
-**Status (2026-11-09): proposed, not scoped.** Minted by Mitchell the same day: *"Create a new
+**Status (2026-11-11): scoped, being built.** Minted by Mitchell on 2026-11-09: *"Create a new
 milestone going after the current in program one M60, That makes the discover page have a better
 way of showing relevant pages. There should be a ranking algorithm based on age, how often its
 added, how many stars it has, has many comments, and have it recalculating and caching on a
 reasonable interval."* **Placed directly after M60**, so the order is M59 → M60 → M61 → M53, with
-M48 parked (see `docs/milestones/README.md`, *2026-11-09 — minted: M61, a ranked Discover*). M60
-is scoped in PR 712 and not yet on `main`. Every decision below is a recommendation, and none has
-been answered.
+M48 parked. **Scoped 2026-11-11:** Mitchell answered decisions 1–10, every one as recommended,
+and asked for the stack to be built while he tests M60. The rule is ADR-090
+(`docs/architecture/ADR-090-discover-ranks-by-a-stored-decayed-score.md`); the plan is
+`docs/plans/2026-11-11-M61-discover-ranks.md`.
 
 ## Why this exists
 
@@ -39,7 +40,7 @@ weighs recent interest above old interest.
 
 ## Decisions
 
-### Open
+### Answered 2026-11-11 — all ten as recommended
 
 1. **What "relevant" means, as one number.** *Recommendation:* a **score per public day**, made
    of two parts.
@@ -147,7 +148,7 @@ weighs recent interest above old interest.
 
 Decisions 1, 5 and 6 make one rule: *Discover's default order is a stored score, recomputed
 hourly from decayed adds and comments, Bayesian stars and a new-day lift, and read through a
-cache cleared only by its own tag.* It will be **ADR-090** (M60's part 0 claims ADR-089).
+cache cleared only by its own tag.* It is **ADR-090** (M60's part 0 claims ADR-089).
 
 ## Scope
 
