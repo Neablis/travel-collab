@@ -40,7 +40,8 @@ const Query = z.object({
     .describe("Playbooks that touch this country, as an ISO 3166-1 alpha-2 code. With `city`, either matches."),
   length: LengthBand.optional().describe("How many days: one, two-three, four-six or seven-plus. Default any."),
   rating: RatingFloor.optional().describe("Minimum average rating; any floor drops unrated Playbooks. Default any."),
-  sort: DiscoverSort.optional().describe(
+  // `top` is web-only until the API's own part: leaving it out keeps the published document as it is.
+  sort: DiscoverSort.exclude(["top"]).optional().describe(
     "Default most-added. Places matched always rank first. `newest` is the only sort whose order does not move as people add and review.",
   ),
 });

@@ -34,7 +34,7 @@ vi.mock("./sharedDayView", async (importOriginal) => {
 });
 
 const { sharedDayView } = await import("./sharedDayView");
-const { dayPageView, discoverFor } = await import("./publicLibrary");
+const { dayPageView, discoverFor, publishedDaysPage } = await import("./publicLibrary");
 
 const RUN = randomUUID().slice(0, 8);
 const AUTHOR = `cache-author-${RUN}`;
@@ -176,5 +176,20 @@ describe("Discover's server read", () => {
 
     const [entry] = [...cache.entries].filter(([key]) => key.includes("discover"));
     expect([...entry![1].tags].sort()).toEqual(["discover-rank", "library"]);
+  });
+
+  // The place, tag and length pages and an author's page list by `top` too,
+  // so they hang from the rank tag as well; an author's adds its own.
+  it("holds a place page and an author page under the rank tag", async () => {
+    await day();
+
+    await publishedDaysPage({ cities: [CITY] }, { limit: 24, offset: 0 });
+    await publishedDaysPage({ authorId: AUTHOR }, { limit: 24, offset: 0 });
+
+    const pages = [...cache.entries].filter(([key]) => key.includes("days"));
+    expect(pages.map(([, entry]) => [...entry.tags].sort())).toEqual([
+      ["discover-rank", "library"],
+      [`author:${AUTHOR}`, "discover-rank", "library"],
+    ]);
   });
 });

@@ -139,16 +139,22 @@ describe("place pages", () => {
     // No row, no failure: nothing is scored, and the order is most-added's.
     expect(await order()).toEqual([newerTie, manyAdds, fewAdds, scored]);
 
-    await db.insert(savedDayRanks).values({
-      savedDayId: scored,
-      score: 0.1,
+    const rank = (savedDayId: string, score: number) => ({
+      savedDayId,
+      score,
       addsRecent: 0,
       commentsRecent: 0,
       quality: 1,
       newDayLift: 1,
       computedAt: new Date(),
     });
+    await db.insert(savedDayRanks).values(rank(scored, 0.1));
     expect(await order()).toEqual([scored, newerTie, manyAdds, fewAdds]);
+    // A second, higher score with the fewest adds: it leads, so the score is
+    // read descending (one scored day could not tell asc from desc).
+    await db.insert(savedDayRanks).values(rank(fewAdds, 0.9));
+    expect(await order()).toEqual([fewAdds, scored, newerTie, manyAdds]);
+    await db.delete(savedDayRanks).where(eq(savedDayRanks.savedDayId, fewAdds));
     await db.delete(savedDayRanks).where(eq(savedDayRanks.savedDayId, scored));
   });
 

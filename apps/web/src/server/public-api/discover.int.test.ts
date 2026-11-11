@@ -202,7 +202,8 @@ describe("GET /v1/discover/playbooks", () => {
         .values({ savedDayId: ids[i]!, score, addsRecent: 0, commentsRecent: 0, quality: 1, newDayLift: 1, computedAt: new Date() });
     }
 
-    for (const sort of ["top", "most-added", "highest-rated", "most-reviewed", "newest"] as DiscoverSort[]) {
+    // `top` is web-only until the API part, which adds it back here.
+    for (const sort of ["most-added", "highest-rated", "most-reviewed", "newest"] as DiscoverSort[]) {
       const app = await discoverDays({
         cities: [city],
         scope: "everyone",

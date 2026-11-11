@@ -140,7 +140,7 @@ const DiscoverSearchSchema = z.object({
   cities: z.array(z.string().min(1).max(200)).default([]).transform(normalizeCities),
   countries: z.array(z.string().regex(/^[A-Z]{2}$/)).default([]),
   scope: DiscoverScope.default("everyone"),
-  sort: DiscoverSort.default("most-added"),
+  sort: DiscoverSort.exclude(["top"]).default("most-added"),
   budget: BudgetBand.default("any"),
   length: LengthBand.default("any"),
   rating: RatingFloor.default("any"),

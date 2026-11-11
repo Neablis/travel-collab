@@ -342,6 +342,25 @@ describe("Discover", () => {
     }
   });
 
+  // M61 decision 12: Top is the one default, on every scope, and Newest is
+  // always one choice away — "my latest first" on Yours is the Newest answer.
+  it.each(["everyone", "yours", "saved"] as const)(
+    "offers Newest on the %s scope, starting on Top, and it reaches the endpoint",
+    async (scope) => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(at({ scope }));
+      await screen.findByTestId("discover-results");
+      expect(screen.getByTestId("discover-sort").textContent).toBe("Top ▾");
+
+      await user.click(screen.getByTestId("discover-sort"));
+      await user.click(screen.getByTestId("discover-sort-newest"));
+      await waitFor(() =>
+        expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope, sort: "newest" })),
+      );
+      expect(screen.getByTestId("discover-sort").textContent).toBe("Newest ▾");
+    },
+  );
+
   // §35.5: Rating is the first group in the one *Filters* menu. Set, it is a
   // question like any other — it reaches the endpoint, counts toward the
   // badge, surfaces as a chip reading its value, and *Clear filters* drops it.
