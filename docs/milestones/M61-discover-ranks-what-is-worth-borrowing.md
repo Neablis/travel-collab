@@ -152,6 +152,14 @@ weighs recent interest above old interest.
     `first_published_at`, set once on the first publish and never overwritten, back-filled from
     `published_at`; the lift reads it.
 
+12. **Top is the default on every scope, and Newest is always one choice away** (Mitchell,
+    2026-11-11, on part 3's review: *"Can we do the new ranking algorithm as the default but also
+    make sure you can sort on newest to?"*). Decision 7's "*Yours* and *Saved* keep `newest`"
+    misdescribed `main`, where every scope defaulted to `most-added`. Discover has one default
+    sort, `top`, for Everyone, Yours and Saved; *Newest* stays in the sort menu on every scope.
+    Under `top`, a reader's private days (which have no score) list after their public ones, by
+    `adds desc, created_at desc`; *Newest* is the answer for "my latest first".
+
 ### The ADR
 
 Decisions 1, 5 and 6 make one rule: *Discover's default order is a stored score, recomputed
