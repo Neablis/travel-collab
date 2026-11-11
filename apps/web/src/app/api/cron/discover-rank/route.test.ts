@@ -3,12 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // The route is a wrapper: secret check first, then the full rewrite, then the
 // one tag. The rewrite's arithmetic is `discoverRank.int.test.ts`'s; these pin
 // the wrapper's three promises.
-const recomputeDiscoverRanks = vi.fn(async () => {});
-const revalidateTag = vi.fn();
+const order: string[] = [];
+const recomputeDiscoverRanks = vi.fn(async () => {
+  order.push("recompute");
+});
+const revalidateTag = vi.fn((..._args: unknown[]) => {
+  order.push("revalidate");
+});
 vi.mock("@/server/discoverRank", () => ({ recomputeDiscoverRanks }));
 vi.mock("next/cache", () => ({ revalidateTag, unstable_cache: vi.fn() }));
 
 afterEach(() => {
+  order.length = 0;
   vi.unstubAllEnvs();
   vi.resetModules();
   recomputeDiscoverRanks.mockClear();
@@ -44,5 +50,19 @@ describe("GET /api/cron/discover-rank", () => {
     const { GET } = await routeWithEnv({ CRON_SECRET: "s3cr3t", NODE_ENV: "production" });
     await GET(authorised());
     expect(revalidateTag.mock.calls).toEqual([["discover-rank", { expire: 0 }]]);
+  });
+
+  it("rewrites before it clears, so no read re-caches the old order", async () => {
+    const { GET } = await routeWithEnv({ CRON_SECRET: "s3cr3t", NODE_ENV: "production" });
+    await GET(authorised());
+    expect(order).toEqual(["recompute", "revalidate"]);
+  });
+
+  it("does not answer ok when the tag clear fails", async () => {
+    const { GET } = await routeWithEnv({ CRON_SECRET: "s3cr3t", NODE_ENV: "production" });
+    revalidateTag.mockImplementationOnce(() => {
+      throw new Error("no cache");
+    });
+    await expect(GET(authorised())).rejects.toThrow("no cache");
   });
 });

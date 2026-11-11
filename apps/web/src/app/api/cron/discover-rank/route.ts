@@ -10,7 +10,11 @@ import { invalidateDiscoverRank } from "@/server/libraryCache";
 // A cached 200 would report a rewrite that never happened.
 export const dynamic = "force-dynamic";
 
-/** Rewrite every public day's rank row, then clear only the ranked page's cache. */
+/**
+ * Rewrite every public day's rank row, then clear only the ranked page's cache.
+ * Rewrite first: a read between the two would re-cache the old order for a day.
+ * A failed clear throws, so Coolify's log shows a 500, not a success.
+ */
 export async function GET(request: Request): Promise<Response> {
   if (!isCronRequestAuthorized(request)) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
@@ -19,6 +23,3 @@ export async function GET(request: Request): Promise<Response> {
   await invalidateDiscoverRank();
   return Response.json({ ok: true });
 }
-
-// Coolify's task is a `curl` GET; POST is the same handler for a manual run.
-export const POST = GET;

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { savedDayRanks, savedDays } from "@/server/db/schema";
+import * as discoverRank from "@/server/discoverRank";
 
 // Two actors, and the mechanism the exit gate's publish box is walked with:
 // `currentUserId` is reassigned between calls, so one test can be an author and
@@ -123,9 +124,6 @@ describe("publishing a saved day", () => {
   });
 });
 
-// The gate box, walked as two actors: "a day is private by default; publishing
-// makes it findable by another signed-in account, and unpublishing removes it
-// from that account's results."
 // M61 decision 6: a day is placed in the same request that publishes it, so it
 // does not sit unranked until the hour turns.
 describe("the Discover rank row", () => {
@@ -150,8 +148,39 @@ describe("the Discover rank row", () => {
 
     expect(await rankRows(savedDayId)).toHaveLength(1);
   });
+
+  it("still answers 200, and logs, when the publish-time recompute fails", async () => {
+    const savedDayId = await saveOwnDay();
+    const recompute = vi.spyOn(discoverRank, "recomputeDiscoverRanks").mockRejectedValueOnce(new Error("rank down"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect((await publish(savedDayId)).status).toBe(200);
+      expect(logged).toHaveBeenCalledWith(
+        "discover rank: publish-time recompute failed",
+        expect.objectContaining({ savedDayId }),
+      );
+    } finally {
+      recompute.mockRestore();
+      logged.mockRestore();
+    }
+    expect(await publishedAtOf(savedDayId)).toBeInstanceOf(Date);
+  });
+
+  it("is not touched by unpublishing", async () => {
+    const savedDayId = await saveOwnDay();
+    await publish(savedDayId);
+    const before = await rankRows(savedDayId);
+    expect(before).toHaveLength(1);
+
+    expect((await unpublish(savedDayId)).status).toBe(200);
+
+    expect(await rankRows(savedDayId)).toEqual(before);
+  });
 });
 
+// The gate box, walked as two actors: "a day is private by default; publishing
+// makes it findable by another signed-in account, and unpublishing removes it
+// from that account's results."
 describe("what another signed-in account can read", () => {
   it("cannot read a private day, can read it once published, and cannot again after unpublish", async () => {
     const savedDayId = await saveOwnDay("Kyoto temples on foot");
