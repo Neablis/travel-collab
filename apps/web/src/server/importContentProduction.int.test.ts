@@ -448,4 +448,32 @@ describe("importPlaybooks — first_published_at (M61 decision 11)", () => {
     await importPlaybooks(bundle(), false);
     expect(await first()).toEqual(new Date("2026-03-01"));
   });
+
+  it("keeps the earlier date when a later run adds an earlier keptOn", async () => {
+    const id = `playbook-earlier-kepton-${randomUUID().slice(0, 8)}`;
+    const bundle = (keptOn?: string) =>
+      parseBundle({
+        $schema: "travel-collab/content-bundle/v1",
+        bundle: { id, name: "Earlier keptOn", origin: "ai" },
+        playbooks: [
+          {
+            key: "day",
+            name: `Day ${id}`,
+            ownerId: owner,
+            visibility: "public",
+            ...(keptOn ? { keptOn } : {}),
+            sourceTrip: { name: "Kyoto" },
+            days: [{ stops: [{ title: "Fushimi Inari" }] }],
+          },
+        ],
+      });
+    const dayId = playbookIdFor(id, "day");
+    const first = async () =>
+      (await db.select({ at: savedDays.firstPublishedAt }).from(savedDays).where(eq(savedDays.id, dayId)))[0]?.at;
+
+    // No keptOn stamps this run's now; the next run dates the day to March.
+    await importPlaybooks(bundle(), false);
+    await importPlaybooks(bundle("2026-03-01"), false);
+    expect(await first()).toEqual(new Date("2026-03-01"));
+  });
 });

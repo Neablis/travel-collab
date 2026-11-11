@@ -827,8 +827,8 @@ export type PlaybookEditOutcome =
  * is one atomic step. Name and summary may change while published: they
  * describe the content rather than being it.
  *
- * **A visibility-only edit bumps nothing**, and moves `published_at` exactly as
- * `setSavedDayVisibility` does. `expectedVersion`, if sent with one, is still
+ * **A visibility-only edit bumps nothing**, and moves `published_at` and
+ * `first_published_at` exactly as `setSavedDayVisibility` does. `expectedVersion`, if sent with one, is still
  * honoured as a precondition.
  *
  * When nothing matched, the row is re-read under the same owner scope to say
@@ -881,6 +881,12 @@ export async function updatePlaybookContent(
       edit.visibility === SavedDayVisibility.enum.public
         ? sql`coalesce(${savedDays.publishedAt}, ${new Date(now)})`
         : null;
+    // `setSavedDayVisibility`'s reason: set once, never cleared, so the new-day
+    // lift cannot be re-earned (M61 decision 11). This is the path behind
+    // `PATCH /v1/playbooks` and MCP's `publish_playbook`.
+    if (edit.visibility === SavedDayVisibility.enum.public) {
+      set.firstPublishedAt = sql`coalesce(${savedDays.firstPublishedAt}, ${new Date(now)})`;
+    }
   }
   if (content) set.version = sql`${savedDays.version} + 1`;
 
