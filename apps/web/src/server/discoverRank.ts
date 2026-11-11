@@ -1,5 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import { SavedDayVisibility } from "@tc/contracts";
+import type { DiscoverRankRow } from "@/lib/adminDiscoverRank";
 import { db } from "./db/client";
 
 /**
@@ -130,4 +131,43 @@ export async function recomputeDiscoverRanks(
       new_day_lift = excluded.new_day_lift,
       computed_at = excluded.computed_at
   `);
+}
+
+/**
+ * The top `limit` ranked days, best first, for the operator's tab (M61
+ * decision 8). Joined through the library's own rule (public, not deleted, not
+ * moderated; the `live` set above), so a day that has left it since the last
+ * run does not show while its row waits for the next one to delete it.
+ */
+export async function topDiscoverRanks(limit: number): Promise<DiscoverRankRow[]> {
+  const rows = await db.execute<{
+    saved_day_id: string;
+    name: string;
+    score: number;
+    adds_recent: number;
+    comments_recent: number;
+    quality: number;
+    new_day_lift: number;
+    computed_at: Date | string;
+  }>(sql`
+    select r.saved_day_id, d.name, r.score, r.adds_recent, r.comments_recent,
+           r.quality, r.new_day_lift, r.computed_at
+    from saved_day_ranks r
+    join saved_days d on d.id = r.saved_day_id
+    where d.visibility = ${SavedDayVisibility.enum.public}
+      and d.deleted_at is null
+      and d.moderated_at is null
+    order by r.score desc, r.saved_day_id
+    limit ${limit}
+  `);
+  return rows.rows.map((r) => ({
+    savedDayId: r.saved_day_id,
+    title: r.name,
+    score: Number(r.score),
+    addsRecent: Number(r.adds_recent),
+    commentsRecent: Number(r.comments_recent),
+    quality: Number(r.quality),
+    newDayLift: Number(r.new_day_lift),
+    computedAt: new Date(r.computed_at).toISOString(),
+  }));
 }
