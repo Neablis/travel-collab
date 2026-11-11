@@ -144,6 +144,14 @@ weighs recent interest above old interest.
 10. **Placement.** Asked: *"going after the current in program one M60"*. **Directly after M60,
     ahead of M53.** Nothing here depends on M60. It could run before it if Mitchell reorders.
 
+### Answered during the build
+
+11. **The new-day lift ages from the first publish** (Mitchell, 2026-11-11, on part 1's review).
+    Unpublishing and republishing, or a content re-import without `keptOn`, resets `published_at`,
+    so a lift aged from it could be re-earned at will, against decision 9. `saved_days` gains
+    `first_published_at`, set once on the first publish and never overwritten, back-filled from
+    `published_at`; the lift reads it.
+
 ### The ADR
 
 Decisions 1, 5 and 6 make one rule: *Discover's default order is a stored score, recomputed

@@ -23,7 +23,8 @@ recent interest above old interest. A lifetime counter buries every new day.
    - a comment is a **visible review with a non-empty note**, aged from its `updated_at`;
    - `quality = clamp(bayes / libraryMean, 0.7, 1.3)`, with `bayes = (5·m + Σstars) / (5 + n)`
      over visible reviews, and 1.0 for an unrated day;
-   - `newDayLift = 4 × 0.5^(dayAge/7d)`.
+   - `newDayLift = 4 × 0.5^(dayAge/7d)`, with `dayAge` measured from `first_published_at`, set
+     once and never overwritten, so unpublish/republish and re-imports can't re-earn the lift.
    The constants are one exported object in `server/discoverRank.ts`; changing one is a one-line
    change with a test.
 2. **The score is stored** in `saved_day_ranks`, a derived, rebuildable projection (score plus its
