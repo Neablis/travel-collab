@@ -37,9 +37,9 @@ export const RANK_CONSTANTS = {
  * same SQL with a filter, not a second formula.
  *
  * Which days get a row is the library's rule (public, not deleted, not
- * moderated). A day that has left the library keeps its stale row: the reads
- * join through `matchPredicate`, so it is never listed, and a republish
- * overwrites it.
+ * moderated). A day that has left it has its row deleted, in the same
+ * statement: every such row on a full run, that day's on a one-day run. So the
+ * table is what truncating it and recomputing would give.
  *
  * The library mean `m` is always taken over the whole library, even when one
  * day is recomputed, so a one-day row and a full-run row agree.
@@ -65,6 +65,11 @@ export async function recomputeDiscoverRanks(
       where d.visibility = ${SavedDayVisibility.enum.public}
         and d.deleted_at is null
         and d.moderated_at is null
+    ),
+    gone as (
+      delete from saved_day_ranks
+      where saved_day_id not in (select id from live)
+        and (${only}::uuid is null or saved_day_id = ${only}::uuid)
     ),
     lib as (
       select coalesce(avg(r.stars), 0)::float8 as mean
