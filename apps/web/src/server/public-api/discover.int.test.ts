@@ -4,7 +4,7 @@
 // every Playbook here touches a city named for this run and every read filters
 // on it — the only way "exactly these" can be asserted against a shared library.
 import { randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import type { SavedDay } from "@tc/contracts";
 import type { DiscoverDay, DiscoverSort } from "@/lib/playbooks";
@@ -14,7 +14,7 @@ import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
 import { db } from "@/server/db/client";
 import { savedDayRanks, savedDays, users } from "@/server/db/schema";
-import { discoverDays, publishedDaysPage } from "@/server/playbooks";
+import { discoverDays, discoverPage, publishedDaysPage } from "@/server/playbooks";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
@@ -174,8 +174,10 @@ describe("GET /v1/discover/playbooks", () => {
     expect(await discover(secret, { city, limit: "2", sort: "newest", cursor: randomUUID() })).toEqual(first);
   });
 
-  it("ranks exactly as the app's Discover and its place pages do, for every sort", async () => {
-    const city = `Discoverville-${RUN}-d`;
+  // Six days with ties and differences in every counter, and `top`'s scored,
+  // tied, zero and unscored days, so each sort's keyset walks its tie-breaks.
+  async function rankedCity(suffix: string) {
+    const city = `Discoverville-${RUN}-${suffix}`;
     const { owner, secret } = await entitledToken();
     const ids: string[] = [];
     for (let i = 0; i < 6; i += 1) ids.push((await playbookIn(secret, city)).savedDayId);
@@ -196,11 +198,19 @@ describe("GET /v1/discover/playbooks", () => {
     // `top` has scored days, tied scores, a zero score and unscored days, so
     // its null-last key and its adds tie-break are both walked by the pager.
     const scores: [number, number][] = [[0, 5], [1, 5], [2, 0], [4, 0.5]];
+    // Publishing seeds a rank row of its own (part 2); clear them so some days
+    // stay unscored and `top`'s null-last key is walked.
+    await db.delete(savedDayRanks).where(inArray(savedDayRanks.savedDayId, ids));
     for (const [i, score] of scores) {
       await db
         .insert(savedDayRanks)
         .values({ savedDayId: ids[i]!, score, addsRecent: 0, commentsRecent: 0, quality: 1, newDayLift: 1, computedAt: new Date() });
     }
+    return { city, owner, secret };
+  }
+
+  it("ranks exactly as the app's Discover and its place pages do, for every sort the API offers", async () => {
+    const { city, owner, secret } = await rankedCity("d");
 
     // `top` is web-only until the API part, which adds it back here.
     for (const sort of ["most-added", "highest-rated", "most-reviewed", "newest"] as DiscoverSort[]) {
@@ -223,6 +233,23 @@ describe("GET /v1/discover/playbooks", () => {
       // links the API never sends (the last test in this file).
       expect(api, sort).toEqual(app.days.map(({ ownerDisplayName: _name, namedTags: _named, linkedTags: _linked, ...day }) => day));
     }
+  });
+
+  // `top` is web-only until the API part, so its keyset (`rankKeys`) is held to
+  // `orderBy` here by paging the app's own `discoverPage`.
+  it("pages top by keyset in the order the place pages list it", async () => {
+    const { city, owner } = await rankedCity("top");
+    const query: Parameters<typeof discoverPage>[0] = { cities: [city], scope: "everyone", sort: "top", length: "any", publishedOnly: true, readerId: owner };
+    const paged: string[] = [];
+    for (let after: string | null = null; ; ) {
+      const page = await discoverPage(query, { limit: 4, after });
+      if (page.length === 0) break;
+      paged.push(...page.map((d) => d.savedDayId));
+      after = page.at(-1)!.savedDayId;
+    }
+    const ordered = await publishedDaysPage({ cities: [city], sort: "top" }, { limit: 24, offset: 0 });
+    expect(paged).toHaveLength(6);
+    expect(paged).toEqual(ordered.days.map((d) => d.savedDayId));
   });
 
   // The app's Discover card names its owner ("Dana R.", Mitchell 2026-10-02);

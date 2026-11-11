@@ -924,4 +924,14 @@ describe("a Discover scope", () => {
     });
     expect(parsed.error?.issues[0]?.message).toBeUndefined();
   });
+
+  // The screen sends the sort it shows, and that is `top` until a reader
+  // picks another; refusing it refused every question on a default page.
+  it("takes the sort the screen shows, top included", () => {
+    const parsed = AskRequest.safeParse({
+      messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: "which is the cheapest?" }] }],
+      scope: { kind: "playbook", page: { kind: "discover", search: { sort: "top" } } },
+    });
+    expect(parsed.error?.issues[0]?.message).toBeUndefined();
+  });
 });
