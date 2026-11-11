@@ -1,7 +1,7 @@
 import { clientIp, scheduleSweep } from "@/server/og/limit";
 import { registerClient } from "@/server/oauth/clients";
 import { oauthError, oauthJson, preflight } from "@/server/oauth/errors";
-import { consumeQuota, oauthRegisterQuota, registrationAddress, sweepExpiredCounters } from "@/server/quota";
+import { consumeQuota, oauthRegisterQuota, sweepExpiredCounters } from "@/server/quota";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 
 // **RFC 7591 dynamic client registration: `POST /api/oauth/register`.** Open
@@ -12,8 +12,8 @@ import { keyedDigest } from "@/server/secrets/keyedDigest";
 /** Register a client (RFC 7591), once this address's hourly registrations allow it. */
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  // Keyed, never the address itself: the counter table outlives any one request.
-  const decision = await consumeQuota(oauthRegisterQuota(), keyedDigest(registrationAddress(ip)).digest);
+  // `clientIp` has already reduced it to its /64 or IPv4. Keyed, never the address itself: the counter table outlives any one request.
+  const decision = await consumeQuota(oauthRegisterQuota(), keyedDigest(ip).digest);
   if (!decision.allowed) {
     const unavailable = decision.reason === "unavailable";
     const refusal = oauthError(

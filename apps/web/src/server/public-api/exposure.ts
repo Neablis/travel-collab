@@ -43,7 +43,14 @@ export type Exposure =
 
 const PLANNED = (note: string): Exposure => ({ status: "planned", note });
 
-/** Keyed by the route's directory under `app/api/`, exactly as on disk. */
+/**
+ * Keyed by the route's directory under `app/api/`, exactly as on disk; or, for a
+ * front door a standard places outside `app/api` (`.well-known/poppy.json`), its
+ * path under `app/`. Only `poppy.json` is listed there: the others
+ * (`api-catalog`, the two OAuth documents, `security.txt`) describe or point at
+ * what is listed elsewhere and grant no capability of their own, and the test's
+ * `missing` check walks `app/api` alone.
+ */
 export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   // ── Published ────────────────────────────────────────────────────────────
   "account/plan": { status: "public", v1: ["account"] },
@@ -93,6 +100,8 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "admin/accounts/[accountId]/test-mode": PLANNED("Undecided — admin scope if ever"),
   "admin/grants": PLANNED("Undecided — admin scope if ever"),
   "admin/overview": PLANNED("Undecided — admin scope if ever"),
+  "admin/agents": PLANNED("Undecided — admin scope if ever"),
+  "admin/agents/[clientId]/block": PLANNED("Undecided — admin scope if ever"),
   // Spec 2026-10-03 W14: one collection, one change resource.
   "trips/[tripId]/suggestions": PLANNED("Suggestions — not on the public API in v1"),
   "trips/[tripId]/suggestions/changes/[changeId]": PLANNED("Suggestions — not on the public API in v1"),
@@ -127,6 +136,12 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "oauth/authorize": {
     status: "front-door",
     why: "The consent decision for the MCP connector; session-only, never a credential",
+  },
+  // Poppy spec 3: the protocol fixes this URL. Keyed by its path under `app/`
+  // because it is not an `app/api` route (ADR-089).
+  ".well-known/poppy.json": {
+    status: "front-door",
+    why: "The Personal Agent Protocol's discovery document; the same bytes for everyone, no data",
   },
   // The MCP connector: v1's own declared handlers, under another protocol.
   mcp: {

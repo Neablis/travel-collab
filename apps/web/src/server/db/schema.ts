@@ -332,6 +332,9 @@ export const oauthClients = pgTable(
     // Null until its first grant. A `dcr` client still null 24 hours after
     // `created_at` has expired: refused on read, never deleted.
     firstUsedAt: timestamp("first_used_at", { withTimezone: true, mode: "date" }),
+    // The logo a Personal Agent's document named, as of the last Allow, so
+    // Account → Connected apps shows it without fetching anything.
+    logoUri: text("logo_uri"),
   },
   (t) => [
     check("oauth_clients_kind", sql`${t.kind} in ('dcr', 'cimd')`),
@@ -367,8 +370,15 @@ export const oauthGrants = pgTable(
     // `owner` disconnected it; `code-reuse` and `refresh-reuse` are the server
     // cutting off a grant whose secret was presented twice (ADR-083 §4).
     revokedReason: text("revoked_reason").$type<"owner" | "code-reuse" | "refresh-reuse">(),
+    // How the client authenticated at the token endpoint when this was allowed:
+    // `private_key_jwt` is a Personal Agent (Poppy 4.1). Stored on the grant, not
+    // read from the client's document or a cache, so a public client's refresh and
+    // revoke never depend on fetching that document, and a Personal Agent's grant
+    // stays one when its document later changes. Grants made before it are `none`.
+    tokenEndpointAuthMethod: text("token_endpoint_auth_method").$type<"none" | "private_key_jwt">().notNull().default("none"),
   },
   (t) => [
+    check("oauth_grants_auth_method", sql`${t.tokenEndpointAuthMethod} in ('none', 'private_key_jwt')`),
     check(
       "oauth_grants_revoked_reason",
       sql`${t.revokedReason} is null or (${t.revokedAt} is not null and ${t.revokedReason} in ('owner', 'code-reuse', 'refresh-reuse'))`,
@@ -2158,4 +2168,56 @@ export const pendingEmbeddings = pgTable(
     // index in order instead of sorting every pending row to take n.
     index("pending_embeddings_status_created").on(t.status, t.createdAt),
   ],
+);
+
+// **A Personal Agent's Session** (Poppy 5, ADR-089 decision 8): one row per
+// `(client_id, sid, agent_user_id)`, written by the first verified request
+// with a new `sid`. `agent_user_id` is the agent's pairwise ID for a person
+// and is joined to nothing but `account_id`. Idle for 30 days or ended, a row
+// answers `session_ended`. Like the OAuth tables: CRUD, not events, and no
+// foreign keys (ADR-025).
+export const agentSessions = pgTable(
+  "agent_sessions",
+  {
+    id: uuid("id").primaryKey(),
+    // The agent's protocol `client_id`: its metadata document's URL.
+    clientId: text("client_id").notNull(),
+    sid: text("sid").notNull(),
+    agentUserId: text("agent_user_id").notNull(),
+    agentId: text("agent_id"),
+    // A `users.id`, set by the first request that carried an access token.
+    accountId: text("account_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "date" }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    uniqueIndex("agent_sessions_client_sid_user").on(t.clientId, t.sid, t.agentUserId),
+    // The retention sweep deletes by it (`sweepAgentSessions`).
+    index("agent_sessions_last_seen").on(t.lastSeenAt),
+  ],
+);
+
+// A Personal Agent the operator cut off (ADR-089 decision 3), by protocol
+// `client_id`. Part 4 reads and writes it; this part only creates the table so
+// the milestone has one migration.
+export const oauthClientBlocks = pgTable("oauth_client_blocks", {
+  clientId: text("client_id").primaryKey(),
+  blockedAt: timestamp("blocked_at", { withTimezone: true, mode: "date" }).notNull(),
+  // A `users.id`: the operator who blocked it.
+  blockedBy: text("blocked_by").notNull(),
+});
+
+// What a Personal Agent reported about a task (ADR-089 decision 11, part 5).
+// The text is data, never a prompt.
+export const agentFeedback = pgTable(
+  "agent_feedback",
+  {
+    id: uuid("id").primaryKey(),
+    clientId: text("client_id").notNull(),
+    task: text("task").notNull(),
+    description: text("description").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [index("agent_feedback_created").on(t.createdAt)],
 );

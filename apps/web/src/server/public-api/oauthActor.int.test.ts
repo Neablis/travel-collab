@@ -12,6 +12,7 @@ import { allGrantsFor, issueGrant, revokeGrant } from "@/server/entitlements/gra
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { grantOf } from "@/server/oauth/grants";
+import { oauthIssuer } from "@/server/oauth/metadata";
 import { connectForTest as connect } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
 
@@ -49,13 +50,15 @@ describe("a tco_ token outside an MCP dispatch", () => {
   // The audience binding: the token is minted for /api/mcp (RFC 8707), and the
   // tools reach the very handlers this calls, so only the dispatch marker
   // tells the two apart.
+  // The challenge names v1's own metadata (the domain's), not /api/mcp's: an agent that
+  // followed the latter would ask for a resource this grant is not for.
   it("is 401 on a bare /v1/account call, with the resource_metadata challenge, though it is valid", async () => {
     const { access } = await connect(await entitled(), ["account:read"]);
     const res = await account(access);
     expect(res.status).toBe(401);
     expect((await res.json()).error.code).toBe("unauthenticated");
     expect(res.headers.get("WWW-Authenticate")).toMatch(
-      /^Bearer resource_metadata="[^"]+\/\.well-known\/oauth-protected-resource\/api\/mcp", error="invalid_token"$/,
+      /^Bearer resource_metadata="[^"]+\/\.well-known\/oauth-protected-resource", error="invalid_token"$/,
     );
     expect((await inDispatch(() => account(access))).status).toBe(200);
   });
@@ -110,6 +113,26 @@ describe("a tco_ token inside an MCP dispatch", () => {
     expect(lapsed.headers.get("WWW-Authenticate")).toMatch(/^Bearer resource_metadata="[^"]+"$/);
 
     await entitle(owner);
+    expect((await inDispatch(() => account(access))).status).toBe(200);
+  });
+});
+
+// **Two audiences, one token kind** (ADR-089 decision 4, Poppy 4.5 and 7): a
+// grant made for the domain is the v1 API's, and one made for `/api/mcp` is the
+// connector's. Each is refused at the other, so a token never works at an
+// endpoint it was not issued for.
+describe("a tco_ token's audience", () => {
+  it("is accepted on v1 when the grant was made for the domain, and refused inside an MCP dispatch", async () => {
+    const { access } = await connect(await entitled(), ["account:read"], new Date(), oauthIssuer());
+    expect((await account(access)).status).toBe(200);
+    const inMcp = await inDispatch(() => account(access));
+    expect(inMcp.status).toBe(401);
+    expect(inMcp.headers.get("WWW-Authenticate")).toMatch(/error="invalid_token"/);
+  });
+
+  it("is refused on v1 when the grant was made for /api/mcp, and accepted inside the dispatch", async () => {
+    const { access } = await connect(await entitled(), ["account:read"]);
+    expect((await account(access)).status).toBe(401);
     expect((await inDispatch(() => account(access))).status).toBe(200);
   });
 });

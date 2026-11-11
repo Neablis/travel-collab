@@ -40,6 +40,46 @@ export function cimdDocumentKey(url: string): string {
   return `${deployEnv() ?? "dev"}:oauth:cimd:${digest(url)}`;
 }
 
+/**
+ * A Personal Agent's key set, by the digest of its `jwks_uri`. Apart from
+ * `cimdDocumentKey`: each is parsed with its own schema, which strips what it
+ * does not know, so one JSON served at both URLs must not be cached as the other.
+ * Fresh for `CIMD_CACHE_TTL_SECONDS`; kept for `CIMD_LAST_KNOWN_TTL_SECONDS`, as a fallback.
+ */
+export function clientKeySetKey(url: string): string {
+  return `${deployEnv() ?? "dev"}:oauth:jwks:${digest(url)}`;
+}
+
+/**
+ * That fetching `url` (a client's document or key set) just failed, by the
+ * URL's digest: a known agent whose host is failing is asked about once a
+ * minute rather than on every request. Its TTL is `FETCH_FAILURE_SECONDS` in
+ * `server/oauth/clients.ts`.
+ */
+export function fetchFailureKey(url: string): string {
+  return `${deployEnv() ?? "dev"}:oauth:failed:${digest(url)}`;
+}
+
+/**
+ * A client assertion's `jti` seen (RFC 7523 section 3), keyed by the digest of
+ * client and `jti` together, since a `jti` is only unique per issuer. Lives as
+ * long as the assertion could still verify.
+ */
+export function clientAssertionJtiKey(clientId: string, jti: string): string {
+  return `${deployEnv() ?? "dev"}:oauth:jti:${digest(`${clientId}\n${jti}`)}`;
+}
+
+/**
+ * A verified Personal Agent delegation (Poppy 5.2), by agent and delegation
+ * `jti`. A resource sees one delegation on every request for hours, so its
+ * checked form is kept, but for `DELEGATION_TRUST_SECONDS` (`poppy/sessionHeader.ts`)
+ * at most, not to its `exp`: a key the agent removed must stop working. Keyed
+ * by agent too: a `jti` is only unique per issuer.
+ */
+export function poppyDelegationKey(clientId: string, jti: string): string {
+  return `${deployEnv() ?? "dev"}:poppy:delegation:${digest(`${clientId}\n${jti}`)}`;
+}
+
 /** An hour: a pending invite's card, which is also deleted on revoke and accept. */
 export const INVITE_CARD_TTL_SECONDS = 3600;
 

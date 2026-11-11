@@ -13,6 +13,46 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-09 — `GET /v1/discover/playbooks` is documented as readable signed out (M60 part 4; public API 2.5.0)
+- `openapi.json`: that operation's `security` is `[{}, { bearerAuth: ["library:read"] }]`, so a Personal Agent reading the
+  document learns a Poppy Session alone is enough (Poppy 3.2, ADR-089 decision 5). Every other operation is unchanged.
+  `API_VERSION` 2.5.0 with a new `API_FINGERPRINT`. No schema in `packages/contracts` changed.
+- Text only, still 2.5.0 (unreleased): that operation's description and `info.description` no longer say a token is
+  required, since a Poppy Session alone may read signed out; `info.description` also says an unallowed agent's lookups
+  are limited per address and answered 429 with `Retry-After`.
+- Breaking? no, additive.
+
+## 2026-11-09 — `AdminAgent`, `AdminAgentList`, `AdminAgentBlock`: the console's Agents tab (M60 part 4)
+- **New schemas** in `packages/contracts/src/adminAgents.ts`: `AdminAgent` (a Personal Agent seen:
+  `clientId`, `name`, `logoUri`, `domain`, `sessions30d`, `accounts`, `lastSeenAt`, `blocked`),
+  `AdminAgentList` and `AdminAgentBlock` (`{ clientId, blocked }`).
+- Why: `/admin?tab=agents` lists the agents and blocks or unblocks one by `client_id` (ADR-089 decision 3).
+- Consumers updated: `apps/web` (`app/api/admin/agents/route.ts`, `…/[clientId]/block/route.ts`,
+  `components/admin/AgentsTab.tsx`). Admin-only endpoints, not in the public API.
+- Breaking? no, additive.
+
+## 2026-11-09 — `ConnectedApp.personalAgent`: a Personal Agent's row (M60 part 3)
+- **New required field** on `ConnectedApp` (`packages/contracts/src/publicApi.ts`):
+  `personalAgent: { logoUri: string | null } | null`. Set for a client whose metadata document says
+  `private_key_jwt` (Poppy 4.1); `null` for every other app. Backed by migration 0075:
+  `oauth_grants.token_endpoint_auth_method` (the grant's own, written when the person allows the
+  client) and `oauth_clients.logo_uri`.
+- Why: Account → Connected apps shows a Personal Agent with its name, logo and a *Personal agent*
+  label, beside the same Disconnect (ADR-089).
+- Consumers updated: `apps/web` (`oauth/grants.ts` `createGrant` and `listGrants`,
+  `api/account/connected-apps/route.ts`, `ConnectedAppsSection.tsx` and its tests). The field is
+  produced only by that route, so no other consumer parses it.
+- Breaking? no for stored data (a column default); a client building a `ConnectedApp` by hand must add
+  the field. `GET /api/account/connected-apps` is session-only and not in the public API.
+
+## 2026-11-09 — `SCOPE_HINTS`: what each scope can change (M60 part 1)
+- **New export** `SCOPE_HINTS` (`packages/contracts/src/publicApi.ts`), exhaustive over `ApiScope` like
+  `SCOPE_CATALOGUE`: `{ changes: "none" | "reversible" | "irreversible", personal_data: boolean }` per
+  scope, plus the `ScopeHint` and `ScopeChanges` types. Published as `scope_hints` in
+  `/.well-known/poppy.json` (ADR-089 decision 9).
+- Consumers updated: `apps/web` (`server/poppy/discovery.ts`). No schema or wire type changed.
+- Breaking? no — additive.
+
 ## 2026-11-04 — Polls: `poll_votes`, `poll_closes` and the `poll` widget (M58 part 5)
 - **New tables** (migration 0074; access-style CRUD beside the event log, never events): `poll_votes`
   (one row per person per poll, unique on `trip_id, poll_id, user_id`) and `poll_closes` (primary key

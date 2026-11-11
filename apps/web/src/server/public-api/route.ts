@@ -8,11 +8,14 @@ import {
 import { touchLastUsed } from "@/server/api-tokens";
 import { touchGrantLastUsed } from "@/server/oauth/grants";
 import { oauthIssuer } from "@/server/oauth/metadata";
+import { inMcpDispatch } from "@/server/oauth/dispatchContext";
+import { poppyError } from "@/server/poppy/errors";
+import { poppyGate } from "@/server/poppy/sessions";
 import type { AccessRefusal } from "@/server/oauth/verifyAccess";
 import { PublicApiError } from "./commands";
 import { TOO_LARGE, readCapped } from "@/server/readBody";
 import { tripAccessFor, type TripAccessDenial } from "@/server/access/trip-access";
-import { consumeQuota, type QuotaPolicy } from "@/server/quota";
+import { consumeQuota, signedOutClientReadQuota, signedOutReadQuota, type QuotaPolicy } from "@/server/quota";
 import {
   completeKey,
   readIdempotencyKey,
@@ -26,6 +29,7 @@ import {
   actorMayReachTrip,
   credentialKey,
   resolveActor,
+  SIGNED_OUT_ACTOR,
   type Actor,
   type ActorRefusal,
 } from "./actor";
@@ -94,6 +98,14 @@ interface BaseDef {
   readonly description?: string;
   /** The single scope a token must hold. A session holds every scope. */
   readonly scope: ApiScope;
+  /**
+   * Answers a Personal Agent's Session that carries no access token (Poppy 5.4,
+   * ADR-089 decision 5), and only that: a request with no `Poppy-Session`, or
+   * with a credential that fails, is refused as ever. The scope is not asked of
+   * it, so this is an opt-in for a public read, and it may not be declared on a
+   * write or a trip endpoint. `ctx.actor.via` is `"signed-out"`.
+   */
+  readonly signedOut?: true;
   /**
    * Declares this endpoint is about one trip, and where its id comes from.
    *
@@ -461,6 +473,9 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
   if (def.idempotent !== undefined && method !== "POST") {
     throw new Error(`idempotent is declared on ${method}; it is only meaningful on POST`);
   }
+  if (def.signedOut === true && (method !== "GET" || def.trip !== undefined)) {
+    throw new Error(`signedOut is declared on ${method}; it is only for a GET with no trip, a public read`);
+  }
   if (typeof def.trip === "object" && def.body === undefined) {
     throw new Error(`trip: { body } is declared on ${method} with no body schema to read it from`);
   }
@@ -468,6 +483,21 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     request: Request,
     context: { params: Promise<Record<string, string>> },
   ): Promise<Response> => {
+    // ---- Personal Agent Session ------------------------------------------
+    // A request that carries `Poppy-Session` is verified before anything reads
+    // its credential (Poppy 5.3); one that does not never enters `poppyGate`.
+    // Its refusals are Poppy's own 400s, outside this envelope, because agents
+    // read them by that shape (ADR-089). A throw is infrastructure, as below.
+    let session: Exclude<Awaited<ReturnType<typeof poppyGate>>, { refused: Response }>;
+    try {
+      const gate = await poppyGate(request, { unknownClientOk: def.signedOut === true });
+      if ("refused" in gate) return gate.refused;
+      session = gate;
+    } catch (error) {
+      console.error("v1 session verification threw", { method, scope: def.scope, error });
+      return fail("server-error", SERVER_FAILED, 500);
+    }
+
     // ---- credential ------------------------------------------------------
     // **The first thing that touches the database, and the first thing that
     // needed its own catch.** `resolveActor` reads `api_tokens` to find the
@@ -491,15 +521,36 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       console.error("v1 credential resolution threw", { method, scope: def.scope, error });
       return fail("server-error", SERVER_FAILED, 500);
     }
-    if (!resolution.ok) return refusalResponse(resolution.refusal);
-    const actor = resolution.actor;
+    // **No `Authorization` at all, and a verified Session, is signed out** (Poppy
+    // 5.4): a bad or malformed credential is still refused as itself, never
+    // downgraded, for the reason `resolveActor` gives.
+    const signedOut =
+      !resolution.ok &&
+      def.signedOut === true &&
+      resolution.refusal.reason === "anonymous" &&
+      session.claims !== null &&
+      request.headers.get("authorization") === null;
+    if (!resolution.ok && !signedOut) return refusalResponse(resolution.refusal, def.scope);
+    const actor = resolution.ok ? resolution.actor : SIGNED_OUT_ACTOR;
 
     // ---- rate limit, credentials only -----------------------------------
     // A token's bucket is its id, an OAuth grant's its grant id (ADR-083 §7):
     // every access token a grant is refreshed into shares one allowance.
+    // A signed-out Session has no credential, so its share is the Session's own.
     const credential = credentialKey(actor);
-    if (credential !== null) {
-      const decision = await consumeQuota([API_TOKEN_QUOTA], credential);
+    const charges: { policy: readonly QuotaPolicy[]; key: string }[] =
+      session.claims !== null && actor.via === "signed-out"
+        ? [
+            // The client's own ceiling first: a request over it is refused before any global share is
+            // charged, so one agent hammering its limit cannot spend what every other agent draws on.
+            { policy: signedOutClientReadQuota(), key: session.claims.clientId },
+            { policy: signedOutReadQuota(), key: `${session.claims.clientId}:${session.claims.sid}` },
+          ]
+        : credential !== null
+          ? [{ policy: [API_TOKEN_QUOTA], key: credential }]
+          : [];
+    for (const charge of charges) {
+      const decision = await consumeQuota(charge.policy, charge.key);
       if (!decision.allowed) {
         // **Fail closed when the counter store is down.** A rate limiter that
         // opens under load is not a rate limiter; `quota.ts` already made this
@@ -514,15 +565,30 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       }
     }
 
+    // ---- Session, once the credential is accepted -------------------------
+    // Opened here and not at the gate: a request refused for its token writes no
+    // row, and the account recorded is one the actor accepted.
+    try {
+      const ended = await session.open(actor.via === "oauth" ? actor.userId : null);
+      if (ended !== null) return ended;
+    } catch (error) {
+      console.error("v1 session open threw", { method, scope: def.scope, error });
+      return fail("server-error", SERVER_FAILED, 500);
+    }
+
     // ---- scope -----------------------------------------------------------
     // **Names the scope it wanted.** That leaks nothing a caller does not
     // already know about its own token, and it saves a support round trip.
-    if (!actorHasScope(actor, def.scope)) {
+    if (actor.via !== "signed-out" && !actorHasScope(actor, def.scope)) {
       return fail(
         "insufficient-scope",
         `This token does not hold the "${def.scope}" scope.`,
         403,
-        { details: { required: def.scope } },
+        {
+          details: { required: def.scope },
+          // Poppy 7: what makes an agent refresh for the scope or sign in again, not give up.
+          headers: { "WWW-Authenticate": `Bearer error="insufficient_scope", scope="${def.scope}"` },
+        },
       );
     }
 
@@ -860,48 +926,56 @@ async function declareCollection(
  * The challenge on every refusal of an OAuth credential (ADR-083 §7): RFC 9728's
  * `resource_metadata` tells the client where to start the flow again, and
  * `error="invalid_token"` (RFC 6750 §3.1) is what makes it refresh or re-consent
- * rather than give up.
+ * rather than give up. It names the document of the endpoint refusing: a
+ * Personal Agent told `/api/mcp`'s would ask for that resource at refresh, and be refused
+ * as `invalid_target`, though nothing was wrong with its sign-in.
  */
-export function oauthChallenge(invalidToken: boolean): Record<string, string> {
-  const metadata = `${oauthIssuer()}/.well-known/oauth-protected-resource/api/mcp`;
+export function oauthChallenge(invalidToken: boolean, at: "mcp" | "v1" = "mcp"): Record<string, string> {
+  const metadata = `${oauthIssuer()}/.well-known/oauth-protected-resource${at === "mcp" ? "/api/mcp" : ""}`;
   return {
     "WWW-Authenticate": `Bearer resource_metadata="${metadata}"${invalidToken ? ', error="invalid_token"' : ""}`,
   };
 }
 
 /** The 401 or 402 an OAuth credential's refusal answers, with the challenge that sends the client back into the flow. */
-export function oauthRefusalResponse(refusal: AccessRefusal): Response {
+export function oauthRefusalResponse(refusal: AccessRefusal, at: "mcp" | "v1" = "mcp"): Response {
   switch (refusal.reason) {
     case "audience":
-      return fail("unauthenticated", "This token is for the MCP connector at /api/mcp, not the REST API.", 401, {
-        headers: oauthChallenge(true),
+      return fail("unauthenticated", "This token is for another endpoint than this one: a connector token works only at /api/mcp, and a Personal Agent's only on the REST API.", 401, {
+        headers: oauthChallenge(true, at),
       });
     case "resource":
       // Not "use /api/mcp": the client is already there. Only a new
       // connection, made against this server, gives it a token we honour.
       return fail("unauthenticated", "This token was issued for a different server. Connect again.", 401, {
-        headers: oauthChallenge(true),
+        headers: oauthChallenge(true, at),
       });
     case "expired":
-      return fail("token-expired", "This access token has expired. Refresh it.", 401, { headers: oauthChallenge(true) });
+      return fail("token-expired", "This access token has expired. Refresh it.", 401, { headers: oauthChallenge(true, at) });
     case "revoked":
-      return fail("token-revoked", "This access token was revoked.", 401, { headers: oauthChallenge(true) });
+      return fail("token-revoked", "This access token was revoked.", 401, { headers: oauthChallenge(true, at) });
+    case "blocked":
+      // On v1 the words Poppy 7 gives a refused client_id, which an agent reads by this shape.
+      return at === "v1"
+        ? poppyError("invalid_session", "this client_id is refused")
+        : fail("unauthenticated", "This client has been blocked.", 401, { headers: oauthChallenge(true, at) });
     case "not-entitled":
       // Not an invalid token: the plan, not the credential, is what lapsed.
       return fail("not-entitled", "This account's plan does not include API access.", 402, {
-        headers: oauthChallenge(false),
+        headers: oauthChallenge(false, at),
       });
     case "unknown":
     default:
-      return fail("unauthenticated", "This token is not valid.", 401, { headers: oauthChallenge(true) });
+      return fail("unauthenticated", "This token is not valid.", 401, { headers: oauthChallenge(true, at) });
   }
 }
 
-function refusalResponse(refusal: ActorRefusal): Response {
-  if (refusal.reason === "oauth") return oauthRefusalResponse(refusal.refusal);
+function refusalResponse(refusal: ActorRefusal, scope: ApiScope): Response {
+  if (refusal.reason === "oauth") return oauthRefusalResponse(refusal.refusal, inMcpDispatch() ? "mcp" : "v1");
   if (refusal.reason === "anonymous") {
+    // Poppy 7: a signed-out request to an account endpoint is told which scopes to sign in for.
     return fail("unauthenticated", "This endpoint needs an API token.", 401, {
-      headers: BEARER_CHALLENGE,
+      headers: { "WWW-Authenticate": `Bearer scope="${scope}"` },
     });
   }
   switch (refusal.refusal.reason) {

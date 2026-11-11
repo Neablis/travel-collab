@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import { API_SCOPES } from "@tc/contracts";
 import { GET as index } from "../../app/api/v1/route";
 import { GET as catalog } from "../../app/.well-known/api-catalog/route";
+import { GET as poppy } from "../../app/.well-known/poppy.json/route";
 import { GET as llms } from "../../app/llms.txt/route";
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../app");
@@ -60,6 +61,17 @@ describe("API discovery", () => {
     expect(doc.origin).toBe("https://example.test");
     expect(doc.pathname).toBe("/developers/reference");
     expect(served(doc.pathname), doc.pathname).toBe(true);
+  });
+});
+
+describe("/.well-known/poppy.json", () => {
+  it("lists only APIs the app serves, on the configured origin", async () => {
+    const body = (await poppy().json()) as { apis: { url: string }[] };
+    expect(body.apis.length).toBeGreaterThan(0);
+    for (const api of body.apis) {
+      const { pathname } = new URL(api.url);
+      expect(served(pathname), api.url).toBe(true);
+    }
   });
 });
 

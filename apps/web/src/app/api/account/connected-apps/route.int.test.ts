@@ -6,6 +6,10 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { ConnectedApp } from "@tc/contracts";
+import { resolveClient } from "@/server/oauth/clients";
+import { createGrant } from "@/server/oauth/grants";
+import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
+import { makeTestAgent, publicResolve } from "@/server/poppy/testAgent";
 import { upsertUser } from "@/server/users";
 import { connectForTest } from "@/server/test-support/oauthConnection";
 
@@ -49,6 +53,34 @@ describe("listing connected apps", () => {
       lastUsedAt: null,
       revokedAt: null,
     });
+  });
+
+  // Poppy 4.1: the row for a Personal Agent says so and carries the logo its
+  // document named; an ordinary app's is null, however its grant looks.
+  it("marks a Personal Agent, with its logo, and no other app", async () => {
+    const owner = await account();
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    const resolved = await resolveClient(agent.clientId, { fetch: agent.fetch, resolve: publicResolve, userId: owner });
+    if (!resolved.ok) throw new Error("agent did not resolve");
+    await createGrant({
+      ownerId: owner,
+      client: resolved.client,
+      redirectUri: (agent.document.redirect_uris as string[])[0]!,
+      scopes: ["trips:read"],
+      resource: mcpResource(),
+      now: new Date(),
+    });
+    await connectForTest(owner);
+    currentUserId = owner;
+
+    const apps = ((await (await list()).json()).apps as unknown[]).map((a) => ConnectedApp.parse(a));
+    expect(apps.map((a) => [a.clientName, a.personalAgent])).toEqual(
+      expect.arrayContaining([
+        ["Test Agent", { logoUri: agent.document.logo_uri }],
+        ["Test app", null],
+      ]),
+    );
+    expect(apps).toHaveLength(2);
   });
 
   it("shows nobody else's grants", async () => {

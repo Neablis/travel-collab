@@ -1,4 +1,4 @@
-// **The console's tab is URL state** (M36 D1): `/admin?tab=financial|users|library|ai|personas`.
+// **The console's tab is URL state** (M36 D1): `/admin?tab=financial|users|library|ai|personas|agents`.
 //
 // One module, read by the server page (which decides the body) and by the
 // client strip (which navigates), so the set of tabs cannot differ between the
@@ -11,6 +11,7 @@ export const CONSOLE_TABS = [
   { value: "library", label: "Library" },
   { value: "ai", label: "AI models" },
   { value: "personas", label: "Personas" },
+  { value: "agents", label: "Agents" },
 ] as const;
 
 export type ConsoleTab = (typeof CONSOLE_TABS)[number]["value"];

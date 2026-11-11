@@ -213,3 +213,19 @@ describe("the grant-cost panel stays deleted", () => {
     }
   });
 });
+
+describe("the Agents tab is read behind the gate", () => {
+  // M60 part 4. The tab lists every Personal Agent that has opened a Session and
+  // the operator's blocks; a non-operator must reach `notFound()` before
+  // `agentsSeen` runs, and the tab must be registered or `?tab=agents` would
+  // fall back to Financial for the operator as well.
+  it("registers the tab and calls agentsSeen only after the admin check", () => {
+    const page = codeOf(path.join(HERE, "page.tsx"));
+    const gate = page.indexOf("notFound()");
+    const read = page.indexOf("agentsSeen(");
+    expect(read, "page.tsx no longer reads the agents seen").toBeGreaterThan(-1);
+    expect(page.indexOf("adminUserId()")).toBeLessThan(gate);
+    expect(gate).toBeLessThan(read);
+    expect(page).toMatch(/tab === "agents"/);
+  });
+});

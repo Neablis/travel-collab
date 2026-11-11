@@ -128,7 +128,7 @@ describe("POST /api/oauth/authorize", () => {
     const url = `https://app.example/oauth/${randomUUID()}.json`;
     vi.mocked(resolveClient).mockResolvedValue({
       ok: true,
-      client: { id: null, clientId: url, kind: "cimd", clientName: "Claude", redirectUris: [REDIRECT], cimdHost: "app.example" },
+      client: { id: null, clientId: url, kind: "cimd", clientName: "Claude", redirectUris: [REDIRECT], cimdHost: "app.example", authMethod: "none", jwksUri: null, logoUri: null },
     });
     const params = { ...(await authorizeParams()), client_id: url };
     try {

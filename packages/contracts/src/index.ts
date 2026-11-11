@@ -26,6 +26,7 @@ export * from "./report.ts";
 export * from "./admission.ts";
 export * from "./identity.ts";
 export * from "./assistant.ts";
+export * from "./adminAgents.ts";
 export * from "./entitlement.ts";
 export * from "./publicApi.ts";
 export * from "./linkPreview.ts";

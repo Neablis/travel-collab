@@ -44,6 +44,7 @@ const app: ConnectedApp = {
   expiresAt: new Date(Date.now() + 300 * DAY).toISOString(),
   revokedAt: null,
   revokedReason: null,
+  personalAgent: null,
 };
 
 /**

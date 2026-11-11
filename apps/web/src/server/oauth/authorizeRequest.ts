@@ -1,6 +1,6 @@
 import { API_SCOPES, ApiScope } from "@tc/contracts";
-import { resolveClient, type ClientDeps, type OAuthClient } from "./clients";
-import { mcpResource, OAUTH_SCOPES, oauthIssuer } from "./metadata";
+import { clientIsBlocked, resolveClient, type ClientDeps, type OAuthClient } from "./clients";
+import { isAudience, mcpResource, OAUTH_SCOPES, oauthIssuer } from "./metadata";
 import { isS256Challenge } from "./pkce";
 import { consentMarking, type ConsentMarking } from "./recognised";
 import { redirectMatches } from "./redirects";
@@ -107,6 +107,9 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
     automatic: marking === "recognised",
     description,
   });
+  // ADR-089 decision 3: a blocked client's sign-ins stop here, before a person is shown consent
+  // for it or a grant is written, not only when the code is exchanged.
+  if (await clientIsBlocked(client.clientId)) return back("unauthorized_client", "this client has been blocked");
   if (param("response_type") !== "code") return back("unsupported_response_type", "response_type must be code");
   // Amendment I: no challenge, or any method but S256, is refused before a code exists.
   const codeChallenge = param("code_challenge");
@@ -118,16 +121,24 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
   if (requested !== undefined && requested.some((scope) => !OAUTH_SCOPES.includes(scope))) {
     return back("invalid_scope", "a requested scope is not offered here");
   }
+  // Poppy 4.7: a Personal Agent says what it needs. The default of every scope
+  // is for the clients that predate that, and an agent's user approved only what was asked.
+  if (client.authMethod === "private_key_jwt" && (requested === undefined || requested.every((scope) => scope === "offline_access"))) {
+    return back("invalid_scope", "scope is required");
+  }
   // `offline_access` alone names no v1 scope, so it asks for what no scope does.
   const scopes =
     requested === undefined || requested.every((scope) => scope === "offline_access")
       ? [...API_SCOPES]
       : requested.filter((scope): scope is ApiScope => ApiScope.safeParse(scope).success);
   if (scopes.length === 0) return back("invalid_scope", "no scope this server grants was requested");
-  // Amendment C: the one audience here. Absent is taken as it, since an older
-  // client sends none and there is no other resource it could mean.
-  const resource = param("resource") ?? mcpResource();
-  if (resource !== mcpResource()) return back("invalid_target", `the only resource here is ${mcpResource()}`);
+  // Amendment C, with the domain beside `/api/mcp` (ADR-089 decision 4): the
+  // connector asks for the MCP endpoint, a Personal Agent for the domain (Poppy
+  // 3.2). A Personal Agent that names none is the latter; every other client keeps
+  // `/api/mcp`, since an older connector sends none and a domain token would be
+  // refused by the very endpoint it connected for.
+  const resource = param("resource") ?? (client.authMethod === "private_key_jwt" ? oauthIssuer() : mcpResource());
+  if (!isAudience(resource)) return back("invalid_target", `the resources here are ${oauthIssuer()} and ${mcpResource()}`);
 
   return {
     request: { client, redirectUri, scopes, state, codeChallenge, resource, marking },

@@ -39,8 +39,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "2.4.0";
-export const API_FINGERPRINT = "e3a105ba7977b4804a078e2e380abdf006f975e7b3ebdb31d13f2ca401efcb06";
+export const API_VERSION = "2.5.0";
+export const API_FINGERPRINT = "95e1a3c14c946f66f042919ff4abf52a6e5b74accaad3c5896b6690b6f30d617";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -430,7 +430,9 @@ export function buildOpenApi(
       paths[url]![method.toLowerCase()] = {
         summary: def.summary,
         description: [
-          `Requires the \`${declared.scope}\` scope.`,
+          def.signedOut === true
+            ? `Requires the \`${declared.scope}\` scope when called with a token; a Personal Agent's Poppy Session alone, with no token, may also read it.`
+            : `Requires the \`${declared.scope}\` scope.`,
           declared.role === undefined
             ? undefined
             : declared.trip === "path"
@@ -440,7 +442,9 @@ export function buildOpenApi(
         ]
           .filter(Boolean)
           .join(" "),
-        security: [{ bearerAuth: [declared.scope] }],
+        // `{}` is OpenAPI's "no credential": a route that answers a signed-out Personal Agent
+        // Session says so, or an agent reading this never makes the read.
+        security: def.signedOut === true ? [{}, { bearerAuth: [declared.scope] }] : [{ bearerAuth: [declared.scope] }],
         ...(parameters.length === 0 ? {} : { parameters }),
         ...(def.body === undefined
           ? {}
@@ -482,7 +486,10 @@ export function buildOpenApi(
       version: API_VERSION,
       description: [
         "The public REST API. Every endpoint takes an account API token as",
-        "`Authorization: Bearer tc_...`, minted in Account settings.",
+        "`Authorization: Bearer tc_...`, minted in Account settings, or an OAuth access token.",
+        "The endpoints marked with an empty security requirement are public reads, which a Personal Agent",
+        "may also call signed out, with a `Poppy-Session` header and no token, including one nobody has",
+        "allowed. Past its per-address share of lookups the answer is 429 with `Retry-After`, not a refused Session.",
         "",
         "Scopes:",
         ...API_SCOPES.map((scope) => `- \`${scope}\` — ${SCOPE_CATALOGUE[scope].description}`),

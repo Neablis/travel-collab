@@ -3,7 +3,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { ApiScope, OAUTH_CODE_PREFIX } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { oauthCodes, oauthGrants } from "@/server/db/schema";
+import { oauthClients, oauthCodes, oauthGrants } from "@/server/db/schema";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { markClientUsed, storeClient, type OAuthClient } from "./clients";
 
@@ -55,6 +55,7 @@ export async function createGrant(input: {
       expiresAt: new Date(input.now.getTime() + GRANT_LIFETIME_MS),
       revokedAt: null,
       revokedReason: null,
+      tokenEndpointAuthMethod: input.client.authMethod,
     })
     .returning();
   await markClientUsed(clientRowId, input.now);
@@ -159,11 +160,19 @@ export async function touchGrantLastUsed(grantId: string, now: Date = new Date()
   }
 }
 
+/** A listed grant: a Personal Agent as its own method says, with the logo its client's row holds. */
+export type ListedGrant = GrantRow & { personalAgent: { logoUri: string | null } | null };
+
 /** Every grant this person has made, newest first, dead ones included so a list can say why. */
-export async function listGrants(ownerId: string): Promise<GrantRow[]> {
-  return db
-    .select()
+export async function listGrants(ownerId: string): Promise<ListedGrant[]> {
+  const rows = await db
+    .select({ grant: oauthGrants, logoUri: oauthClients.logoUri })
     .from(oauthGrants)
+    .leftJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientId))
     .where(eq(oauthGrants.ownerId, ownerId))
     .orderBy(desc(oauthGrants.createdAt), desc(oauthGrants.id));
+  return rows.map((row) => ({
+    ...row.grant,
+    personalAgent: row.grant.tokenEndpointAuthMethod === "private_key_jwt" ? { logoUri: row.logoUri } : null,
+  }));
 }

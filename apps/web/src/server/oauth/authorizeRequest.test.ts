@@ -7,7 +7,11 @@ import type { OAuthClient, ResolvedClient } from "./clients";
 // redirect would hand the person to whatever URL the request named.
 
 const resolveClient = vi.fn<(clientId: string) => Promise<ResolvedClient>>();
-vi.mock("./clients", () => ({ resolveClient: (clientId: string) => resolveClient(clientId) }));
+const clientIsBlocked = vi.fn<(clientId: string) => Promise<boolean>>(async () => false);
+vi.mock("./clients", () => ({
+  resolveClient: (clientId: string) => resolveClient(clientId),
+  clientIsBlocked: (clientId: string) => clientIsBlocked(clientId),
+}));
 
 const { parseAuthorizeRequest } = await import("./authorizeRequest");
 const { mcpResource, oauthIssuer } = await import("./metadata");
@@ -19,6 +23,9 @@ const CLIENT: OAuthClient = {
   clientName: "Test",
   redirectUris: ["https://example.com/cb"],
   cimdHost: null,
+  authMethod: "none",
+  jwksUri: null,
+  logoUri: null,
 };
 // RFC 7636 appendix B's challenge: the right shape for S256.
 const CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
@@ -40,7 +47,11 @@ function backTo(parsed: Awaited<ReturnType<typeof parseAuthorizeRequest>>): URLS
   return new URL(parsed.redirectTo).searchParams;
 }
 
-afterEach(() => resolveClient.mockReset());
+afterEach(() => {
+  resolveClient.mockReset();
+  clientIsBlocked.mockReset();
+  clientIsBlocked.mockResolvedValue(false);
+});
 
 describe("errors before the redirect is validated", () => {
   // Each case also carries a bad scope, which would be redirected if it were
@@ -100,6 +111,39 @@ describe("after the redirect is proven", () => {
     expect(query.get("iss")).toBe(oauthIssuer());
   });
 
+  // Poppy 3.2 makes the domain a Personal Agent's `resource`, and one that names none is for it.
+  // Every other client keeps /api/mcp: an older connector sends none, and a domain token would
+  // be refused by the very endpoint it connected for.
+  it("takes the domain or /api/mcp as the resource, defaulting by kind of client when none is named", async () => {
+    const agent: OAuthClient = {
+      ...CLIENT,
+      kind: "cimd",
+      clientId: "https://agent.example/agent.json",
+      authMethod: "private_key_jwt",
+      jwksUri: "https://agent.example/jwks.json",
+    };
+    const publicCimd: OAuthClient = { ...CLIENT, kind: "cimd", clientId: "https://app.example/client.json" };
+    for (const [client, asked, granted] of [
+      [CLIENT, oauthIssuer(), oauthIssuer()],
+      [CLIENT, mcpResource(), mcpResource()],
+      [CLIENT, undefined, mcpResource()],
+      [publicCimd, undefined, mcpResource()],
+      [agent, undefined, oauthIssuer()],
+    ] as const) {
+      resolveClient.mockResolvedValue({ ok: true, client });
+      const parsed = await parseAuthorizeRequest(valid({ client_id: client.clientId, scope: "trips:read", resource: asked }));
+      expect(parsed, `${client.clientId} ${String(asked)}`).toEqual({ request: expect.objectContaining({ resource: granted }) });
+    }
+  });
+
+  it("sends a blocked client back an error instead of the consent screen", async () => {
+    resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
+    clientIsBlocked.mockResolvedValue(true);
+    const query = backTo(await parseAuthorizeRequest(valid()));
+    expect(query.get("error")).toBe("unauthorized_client");
+    expect(query.get("error_description")).toBe("this client has been blocked");
+  });
+
   it("answers an unknown scope with invalid_scope, and a wrong response_type with unsupported_response_type", async () => {
     resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
     expect(backTo(await parseAuthorizeRequest(valid({ scope: "trips:read admin" }))).get("error")).toBe(
@@ -133,6 +177,27 @@ describe("after the redirect is proven", () => {
 
   // Amendment M: registration is open, so a proven redirect can be an
   // attacker's own site. Only Claude's callback is followed without a click.
+  // Poppy 4.7: a Personal Agent names what it needs. Without `scope` a client
+  // gets every v1 scope offered to consent, which for an agent is the ask nobody made.
+  it("requires scope from a private_key_jwt client, and still defaults it for a public one", async () => {
+    const agent: OAuthClient = {
+      ...CLIENT,
+      kind: "cimd",
+      clientId: "https://agent.example/agent.json",
+      authMethod: "private_key_jwt",
+      jwksUri: "https://agent.example/jwks.json",
+    };
+    resolveClient.mockResolvedValue({ ok: true, client: agent });
+    const missing = backTo(await parseAuthorizeRequest(valid({ client_id: agent.clientId })));
+    expect(missing.get("error")).toBe("invalid_scope");
+    const onlyOffline = backTo(await parseAuthorizeRequest(valid({ client_id: agent.clientId, scope: "offline_access" })));
+    expect(onlyOffline.get("error")).toBe("invalid_scope");
+    const named = await parseAuthorizeRequest(valid({ client_id: agent.clientId, scope: "trips:read" }));
+    expect(named).toEqual({ request: expect.objectContaining({ scopes: ["trips:read"] }) });
+    resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
+    expect(await parseAuthorizeRequest(valid())).toEqual({ request: expect.objectContaining({ scopes: [...API_SCOPES] }) });
+  });
+
   it("follows an error back without a click only to a recognised redirect", async () => {
     resolveClient.mockResolvedValue({ ok: true, client: CLIENT });
     const unverified = await parseAuthorizeRequest(valid({ response_type: "token" }));
