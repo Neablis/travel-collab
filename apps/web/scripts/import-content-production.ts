@@ -187,12 +187,14 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
     const moderation = await carryModeration(tx, ids);
     // Each day's old length, so a re-import that shortens it also queues the
     // dropped indexes: the sweep tombstones a day past the new end.
-    const previousDayCount = new Map(
+    const before =
       ids.length === 0
         ? []
-        : (await tx.select({ id: savedDays.id, dayCount: savedDays.dayCount }).from(savedDays).where(inArray(savedDays.id, ids)))
-            .map((row) => [row.id, row.dayCount]),
-    );
+        : await tx
+            .select({ id: savedDays.id, dayCount: savedDays.dayCount, firstPublishedAt: savedDays.firstPublishedAt })
+            .from(savedDays)
+            .where(inArray(savedDays.id, ids));
+    const previousDayCount = new Map(before.map((row) => [row.id, row.dayCount]));
     // Ledger first: `saved_day_adds` has no foreign key (this schema's
     // convention), so removing the days first would orphan it.
     //
@@ -279,6 +281,14 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
     // while its reviews still sat in `saved_day_reviews` (M12 link 2).
     for (const id of ids) await recomputeReviewCounters(tx, id);
     await restoreModeration(tx, moderation);
+    // The delete and re-insert mint a fresh row, and `newSavedDayRow` stamps its
+    // first publish as this run's `keptOn` or now. Put the old one back: the
+    // new-day lift ages from the first publish, set once (M61 decision 11), and
+    // a bundle with no `keptOn` would otherwise re-earn it on every import.
+    for (const { id, firstPublishedAt } of before) {
+      if (firstPublishedAt === null) continue;
+      await tx.update(savedDays).set({ firstPublishedAt }).where(eq(savedDays.id, id));
+    }
   });
 
   return { days: resolved.length, pruned };

@@ -1250,6 +1250,15 @@ export const savedDays = pgTable(
     //
     // `mode: "date"` — see the `savedDays` note above (KI-53).
     publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    // The FIRST time this day was made public, set once and never cleared or
+    // overwritten (M61 decision 11). `published_at` above is the honest "newest"
+    // date and moves on every republish; Discover's new-day lift must not, or an
+    // author could re-earn it by unpublishing and publishing again, and a
+    // content re-import without `keptOn` would re-earn it for a whole bundle.
+    // Null while never published; the lift falls back to `created_at`. Written
+    // by `setSavedDayVisibility` (coalesce), `newSavedDayRow`, and carried
+    // across the importer's delete and re-insert.
+    firstPublishedAt: timestamp("first_published_at", { withTimezone: true, mode: "date" }),
     // A SOFT delete: when the owner removes this day from their library, the
     // row stays and this takes the moment. Mitchell, 2026-09-01: *"add a button
     // to delete a notebook activity you own ... for now we can even just add a
@@ -1406,10 +1415,11 @@ export const savedDayReviews = pgTable(
 // and `saved_days` by running the recompute — and so it holds no history and
 // stays out of the event log, on `saved_day_reviews`' terms.
 //
-// **No foreign key, and a row for a day that left the library is left alone.**
-// The reads join through `matchPredicate`, so an unpublished, deleted or
-// moderated day is never listed whatever its stored score; the next recompute
-// does not touch it and a republish overwrites it.
+// **No foreign key, and a row for a day that left the library is deleted.**
+// The recompute removes the rows of unpublished, deleted, moderated and pruned
+// days, so the table is what truncating it and recomputing would give. The
+// reads still join through `matchPredicate`, because between two recomputes a
+// day can leave and its row linger.
 //
 // The components are columns, not just the product, so the operator tab can
 // show why a day ranks where it does (decision 8) without redoing the maths.
