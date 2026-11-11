@@ -190,7 +190,7 @@ without a scheme. Plausible needs a full URL in `BASE_URL`.
 
 ## Crons
 
-Two Coolify **scheduled tasks** on `caesura-web`, each a `curl` to the app's own
+Three Coolify **scheduled tasks** on `caesura-web`, each a `curl` to the app's own
 route with `Authorization: Bearer $CRON_SECRET` (the app checks it,
 `server/cronAuth.ts`). Never an in-app timer (M59 decision 8).
 
@@ -198,6 +198,7 @@ route with `Authorization: Bearer $CRON_SECRET` (the app checks it,
 |---|---|---|
 | `/api/cron/embed-days` | 04:00 daily | Embeds changed days into pgvector. A no-op while `RAG_PLAN_RETRIEVAL=0` has nothing to read |
 | `/api/cron/tier-rollup` | 04:30 daily | Rewrites this week's plan-tier rollup rows (daily, so a missed day heals) |
+| `/api/cron/discover-rank` | `17 * * * *` (hourly) | Rewrites every public day's Discover rank row (ADR-090: the score decays, so the order drifts hourly) and clears the `discover-rank` cache tag |
 
 Run one by hand to test it: Coolify → the application → Scheduled Tasks → the
 task → *Execute now*, then read the task's execution log. A 401 is a wrong or

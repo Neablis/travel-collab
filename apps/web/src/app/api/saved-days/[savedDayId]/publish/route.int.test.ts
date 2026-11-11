@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
-import { savedDays } from "@/server/db/schema";
+import { savedDayRanks, savedDays } from "@/server/db/schema";
 
 // Two actors, and the mechanism the exit gate's publish box is walked with:
 // `currentUserId` is reassigned between calls, so one test can be an author and
@@ -126,6 +126,32 @@ describe("publishing a saved day", () => {
 // The gate box, walked as two actors: "a day is private by default; publishing
 // makes it findable by another signed-in account, and unpublishing removes it
 // from that account's results."
+// M61 decision 6: a day is placed in the same request that publishes it, so it
+// does not sit unranked until the hour turns.
+describe("the Discover rank row", () => {
+  const rankRows = (savedDayId: string) =>
+    db.select().from(savedDayRanks).where(eq(savedDayRanks.savedDayId, savedDayId));
+
+  it("is written by the publish request itself", async () => {
+    const savedDayId = await saveOwnDay();
+    expect(await rankRows(savedDayId)).toHaveLength(0);
+
+    expect((await publish(savedDayId)).status).toBe(200);
+
+    expect(await rankRows(savedDayId)).toHaveLength(1);
+  });
+
+  it("is written again when an already-public day is published again", async () => {
+    const savedDayId = await saveOwnDay();
+    await publish(savedDayId);
+    await db.delete(savedDayRanks).where(eq(savedDayRanks.savedDayId, savedDayId));
+
+    expect((await publish(savedDayId)).status).toBe(200);
+
+    expect(await rankRows(savedDayId)).toHaveLength(1);
+  });
+});
+
 describe("what another signed-in account can read", () => {
   it("cannot read a private day, can read it once published, and cannot again after unpublish", async () => {
     const savedDayId = await saveOwnDay("Kyoto temples on foot");

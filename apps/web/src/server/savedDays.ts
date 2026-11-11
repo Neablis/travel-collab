@@ -18,6 +18,7 @@ import { forgetCountrySearches } from "./places";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { enqueueDayChunksForEmbedding } from "./ai/queue";
+import { recomputeDiscoverRanks } from "./discoverRank";
 import { isUuid } from "./ids";
 import { invalidateDayRead, invalidatePublicDay } from "./libraryCache";
 import { parseSavedDayColumns } from "./savedDayRow";
@@ -743,6 +744,16 @@ export async function setSavedDayVisibility(
   forgetCitySearches();
   forgetCountrySearches();
   await invalidatePublicDay(savedDayId, ownerId);
+  // Placed in this request, so a new day is not unranked until the hour turns;
+  // a re-publish overwrites whatever stale row it left (ADR-090). The write has
+  // committed, so a failure here must not 500 it: the hourly run writes the row.
+  if (visibility === SavedDayVisibility.enum.public) {
+    try {
+      await recomputeDiscoverRanks({ savedDayId });
+    } catch (error) {
+      console.error("discover rank: publish-time recompute failed", { savedDayId, error: String(error) });
+    }
+  }
   const day = fromRow(updated[0]);
   if (day === null) {
     // `null` from here means "no such row of yours", and the route turns it

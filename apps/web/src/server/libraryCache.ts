@@ -29,6 +29,12 @@ export const LIBRARY_CACHE_SECONDS = 86_400;
 /** The tag on everything that lists days: Discover, place pages and their lists, the sitemap, related days. */
 export const LIBRARY_TAG = "library";
 
+/**
+ * The tag on Discover's ranked (signed-out) page. The hourly rank rewrite
+ * clears it and nothing else: it moves the order, not any day's content.
+ */
+export const DISCOVER_RANK_TAG = "discover-rank";
+
 /** The tag on one day's cached read and on its preview card. */
 export const dayTag = (savedDayId: string): string => `day:${savedDayId}`;
 
@@ -97,6 +103,11 @@ export function invalidatePublicDays(days: readonly { savedDayId: string; ownerI
   const tags = new Set<string>();
   for (const { savedDayId, ownerId } of days) tags.add(dayTag(savedDayId)).add(authorTag(ownerId));
   return clear([...tags, LIBRARY_TAG]);
+}
+
+/** Take the ranked Discover page out of the cache, after `saved_day_ranks` was rewritten. Never throws. */
+export function invalidateDiscoverRank(): Promise<void> {
+  return clear([DISCOVER_RANK_TAG]);
 }
 
 // The library names people (ADR-061 decision 4), and someone who changed the
