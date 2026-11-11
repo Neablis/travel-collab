@@ -669,9 +669,10 @@ export async function discoverFor(
  * `-coalesce(rating, 0)`, which puts null last because a rating is never below
  * 1; a timestamp is negated as its epoch (`numeric` since Postgres 14, so the
  * microseconds survive). `d.id` ascends last, as it does in `orderBy`.
- * `public-api/discover.int.test.ts` holds the two to one order for every sort,
- * by comparing the API's keyset pages with `publishedDaysPage`, which orders
- * by `orderBy`. `orderBy` keeps its readable form for the candidate window and
+ * `public-api/discover.int.test.ts` holds the two to one order, by comparing
+ * keyset pages with `publishedDaysPage`, which orders by `orderBy`: the API's
+ * for every sort it offers, and `discoverPage`'s own for `top`, which the API
+ * does not offer yet. `orderBy` keeps its readable form for the candidate window and
  * the place pages, which do not page by keyset; Discover's cards and the API
  * are both `discoverPage`, so comparing those two would hold `rankKeys` to
  * itself.
