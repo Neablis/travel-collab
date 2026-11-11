@@ -314,7 +314,24 @@ jobs:
       # Playwright's OS-level deps (apt packages) aren't cacheable and must
       # install fresh on every runner; the browser binary download is the
       # slow part and is what the cache step below skips on a hit.
-      - run: pnpm --filter web exec playwright install-deps chromium
+      # KI-2026-11-01-u: when the runner cannot resolve Ubuntu's mirrors, apt
+      # retries every 20s and this step burned ~10 min per attempt. apt now
+      # gives up fast, and three short attempts absorb a mirror blip while an
+      # outage fails in minutes. The step normally takes under 30s.
+      - name: Make apt fail fast
+        run: |
+          printf 'Acquire::Retries "2";\nAcquire::http::Timeout "15";\nAcquire::https::Timeout "15";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-fail-fast
+      - name: Install Playwright OS deps
+        timeout-minutes: 4
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter web exec playwright install-deps chromium; then
+              exit 0
+            fi
+            echo "install-deps attempt $attempt failed"
+            sleep $((attempt * 10))
+          done
+          exit 1
       - uses: actions/cache@v6
         id: playwright-cache
         with:
