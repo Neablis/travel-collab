@@ -18,6 +18,7 @@ async function clientIdOf({ params }: Params): Promise<string | null> {
   return clientId.startsWith("https://") && clientId.length <= 2048 ? clientId : null;
 }
 
+/** Block the `client_id` (operator only): the kill switch the Agents tab's Block button calls. */
 export async function PUT(_request: Request, context: Params) {
   const guard = await requireAdminApi();
   if ("error" in guard) return guard.error;
@@ -27,6 +28,7 @@ export async function PUT(_request: Request, context: Params) {
   return Response.json({ clientId, blocked: true });
 }
 
+/** Lift the block on the `client_id` (operator only). */
 export async function DELETE(_request: Request, context: Params) {
   const guard = await requireAdminApi();
   if ("error" in guard) return guard.error;
