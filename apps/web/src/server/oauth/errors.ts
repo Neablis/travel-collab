@@ -32,3 +32,22 @@ export function preflight(): Response {
 export function metadataJson(body: unknown): Response {
   return Response.json(body, { headers: { "Cache-Control": "public, max-age=300", ...CORS } });
 }
+
+/**
+ * The answer when a handler throws: `500 server_error` in RFC 6749 §5.2's JSON
+ * shape, never the platform's bare 500 with an empty body, so a client can tell
+ * "the server broke" from "my request was wrong" (`invalid_client_metadata`,
+ * `invalid_request`). The same answer `/api/v1` and `/api/mcp` give a throw.
+ *
+ * **No `Retry-After`, and not a 503, on purpose.** A throw is usually not
+ * transient (a pending migration, a missing secret, a bug), and the token
+ * endpoint spends a code or refresh token before it stores the new pair: a
+ * client told to retry would present a spent secret and have its grant cut off
+ * as reuse (KI-2026-11-12-a). 503 stays for the quota store being down.
+ * Found on production, 2026-11-11 (KI-2026-11-11-a): migration 0075 was
+ * pending, every OAuth query threw, and clients got an empty 500.
+ */
+export function handlerFailed(endpoint: string, error: unknown): Response {
+  console.error(`oauth ${endpoint} threw`, { error });
+  return oauthError("server_error", "the server could not complete this request", 500);
+}

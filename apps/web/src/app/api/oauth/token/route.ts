@@ -1,5 +1,5 @@
 import { clientIp } from "@/server/og/limit";
-import { oauthError, oauthJson, preflight } from "@/server/oauth/errors";
+import { oauthError, oauthJson, preflight, handlerFailed } from "@/server/oauth/errors";
 import { exchangeCode, refresh } from "@/server/oauth/tokens";
 
 // **The token endpoint: `POST /api/oauth/token`** (RFC 6749 §3.2). Form-encoded
@@ -9,6 +9,14 @@ import { exchangeCode, refresh } from "@/server/oauth/tokens";
 
 /** Exchange a code or a refresh token for a new access and refresh token pair. */
 export async function POST(request: Request) {
+  try {
+    return await exchange(request);
+  } catch (error) {
+    return handlerFailed("token", error);
+  }
+}
+
+async function exchange(request: Request): Promise<Response> {
   const type = request.headers.get("content-type") ?? "";
   if (!type.toLowerCase().startsWith("application/x-www-form-urlencoded")) {
     return oauthError("invalid_request", "the body must be application/x-www-form-urlencoded");
