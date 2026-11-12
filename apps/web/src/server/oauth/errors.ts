@@ -32,3 +32,21 @@ export function preflight(): Response {
 export function metadataJson(body: unknown): Response {
   return Response.json(body, { headers: { "Cache-Control": "public, max-age=300", ...CORS } });
 }
+
+/** How long a client is told to wait after `storeUnavailable`. */
+const STORE_RETRY_AFTER_SECONDS = 30;
+
+/**
+ * The answer when a handler throws: `503 temporarily_unavailable` with
+ * `Retry-After`, never the platform's bare 500 with an empty body. A client can
+ * then tell "the server broke" from "my request was wrong" (`400
+ * invalid_client_metadata`, `invalid_request`), and retry only the first.
+ * Found on production, 2026-11-11 (KI-2026-11-11-a): migration 0075 was pending,
+ * every registration insert threw, and agents got an empty 500.
+ */
+export function storeUnavailable(endpoint: string, error: unknown): Response {
+  console.error(`oauth ${endpoint} threw`, { error });
+  const refusal = oauthError("temporarily_unavailable", "the server could not complete this request; try again shortly", 503);
+  refusal.headers.set("Retry-After", String(STORE_RETRY_AFTER_SECONDS));
+  return refusal;
+}

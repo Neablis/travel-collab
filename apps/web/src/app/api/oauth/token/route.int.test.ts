@@ -20,6 +20,20 @@ vi.mock("@/server/cache/redis", async (importOriginal) => {
   return { ...actual, getCache: () => shared.cache! };
 });
 
+// A switch for the store-failure test: `refresh` throws as `grantOf` did in
+// production while migration 0075 was pending (KI-2026-11-11-a).
+const store = vi.hoisted(() => ({ fail: false }));
+vi.mock("@/server/oauth/tokens", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/oauth/tokens")>();
+  return {
+    ...real,
+    refresh: (...args: Parameters<typeof real.refresh>) => {
+      if (store.fail) throw new Error('column "token_endpoint_auth_method" does not exist');
+      return real.refresh(...args);
+    },
+  };
+});
+
 async function agentGrant() {
   const agent = await makeTestAgent({ issuer: oauthIssuer() });
   const ownerId = `dev-${randomUUID()}`;
@@ -66,6 +80,18 @@ async function freshCode(): Promise<{ code: string; clientId: string }> {
 }
 
 describe("POST /api/oauth/token", () => {
+  it("answers 503 temporarily_unavailable with a JSON body and Retry-After when the store throws, never an empty 500", async () => {
+    store.fail = true;
+    try {
+      const res = await form({ grant_type: "refresh_token", refresh_token: "tc_oauth_r_x", client_id: randomUUID() });
+      expect(res.status).toBe(503);
+      expect(res.headers.get("retry-after")).toBe("30");
+      expect(await res.json()).toEqual(expect.objectContaining({ error: "temporarily_unavailable" }));
+    } finally {
+      store.fail = false;
+    }
+  });
+
   it("exchanges a code and then refreshes, each answer uncacheable", async () => {
     const { code, clientId } = await freshCode();
     const exchanged = await form({

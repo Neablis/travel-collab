@@ -1,6 +1,6 @@
 import { clientIp, scheduleSweep } from "@/server/og/limit";
 import { registerClient } from "@/server/oauth/clients";
-import { oauthError, oauthJson, preflight } from "@/server/oauth/errors";
+import { oauthError, oauthJson, preflight, storeUnavailable } from "@/server/oauth/errors";
 import { consumeQuota, oauthRegisterQuota, sweepExpiredCounters } from "@/server/quota";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 
@@ -11,6 +11,14 @@ import { keyedDigest } from "@/server/secrets/keyedDigest";
 
 /** Register a client (RFC 7591), once this address's hourly registrations allow it. */
 export async function POST(request: Request) {
+  try {
+    return await register(request);
+  } catch (error) {
+    return storeUnavailable("register", error);
+  }
+}
+
+async function register(request: Request): Promise<Response> {
   const ip = clientIp(request);
   // `clientIp` has already reduced it to its /64 or IPv4. Keyed, never the address itself: the counter table outlives any one request.
   const decision = await consumeQuota(oauthRegisterQuota(), keyedDigest(ip).digest);

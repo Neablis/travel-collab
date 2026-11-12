@@ -11,6 +11,13 @@ import { mcpResource } from "@/server/oauth/metadata";
 // against the host that served the document, and a `Host` we echoed would make
 // that check pass for anyone. No `agent` (the assistant is not offered as a
 // Poppy conversation).
+//
+// **There is no session endpoint, and none is missing** (Poppy 0.4 §5): a
+// Session starts with the first request whose `Poppy-Session` header carries a
+// new `sid`, and is verified on every request (`server/poppy/sessions.ts`).
+// Signed out, that header alone reads Discover; signed in, an OAuth access token
+// rides beside it as a plain `Bearer` (§7). `web: {}` is §3.1's signed-out
+// website: no `browser_session_endpoint`, so agents browse as any visitor.
 
 /** The pinned protocol version; no `supported_versions` (ADR-089 decision 1). */
 export const POPPY_PROTOCOL_VERSION = "0.4";
