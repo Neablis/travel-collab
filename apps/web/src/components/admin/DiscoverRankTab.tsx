@@ -7,18 +7,19 @@ import { Text } from "@/components/ui/text";
 import type { DiscoverRankRow } from "@/lib/adminDiscoverRank";
 import { shortDayTime } from "./aiFormat";
 
-// **The Discover rank tab** (M61 decision 8, ADR-090): the top days by score,
-// each component of the score, when it was computed, and the constants in
-// force, so a tuning change is judged on production data. Operators only — the
-// page 404s everyone else before the rows are read.
-//
-// The constants arrive as a prop, read from `RANK_CONSTANTS` by the page rather
-// than copied here, so this list cannot drift from what the cron computed with.
-
 const HEAD = "whitespace-nowrap border-b border-border-strong bg-moss font-mono";
 
 const fixed = (n: number) => n.toFixed(2);
 
+/**
+ * **The Discover rank tab** (M61 decision 8, ADR-090): the top days by score,
+ * each component of the score, when it was computed, and the constants in
+ * force, so a tuning change is judged on production data. Operators only — the
+ * page 404s everyone else before the rows are read.
+ *
+ * The constants arrive as a prop, read from `RANK_CONSTANTS` by the page rather
+ * than copied here, so this list cannot drift from what the cron computed with.
+ */
 export function DiscoverRankTab({
   rows,
   constants,
