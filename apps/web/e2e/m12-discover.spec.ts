@@ -137,7 +137,7 @@ test("highest rated and most reviewed order by the reviews, and the floor narrow
   // show the whole cumulative library and every order below would be about it.
   await bob.goto(`/playbooks?city=${encodeURIComponent(city)}`);
   await expect(bob.getByTestId("selected-cities").getByRole("button", { name: `Remove ${city} (city)` })).toBeVisible();
-  // Most added is the default and none of the three has an add, so its order
+  // Top is the default, and with no scores yet and no adds its order
   // falls to recency and is not this spec's to assert — only that all three
   // are here.
   await expect(cardTitles(bob)).toHaveCount(3);

@@ -1,16 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { SavedStop, type ActivityTag, type TripDetail } from "@tc/contracts";
 import { PLACE_PAGE_SIZE, slugify } from "@/lib/playbookUrls";
 import type { PlaybookDiscoverSearch } from "@/server/assistant/admission";
 import { db } from "@/server/db/client";
-import { savedDays } from "@/server/db/schema";
+import { savedDayRanks, savedDays } from "@/server/db/schema";
 import { newSavedDayRow } from "@/server/savedDays";
 import { executeTripCommand } from "@/server/commands";
 import { getTripDetail, listTripSummariesVisibleTo } from "@/server/projections";
 import { withEffectiveMembersByTrip } from "@/server/access/members";
-import { readAccountTrips, readPlaybookList } from "./assistantPorts";
+import { playbookLibrary, readAccountTrips, readPlaybookList } from "./assistantPorts";
 
 // M45 D9: a playbook list page's assistant reads the list on screen, and
 // nothing past it. Each list kind against real rows, in places minted per run:
@@ -50,6 +50,7 @@ const listed = async (page: Parameters<typeof readPlaybookList>[0]) =>
   (await readPlaybookList(page, READER)).map((d) => d.savedDayId);
 
 afterAll(async () => {
+  await db.delete(savedDayRanks).where(inArray(savedDayRanks.savedDayId, ids));
   await db.delete(savedDays).where(inArray(savedDays.id, ids));
 });
 
@@ -105,6 +106,25 @@ describe("readPlaybookList", () => {
       everywhere.push(...next);
     }
     expect(everywhere).toEqual(expect.arrayContaining([late, lateElsewhere]));
+  });
+});
+
+// The assistant's library read is Discover's own order (M61 part 4): a day with
+// few adds but a high stored score leads, where `most-added` would put it last.
+describe("playbookLibrary.discover", () => {
+  it("returns days in top order, by the stored rank rather than by adds", async () => {
+    const city = `Libtop${run}`;
+    const manyAdds = await day(city);
+    const topScored = await day(city);
+    await db.update(savedDays).set({ adds: 9 }).where(eq(savedDays.id, manyAdds));
+    await db.update(savedDays).set({ adds: 1 }).where(eq(savedDays.id, topScored));
+    await db.delete(savedDayRanks).where(inArray(savedDayRanks.savedDayId, [manyAdds, topScored]));
+    for (const [savedDayId, score] of [[manyAdds, 1], [topScored, 5]] as const) {
+      await db.insert(savedDayRanks).values({ savedDayId, score, addsRecent: 0, commentsRecent: 0, quality: 1, newDayLift: 1, computedAt: new Date() });
+    }
+
+    const days = await playbookLibrary.discover({ cities: [city], readerId: READER });
+    expect(days.map((d) => d.savedDayId)).toEqual([topScored, manyAdds]);
   });
 });
 

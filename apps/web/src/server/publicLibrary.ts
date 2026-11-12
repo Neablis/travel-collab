@@ -2,7 +2,7 @@ import type { SavedDay, TripCover } from "@tc/contracts";
 import type { DiscoverResponse, PublicAuthor } from "@/lib/playbooks";
 import { slugify } from "@/lib/playbookUrls";
 import type { SharedDayView } from "@/lib/sharedDayView";
-import { LIBRARY_CACHE_SECONDS, LIBRARY_TAG, authorTag, dayTag, libraryCached } from "./libraryCache";
+import { DISCOVER_RANK_TAG, LIBRARY_CACHE_SECONDS, LIBRARY_TAG, authorTag, dayTag, libraryCached } from "./libraryCache";
 import * as live from "./playbooks";
 import { getSavedDayCover } from "./savedDayCovers";
 import { schedulePinBackfill } from "./savedDayPinBackfill";
@@ -105,7 +105,12 @@ export function discoverFor(input: live.DiscoverInput, readerId: string | null):
   // caller built it in. Scope is Everyone for anyone signed out.
   const { cities, countries = [], sort, budget, length, rating = "any", tag = "any", after = null } = input;
   const search = { cities, countries, sort, budget, length, rating, tag, after, scope: "everyone" as const };
-  return libraryCached(["discover", JSON.stringify(search)], [LIBRARY_TAG], () => live.discoverFor(search, null));
+  // Both tags: unpublish clears `LIBRARY_TAG` and never the rank tag, so a day
+  // that left the library must drop out through the first; the hourly rank
+  // rewrite clears only the second.
+  return libraryCached(["discover", JSON.stringify(search)], [LIBRARY_TAG, DISCOVER_RANK_TAG], () =>
+    live.discoverFor(search, null),
+  );
 }
 
 /** Every place a published day touches: `playbooks.ts`'s `publishedPlaces`, cached. */
@@ -174,7 +179,11 @@ export function publishedDaysPage(
   filter: Parameters<typeof live.publishedDaysPage>[0],
   page: Parameters<typeof live.publishedDaysPage>[1],
 ): ReturnType<typeof live.publishedDaysPage> {
-  const tags = filter.authorId === undefined ? [LIBRARY_TAG] : [LIBRARY_TAG, authorTag(filter.authorId)];
+  // The rank tag too: these pages list by `top`, which the hourly rewrite moves.
+  const tags =
+    filter.authorId === undefined
+      ? [LIBRARY_TAG, DISCOVER_RANK_TAG]
+      : [LIBRARY_TAG, DISCOVER_RANK_TAG, authorTag(filter.authorId)];
   return libraryCached(["days", JSON.stringify(filter), JSON.stringify(page)], tags, () =>
     live.publishedDaysPage(filter, page),
   );

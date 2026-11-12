@@ -18,6 +18,7 @@ import { forgetCountrySearches } from "./places";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { enqueueDayChunksForEmbedding } from "./ai/queue";
+import { recomputeDiscoverRanks } from "./discoverRank";
 import { isUuid } from "./ids";
 import { invalidateDayRead, invalidatePublicDay } from "./libraryCache";
 import { parseSavedDayColumns } from "./savedDayRow";
@@ -422,6 +423,9 @@ export function newSavedDayRow(input: {
     // Moves with `visibility` and only with it (see `setSavedDayVisibility`):
     // a row that is public has a publish time, a row that is private has none.
     publishedAt: visibility === SavedDayVisibility.enum.public ? input.createdAt : null,
+    // The first publish, which is this row's creation when it is born public.
+    // `setSavedDayVisibility` sets it once and nothing clears it (M61 decision 11).
+    firstPublishedAt: visibility === SavedDayVisibility.enum.public ? input.createdAt : null,
     // Never deleted. Only `deleteSavedDay` ever moves this, and nothing moves
     // it back yet — the restore path the column exists for is a future button,
     // not a code path (see the schema note).
@@ -723,6 +727,12 @@ export async function setSavedDayVisibility(
         visibility === SavedDayVisibility.enum.public
           ? sql`coalesce(${savedDays.publishedAt}, ${at})`
           : null,
+      // Set once and never cleared, so Discover's new-day lift cannot be
+      // re-earned by unpublishing and publishing again (M61 decision 11).
+      // Unpublishing leaves it be: the column is simply not in this `set`.
+      ...(visibility === SavedDayVisibility.enum.public
+        ? { firstPublishedAt: sql`coalesce(${savedDays.firstPublishedAt}, ${at})` }
+        : {}),
     })
     // `deleted_at is null` as well as owner-scoped: a deleted day cannot be
     // published back into Discover. Without this an author could delete a day
@@ -743,6 +753,16 @@ export async function setSavedDayVisibility(
   forgetCitySearches();
   forgetCountrySearches();
   await invalidatePublicDay(savedDayId, ownerId);
+  // Placed in this request, so a new day is not unranked until the hour turns;
+  // a re-publish overwrites whatever stale row it left (ADR-090). The write has
+  // committed, so a failure here must not 500 it: the hourly run writes the row.
+  if (visibility === SavedDayVisibility.enum.public) {
+    try {
+      await recomputeDiscoverRanks({ savedDayId });
+    } catch (error) {
+      console.error("discover rank: publish-time recompute failed", { savedDayId, error: String(error) });
+    }
+  }
   const day = fromRow(updated[0]);
   if (day === null) {
     // `null` from here means "no such row of yours", and the route turns it
@@ -807,8 +827,8 @@ export type PlaybookEditOutcome =
  * is one atomic step. Name and summary may change while published: they
  * describe the content rather than being it.
  *
- * **A visibility-only edit bumps nothing**, and moves `published_at` exactly as
- * `setSavedDayVisibility` does. `expectedVersion`, if sent with one, is still
+ * **A visibility-only edit bumps nothing**, and moves `published_at` and
+ * `first_published_at` exactly as `setSavedDayVisibility` does. `expectedVersion`, if sent with one, is still
  * honoured as a precondition.
  *
  * When nothing matched, the row is re-read under the same owner scope to say
@@ -861,6 +881,12 @@ export async function updatePlaybookContent(
       edit.visibility === SavedDayVisibility.enum.public
         ? sql`coalesce(${savedDays.publishedAt}, ${new Date(now)})`
         : null;
+    // `setSavedDayVisibility`'s reason: set once, never cleared, so the new-day
+    // lift cannot be re-earned (M61 decision 11). This is the path behind
+    // `PATCH /v1/playbooks` and MCP's `publish_playbook`.
+    if (edit.visibility === SavedDayVisibility.enum.public) {
+      set.firstPublishedAt = sql`coalesce(${savedDays.firstPublishedAt}, ${new Date(now)})`;
+    }
   }
   if (content) set.version = sql`${savedDays.version} + 1`;
 
@@ -889,6 +915,15 @@ export async function updatePlaybookContent(
     // browser keeps and loops on once the cache catches up.
     const renamedInPublic = edit.name !== undefined && updated[0].visibility === SavedDayVisibility.enum.public;
     if (edit.visibility !== undefined || renamedInPublic) await invalidatePublicDay(savedDayId, ownerId);
+    // `setSavedDayVisibility`'s rule: placed in this request, and a failure is
+    // logged, not thrown, because the write has committed.
+    if (edit.visibility === SavedDayVisibility.enum.public) {
+      try {
+        await recomputeDiscoverRanks({ savedDayId });
+      } catch (error) {
+        console.error("discover rank: publish-time recompute failed", { savedDayId, error: String(error) });
+      }
+    }
     const day = fromRow(updated[0]);
     // `setSavedDayVisibility`'s reason: the UPDATE has committed, so "not
     // found" would be a lie about a row that is there.
