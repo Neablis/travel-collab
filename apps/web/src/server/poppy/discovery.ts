@@ -1,6 +1,6 @@
 import { API_SCOPES, SCOPE_CATALOGUE, SCOPE_HINTS } from "@tc/contracts";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
-import { mcpResource } from "@/server/oauth/metadata";
+import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
 
 // **`/.well-known/poppy.json`** (Personal Agent Protocol draft 0.4, spec 3;
 // ADR-089 decisions 1, 2 and 9). What a Personal Agent reads before it will talk
@@ -29,6 +29,10 @@ export function poppyDocument() {
     protocol_version: POPPY_PROTOCOL_VERSION,
     organization: { name: "Caesura", domain: new URL(origin).host },
     auth: {
+      // The issuer is the one the OAuth metadata publishes too; naming it
+      // here lets a Personal Agent that only reads poppy.json find the token
+      // endpoint (draft 0.2 requires it, 0.4 leaves it optional).
+      issuer: oauthIssuer(),
       // `auth.scopes` takes the catalogue's sentences, so the consent screen,
       // openapi and this document cannot describe a scope differently.
       // `offline_access` is in `scopes_supported` too, so it needs a sentence of its own.
