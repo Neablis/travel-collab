@@ -33,20 +33,21 @@ export function metadataJson(body: unknown): Response {
   return Response.json(body, { headers: { "Cache-Control": "public, max-age=300", ...CORS } });
 }
 
-/** How long a client is told to wait after `storeUnavailable`. */
-const STORE_RETRY_AFTER_SECONDS = 30;
-
 /**
- * The answer when a handler throws: `503 temporarily_unavailable` with
- * `Retry-After`, never the platform's bare 500 with an empty body. A client can
- * then tell "the server broke" from "my request was wrong" (`400
- * invalid_client_metadata`, `invalid_request`), and retry only the first.
- * Found on production, 2026-11-11 (KI-2026-11-11-a): migration 0075 was pending,
- * every registration insert threw, and agents got an empty 500.
+ * The answer when a handler throws: `500 server_error` in RFC 6749 §5.2's JSON
+ * shape, never the platform's bare 500 with an empty body, so a client can tell
+ * "the server broke" from "my request was wrong" (`invalid_client_metadata`,
+ * `invalid_request`). The same answer `/api/v1` and `/api/mcp` give a throw.
+ *
+ * **No `Retry-After`, and not a 503, on purpose.** A throw is usually not
+ * transient (a pending migration, a missing secret, a bug), and the token
+ * endpoint spends a code or refresh token before it stores the new pair: a
+ * client told to retry would present a spent secret and have its grant cut off
+ * as reuse (KI-2026-11-12-a). 503 stays for the quota store being down.
+ * Found on production, 2026-11-11 (KI-2026-11-11-a): migration 0075 was
+ * pending, every OAuth query threw, and clients got an empty 500.
  */
-export function storeUnavailable(endpoint: string, error: unknown): Response {
+export function handlerFailed(endpoint: string, error: unknown): Response {
   console.error(`oauth ${endpoint} threw`, { error });
-  const refusal = oauthError("temporarily_unavailable", "the server could not complete this request; try again shortly", 503);
-  refusal.headers.set("Retry-After", String(STORE_RETRY_AFTER_SECONDS));
-  return refusal;
+  return oauthError("server_error", "the server could not complete this request", 500);
 }

@@ -80,13 +80,13 @@ async function freshCode(): Promise<{ code: string; clientId: string }> {
 }
 
 describe("POST /api/oauth/token", () => {
-  it("answers 503 temporarily_unavailable with a JSON body and Retry-After when the store throws, never an empty 500", async () => {
+  it("answers 500 server_error with a JSON body and no Retry-After when the store throws, never an empty 500", async () => {
     store.fail = true;
     try {
       const res = await form({ grant_type: "refresh_token", refresh_token: "tc_oauth_r_x", client_id: randomUUID() });
-      expect(res.status).toBe(503);
-      expect(res.headers.get("retry-after")).toBe("30");
-      expect(await res.json()).toEqual(expect.objectContaining({ error: "temporarily_unavailable" }));
+      expect(res.status).toBe(500);
+      expect(res.headers.get("retry-after")).toBeNull();
+      expect(await res.json()).toEqual(expect.objectContaining({ error: "server_error" }));
     } finally {
       store.fail = false;
     }

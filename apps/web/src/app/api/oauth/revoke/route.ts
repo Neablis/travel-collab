@@ -1,4 +1,4 @@
-import { oauthError, oauthJson, preflight } from "@/server/oauth/errors";
+import { handlerFailed, oauthError, oauthJson, preflight } from "@/server/oauth/errors";
 import { revokeSecret } from "@/server/oauth/tokens";
 
 // **RFC 7009 revocation: `POST /api/oauth/revoke`.** Always 200, whatever was
@@ -8,6 +8,14 @@ import { revokeSecret } from "@/server/oauth/tokens";
 
 /** Revoke an access or refresh token; 200 whatever was sent. */
 export async function POST(request: Request) {
+  try {
+    return await revoke(request);
+  } catch (error) {
+    return handlerFailed("revoke", error);
+  }
+}
+
+async function revoke(request: Request): Promise<Response> {
   const form = new URLSearchParams(await request.text().catch(() => ""));
   const token = form.get("token");
   if (token !== null) {

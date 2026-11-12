@@ -1,5 +1,5 @@
 import { clientIp } from "@/server/og/limit";
-import { oauthError, oauthJson, preflight, storeUnavailable } from "@/server/oauth/errors";
+import { oauthError, oauthJson, preflight, handlerFailed } from "@/server/oauth/errors";
 import { exchangeCode, refresh } from "@/server/oauth/tokens";
 
 // **The token endpoint: `POST /api/oauth/token`** (RFC 6749 §3.2). Form-encoded
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   try {
     return await exchange(request);
   } catch (error) {
-    return storeUnavailable("token", error);
+    return handlerFailed("token", error);
   }
 }
 

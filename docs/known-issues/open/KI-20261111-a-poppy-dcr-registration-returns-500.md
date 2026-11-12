@@ -11,9 +11,9 @@
   that set.
 - **Area:** `apps/web/drizzle/0075_agent_sessions.sql` (pending in production),
   `.github/workflows/migrate-production.yml`, `.github/workflows/migration-pending.yml`;
-  `apps/web/src/app/api/oauth/register/route.ts` and `apps/web/src/app/api/oauth/token/route.ts`
-  (had no catch, so a throw became an empty 500); `apps/web/src/server/oauth/errors.ts`
-  (`storeUnavailable`).
+  `apps/web/src/app/api/oauth/register/route.ts`, `apps/web/src/app/api/oauth/token/route.ts` and
+  `apps/web/src/app/api/oauth/revoke/route.ts` (had no catch, so a throw became an empty 500);
+  `apps/web/src/server/oauth/errors.ts` (`handlerFailed`).
 - **Symptom / What happens:** `POST https://caesura.today/api/oauth/register` returns HTTP 500
   with an empty body for every registration shape, from the M60 deploy onward. Last known good
   2026-11-09 (probe client `1c436920-1f7b-4714-ae1b-afcbd7aa71f6`, 201).
@@ -46,11 +46,14 @@
 
   So the 2026-11-11 walkthrough never reached Poppy proper: with no agent identity, Session
   header or `Poppy-Version`, it exercised plain OAuth and MCP only.
-- **Fixed in code (this branch):** the register and token routes catch a throw and answer
-  `503 temporarily_unavailable` with `Retry-After: 30` and an RFC 6749 JSON body, logging the
-  error, instead of an empty 500. Regression tests in both routes' `route.int.test.ts`
-  (store-failure 503, and the walkthrough's four registration shapes answering 201), each seen
-  red with the catch removed.
+- **Fixed in code (PR 729):** the register, token and revocation routes catch a throw and
+  answer `500 server_error` in RFC 6749's JSON shape, logging the error, instead of an empty
+  500 (`handlerFailed`). Deliberately not a 503 with `Retry-After`: a throw is rarely
+  transient, and a retried token request could present a spent secret (KI-2026-11-12-a).
+  Each route's `route.int.test.ts` has a store-failure test, seen red with the catch removed.
+  `register/route.int.test.ts` also pins three of the walkthrough's four registration shapes
+  answering 201 (the fourth is the existing https test); those pass with or without the catch
+  and guard the request shapes, not the fix.
 - **Why still open:** the outage itself ends only when `migrate-production` is dispatched
   (manual by design, ADR-004). Then, for the proof line: `migration-pending` re-run green; a
   minimal registration on production answers 201; Claude's connector answers `tools/list`; and
@@ -58,6 +61,6 @@
   identity, then discovery → signed-out Discover with a Session header → CIMD sign-in → token →
   MCP `initialize` + `tools/list`) passes.
 - **Cross-reference:** KI-2026-09-05-k (the migration-pending detector), KI-20261027-h,
-  ADR-083 §6, ADR-089, KI-2026-11-08 (stale Vercel mentions). API 2.5.0.
+  ADR-083 §6, ADR-089 (on PR 712's branch until it merges), KI-2026-11-12-a, KI-2026-11-08 (stale Vercel mentions). API 2.5.0.
 - **First noted:** 2026-11-11, fresh-agent Poppy test by Sunny (Muse) at Mitchell's request;
   diagnosed 2026-11-12.

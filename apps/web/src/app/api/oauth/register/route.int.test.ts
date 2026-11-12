@@ -49,7 +49,7 @@ describe("POST /api/oauth/register", () => {
     );
   });
 
-  // The four shapes the fresh-agent test sent on 2026-11-11 (KI-2026-11-11-a), each of which got an empty 500.
+  // Three of the four shapes the fresh-agent test sent on 2026-11-11 (KI-2026-11-11-a), each of which got an empty 500; the fourth, an https redirect, is the 201 test above.
   it.each([
     [
       "the full body",
@@ -64,19 +64,18 @@ describe("POST /api/oauth/register", () => {
     ],
     ["the minimal body", { client_name: "Fresh agent", redirect_uris: ["http://127.0.0.1:8976/callback"] }],
     ["a code-only grant with no scope", { redirect_uris: ["http://127.0.0.1:8976/callback"], grant_types: ["authorization_code"] }],
-    ["an https redirect", { client_name: "Fresh agent", redirect_uris: ["https://agent.example/callback"] }],
   ])("answers 201 for %s", async (_case, body) => {
     const res = await register(body);
     expect(res.status).toBe(201);
     expect((await res.json()).client_id).toEqual(expect.any(String));
   });
 
-  it("answers 503 temporarily_unavailable with a JSON body and Retry-After when the store throws, never an empty 500", async () => {
+  it("answers 500 server_error with a JSON body and no Retry-After when the store throws, never an empty 500", async () => {
     store.fail = true;
     const res = await register({ client_name: "Fresh agent", redirect_uris: ["http://127.0.0.1:8976/callback"] });
-    expect(res.status).toBe(503);
-    expect(res.headers.get("retry-after")).toBe("30");
-    expect(await res.json()).toEqual(expect.objectContaining({ error: "temporarily_unavailable" }));
+    expect(res.status).toBe(500);
+    expect(res.headers.get("retry-after")).toBeNull();
+    expect(await res.json()).toEqual(expect.objectContaining({ error: "server_error" }));
   });
 
   it.each([

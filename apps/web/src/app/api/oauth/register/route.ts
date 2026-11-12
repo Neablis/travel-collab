@@ -1,6 +1,6 @@
 import { clientIp, scheduleSweep } from "@/server/og/limit";
 import { registerClient } from "@/server/oauth/clients";
-import { oauthError, oauthJson, preflight, storeUnavailable } from "@/server/oauth/errors";
+import { oauthError, oauthJson, preflight, handlerFailed } from "@/server/oauth/errors";
 import { consumeQuota, oauthRegisterQuota, sweepExpiredCounters } from "@/server/quota";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   try {
     return await register(request);
   } catch (error) {
-    return storeUnavailable("register", error);
+    return handlerFailed("register", error);
   }
 }
 
