@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "./db/client";
 import { savedDayAdds, savedDayRanks, savedDayReviews, savedDays } from "./db/schema";
-import { recomputeDiscoverRanks } from "./discoverRank";
+import { recomputeDiscoverRanks, topDiscoverRanks } from "./discoverRank";
 import { setSavedDayVisibility, updatePlaybookContent } from "./savedDays";
 
 // M61 part 1's gate boxes: *each signal moves a day the right way*, *stars
@@ -382,5 +382,33 @@ describe("which days are scored", () => {
     await recomputeDiscoverRanks({ savedDayId: a, now: ahead(1) });
     const ids = (await db.select().from(savedDayRanks)).map((r) => r.savedDayId);
     expect(ids).toEqual([b]);
+  });
+});
+
+// M61 part 5: the operator's read. It must order by score and show only days
+// the library lists, so a day that has left it never appears in the tab.
+describe("topDiscoverRanks", () => {
+  it("orders by score and leaves out days the library no longer lists (deleted, moderated, private)", async () => {
+    const low = await day();
+    const high = await day();
+    const gone = await day();
+    const hidden = await day();
+    const unpublished = await day();
+    await addedBy(high, [{ by: "a", at: NOW }, { by: "b", at: NOW }]);
+    await addedBy(low, [{ by: "c", at: NOW }]);
+    await addedBy(gone, [{ by: "d", at: NOW }, { by: "e", at: NOW }, { by: "f", at: NOW }]);
+    await addedBy(hidden, [{ by: "g", at: NOW }, { by: "h", at: NOW }, { by: "i", at: NOW }]);
+    await addedBy(unpublished, [{ by: "j", at: NOW }, { by: "k", at: NOW }, { by: "l", at: NOW }]);
+    await recomputeDiscoverRanks({ now: NOW });
+    // Leaves the library after its row was written, as between two cron runs.
+    await setSavedDayVisibility(unpublished, "owner", "private", NOW.toISOString());
+    await db.update(savedDays).set({ deletedAt: NOW }).where(eq(savedDays.id, gone));
+    await db.update(savedDays).set({ moderatedAt: NOW }).where(eq(savedDays.id, hidden));
+
+    const rows = await topDiscoverRanks(50);
+    expect(rows.map((r) => r.savedDayId)).toEqual([high, low]);
+    expect(rows[0]!.score).toBeGreaterThan(rows[1]!.score);
+    expect(rows[0]).toMatchObject({ title: "A day", addsRecent: expect.any(Number), computedAt: expect.any(String) });
+    expect(await topDiscoverRanks(1)).toHaveLength(1);
   });
 });
