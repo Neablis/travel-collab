@@ -19,8 +19,8 @@ describe("poppyDocument", () => {
     const doc = poppyDocument();
     expect(doc.protocol_version).toBe("0.4");
     expect(doc.organization).toMatchObject({ domain: "caesura.today", name: "Caesura" });
-    // The issuer is the same one the OAuth metadata publishes; a validator
-    // that only reads poppy.json derives the token endpoint from it.
+    // Spec 0.4 §3.1: when present, auth.issuer MUST name the one server the
+    // protected resource metadata lists, which is the OAuth issuer.
     expect(doc.auth.issuer).toBe("https://caesura.today");
     expect(doc.auth.scopes).toMatchObject(
       Object.fromEntries(API_SCOPES.map((scope) => [scope, SCOPE_CATALOGUE[scope].description])),

@@ -29,9 +29,12 @@ export function poppyDocument() {
     protocol_version: POPPY_PROTOCOL_VERSION,
     organization: { name: "Caesura", domain: new URL(origin).host },
     auth: {
-      // The issuer is the one the OAuth metadata publishes too; naming it
-      // here lets a Personal Agent that only reads poppy.json find the token
-      // endpoint (draft 0.2 requires it, 0.4 leaves it optional).
+      // Optional in 0.4 with one authorization server, and when present it MUST
+      // name that server (§3.1): the protected resource metadata's only
+      // `authorization_servers` entry, which is `oauthIssuer()` too. Naming it
+      // lets an agent check the issuer before fetching that metadata. It does
+      // not make the document usable by a 0.2 agent: before 1.0 an agent must
+      // not use a document whose `major.minor` it does not implement (§3.4).
       issuer: oauthIssuer(),
       // `auth.scopes` takes the catalogue's sentences, so the consent screen,
       // openapi and this document cannot describe a scope differently.
