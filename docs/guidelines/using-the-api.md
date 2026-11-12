@@ -830,7 +830,7 @@ review count, `ownerId`. Open one with `GET /v1/playbooks/{playbookId}`.
 | `country` | One ISO alpha-2 code. With `city`, a Playbook touching either matches |
 | `length` | `one`, `two-three`, `four-six`, `seven-plus` |
 | `rating` | Minimum average: `3`, `4`, `4.5`; any floor drops unrated Playbooks |
-| `sort` | `most-added` (default), `highest-rated`, `most-reviewed`, `newest`. Places matched rank first, as in the app |
+| `sort` | `most-added` (default, unchanged), `highest-rated`, `most-reviewed`, `newest`, `top` (the app's own Discover order). Places matched rank first, as in the app |
 
 Paged like every collection (`limit` 1–200, `nextCursor`). The cursor is the
 last card's id, and the next page is what ranks after that Playbook **now** — so

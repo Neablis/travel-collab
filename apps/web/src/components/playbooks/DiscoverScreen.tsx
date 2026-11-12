@@ -54,6 +54,7 @@ const SCOPES: readonly { value: DiscoverScope; label: string }[] = [
 // The design's `SORT_DEF` order. The rating-based two rank unrated days last
 // rather than dropping them — a sort orders and never hides (§33.2).
 const SORTS: readonly { value: DiscoverSort; label: string }[] = [
+  { value: "top", label: "Top" },
   { value: "most-added", label: "Most added" },
   { value: "highest-rated", label: "Highest rated" },
   { value: "most-reviewed", label: "Most reviewed" },
@@ -69,6 +70,8 @@ function collectionTitle(scope: DiscoverScope, sort: DiscoverSort): string {
   if (scope === "yours") return "Days you kept from your trips";
   if (scope === "saved") return "Days you have taken into a trip";
   switch (sort) {
+    case "top":
+      return "Worth borrowing right now";
     case "most-added":
       return "The days people keep adding to their trips";
     case "highest-rated":

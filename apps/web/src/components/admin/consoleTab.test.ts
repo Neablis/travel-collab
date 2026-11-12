@@ -14,6 +14,7 @@ describe("resolveConsoleTab", () => {
       "ai",
       "personas",
       "agents",
+      "discover-rank",
     ]);
   });
 
@@ -35,9 +36,14 @@ describe("resolveConsoleTab", () => {
     expect(resolveConsoleTab("personas")).toBe("personas");
   });
 
-  it("labels the sixth tab Agents, last (M60 part 4)", () => {
-    expect(CONSOLE_TABS.at(-1)).toEqual({ value: "agents", label: "Agents" });
+  it("labels the sixth tab Agents (M60 part 4)", () => {
+    expect(CONSOLE_TABS[5]).toEqual({ value: "agents", label: "Agents" });
     expect(resolveConsoleTab("agents")).toBe("agents");
+  });
+
+  it("labels the seventh tab Discover rank, last (M61 part 5)", () => {
+    expect(CONSOLE_TABS.at(-1)).toEqual({ value: "discover-rank", label: "Discover rank" });
+    expect(resolveConsoleTab("discover-rank")).toBe("discover-rank");
   });
 
   it("takes the first of a repeated param", () => {

@@ -208,6 +208,7 @@ describe("Discover", () => {
   // M50 part 6: the grid has a title a person would write, chosen by what the
   // list is (the sort, or whose days).
   it.each([
+    ["everyone", "top", "Worth borrowing right now"],
     ["everyone", "most-added", "The days people keep adding to their trips"],
     ["everyone", "highest-rated", "Rated best by the people who went"],
     ["everyone", "most-reviewed", "The days with the most said about them"],
@@ -246,13 +247,13 @@ describe("Discover", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
     expect(
-      await screen.findByRole("heading", { level: 2, name: "The days people keep adding to their trips" }),
+      await screen.findByRole("heading", { level: 2, name: "Worth borrowing right now" }),
     ).toBeTruthy();
 
     searchPlaybooksMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom" } });
     await user.click(screen.getByRole("tab", { name: "Saved" }));
     expect(await screen.findByTestId("library-sync-failure")).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 2, name: "The days people keep adding to their trips" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Worth borrowing right now" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Days you have taken into a trip" })).toBeNull();
   });
 
@@ -316,7 +317,7 @@ describe("Discover", () => {
   // rating and a review count. Each one has to REACH the endpoint — a menu
   // offering "Highest rated" that sent `most-added` would look right and order
   // wrong — and the trigger on the results sentence reads back the choice.
-  it("offers all four sorts on the results sentence, and each one reaches the endpoint", async () => {
+  it("offers all five sorts on the results sentence, and each one reaches the endpoint", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
     await screen.findByTestId("discover-results");
@@ -326,6 +327,8 @@ describe("Discover", () => {
       ["most-reviewed", "Most reviewed"],
       ["newest", "Newest"],
       ["most-added", "Most added"],
+      // Last: Top is the default, so choosing it first would change nothing.
+      ["top", "Top"],
     ] as const;
     for (const [value, label] of sorts) {
       await user.click(screen.getByTestId("discover-sort"));
@@ -338,6 +341,25 @@ describe("Discover", () => {
       expect(screen.getByRole("button", { name: `Sort: ${label}` })).toBe(screen.getByTestId("discover-sort"));
     }
   });
+
+  // M61 decision 12: Top is the one default, on every scope, and Newest is
+  // always one choice away — "my latest first" on Yours is the Newest answer.
+  it.each(["everyone", "yours", "saved"] as const)(
+    "offers Newest on the %s scope, starting on Top, and it reaches the endpoint",
+    async (scope) => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(at({ scope }));
+      await screen.findByTestId("discover-results");
+      expect(screen.getByTestId("discover-sort").textContent).toBe("Top ▾");
+
+      await user.click(screen.getByTestId("discover-sort"));
+      await user.click(screen.getByTestId("discover-sort-newest"));
+      await waitFor(() =>
+        expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope, sort: "newest" })),
+      );
+      expect(screen.getByTestId("discover-sort").textContent).toBe("Newest ▾");
+    },
+  );
 
   // §35.5: Rating is the first group in the one *Filters* menu. Set, it is a
   // question like any other — it reaches the endpoint, counts toward the
@@ -1146,9 +1168,9 @@ describe("Discover place search", () => {
 // forbids the desktop's shape outright: a popover opening from a row of
 // popovers, on a screen where each one covers the list it is filtering.
 describe("the phone's one filter sheet", () => {
-  const openSheet = async () => {
+  const openSheet = async (initial?: Partial<DiscoverUrlState>) => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<DiscoverScreen />);
+    render(initial === undefined ? <DiscoverScreen /> : at(initial));
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     await user.click(screen.getByTestId("discover-phone-filters"));
@@ -1161,6 +1183,16 @@ describe("the phone's one filter sheet", () => {
     const sheet = screen.getByTestId("discover-filter-sheet");
     expect(within(sheet).getByTestId("sheet-budget-under200")).toBeTruthy();
     expect(within(sheet).getByTestId("sheet-length-two-three")).toBeTruthy();
+  });
+
+  // M61 decision 12: Newest is offered on every scope, and the sheet is where a
+  // phone reader picks a sort; the desktop menu's test cannot see this list.
+  it.each(["yours", "saved"] as const)("offers Newest on the %s scope too", async (scope) => {
+    const user = await openSheet({ scope });
+    await user.click(screen.getByTestId("sheet-sort-newest"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope, sort: "newest" })),
+    );
   });
 
   // Sort is a property of the list, and with only one place to put the

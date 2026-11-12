@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
-import { savedDays } from "@/server/db/schema";
+import { savedDayRanks, savedDays } from "@/server/db/schema";
+import * as discoverRank from "@/server/discoverRank";
 
 // Two actors, and the mechanism the exit gate's publish box is walked with:
 // `currentUserId` is reassigned between calls, so one test can be an author and
@@ -120,6 +121,60 @@ describe("publishing a saved day", () => {
     currentUserId = AUTHOR;
     const after = (await (await read(savedDayId)).json()) as { savedDay: { visibility: string } };
     expect(after.savedDay.visibility).toBe("public");
+  });
+});
+
+// M61 decision 6: a day is placed in the same request that publishes it, so it
+// does not sit unranked until the hour turns.
+describe("the Discover rank row", () => {
+  const rankRows = (savedDayId: string) =>
+    db.select().from(savedDayRanks).where(eq(savedDayRanks.savedDayId, savedDayId));
+
+  it("is written by the publish request itself", async () => {
+    const savedDayId = await saveOwnDay();
+    expect(await rankRows(savedDayId)).toHaveLength(0);
+
+    expect((await publish(savedDayId)).status).toBe(200);
+
+    expect(await rankRows(savedDayId)).toHaveLength(1);
+  });
+
+  it("is written again when an already-public day is published again", async () => {
+    const savedDayId = await saveOwnDay();
+    await publish(savedDayId);
+    await db.delete(savedDayRanks).where(eq(savedDayRanks.savedDayId, savedDayId));
+
+    expect((await publish(savedDayId)).status).toBe(200);
+
+    expect(await rankRows(savedDayId)).toHaveLength(1);
+  });
+
+  it("still answers 200, and logs, when the publish-time recompute fails", async () => {
+    const savedDayId = await saveOwnDay();
+    const recompute = vi.spyOn(discoverRank, "recomputeDiscoverRanks").mockRejectedValueOnce(new Error("rank down"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect((await publish(savedDayId)).status).toBe(200);
+      expect(logged).toHaveBeenCalledWith(
+        "discover rank: publish-time recompute failed",
+        expect.objectContaining({ savedDayId }),
+      );
+    } finally {
+      recompute.mockRestore();
+      logged.mockRestore();
+    }
+    expect(await publishedAtOf(savedDayId)).toBeInstanceOf(Date);
+  });
+
+  it("is not touched by unpublishing", async () => {
+    const savedDayId = await saveOwnDay();
+    await publish(savedDayId);
+    const before = await rankRows(savedDayId);
+    expect(before).toHaveLength(1);
+
+    expect((await unpublish(savedDayId)).status).toBe(200);
+
+    expect(await rankRows(savedDayId)).toEqual(before);
   });
 });
 

@@ -27,7 +27,7 @@ import { CityMatch } from "@/lib/cities";
  * above a 4.9 from forty only by accident of the tie-break. `most-reviewed` is
  * `review_count` descending. Both after the matched-city count, like the others.
  */
-export const DiscoverSort = z.enum(["most-added", "highest-rated", "most-reviewed", "newest"]);
+export const DiscoverSort = z.enum(["top", "most-added", "highest-rated", "most-reviewed", "newest"]);
 export type DiscoverSort = z.infer<typeof DiscoverSort>;
 
 /**

@@ -20,6 +20,20 @@ vi.mock("@/server/cache/redis", async (importOriginal) => {
   return { ...actual, getCache: () => shared.cache! };
 });
 
+// A switch for the store-failure test: `revokeSecret` throws as `grantOf` did in
+// production while migration 0075 was pending (KI-2026-11-11-a).
+const store = vi.hoisted(() => ({ fail: false }));
+vi.mock("@/server/oauth/tokens", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/oauth/tokens")>();
+  return {
+    ...real,
+    revokeSecret: (...args: Parameters<typeof real.revokeSecret>) => {
+      if (store.fail) throw new Error('column "token_endpoint_auth_method" does not exist');
+      return real.revokeSecret(...args);
+    },
+  };
+});
+
 async function agentGrant() {
   const agent = await makeTestAgent({ issuer: oauthIssuer() });
   const ownerId = `dev-${randomUUID()}`;
@@ -49,6 +63,17 @@ const revoke = (body: string) =>
   );
 
 describe("POST /api/oauth/revoke", () => {
+  it("answers 500 server_error with a JSON body when the store throws, never an empty 500", async () => {
+    store.fail = true;
+    try {
+      const res = await revoke(new URLSearchParams({ token: "tc_oauth_r_x" }).toString());
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual(expect.objectContaining({ error: "server_error" }));
+    } finally {
+      store.fail = false;
+    }
+  });
+
   it("answers 200 for an unknown token, a malformed one and none at all", async () => {
     for (const body of ["token=tcr_not-real", "token=whatever", ""]) {
       expect((await revoke(body)).status).toBe(200);

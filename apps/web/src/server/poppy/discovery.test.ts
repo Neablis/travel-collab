@@ -14,11 +14,14 @@ function production() {
 }
 
 describe("poppyDocument", () => {
-  it("carries the pinned version, the organization from the deployment origin, and the sign-in details", () => {
+  it("carries the pinned version, the organization from the deployment origin, the issuer, and the sign-in details", () => {
     production();
     const doc = poppyDocument();
     expect(doc.protocol_version).toBe("0.4");
     expect(doc.organization).toMatchObject({ domain: "caesura.today", name: "Caesura" });
+    // Spec 0.4 §3.1: when present, auth.issuer MUST name the one server the
+    // protected resource metadata lists, which is the OAuth issuer.
+    expect(doc.auth.issuer).toBe("https://caesura.today");
     expect(doc.auth.scopes).toMatchObject(
       Object.fromEntries(API_SCOPES.map((scope) => [scope, SCOPE_CATALOGUE[scope].description])),
     );
@@ -51,6 +54,7 @@ describe("poppyDocument", () => {
     vi.stubEnv("VERCEL_BRANCH_URL", "travel-collab-git-m60.example.app");
     const doc = poppyDocument();
     expect(doc.organization.domain).toBe("travel-collab-git-m60.example.app");
+    expect(doc.auth.issuer).toBe("https://travel-collab-git-m60.example.app");
     expect(doc.apis[0]!.url).toBe("https://travel-collab-git-m60.example.app/api/mcp");
   });
 });

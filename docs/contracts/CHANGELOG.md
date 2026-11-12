@@ -13,6 +13,16 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-11 — `sort=top` on `GET /v1/discover/playbooks` and `list_discover_playbooks` (M61 part 4; public API 2.6.0)
+- `openapi.json`: the `sort` query parameter gains the value `top`, the app's Discover rank order; the MCP tool's input
+  schema is derived from the same route, so it gains it too. **The default is unchanged** (`most-added`). `API_VERSION`
+  2.6.0 with a new `API_FINGERPRINT`. No schema in `packages/contracts` changed.
+- Consumers updated: `apps/web` (`server/public-api/discover.ts`, `openapi.ts`, `openapi.json`; `server/assistant/admission.ts`, which
+  accepts `top` and now defaults to it, as the route does; `server/ai/assistantPorts.ts`, which reads the library by
+  `top`). The MCP `list_discover_playbooks` tool serves the new value with no code change, its schema being derived
+  from the route's.
+- Breaking? no: a new enum value, optional, on a parameter that already had a default.
+
 ## 2026-11-09 — `AdminAgentReport`, and `AdminAgentList.reports`: reports in the Agents tab (M60 part 5)
 - **New schema** `AdminAgentReport` in `packages/contracts/src/adminAgents.ts` (`id`, `clientId`,
   `agentName`, `domain`, `task`, `description`, `createdAt`); **new required field** `reports` on `AdminAgentList`.

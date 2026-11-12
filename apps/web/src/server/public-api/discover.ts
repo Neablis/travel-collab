@@ -41,7 +41,7 @@ const Query = z.object({
   length: LengthBand.optional().describe("How many days: one, two-three, four-six or seven-plus. Default any."),
   rating: RatingFloor.optional().describe("Minimum average rating; any floor drops unrated Playbooks. Default any."),
   sort: DiscoverSort.optional().describe(
-    "Default most-added. Places matched always rank first. `newest` is the only sort whose order does not move as people add and review.",
+    "Default most-added; `top` is the app's own Discover order. Places matched always rank first. `newest` is the only sort whose order does not move as people add and review.",
   ),
 });
 type Query = z.infer<typeof Query>;

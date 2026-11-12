@@ -29,6 +29,12 @@ export const LIBRARY_CACHE_SECONDS = 86_400;
 /** The tag on everything that lists days: Discover, place pages and their lists, the sitemap, related days. */
 export const LIBRARY_TAG = "library";
 
+/**
+ * The tag on Discover's ranked (signed-out) page. The hourly rank rewrite
+ * clears it and nothing else: it moves the order, not any day's content.
+ */
+export const DISCOVER_RANK_TAG = "discover-rank";
+
 /** The tag on one day's cached read and on its preview card. */
 export const dayTag = (savedDayId: string): string => `day:${savedDayId}`;
 
@@ -99,6 +105,16 @@ export function invalidatePublicDays(days: readonly { savedDayId: string; ownerI
   return clear([...tags, LIBRARY_TAG]);
 }
 
+/**
+ * Take the ranked Discover page out of the cache, after `saved_day_ranks` was
+ * rewritten. Throws, unlike the other invalidators: its one caller is the cron,
+ * which has no author to mislead and should fail loudly, not report a success
+ * while the page keeps the old order for a day.
+ */
+export function invalidateDiscoverRank(): Promise<void> {
+  return clearOrThrow([DISCOVER_RANK_TAG]);
+}
+
 // The library names people (ADR-061 decision 4), and someone who changed the
 // name it shows, perhaps to take their real one out, should not see the old one
 // on the next page.
@@ -128,13 +144,18 @@ export function invalidateDayRead(savedDayId: string, ownerId: string): Promise<
 // `readAt` (`publicLibrary.ts`), for a list by its day. Still async, and still
 // returned by every writer's `await`, so the signature does not change if a
 // purge is ever put back.
-async function clear(tags: string[]): Promise<void> {
+async function clearOrThrow(tags: string[]): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
+  const { revalidateTag } = await nextCache();
+  // `{ expire: 0 }`: gone now. A profile such as "max" would serve the old
+  // entry once while it refreshed.
+  for (const tag of tags) revalidateTag(tag, { expire: 0 });
+}
+
+// Every writer's clear: the write has committed, so a failure is logged.
+async function clear(tags: string[]): Promise<void> {
   try {
-    const { revalidateTag } = await nextCache();
-    // `{ expire: 0 }`: gone now. A profile such as "max" would serve the old
-    // entry once while it refreshed.
-    for (const tag of tags) revalidateTag(tag, { expire: 0 });
+    await clearOrThrow(tags);
   } catch (error) {
     // It throws outside a request, during a render, and inside
     // `unstable_cache` or "use cache"; no writer calls it from any of those.

@@ -13,10 +13,21 @@
 // refusal, and pace the vendor.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLocationIQGeocoder } from "../geocoding/locationiq";
-import { createPlaceSearchPort, placeSearchPort } from "./assistantPorts";
+import { createPlaceSearchPort, placeSearchPort, playbookLibrary } from "./assistantPorts";
 import { MIN_INTERVAL_MS } from "./rateLimit";
 
+// The library read is one call; what it must say is its sort, so the module is stubbed at that call.
+const discoverDays = vi.hoisted(() => vi.fn(async () => ({ days: [] })));
+vi.mock("@/server/playbooks", () => ({ discoverDays }));
+
 afterEach(() => vi.unstubAllGlobals());
+
+describe("playbookLibrary", () => {
+  it("reads the library in Discover's default order, top", async () => {
+    await playbookLibrary.discover({ cities: ["Rome"], readerId: "u1" } as never);
+    expect(discoverDays).toHaveBeenCalledWith(expect.objectContaining({ sort: "top" }));
+  });
+});
 
 const REGION = { minLat: 42, maxLat: 44, minLng: -80, maxLng: -78 };
 
