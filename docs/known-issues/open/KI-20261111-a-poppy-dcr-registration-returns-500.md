@@ -60,11 +60,15 @@
   `201` (probe client `8ca1182f-544b-402c-9fe1-54cec726b6b0`, debris, expires unused);
   `POST /api/oauth/token` with an unknown refresh token answered `400 invalid_grant` (it reached
   `grantOf`'s table without throwing); `POST /api/mcp` without a token answered `401`.
-- **Why still open:** two proofs left. Claude's connector answering `tools/list` again (not
-  checkable from the session that diagnosed this, whose connector status was cached before the
-  migration); and a real Poppy walkthrough (ADR-089 decision 13: the kit's validator with its `keygen`
-  identity, then discovery → signed-out Discover with a Session header → CIMD sign-in → token →
-  MCP `initialize` + `tools/list`) passes.
+- **Claude's connector, 2026-11-12 ~02:17 UTC:** a Claude Code session's Caesura MCP connector,
+  which had failed to connect before the migration, reconnected; `whoami` answered (premium plan,
+  `api.tokens` entitled) and `list_discover_playbooks` returned a page. That is the full OAuth
+  path that threw during the outage: access token → `grantOf` → the block check → MCP dispatch.
+- **Why still open:** one proof left, the real Poppy walkthrough (ADR-089 decision 13: the
+  kit's validator with its `keygen` identity, then discovery → signed-out Discover with a
+  Session header → CIMD sign-in → token → MCP `initialize` + `tools/list`). It needs a PR
+  preview, and PR 729's preview build failed on Coolify for a reason not visible from the
+  session (the branch builds locally).
 - **Cross-reference:** KI-2026-09-05-k (the migration-pending detector), KI-20261027-h,
   ADR-083 §6, ADR-089 (on PR 712's branch until it merges), KI-2026-11-12-a, KI-2026-11-08 (stale Vercel mentions). API 2.5.0.
 - **First noted:** 2026-11-11, fresh-agent Poppy test by Sunny (Muse) at Mitchell's request;
