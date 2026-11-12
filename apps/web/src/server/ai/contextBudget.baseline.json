@@ -142,10 +142,10 @@
         "hand_off",
         "request_change_tools"
       ],
-      "toolChars": 11014,
+      "toolChars": 11007,
       "instructionChars": 3500,
-      "totalChars": 14514,
-      "approxTokens": 4385
+      "totalChars": 14507,
+      "approxTokens": 4383
     },
     "trip · edit · switched to discover": {
       "tools": [
@@ -173,10 +173,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 26679,
+      "toolChars": 26672,
       "instructionChars": 4930,
-      "totalChars": 31609,
-      "approxTokens": 9550
+      "totalChars": 31602,
+      "approxTokens": 9547
     },
     "trip · plan · switched to discover": {
       "tools": [
@@ -201,10 +201,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 25620,
+      "toolChars": 25613,
       "instructionChars": 5237,
-      "totalChars": 30857,
-      "approxTokens": 9322
+      "totalChars": 30850,
+      "approxTokens": 9320
     },
     "page · compose": {
       "tools": [
@@ -238,10 +238,10 @@
         "show_options",
         "hand_off"
       ],
-      "toolChars": 10440,
+      "toolChars": 10433,
       "instructionChars": 2500,
-      "totalChars": 12940,
-      "approxTokens": 3909
+      "totalChars": 12933,
+      "approxTokens": 3907
     },
     "account · question": {
       "tools": [
@@ -333,8 +333,8 @@
       "approxTokens": 266
     },
     "search_playbooks": {
-      "chars": 877,
-      "approxTokens": 265
+      "chars": 870,
+      "approxTokens": 263
     },
     "read_trip": {
       "chars": 861,
