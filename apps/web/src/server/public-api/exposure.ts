@@ -208,6 +208,15 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "The weekly tier rollup — runs on Vercel Cron's secret, never on an API token",
     reaches: [{ module: "@/server/entitlements/tierRollup" }, { module: "@/server/cronAuth" }],
   },
+  "cron/discover-rank": {
+    status: "never",
+    why: "The discover-rank recompute — runs on Vercel Cron's secret, never on an API token",
+    reaches: [
+      { module: "@/server/discoverRank" },
+      { module: "@/server/libraryCache" },
+      { module: "@/server/cronAuth" },
+    ],
+  },
   "account/referrals": {
     status: "never",
     why: "Referrals grant plan time; scripted, they can be gamed (Mitchell, 2026-09-30)",
