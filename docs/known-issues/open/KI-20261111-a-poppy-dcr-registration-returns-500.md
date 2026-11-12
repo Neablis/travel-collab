@@ -54,10 +54,15 @@
   `register/route.int.test.ts` also pins three of the walkthrough's four registration shapes
   answering 201 (the fourth is the existing https test); those pass with or without the catch
   and guard the request shapes, not the fix.
-- **Why still open:** the outage itself ends only when `migrate-production` is dispatched
-  (manual by design, ADR-004). Then, for the proof line: `migration-pending` re-run green; a
-  minimal registration on production answers 201; Claude's connector answers `tools/list`; and
-  a real Poppy walkthrough (ADR-089 decision 13: the kit's validator with its `keygen`
+- **Outage ended 2026-11-12 02:07 UTC:** `migrate-production` run 43139104139 (from `main`,
+  `19be89e`) succeeded, and `migration-pending` run 43139230089 then passed (production has
+  0075). On production right after: `POST /api/oauth/register` with the minimal body answered
+  `201` (probe client `8ca1182f-544b-402c-9fe1-54cec726b6b0`, debris, expires unused);
+  `POST /api/oauth/token` with an unknown refresh token answered `400 invalid_grant` (it reached
+  `grantOf`'s table without throwing); `POST /api/mcp` without a token answered `401`.
+- **Why still open:** two proofs left. Claude's connector answering `tools/list` again (not
+  checkable from the session that diagnosed this, whose connector status was cached before the
+  migration); and a real Poppy walkthrough (ADR-089 decision 13: the kit's validator with its `keygen`
   identity, then discovery → signed-out Discover with a Session header → CIMD sign-in → token →
   MCP `initialize` + `tools/list`) passes.
 - **Cross-reference:** KI-2026-09-05-k (the migration-pending detector), KI-20261027-h,
