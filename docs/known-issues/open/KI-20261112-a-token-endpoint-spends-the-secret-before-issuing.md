@@ -18,6 +18,6 @@
   in one `db.transaction`, passing the `tx` through, so a failed issue leaves the secret
   unspent. Test: make `issueTokens` throw once, then retry the same code or refresh token, and
   expect 200 rather than a revoked grant. Watch it fail first.
-- **Cross-reference:** KI-2026-11-11-a, ADR-083 §7 (rotation and reuse detection), RFC 9700
+- **Cross-reference:** KI-2026-11-11-a, ADR-083 decision 4 (Lifetimes: rotation and reuse detection), RFC 9700
   §4.14.2.
 - **First noted:** 2026-11-12, `part-reviewer` on PR 729.
