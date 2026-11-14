@@ -1,4 +1,4 @@
-### KI-2026-10-03-c — the assistant refuses a suggester with "You have view-only access to this trip."
+### KI-2026-10-03-c — the assistant refuses a suggester with "You have view-only access to this trip." — RESOLVED
 
 - **Severity:** cosmetic (copy). The refusal is correct — the assistant stays
   read-only for a suggester (spec §2.2) — but the words are a viewer's, and a
@@ -19,5 +19,13 @@
 - **Cross-reference:** spec `docs/specs/2026-10-03-suggester-role-design.md`
   §2.2, W8, W35; ADR-064; AGENTS.md invariant 7 (the assistant takes only
   paths the user could take — why it stays read-only here).
+- **Resolution (2026-11-14):** the wording the entry proposed. `TripBoardScreen.tsx` computes
+  one `readOnlyAssistantReason` from `boardMode` (about line 1230): "Suggesting doesn't include the
+  assistant yet." in suggest mode, today's "You have view-only access to this trip." otherwise. Both
+  the ask's refusal and `approvalBlockedReason` use it, so a viewer's sentence is unchanged. Proven
+  by `TripBoardScreen.test.tsx`, *refuses the assistant ask in a suggester's words, not a viewer's*,
+  seen red before the fix (`Expected: "Suggesting doesn't include the assistant yet."`, `Received:
+  "You have view-only access to this trip."`) and green after; the viewer's test beside it still
+  asserts the old sentence and passes. No e2e asserts either sentence.
 - **First noted:** 2026-10-03, while building the suggester role; moved here
   from the spec's §6 in that branch's review.

@@ -2666,6 +2666,27 @@ describe("TripBoardScreen — a suggester's board", () => {
     expect(await screen.findByText("No notebooks yet.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "New notebook" })).toBeNull();
   });
+
+  // KI-2026-10-03-c: the assistant stays read-only for a suggester (spec
+  // §2.2), but its refusal used to be the viewer's "view-only access" — to a
+  // member whose badge says Suggester and whose drags land in a draft.
+  it("refuses the assistant ask in a suggester's words, not a viewer's", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "suggester" }));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
+      target: { value: "Plan my afternoon" },
+    });
+    fireEvent.click(askButton());
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Suggesting doesn't include the assistant yet."),
+    );
+    expect(askAssistantMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
