@@ -549,8 +549,32 @@ function canPropose(options: CallOptionsLike): boolean {
 // Mitchell can click it.
 const PLAYBOOK_PROMPTS = /\bplaybook|\blibrary\b|\bsaved day|\bready-made\b|\bsomeone else's day\b/i;
 
+// **A request to FIND a day** — "find me a day in Kyoto and add it"
+// (KI-2026-09-08-c). It names no library concept, so `PLAYBOOK_PROMPTS` missed
+// it and the turn drafted an invented "Sample: coffee stop" that the card drew
+// exactly like a real library day: a plausible wrong answer where a miss was
+// due.
+//
+// Not a wider `PLAYBOOK_PROMPTS`, because that list is about NAMING the
+// library, and this is about the verb. Asking to find, get or look for a whole
+// day is the library's own phrase ("Find a day worth borrowing", "Find a day to
+// start with" on the landing): a day is not something a trip has lying around
+// to be found, except as a slot, and a slot is said with a qualifier ("a free
+// day", "an open day") or as time ("find time for lunch"), which the lookahead
+// leaves to the planning branch. "add a day in Kyoto" has no finding verb, so
+// it stays ADR-067's request for a new day filled with stops (`ADD_A_DAY`).
+// Both directions are asserted in `simulatedModel.test.ts`.
+const FIND_A_DAY =
+  /\b(?:find|get|look(?:ing)? for|search for)\s+(?:me\s+|us\s+)?(?:a|an|another|one|some)\s+(?!(?:free|open|empty|spare|quiet|quieter|clear)\b)(?:\w+\s+)?days?\b/i;
+
+/**
+ * Whether the request is for a day from the library: it names the library
+ * (`PLAYBOOK_PROMPTS`) or asks to find a day (`FIND_A_DAY`). Either way the
+ * turn searches, and proposes only a day the search returned; when there is
+ * none it says so rather than inventing stops in its place.
+ */
 function asksForAPlaybookDay(text: string): boolean {
-  return PLAYBOOK_PROMPTS.test(text);
+  return PLAYBOOK_PROMPTS.test(text) || FIND_A_DAY.test(text);
 }
 
 /**
@@ -666,9 +690,12 @@ const SIMULATED_PROPOSAL_NOTICE =
   "AI is switched off on this deployment, so I drafted this from your trip data rather than from a model.";
 
 // The honest fallback for a library with nothing to offer: a proposal is not
-// drafted, so this turn ends as prose with no card under it.
+// drafted, so this turn ends as prose with no card under it. It says where to
+// look instead, so a miss is a next step rather than a dead end — and it never
+// drafts sample stops in the day's place (KI-2026-09-08-c).
 const SIMULATED_NO_PLAYBOOK_ANSWER = [
   "I couldn't find a day in the playbook library to suggest for this trip.",
+  "I haven't drafted anything in its place. Discover lists every published day by city — search there, or ask me for a playbook day in a city this trip visits.",
   SIMULATED_PROPOSAL_NOTICE,
 ];
 
