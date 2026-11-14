@@ -38,7 +38,13 @@ pnpm lint && pnpm test` across every workspace package).
 
 4. **Otherwise, for each affected package, run only that package's own
    checks:**
-   - Typecheck: `pnpm --filter <pkg> typecheck`
+   - Typecheck: `pnpm --filter <pkg> typecheck`, except for `web`:
+     `pnpm --filter web exec tsc --noEmit --incremental false`.
+     `apps/web/tsconfig.json` sets `incremental`, so its `typecheck` script
+     reads and writes `apps/web/tsconfig.tsbuildinfo`. That file left by an
+     earlier checkout reported a false TS2305 after a merge (KI-2026-11-01-v).
+     `--incremental false` neither reads nor writes it. A full check costs
+     about a minute either way on a fresh worktree, which has no build info.
    - Lint: `pnpm --filter <pkg> lint`. Every workspace package has one since
      2026-09-25 (KI-2026-09-02-c): `web` lints with `apps/web/eslint.config.mjs`,
      the six `packages/*` with the root `eslint.config.mjs`. Touching either

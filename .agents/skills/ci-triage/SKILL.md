@@ -44,11 +44,19 @@ A lone `test / unit` red used to be one too, until fast-check's seed was pinned
 
 The job log is unreadable from here: the API redirects to a blob host the proxy refuses
 (KI-2026-10-13-f). The check run's annotations carry the failing step and, for typecheck,
-lint and the vitest reporters, the file and line:
+lint, the vitest reporters and Playwright's `github` reporter, the file and line. Print the
+title too: a Playwright or wrapper annotation names the failing test there.
 
 ```
-gh api $R/check-runs/<check_run_id>/annotations --jq '.[] | "\(.path):\(.start_line) \(.annotation_level) \(.message)"'
+gh api $R/check-runs/<check_run_id>/annotations --jq '.[] | "\(.path):\(.start_line) \(.annotation_level) [\(.title)] \(.message)"'
 ```
+
+Don't look for the step summary. Every test job writes its failure lines to
+`$GITHUB_STEP_SUMMARY` too, but GitHub serves that only on the run's web page: the check
+run's `output.summary` is `null` over REST (measured on `test / unit`, check run
+130854188487). The `<job> exited <n>` annotation holds the same lines. A step keeps only 10
+error annotations, so a shard with more than 10 failed tests can lose the wrapper's
+annotation, which comes last. The ones that remain still name 10 of the tests.
 
 When the annotations say only `Process completed with exit code 1`, go straight to §4 and
 reproduce the job with its own command: that output is the log you could not fetch. On a
@@ -66,13 +74,17 @@ which dumps every job.
 - **script-tests** (`pnpm test:scripts`): node:test; reproduce with the same command.
 - **integration** (`pnpm --filter web test:int`): vitest against Postgres. Its
   `github-actions` reporter annotates each failed test by name and line.
-- **unit, script-tests, integration** all run through `scripts/ci-failure-summary.sh`: a red
-  run carries one `<job> exited <n>` annotation holding the log's failure lines (test
-  names, the first error line, a crashed worker), so read that one before reproducing.
+- **unit, script-tests, integration, e2e** all run through `scripts/ci-failure-summary.sh`: a
+  red run carries one `<job> exited <n>` annotation holding the log's failure lines (test
+  names, the first error line, a crashed worker, Playwright's `N failed` tally), so read that
+  one before reproducing.
 - **e2e (1/2), e2e (2/2)**: two Playwright shards, split by spec file, each
   with its own build and database. Check both: one failing says nothing about
-  the other. Playwright runs with the `line` reporter (compact). Grep
-  for `✘` (or `failed`) to find failing test titles. On a laptop, a trace or
+  the other. On CI Playwright adds the `github` reporter to `line`. Each failed test is one
+  annotation: its title is `<spec>:<line>:<col> › <test title>` (the project may come first), and its message
+  holds the error and the code frame. A `Playwright Run Summary` notice gives the tally. If the
+  only annotation is `test / e2e (k/2) exited 1` and it has no test title, the run failed
+  outside any test: a web server that never came up, or a global setup that threw. On a laptop, a trace or
   screenshot is in that shard's artifact: `gh run download <run-id> -n
   playwright-report-1` (or `-2`), opened locally rather than read raw into
   context. From a cloud session the download is refused like the log
