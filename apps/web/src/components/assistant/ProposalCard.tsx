@@ -89,6 +89,55 @@ export function proposalWords(proposal: AssistantProposal): { title: string; det
   );
 }
 
+/**
+ * **Where the proposal's new things came from** (KI-2026-09-08-c), so a guess
+ * and a sourced answer stop looking alike on the card.
+ *
+ * Derived from what the proposal already carries rather than from a flag the
+ * model could set:
+ *
+ *   * `library` — each inserted day, which the server read from the library
+ *     (`insert_playbook_day` refuses an id it cannot open), with its author.
+ *   * `suggested` — the title of each stop the assistant made up: an
+ *     `AddActivity` whose location is not one the server resolved. A place the
+ *     turn's search found arrives with `precision` (`groundCitedPlaces`), and
+ *     anything the model claimed for itself is stripped of it, so its absence
+ *     at propose time means nobody looked the place up. A change to a stop
+ *     already on the trip invents nothing, so it is not listed.
+ */
+export function proposalSources(proposal: AssistantProposal): {
+  library: { name: string; author: string | null }[];
+  suggested: string[];
+} {
+  return {
+    library: proposal.inserts.map((insert) => ({ name: insert.name, author: insert.author ?? null })),
+    suggested: proposal.commands.flatMap((command) =>
+      command.type === "AddActivity" && command.location?.precision === undefined ? [command.title] : [],
+    ),
+  };
+}
+
+/** The card's provenance lines, from `proposalSources`: one per library day, one for every suggestion. */
+function sourceLines(proposal: AssistantProposal): { lead: string; rest: string }[] {
+  const { library, suggested } = proposalSources(proposal);
+  const lines = library.map(({ name, author }) => ({
+    lead: "From the library:",
+    rest: `“${name}”, a saved day${author === null ? "" : ` by ${author}`}.`,
+  }));
+  if (suggested.length > 0) {
+    const quoted = suggested.map((title) => `“${title}”`);
+    const named = quoted.length === 1 ? quoted[0]! : `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]!}`;
+    lines.push({
+      lead: "The assistant's suggestion:",
+      rest:
+        suggested.length === 1
+          ? `${named} is not a saved day or a place it looked up.`
+          : `${named} are not saved days or places it looked up.`,
+    });
+  }
+  return lines;
+}
+
 function changeWords(texts: readonly string[], skipped: readonly string[]): { title: string; detail: string } {
   const [only] = texts;
   if (texts.length === 1 && only !== undefined) {
@@ -204,6 +253,14 @@ export function ProposalCard({
       onReject={onReject}
       rejectDisabled={applying}
     >
+      {/* Where it came from (KI-2026-09-08-c): a library day by its author, a
+          made-up stop as the assistant's suggestion — never the one drawn as
+          the other. */}
+      {sourceLines(proposal).map(({ lead, rest }) => (
+        <p key={lead + rest} className="pt-1 text-a-note text-pretty text-slate">
+          <span className="font-semibold text-brand-pressed">{lead}</span> {rest}
+        </p>
+      ))}
       {/* ADR-067: several changes meant for the board that could not be put
           there. The server's sentence says why; the card is the fallback. */}
       {proposal.notSuggested !== undefined && (

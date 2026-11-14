@@ -179,6 +179,14 @@ export type ProposedChange = z.infer<typeof ProposedChange>;
 export const ProposedInsert = z.object({
   savedDayId: z.string().min(1),
   name: z.string(),
+  /**
+   * Who wrote the day, as the public library names them (`publicNameFor`), so
+   * the card can say whose day this is (KI-2026-09-08-c): a library insert is
+   * a sourced fact, and the card should not draw it like a stop the model made
+   * up. For the card only, like `name`; the apply door never reads it.
+   * Optional: a proposal drafted before this field existed carries none.
+   */
+  author: z.string().min(1).optional(),
 });
 export type ProposedInsert = z.infer<typeof ProposedInsert>;
 

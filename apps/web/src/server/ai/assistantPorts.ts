@@ -29,7 +29,7 @@ import { getTripDetails, listTripSummariesVisibleTo } from "@/server/projections
 import { withEffectiveMembersByTrip, withProfiles } from "@/server/access/members";
 import { recentMessages } from "@/server/chat/messages";
 import { displayNameFor } from "@/lib/displayName";
-import { discoverDays } from "@/server/playbooks";
+import { discoverDays, publicNamesOf } from "@/server/playbooks";
 import { discoverFor } from "@/server/publicLibrary";
 import { placePageDays } from "@/server/placePage";
 import { tagPageDays } from "@/server/tagPage";
@@ -85,7 +85,14 @@ export const playbookLibrary: PlaybookLibrary = {
  * (ADR-042's deliberate failure mode).
  */
 export const savedDayLibrary: SavedDayLibrary = {
-  readable: (savedDayId, readerId) => readableSavedDay(savedDayId, readerId),
+  // `author` is the name the library's bylines use (`publicNamesOf`), read
+  // only once the row is known readable, so a refused id costs no second query.
+  readable: async (savedDayId, readerId) => {
+    const day = await readableSavedDay(savedDayId, readerId);
+    if (day === null) return null;
+    const nameOf = await publicNamesOf([day.ownerId]);
+    return { ...day, author: nameOf(day.ownerId) };
+  },
 };
 
 /**

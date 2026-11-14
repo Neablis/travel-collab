@@ -12,6 +12,7 @@ import { db } from "@/server/db/client";
 import { rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { publicNameFor } from "@/lib/displayName";
 import { askScopeLine, clockTimesLine, parseAskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 import { UNTRUSTED_DATA_RULE } from "@/server/assistant/prompt";
@@ -2225,7 +2226,11 @@ describe("POST /api/trips/:id/ask", () => {
           }
         | undefined;
       const proposal = finish?.messageMetadata?.proposal;
-      expect(proposal?.inserts).toEqual([{ savedDayId, name: "A day in Kyoto" }]);
+      // With its author, for the card's provenance line (KI-2026-09-08-c):
+      // the library's own name for an account with no name of its own.
+      expect(proposal?.inserts).toEqual([
+        { savedDayId, name: "A day in Kyoto", author: publicNameFor({ userId: LIBRARY_AUTHOR_ID, displayName: null, name: null }) },
+      ]);
       expect(proposal?.commands).toEqual([]);
       // Described as a sentence like any other change — no new card branch.
       expect(proposal?.changes).toEqual([

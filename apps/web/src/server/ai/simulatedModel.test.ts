@@ -879,6 +879,67 @@ describe("simulatedModel — proposing a change", () => {
     expect(callsOf(result)).toEqual([]);
   });
 
+  // KI-2026-09-08-c: "find me a day in Kyoto and add it" names no library
+  // concept, so it used to fall through to the sample-stops branch and draft
+  // "Sample: coffee stop", which the card drew exactly like a real library
+  // day. Asking to FIND a day is the library's own phrase ("Find a day worth
+  // borrowing" on the landing), so it searches; nothing found is said plainly.
+  describe("a request to find a day (KI-2026-09-08-c)", () => {
+    const LIBRARY_TOOLS = ["search_playbooks", "insert_playbook_day", "switch_persona"];
+    const withLibrary = (prompt: ReturnType<typeof askPrompt>) => ({
+      ...prompt,
+      tools: [...prompt.tools, ...LIBRARY_TOOLS.map((name) => ({ name }))],
+    });
+
+    it.each(["find me a day in Kyoto and add it", "find me a day in Kyoto", "look for a good day in Osaka and add it", "get us another day for Kyoto"])(
+      "switches to Discover and searches the library on %s, never inventing a stop",
+      async (question) => {
+        const reading = callsOf(await probe().doGenerate(withLibrary(askPrompt({ kind: "trip" }, [], { question, writeTools: true }))));
+        expect(reading.map((c) => c.toolName)).toEqual(["read_trip", "switch_persona", "find_free_time"]);
+        const searching = callsOf(
+          await probe().doGenerate(withLibrary(askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }))),
+        );
+        expect(searching.map((c) => c.toolName)).toEqual(["search_playbooks"]);
+      },
+    );
+
+    it("declines in words when the library has no day, and drafts nothing", async () => {
+      const empty = { toolName: "search_playbooks", value: { searched: "Kyoto", days: [] } };
+      const result = await probe().doGenerate(
+        withLibrary(askPrompt({ kind: "trip" }, [...READ_RESULTS, empty], { question: "find me a day in Kyoto and add it", writeTools: true })),
+      );
+      expect(callsOf(result)).toEqual([]);
+      expect(textOf(result)).toContain("I couldn't find a day in the playbook library to suggest for this trip.");
+      expect(textOf(result)).toContain("Discover");
+      expect(textOf(result)).not.toContain("Sample:");
+    });
+
+    it("classifies a request to find a day as a write, so the turn is handed the tools to search and insert", async () => {
+      const result = await probe().doGenerate({
+        prompt: [
+          { role: "system", content: ASK_INTENT_INSTRUCTION },
+          { role: "user", content: [{ type: "text", text: "find me a day in Kyoto" }] },
+        ],
+      });
+      expect(textOf(result)).toBe(askIntentVerdictText("edit"));
+    });
+
+    // The other direction: ordinary planning words still propose as before.
+    // Each is a near miss of the rule — a day to ADD rather than find, a time
+    // slot rather than a day, a free day in the trip itself.
+    it.each([
+      ["add a coffee stop", ["AddActivity"]],
+      ["find time for lunch and add it", ["AddActivity"]],
+      ["find a free day and add a coffee stop", ["AddActivity"]],
+      ["find an open day and add a coffee stop", ["AddActivity"]],
+      ["add a day in Kyoto", ["AddDay", "AddActivity", "AddActivity"]],
+      ["Day 3 is empty — what could I do with it?", ["AddActivity", "AddActivity"]],
+    ])("still proposes on %s", async (question, expected) => {
+      const result = await probe().doGenerate(withLibrary(askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true })));
+      expect(callsOf(result).map((c) => c.toolName)).toEqual(expected);
+    });
+  });
+
   it("does not propose twice in one turn", async () => {
     const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, [...READ_RESULTS, QUEUED], { question: "add a coffee stop", writeTools: true }),

@@ -13,6 +13,17 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-14 — `ProposedInsert.author`: whose library day the approval card offers (KI-2026-09-08-c)
+- **New optional field** `author: string` (min 1) on `ProposedInsert` (`packages/contracts/src/assistant.ts`): the
+  inserted saved day's owner as the public library names them (`publicNameFor`, via `publicNamesOf`).
+- Why: the proposal card drew a real library day and a stop the model made up the same way. It now names a library
+  day's author, and marks an `AddActivity` with no server-resolved location as the assistant's suggestion (derived
+  from `commands`, no field needed). Card-only, like `name`: the apply door never reads it.
+- Consumers updated: `apps/web` (`server/assistant/deps.ts` `SavedDayLibrary`/`CollectedInsert`,
+  `server/ai/assistantPorts.ts`, `server/assistant/tools/insertPlaybookDay.ts`, `server/ai/writeTools.ts`
+  `buildProposal`, `components/assistant/ProposalCard.tsx`). The model's `insert_playbook_day` receipt is unchanged.
+- Breaking? no: optional and additive; a proposal drafted before it parses and its card names the day without an author.
+
 ## 2026-11-11 — `sort=top` on `GET /v1/discover/playbooks` and `list_discover_playbooks` (M61 part 4; public API 2.6.0)
 - `openapi.json`: the `sort` query parameter gains the value `top`, the app's Discover rank order; the MCP tool's input
   schema is derived from the same route, so it gains it too. **The default is unchanged** (`most-added`). `API_VERSION`

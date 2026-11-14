@@ -99,7 +99,14 @@ export const insertPlaybookDayTool = defineTool({
           "There is no playbook day with that id that you can open. Call search_playbooks and use a savedDayId from its results.",
       };
     }
-    deps.proposalBuffer.addInsert({ savedDayId: saved.savedDayId, name: saved.name, stopCount: saved.stops.length });
+    // `author` goes to the card and nowhere else: the model's receipt below
+    // is unchanged, so the turn reads exactly what it read before.
+    deps.proposalBuffer.addInsert({
+      savedDayId: saved.savedDayId,
+      name: saved.name,
+      stopCount: saved.stops.length,
+      ...(saved.author === undefined ? {} : { author: saved.author }),
+    });
     return { queued: true as const, name: saved.name, stopCount: saved.stops.length };
   },
 });
