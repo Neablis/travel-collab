@@ -4,6 +4,7 @@ import type {
   PageDoc,
   PageInlineNode,
   PageListContentNode,
+  PageMark,
   PageNode,
 } from "@tc/contracts";
 import { getMacro, repeatLabel, repeatOver } from "@tc/pages";
@@ -51,6 +52,51 @@ function unknownLabel(raw: unknown): string {
     : "unrecognised";
 }
 
+// The marks a reader sees, shared by both renderers below (KI-2026-11-05-b:
+// both printed every text node bare). Each mark wraps the one inside it, so a
+// bold italic run is both. A mark this build does not draw leaves its text
+// plain rather than hiding it.
+//
+// A link is drawn only for an absolute http(s) or mailto href. The href is
+// data a trip member typed, so anything else (`javascript:`, `data:`, a
+// relative path) keeps its text and loses the anchor. The public page never
+// gets here with a link: `publicView.ts` ships only the bare typographic four.
+const LINK_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:", "mailto:"]);
+
+function safeHref(href: unknown): string | null {
+  if (typeof href !== "string") return null;
+  try {
+    return LINK_PROTOCOLS.has(new URL(href).protocol) ? href : null;
+  } catch {
+    return null;
+  }
+}
+
+function MarkedText({ text, marks }: { text: string; marks: readonly PageMark[] | undefined }) {
+  return (marks ?? []).reduceRight<ReactNode>((inner, mark) => {
+    switch (mark.type) {
+      case "bold":
+        return <strong>{inner}</strong>;
+      case "italic":
+        return <em>{inner}</em>;
+      case "strike":
+        return <s>{inner}</s>;
+      case "code":
+        return <code>{inner}</code>;
+      case "link": {
+        const href = safeHref(mark.attrs?.href);
+        return href === null ? inner : (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="underline">
+            {inner}
+          </a>
+        );
+      }
+      default:
+        return inner;
+    }
+  }, text);
+}
+
 function InlineNodes({ nodes }: { nodes: readonly PageInlineNode[] }) {
   return (
     <>
@@ -64,7 +110,7 @@ function InlineNodes({ nodes }: { nodes: readonly PageInlineNode[] }) {
 function renderInline(node: PageInlineNode): ReactNode {
   switch (node.type) {
     case "text":
-      return node.text;
+      return <MarkedText text={node.text} marks={node.marks} />;
     case "hardBreak":
       return <br />;
     case "macro":
@@ -211,11 +257,16 @@ function PublicBlocks({ nodes, accents }: { nodes: readonly PublicDocNode[]; acc
 }
 
 function renderPublic(node: PublicDocNode, accents: AccentTable): ReactNode {
-  const loose = node as { text?: string; attrs?: { level?: unknown; start?: unknown }; content?: readonly PublicDocNode[] };
+  const loose = node as {
+    text?: string;
+    marks?: readonly PageMark[];
+    attrs?: { level?: unknown; start?: unknown };
+    content?: readonly PublicDocNode[];
+  };
   const children = <PublicBlocks nodes={loose.content ?? []} accents={accents} />;
   switch (node.type) {
     case "text":
-      return loose.text;
+      return <MarkedText text={loose.text ?? ""} marks={loose.marks} />;
     case "hardBreak":
       return <br />;
     case "macro": {
