@@ -226,6 +226,51 @@ describe("GET /api/places", () => {
     expect(await searchBody(`Failtown${RUN}`, true)).toEqual({ status: 200, places: [], worldLimited: true });
   });
 
+  // KI-2026-10-30-c: the vendor matches "New York" by a word inside its name,
+  // which the library's prefix index does not, so the library's row is not in
+  // the list to claim it. The world row's name is looked up exactly, and the
+  // place comes back as the library's, labelled, however it was typed.
+  it("offers a library place the vendor matched mid-name as the library's, labelled", async () => {
+    const word = `Yorkmid${RUN}`;
+    const city = `New ${word}`;
+    await publish(await saveDayAt([{ city, countryCode: "US" }]));
+    const vendor = async () => [
+      { id: `osm:relation:${word}`, name: city, detail: "New York, United States", countryCode: "US", lat: 40.7, lng: -74 },
+      { id: `osm:relation:${word}-uk`, name: word, detail: "England, United Kingdom", countryCode: "GB", lat: 53.9, lng: -1.1 },
+    ];
+    autocomplete.mockImplementationOnce(vendor);
+
+    const { places } = await search(word, true);
+    expect(places).toEqual([
+      { kind: "city", city, days: 1, hasPlaybooks: true },
+      {
+        kind: "world",
+        id: `osm:relation:${word}-uk`,
+        name: word,
+        detail: "England, United Kingdom",
+        countryCode: "GB",
+        lat: 53.9,
+        lng: -1.1,
+        hasPlaybooks: false,
+      },
+    ]);
+  });
+
+  // The same for a country, matched by name and code as `notInLibrary` does:
+  // `guinea` is not a prefix of "Papua New Guinea", which the vendor matches.
+  it("offers a library country the vendor matched mid-name as the library's, labelled", async () => {
+    await publish(await saveDayAt([{ city: `Port Moresby ${RUN}`, countryCode: "PG" }]));
+    forgetCountrySearches();
+    autocomplete.mockImplementationOnce(async () => [
+      { id: "osm:relation:png", name: "Papua New Guinea", detail: "Oceania", countryCode: "PG", lat: -6.3, lng: 143.9 },
+    ]);
+
+    const { places } = await search(`Guinea${RUN}`, true);
+    expect(places).toEqual([
+      { kind: "country", countryCode: "PG", name: "Papua New Guinea", days: expect.any(Number), hasPlaybooks: true },
+    ]);
+  });
+
   // A library Paris must not hide every other Paris (PR 639's review). The
   // vendor's top-ranked namesake is taken as the library's own place; a second
   // namesake, with its own region line, is another place a trip can go to.
