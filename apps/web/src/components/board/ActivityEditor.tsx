@@ -391,6 +391,21 @@ export function ActivityEditor({
   // Controlled so a rejected link can open the section it is in; a stop that
   // already has a booking opens it, as there is something to read.
   const [bookingOpen, setBookingOpen] = useState(initial?.booking != null);
+  // What the last "Copy code" press did, said beside the button. Cleared when
+  // the code is edited, so it never vouches for a code it did not copy.
+  const [codeCopyNote, setCodeCopyNote] = useState<string | null>(null);
+  // The card's Booked chip is a label wherever the 44px floor applies
+  // (KI-2026-11-03-a: a button that size would cover the card's edit target),
+  // so this is the phone's way to the code. Offered at every width, as the
+  // section is the same section everywhere.
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(bookingConfirmation.trim());
+      setCodeCopyNote("Code copied");
+    } catch {
+      setCodeCopyNote("Couldn't copy the code");
+    }
+  }
   // Whether the number has been on screen to edit; see `savedFlightNumber`.
   const [flightFieldShown, setFlightFieldShown] = useState(initial?.mode === "flight");
   // A stop being CREATED says "To book" until told otherwise — the handoff's
@@ -718,8 +733,16 @@ export function ActivityEditor({
           <summary className="cursor-pointer text-sm font-medium text-ink">Booking</summary>
           <div className="mt-2 flex flex-col gap-3">
             <FormField id="activity-booking-confirmation" label="Confirmation">
-              <Input id="activity-booking-confirmation" maxLength={100} value={bookingConfirmation} onChange={(e) => setBookingConfirmation(e.target.value)} />
+              <Input id="activity-booking-confirmation" maxLength={100} value={bookingConfirmation} onChange={(e) => { setBookingConfirmation(e.target.value); setCodeCopyNote(null); }} />
             </FormField>
+            {bookingConfirmation.trim() !== "" && (
+              // No `size` override: `Button`'s base keeps SPEC §13.1's 44px
+              // floor wherever `fine:` does not release it.
+              <div className="flex items-center gap-2">
+                <Button onClick={() => void copyCode()}>Copy code</Button>
+                <Text as="span" variant="muted" role="status">{codeCopyNote}</Text>
+              </div>
+            )}
             <FormField id="activity-booking-provider" label="Provider">
               <Input id="activity-booking-provider" placeholder="e.g. Hotel Okura" maxLength={100} value={bookingProvider} onChange={(e) => setBookingProvider(e.target.value)} />
             </FormField>

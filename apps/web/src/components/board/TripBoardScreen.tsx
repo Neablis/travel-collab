@@ -1222,6 +1222,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // the whole of it is posted back on every turn. It survives hiding the rail
   // (this component stays mounted) and dies with the page, which is the
   // honest lifetime for something the server keeps nothing of.
+  // Why the assistant is closed to a member who may not write directly — the
+  // one sentence both refusals below use. `readOnly` is true for a suggester
+  // too (spec W8), and the assistant stays read-only for them (spec §2.2), but
+  // "view-only" is a viewer's word: a suggester's badge says Suggester and
+  // their drags land in a draft (KI-2026-10-03-c).
+  const readOnlyAssistantReason =
+    boardMode === "suggest"
+      ? "Suggesting doesn't include the assistant yet."
+      : "You have view-only access to this trip.";
+
   const submitAssistantAsk = async (text: string, answer?: AskAnswer) => {
     // A viewer's ask is refused here even though /ask itself admits a viewer
     // (ASK_MINIMUM_ROLE) and writes nothing. Kept deliberately, and still a
@@ -1236,7 +1246,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // a control that silently does nothing is the failure mode TripProvider's
     // runDispatch comment was written about.
     if (readOnly) {
-      ask.refuse("You have view-only access to this trip.");
+      ask.refuse(readOnlyAssistantReason);
       return false;
     }
     // Refused while the optimistic queue still holds unsent work. The original
@@ -1280,7 +1290,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   //     already refused while `pending`; approving is a SECOND moment, minutes
   //     later, when a drag may have queued something since.
   const approvalBlockedReason = readOnly
-    ? "You have view-only access to this trip."
+    ? readOnlyAssistantReason
     : pending
       ? "Finish saving your changes before applying this."
       : null;

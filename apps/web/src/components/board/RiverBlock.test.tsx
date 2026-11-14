@@ -71,6 +71,16 @@ describe("RiverBlock — the Booked chip", () => {
     expect(screen.queryByRole("button", { name: /Booked/ })).toBeNull();
   });
 
+  // KI-2026-11-03-a. Both forms are rendered for an editor and CSS shows one:
+  // the button where the 44px floor is released, the label everywhere else.
+  // jsdom matches no media query, so which one shows, and that a tap on the
+  // label reaches the card's editor, is `m44-booking.spec.ts` at 390px.
+  it("renders the phone's plain label beside the button for an editor", () => {
+    renderBlock({ confirmation: "ABC123", provider: "Hotel Okura" });
+    expect(screen.getByRole("button", { name: "Booked · Hotel Okura, copy confirmation" })).toBeTruthy();
+    expect(screen.getByTestId("booking-chip-label").textContent).toBe("Booked · Hotel Okura");
+  });
+
   it("reads just Booked with no provider", () => {
     renderBlock({ confirmation: "ABC123" });
     expect(screen.getByRole("button", { name: "Booked, copy confirmation" })).toBeTruthy();
