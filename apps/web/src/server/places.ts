@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { SavedDayVisibility } from "@tc/contracts";
-import { WorldPlaceMatch, type PlaceMatch } from "@/lib/cities";
+import { WorldPlaceMatch, type PlaceMatch, type PlaceSearchResponse } from "@/lib/cities";
 import { countryName } from "@/lib/place";
 import { searchCities } from "./cities";
 import { db } from "./db/client";
@@ -134,9 +134,10 @@ function labelOf(place: LibraryMatch): string {
  *      `siblingCities` in `playbooks.ts` records why.
  *
  * Given `world` (a signed-in reader, `worldSearchFor`), the vendor's places
- * follow the library's in the vendor's order, in the room the library leaves.
+ * follow the library's in the vendor's order, in the room the library leaves,
+ * and `worldLimited` says when the world was asked and gave no answer.
  */
-export async function searchPlaces(q: string, world: WorldSearch | null = null): Promise<PlaceMatch[]> {
+export async function searchPlaces(q: string, world: WorldSearch | null = null): Promise<PlaceSearchResponse> {
   const needle = q.toLowerCase();
   const [cities, countries] = await Promise.all([searchCities(q), publishedCountriesMemoised()]);
 
@@ -162,8 +163,10 @@ export async function searchPlaces(q: string, world: WorldSearch | null = null):
     })
     .slice(0, SEARCH_LIMIT);
   // A full list has no room for the world, so it is not asked, or charged.
-  if (world === null || library.length >= SEARCH_LIMIT) return library;
-  return [...library, ...(await worldPlaces(q, library, world))].slice(0, SEARCH_LIMIT);
+  if (world === null || library.length >= SEARCH_LIMIT) return { places: library };
+  const found = await worldPlaces(q, library, world);
+  if (found === null) return { places: library, worldLimited: true };
+  return { places: [...library, ...found].slice(0, SEARCH_LIMIT) };
 }
 
 // The world half of place search (M56 D3, ADR-084 §7), for a signed-in reader
@@ -205,10 +208,15 @@ export function worldSearchFor(readerId: string): WorldSearch | null {
 
 /**
  * Vendor places for `q`, less any the library already offers
- * (`notInLibrary`). Empty when the vendor fails or the quota refuses, so the
- * library still answers.
+ * (`notInLibrary`). Empty for a query too short or too long to send.
+ *
+ * `null` when the world was asked and gave nothing to serve, so the library
+ * still answers and the caller can say why the world is missing
+ * (KI-2026-10-30-b). `readThrough` answers `null` exactly then: the quota
+ * refused, the key is in a back-off, or the call failed or timed out, each
+ * with no earlier answer held. A held answer served stale is an answer.
  */
-async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearch): Promise<WorldPlaceMatch[]> {
+async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearch): Promise<WorldPlaceMatch[] | null> {
   const query = q.trim().replace(/\s+/g, " ");
   if (query.length < WORLD_MIN_QUERY || query.length > WORLD_MAX_QUERY) return [];
   const cached = await readThrough({
@@ -238,7 +246,7 @@ async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearc
     console.warn(`[places] world search: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   });
-  return notInLibrary(cached?.value ?? [], library);
+  return cached === null ? null : notInLibrary(cached.value, library);
 }
 
 /**

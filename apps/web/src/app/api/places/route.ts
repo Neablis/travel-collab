@@ -23,7 +23,9 @@ export const runtime = "nodejs";
 // account's own quota on a cache miss (`worldSearchFor`). Opt-in (Mitchell,
 // 2026-10-30): New trip's Where page asks; Discover does not, because a world
 // place has no published days to filter Discover by, and its typing would
-// spend the quota New trip depends on.
+// spend the quota New trip depends on. When the world was asked and not
+// answered (a refused quota, a failed vendor), `worldLimited` says so, so the
+// Where page does not word it as "no such place" (KI-2026-10-30-b).
 /** `GET /api/places?q=[&world=1]` — places starting with `q`: the library's with published-day counts, then, if asked and signed in, the world's. */
 export async function GET(request: Request) {
   const reader = await publicLibraryReader(request);
@@ -33,5 +35,5 @@ export async function GET(request: Request) {
   if (!q) return Response.json({ places: [] } satisfies PlaceSearchResponse);
   const asked = params.get("world") === "1";
   const world = asked && reader.readerId !== null ? worldSearchFor(reader.readerId) : null;
-  return Response.json(PlaceSearchResponse.parse({ places: await searchPlaces(q, world) }));
+  return Response.json(PlaceSearchResponse.parse(await searchPlaces(q, world)));
 }
