@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
@@ -15,10 +15,10 @@ const CONTENT = fileURLToPath(new URL("../../../../content", import.meta.url));
 
 /** Every `city` string in the content bundles: the cities production actually holds. */
 function contentCities(dir: string, into = new Set<string>()): Set<string> {
-  for (const name of readdirSync(dir)) {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) contentCities(path, into);
-    else if (name.endsWith(".json")) collect(JSON.parse(readFileSync(path, "utf8")), into);
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) contentCities(path, into);
+    else if (entry.isFile() && entry.name.endsWith(".json")) collect(JSON.parse(readFileSync(path, "utf8")), into);
   }
   return into;
 }
