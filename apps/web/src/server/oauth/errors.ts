@@ -40,10 +40,10 @@ export function metadataJson(body: unknown): Response {
  * `invalid_request`). The same answer `/api/v1` and `/api/mcp` give a throw.
  *
  * **No `Retry-After`, and not a 503, on purpose.** A throw is usually not
- * transient (a pending migration, a missing secret, a bug), and the token
- * endpoint spends a code or refresh token before it stores the new pair: a
- * client told to retry would present a spent secret and have its grant cut off
- * as reuse (KI-2026-11-12-a). 503 stays for the quota store being down.
+ * transient (a pending migration, a missing secret, a bug). A retry is safe
+ * since KI-2026-11-12-a (the token endpoint spends a code or refresh token in
+ * the transaction that stores the new pair), just rarely useful. 503 stays for
+ * the quota store being down.
  * Found on production, 2026-11-11 (KI-2026-11-11-a): migration 0075 was
  * pending, every OAuth query threw, and clients got an empty 500.
  */
