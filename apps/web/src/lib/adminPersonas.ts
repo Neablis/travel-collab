@@ -7,6 +7,7 @@
 // Counts and micro-dollars, never `Money` (M36 D10). No field carries what a
 // person said: the one free-text column, `ai_capability_gaps.task`, reaches an
 // operator only through the turn breakdown.
+import type { DebugEdge } from "./askDebug";
 
 /** A persona as the page defines it: the report attaches the window's numbers. */
 export interface PersonaDef {
@@ -18,15 +19,12 @@ export interface PersonaDef {
   entryPages: string[];
 }
 
-/** An edge as `personas.ts` defines it; `to` null is a hand-off that leaves the graph. */
-export interface EdgeDef {
-  from: string;
-  to: string | null;
-  kind: "switch" | "hand-off";
-  via: string;
-  /** `cap=value`, empty when always taken. */
-  guard: string[];
-}
+/**
+ * An edge as `personas.ts` defines it; `to` null is a hand-off that leaves the
+ * graph. The Ask panel's `DebugEdge` over any persona id, not a second copy of
+ * it (KI-2026-11-01-aa).
+ */
+export type EdgeDef = DebugEdge<string>;
 
 /**
  * What a set of turns cost, and what they were worth. Null, never NaN or a
