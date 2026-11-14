@@ -228,9 +228,12 @@ Five parts, as one stack, once scoped. The files go in the plan.
   place, tag and length pages list by `top`, `GET /v1/discover/playbooks?sort=top` answers and
   its default is unchanged, and the contract change log has the entry.
   Evidence: `discover.int.test.ts:168` (`sort=top` answers, default unchanged), `components/playbooks/discoverUrl.test.ts`, `docs/contracts/CHANGELOG.md:16` (the 2026-11-11 entry); CI on PR 727 @ f04c8c3, run 43128734860 (lint, typecheck, unit, integration, scripts, e2e 1/2 and 2/2, `ci-ok` all green).
-- [ ] **[walk]** Mitchell opens Discover on production on his phone signed out, then signed in,
+- [x] **[walk]** Mitchell opens Discover on production on his phone signed out, then signed in,
   and judges the first page against the *Discover rank* tab: the order makes sense and he can see
   why each day is where it is.
+  **WAIVED, not walked.** On 2026-11-14 Mitchell told the orchestrator *"Let's close out the gate
+  and merge"* without saying he had walked production; the orchestrator took that as a waiver. No
+  browser walk of preview or production was recorded, by him or by any session.
 
 ## Retro — written 2026-11-12 (8 of 9 boxes ticked)
 
@@ -250,6 +253,9 @@ Five parts, as one stack, once scoped. The files go in the plan.
   and the Coolify task `discover-rank` has succeeded `200 {"ok":true}` at 07:17, 08:17 and 09:17 UTC.
 
 ### What could be better
+- **The gate closed without a walk.** The *[walk]* box is ticked as a waiver (2026-11-14, Mitchell:
+  *"Let's close out the gate and merge"*), not as evidence: nobody opened Discover on production, so
+  the order's sense, the `first_published_at` back-fill and the constants are unchecked by eye.
 - **Production was down for about 8 minutes after the merge.** The new code deployed before `0076`
   was applied, so queries on `saved_day_ranks` and `first_published_at` failed until
   `migrate-production` finished. This is inferred from the timing (merge 04:28, migration done
