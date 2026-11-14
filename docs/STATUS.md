@@ -21,6 +21,18 @@ general setup.
 
 ## Where the work is right now
 
+**M61 closed 2026-11-14, gate 9 of 9, with the *[walk]* box waived, not walked** (*Discover ranks
+what's worth borrowing now*; decisions, evidence and retro in
+`docs/milestones/M61-discover-ranks-what-is-worth-borrowing.md`, rule in ADR-090). PR 727 landed
+parts 1 to 5 as 678a90d on 2026-11-12, `migrate-production` applied `0076_saved_day_ranks`
+(run 43155805732), and the Coolify task `discover-rank` (`17 * * * *`) runs hourly. Mitchell said
+*"Let's close out the gate and merge"* without saying he had walked production; the orchestrator
+took that as a waiver, and nobody has opened preview or production in a browser. `pnpm milestone
+close M61 --confirm` has run (TODO.md row ticked). Production was down for about 8 minutes after
+the merge, because the code deployed before `0076` was applied (inferred, not traced); no known
+issue exists for that ordering yet. Part 0 is PR 722 (`ccr-229c0104-j14ya5`, prose only), waiting
+for Mitchell to merge. The current-milestone markers still say M59.
+
 **M59 is current, production cut over 2026-11-09, gate open** (*Self-host Caesura on a Coolify
 VPS*; decisions and evidence in `docs/milestones/M59-self-host-on-coolify-vps.md`, plan
 `docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`, runbook `docs/ops/coolify-vps.md`).
@@ -119,6 +131,9 @@ confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
 **Next action:**
+0a. **M61:** Mitchell merges PR 722. File a known issue for deploy-before-migrate ordering; the
+   unwalked *Discover rank* tab and `first_published_at` back-fill are the retro's leftovers. No
+   migration is outstanding.
 0. **M59 (current):** Mitchell pauses the Vercel project (never deletes it). Then switch on Coolify
    PR previews only after the Preview-scope `DATABASE_URL` points at a live preview Neon branch
    (`docs/ops/coolify-vps.md`, *Previews*, steps 1 to 3), and check one PR's preview. Then tick the
