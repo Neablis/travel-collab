@@ -1,0 +1,49 @@
+name: landing-sea-links-production
+
+# Every link the landing sea draws must open a real page in PRODUCTION
+# (KI-2026-10-20-c; M51 decision 10's production half). The sea is a build-time
+# snapshot of `content/` (`apps/web/src/lib/landingSea.generated.json`), so a
+# day unpublished, moderated or deleted in production's database keeps its door
+# on the landing, and the door opens a 404. No PR causes that drift, so no PR
+# check can see it: `preview-link-check.yml` proves a PR's own preview, this
+# proves the live site against `main`'s snapshot.
+#
+# Daily and on demand, never on a pull request: it reads a public site, needs
+# no secret, and costs one small job (sparse checkout, no install, about a
+# minute when production answers). Not a required check. A red run names each
+# href that failed; the fix is in `content/` (drop or replace the day, then
+# rebuild the sea with `apps/web/scripts/landing-demo.ts`) or in production
+# (republish the day).
+on:
+  schedule:
+    - cron: "41 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sea-links:
+    runs-on: ubuntu-latest
+    # The script's per-request timeout keeps a production that answers nothing
+    # inside this and still names every href.
+    timeout-minutes: 30
+    env:
+      SITE_URL: https://caesura.today
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .nvmrc
+            scripts/check-landing-sea-links.mjs
+            apps/web/src/lib/landingSea.generated.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Request every sea link on production
+        run: node scripts/check-landing-sea-links.mjs
