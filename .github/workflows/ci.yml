@@ -365,7 +365,10 @@ jobs:
       # was dropped or the build stopped seeing it. `test:e2e:ci-like` runs the
       # same script after its own build.
       - run: pnpm --filter web check:build-sentry
-      - run: pnpm --filter web test:e2e --shard=${{ matrix.shard }}/2
+      # playwright.config.ts adds the `github` reporter here, one annotation
+      # per failed test. The wrapper covers what that cannot see: a web server
+      # that never came up, a global setup that threw (KI-2026-10-13-f).
+      - run: bash scripts/ci-failure-summary.sh "test / e2e (${{ matrix.shard }}/2)" pnpm --filter web test:e2e --shard=${{ matrix.shard }}/2
       # playwright.config.ts sets `trace: "on-first-retry"`, so a CI failure
       # already produces a trace — without this step it was written to the
       # runner's disk and thrown away, leaving log-reading as the only way to

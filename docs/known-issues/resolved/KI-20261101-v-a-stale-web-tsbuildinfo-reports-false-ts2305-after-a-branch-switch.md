@@ -1,4 +1,4 @@
-### KI-2026-11-01-v — a stale `apps/web/tsconfig.tsbuildinfo` reports false TS2305 errors after a branch switch
+### KI-2026-11-01-v — a stale `apps/web/tsconfig.tsbuildinfo` reports false TS2305 errors after a branch switch — RESOLVED
 
 - **Severity:** reliability. A local typecheck goes red on code that is correct, and a builder can
   spend a fix round on it or, worse, report the code as broken.
@@ -20,3 +20,14 @@
 - **Cross-reference:** M43 retro (*What could be better*); KI-091 (resolved) deleted the same file
   before a clean typecheck for another reason.
 - **First noted:** 2026-11-01, PR 663's builder, merging part 3's rack fix into part 4 (`ce1df31`).
+- **Fix (2026-11-14, KI sweep):** the scoped typecheck recipe no longer reads or writes the file.
+  `build-a-part` step 3 now runs `npx tsc --noEmit --incremental false -p apps/web`, and
+  `minimal-check-subset` step 4 runs `pnpm --filter web exec tsc --noEmit --incremental false` for
+  `web` in place of its `typecheck` script. `tsconfig.json` keeps `incremental` for editors and
+  `next build`. Proven locally on `f02d168`: both commands exit 0 and leave no
+  `apps/web/tsconfig.tsbuildinfo` behind. The false TS2305 itself did not reproduce on demand. A
+  build-info file was written on `8f26e21` (part 3, before `OpenClass` existed), then the worktree
+  switched to `main` and ran incrementally: exit 0, because tsc compares file hashes. So the guard
+  takes the file out of the recipe. It does not fix a mechanism anyone has reproduced. Not covered:
+  the `typecheck-on-commit` hook keeps its own incremental cache in the temp directory, keyed by
+  checkout path.

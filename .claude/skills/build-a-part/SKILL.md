@@ -21,7 +21,9 @@ PR must open as a draft and a push prints the review reminder.
 2. **Implement** inside the part's file scope. Before adding a control or renaming visible text,
    run `grep -rn '"<the text>"' apps/web/e2e/`: a spec that now finds it twice breaks.
 3. **Scoped checks**, this recipe and nothing more (`minimal-check-subset` for anything it misses):
-   - `npx tsc --noEmit -p apps/web`, or the touched package's tsconfig.
+   - `npx tsc --noEmit --incremental false -p apps/web`, or the touched package's tsconfig.
+     `--incremental false` because `apps/web/tsconfig.json` sets `incremental`, and a build-info
+     file left by an earlier checkout reported a false TS2305 after a merge (KI-2026-11-01-v).
    - `pnpm --filter web exec eslint <changed files>`
    - `pnpm --filter web exec vitest run -c vitest.unit.config.ts <touched test files>`. Without
      `-c` it runs nothing.
