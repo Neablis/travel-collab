@@ -49,7 +49,9 @@
 - **Fixed in code (PR 729):** the register, token and revocation routes catch a throw and
   answer `500 server_error` in RFC 6749's JSON shape, logging the error, instead of an empty
   500 (`handlerFailed`). Deliberately not a 503 with `Retry-After`: a throw is rarely
-  transient, and a retried token request could present a spent secret (KI-2026-11-12-a).
+  transient, and a retried token request could present a spent secret (KI-2026-11-12-a,
+  resolved by PR 735 on 2026-11-14: the spend and the issue now share one transaction, so a
+  failed issue leaves the secret unspent; the 500-without-`Retry-After` choice still stands).
   Each route's `route.int.test.ts` has a store-failure test, seen red with the catch removed.
   `register/route.int.test.ts` also pins three of the walkthrough's four registration shapes
   answering 201 (the fourth is the existing https test); those pass with or without the catch
@@ -70,6 +72,6 @@
   preview, and PR 729's preview build failed on Coolify for a reason not visible from the
   session (the branch builds locally).
 - **Cross-reference:** KI-2026-09-05-k (the migration-pending detector), KI-20261027-h,
-  ADR-083 §6, ADR-089 (on PR 712's branch until it merges), KI-2026-11-12-a, KI-2026-11-08 (stale Vercel mentions). API 2.5.0.
+  ADR-083 §6, ADR-089 (on PR 712's branch until it merges), KI-2026-11-12-a (resolved, PR 735), KI-2026-11-08 (stale Vercel mentions; resolved, PR 744). API 2.5.0.
 - **First noted:** 2026-11-11, fresh-agent Poppy test by Sunny (Muse) at Mitchell's request;
   diagnosed 2026-11-12.
