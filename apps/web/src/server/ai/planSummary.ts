@@ -84,12 +84,10 @@ export function describeCommand(command: BatchableCommand, detail: TripDetail, m
   }
 }
 
-/**
- * The receipt for a batch that has applied, from the committed commands.
- * Names resolve against the PRE-change trip detail: every referenced existing
- * activity/day still exists there (removed ones included), and new activities
- * carry their title in the command itself.
- */
+// The receipt for a batch that has applied, from the committed commands.
+// Names resolve against the PRE-change trip detail: every referenced existing
+// activity/day still exists there (removed ones included), and new activities
+// carry their title in the command itself.
 export function summarizeBatch(calls: BatchableCommand[], detail: TripDetail): string {
   return `Done — ${joinPhrases(calls.map((c) => describeCommand(c, detail, "applied")))}.`;
 }
