@@ -29,7 +29,9 @@ call.
 3. **Support Mitchell's walk** of the **top part's preview**, which holds the whole milestone,
    mouse and keyboard-only. The link is in the top PR body's "Ready to merge" section
    (`review-a-part` step 6). Coolify builds a preview for every PR, so there is no label to add; if
-   none answers yet, read the build in Coolify (`docs/ops/coolify-vps.md`). His comments reach you
+   none answers yet, read the build in Coolify (`docs/ops/coolify-vps.md`). Before asking for the walk,
+   confirm `https://<pr>.preview.caesura.today/api/health` reports the head sha; a green
+   preview-link-check proves nothing (KI-20261110). His comments reach you
    directly or on the PR. Each fix goes on the lowest part it touches and is merged up
    (`build-a-part`), with a reply naming the commit. He resolves the threads.
 4. **Tick gate boxes only with evidence**: a run, a commit, a file and line. CI on the top part's
