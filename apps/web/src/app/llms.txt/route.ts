@@ -1,4 +1,5 @@
 import { API_SCOPES, API_TOKEN_PREFIX, SCOPE_CATALOGUE } from "@tc/contracts";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { SITE_DESCRIPTION } from "@/lib/siteMetadata";
 
 // **`GET /llms.txt` — the front page, for a reader that is a model.**
@@ -15,9 +16,17 @@ import { SITE_DESCRIPTION } from "@/lib/siteMetadata";
 // and `src/app/.well-known/**`, so the lint wall treats it as UI and it may
 // not import `src/server`.
 //
-// **Absolute URLs, from the request's own origin** — the same construction as
-// `.well-known/api-catalog/route.ts`, so a preview deploy points at itself and
-// not at production.
+// **Absolute URLs, from the deployment's configured origin** (`deploymentOrigin()`)
+// — the same construction as `.well-known/api-catalog/route.ts`. The request's
+// own origin is the container's bind address in production
+// (`https://0.0.0.0:3000`), which is what every link here carried until this fix.
+// A preview points at itself when its `PUBLIC_ORIGIN` names it; a preview that
+// inherits production's points at production, as the canonical URLs do; without
+// one it falls back the way the canonical URLs do (localhost), which the build
+// check warns about rather than failing — see
+// `scripts/lib/public-origin-check.mjs`. That gap is pre-existing and shared
+// with robots, the sitemap and the JSON-LD, not something this file can close:
+// no variable carries a preview's own URL.
 //
 // **Reachability is not this file's to decide.** Any bot protection put in
 // front of the deployment needs the same exemption for this path as for the
@@ -69,9 +78,9 @@ function llmsTxt(origin: string): string {
   ].join("\n");
 }
 
-/** Serve llms.txt as plain text, every link absolute against the request's origin. */
-export function GET(request: Request) {
-  const origin = new URL(request.url).origin;
+/** Serve llms.txt as plain text, every link absolute against the deployment's configured origin. The request is received and ignored: deriving the origin from it is the bind-address bug. */
+export function GET(_request?: Request) {
+  const origin = deploymentOrigin();
   return new Response(llmsTxt(origin), {
     headers: {
       "content-type": "text/plain; charset=utf-8",

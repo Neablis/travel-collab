@@ -9,13 +9,19 @@
 // trusted. Computing it per request would defeat that. Refresh the date when
 // you re-read the contacts below.
 //
-// **`Canonical` comes from the request's origin**, the same construction as
-// `api-catalog/route.ts`, so a preview names itself rather than production.
+// **`Canonical` comes from the deployment's configured origin**
+// (`deploymentOrigin()`), the same construction as `api-catalog/route.ts`.
+// The request's own origin is the container's bind address in production
+// (`https://0.0.0.0:3000`). A preview names itself when its `PUBLIC_ORIGIN`
+// names it; a preview that inherits production's points at production, as the
+// canonical URLs do; without one it falls back to localhost, which the build
+// check warns about rather than failing.
 //
 // A plain static handler: no auth, no server imports. It sits under the
 // `.well-known/**/route.ts` lint-wall exemption only because every route here
 // does. Reachability for bots is the firewall's call, as for the api-catalog —
 // see `docs/guidelines/using-the-api.md`.
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
 
 const REPO = "https://github.com/Neablis/travel-collab";
 /** The maintainer, so a reporter without access to the private repository has a way in. */
@@ -49,9 +55,9 @@ function securityTxt(origin: string): string {
   ].join("\n");
 }
 
-/** The security.txt document as plain text, its Canonical naming the request's origin. */
-export function GET(request: Request) {
-  return new Response(securityTxt(new URL(request.url).origin), {
+/** The security.txt document as plain text, its Canonical naming the deployment's configured origin. The request is received and ignored: deriving the origin from it is the bind-address bug. */
+export function GET(_request?: Request) {
+  return new Response(securityTxt(deploymentOrigin()), {
     headers: {
       "content-type": "text/plain; charset=utf-8",
       "cache-control": "public, max-age=86400",

@@ -9,7 +9,7 @@ import { oauthClients, oauthCodes } from "@/server/db/schema";
 import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { registerClient, resolveClient, type OAuthClient } from "./clients";
 import { createGrant, grantIsLive, grantOf, issueCode, listGrants, revokeGrant, touchGrantLastUsed } from "./grants";
-import { mcpResource } from "./metadata";
+import { mcpResource, oauthIssuer } from "./metadata";
 import { exchangeCode } from "./tokens";
 
 const VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
@@ -31,6 +31,22 @@ describe("consent", () => {
     const grant = await grantFor(`dev-${randomUUID()}`, await client());
     const [row] = await db.select().from(oauthClients).where(eq(oauthClients.id, grant.clientId));
     expect(row!.firstUsedAt).not.toBeNull();
+  });
+
+  it("stores whether a grant covers every resource, defaulting to one resource", async () => {
+    const app = await client();
+    const owner = `dev-${randomUUID()}`;
+    const covering = await createGrant({
+      ownerId: owner,
+      client: app,
+      redirectUri: REDIRECT,
+      scopes: ["trips:read"],
+      resource: oauthIssuer(),
+      coversAllResources: true,
+      now: new Date(),
+    });
+    expect((await grantOf(covering.id))!.coversAllResources).toBe(true);
+    expect((await grantOf((await grantFor(owner, app)).id))!.coversAllResources).toBe(false);
   });
 
   it("stores a code as its keyed digest and key version, with a one-minute life", async () => {

@@ -69,9 +69,14 @@ export async function verifyAccessToken(secret: string, now: Date = new Date()):
   if (token.expiresAt <= now) return refuse({ reason: "expired", expiresAt: token.expiresAt });
   if (grant.expiresAt <= now) return refuse({ reason: "expired", expiresAt: grant.expiresAt });
 
-  // Checked against the grant's own record, not inferred from where the call
-  // arrived: a grant made for another deployment's resource is not ours to honour.
-  const audience = grant.resource === mcpResource() ? "mcp" : grant.resource === oauthIssuer() ? "domain" : null;
+  // Checked against the token's own record, not inferred from where the call
+  // arrived: a grant made for another deployment's resource is not ours to
+  // honour. The audience is the token's, falling back to its grant's for a
+  // token minted before the column existed — a grant that covers every
+  // resource (Poppy 1.0 §4.5) mints a domain token and an MCP token from one
+  // sign-in, and each works at its own endpoint only.
+  const resource = token.resource ?? grant.resource;
+  const audience = resource === mcpResource() ? "mcp" : resource === oauthIssuer() ? "domain" : null;
   if (audience === null) return refuse({ reason: "resource" });
 
   // The kill switch, here because every surface that takes an access token passes through

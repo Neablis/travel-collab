@@ -48,7 +48,8 @@ describe("/.well-known/poppy.json", () => {
     const res = poppy(forged("/.well-known/poppy.json"));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.protocol_version).toBe("0.4");
+    expect(body.protocol_version).toBe("1.0");
+    expect(body.supported_versions).toEqual(["0.4"]);
     expect(body.organization.domain).toBe(PREVIEW.replace("https://", ""));
   });
 });

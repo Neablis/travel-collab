@@ -17,9 +17,11 @@ describe("poppyDocument", () => {
   it("carries the pinned version, the organization from the deployment origin, the issuer, and the sign-in details", () => {
     production();
     const doc = poppyDocument();
-    expect(doc.protocol_version).toBe("0.4");
+    expect(doc.protocol_version).toBe("1.0");
+    // Poppy 1.0 §3.4: the pinned version, and the older ones still served.
+    expect(doc.supported_versions).toEqual(["0.4"]);
     expect(doc.organization).toMatchObject({ domain: "caesura.today", name: "Caesura" });
-    // Spec 0.4 §3.1: when present, auth.issuer MUST name the one server the
+    // Spec 1.0 §3.1: when present, auth.issuer MUST name the one server the
     // protected resource metadata lists, which is the OAuth issuer.
     expect(doc.auth.issuer).toBe("https://caesura.today");
     expect(doc.auth.scopes).toMatchObject(

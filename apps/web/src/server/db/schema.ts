@@ -359,8 +359,15 @@ export const oauthGrants = pgTable(
     redirectUri: text("redirect_uri").notNull(),
     // What the person consented to. Parsed on read: a `text[]` is not a guarantee.
     scopes: text("scopes").array().notNull(),
-    // The RFC 8707 audience, `<origin>/api/mcp`.
+    // The default RFC 8707 audience for tokens this grant mints: the resource
+    // the sign-in named, else the domain for a Personal Agent and
+    // `<origin>/api/mcp` for any other client that named none.
     resource: text("resource").notNull(),
+    // Poppy 1.0 §4.5: the grant covers every resource this server serves, not
+    // just `resource`. Only a Personal Agent that named no resource at sign-in
+    // gets one; every other grant stays single-resource, so a compromised
+    // connector refresh token cannot mint a domain token.
+    coversAllResources: boolean("covers_all_resources").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     // Coarse to five minutes, as `api_tokens.last_used_at`.
     lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "date" }),
@@ -405,9 +412,10 @@ export const oauthCodes = pgTable(
     codeChallenge: text("code_challenge").notNull(),
     // Must equal the token request's `redirect_uri` exactly.
     redirectUri: text("redirect_uri").notNull(),
-    // The RFC 8707 audience the authorize request named. A token request naming
-    // any other is refused (ADR-083 amendment C).
-    resource: text("resource").notNull(),
+    // The RFC 8707 audience the authorize request named, or null when it
+    // named none: a token request naming any other is refused (ADR-083
+    // amendment C); a null code binds to no resource.
+    resource: text("resource"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
     // Set by the one exchange that succeeds; a code seen again is reuse.
@@ -428,6 +436,12 @@ export const oauthTokens = pgTable(
     // An `oauth_grants.id`.
     grantId: uuid("grant_id").notNull(),
     kind: text("kind").$type<"access" | "refresh">().notNull(),
+    // The RFC 8707 audience this access token was issued for, so a grant that
+    // covers every resource (Poppy 1.0 §4.5) can mint a domain token and an
+    // MCP token from one sign-in and each still works at its own endpoint
+    // only. Null on refresh tokens, which are not audience-bound, and on
+    // access tokens minted before this column, which read as their grant's.
+    resource: text("resource"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
     // A refresh token's successor was issued; presented again, it is reuse.

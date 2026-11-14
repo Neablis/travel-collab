@@ -2,7 +2,7 @@ import { API_SCOPES, SCOPE_CATALOGUE, SCOPE_HINTS } from "@tc/contracts";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
 
-// **`/.well-known/poppy.json`** (Personal Agent Protocol draft 0.4, spec 3;
+// **`/.well-known/poppy.json`** (Personal Agent Protocol 1.0, spec 3;
 // ADR-089 decisions 1, 2 and 9). What a Personal Agent reads before it will talk
 // to us: who we are, what each scope means, and where the APIs are.
 //
@@ -12,29 +12,39 @@ import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
 // that check pass for anyone. No `agent` (the assistant is not offered as a
 // Poppy conversation).
 //
-// **There is no session endpoint, and none is missing** (Poppy 0.4 §5): a
+// **There is no session endpoint, and none is missing** (Poppy 1.0 §5): a
 // Session starts with the first request whose `Poppy-Session` header carries a
 // new `sid`, and is verified on every request (`server/poppy/sessions.ts`).
 // Signed out, that header alone reads Discover; signed in, an OAuth access token
 // rides beside it as a plain `Bearer` (§7). `web: {}` is §3.1's signed-out
 // website: no `browser_session_endpoint`, so agents browse as any visitor.
 
-/** The pinned protocol version; no `supported_versions` (ADR-089 decision 1). */
-export const POPPY_PROTOCOL_VERSION = "0.4";
+/**
+ * The pinned protocol version. An agent uses this document when the
+ * document's version is the one it speaks, or is listed in
+ * `supported_versions` (Poppy 1.0 §3.4): 1.0 is pinned, and 0.4 stays
+ * served because the Muse connector speaks only 0.3/0.4 (ADR-089
+ * decision 1, as amended 2026-11-14). A server must send only what the
+ * version the client asked for defines.
+ */
+export const POPPY_PROTOCOL_VERSION = "1.0";
+export const POPPY_SUPPORTED_VERSIONS: readonly string[] = ["0.4"];
 
 /** The `poppy.json` body for this deployment's origin. */
 export function poppyDocument() {
   const origin = deploymentOrigin();
   return {
     protocol_version: POPPY_PROTOCOL_VERSION,
+    supported_versions: [...POPPY_SUPPORTED_VERSIONS],
     organization: { name: "Caesura", domain: new URL(origin).host },
     auth: {
-      // Optional in 0.4 with one authorization server, and when present it MUST
+      // Optional in 1.0 with one authorization server, and when present it MUST
       // name that server (§3.1): the protected resource metadata's only
       // `authorization_servers` entry, which is `oauthIssuer()` too. Naming it
       // lets an agent check the issuer before fetching that metadata. It does
-      // not make the document usable by a 0.2 agent: before 1.0 an agent must
-      // not use a document whose `major.minor` it does not implement (§3.4).
+      // not make the document usable by a 0.2 agent: an agent must not use a
+      // document whose `major.minor` it does not implement, unless that version
+      // is listed in `supported_versions` (§3.4).
       issuer: oauthIssuer(),
       // `auth.scopes` takes the catalogue's sentences, so the consent screen,
       // openapi and this document cannot describe a scope differently.

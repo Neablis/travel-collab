@@ -113,7 +113,9 @@ describe("after the redirect is proven", () => {
 
   // Poppy 3.2 makes the domain a Personal Agent's `resource`, and one that names none is for it.
   // Every other client keeps /api/mcp: an older connector sends none, and a domain token would
-  // be refused by the very endpoint it connected for.
+  // be refused by the very endpoint it connected for. Poppy 1.0 §4.5: a Personal Agent that
+  // names no resource covers every resource — its grant defaults to the domain and its code
+  // binds to none — while a client that names one stays bound to it.
   it("takes the domain or /api/mcp as the resource, defaulting by kind of client when none is named", async () => {
     const agent: OAuthClient = {
       ...CLIENT,
@@ -123,16 +125,19 @@ describe("after the redirect is proven", () => {
       jwksUri: "https://agent.example/jwks.json",
     };
     const publicCimd: OAuthClient = { ...CLIENT, kind: "cimd", clientId: "https://app.example/client.json" };
-    for (const [client, asked, granted] of [
-      [CLIENT, oauthIssuer(), oauthIssuer()],
-      [CLIENT, mcpResource(), mcpResource()],
-      [CLIENT, undefined, mcpResource()],
-      [publicCimd, undefined, mcpResource()],
-      [agent, undefined, oauthIssuer()],
+    for (const [client, asked, granted, named, coversAll] of [
+      [CLIENT, oauthIssuer(), oauthIssuer(), oauthIssuer(), false],
+      [CLIENT, mcpResource(), mcpResource(), mcpResource(), false],
+      [CLIENT, undefined, mcpResource(), null, false],
+      [publicCimd, undefined, mcpResource(), null, false],
+      [agent, undefined, oauthIssuer(), null, true],
+      [agent, mcpResource(), mcpResource(), mcpResource(), false],
     ] as const) {
       resolveClient.mockResolvedValue({ ok: true, client });
       const parsed = await parseAuthorizeRequest(valid({ client_id: client.clientId, scope: "trips:read", resource: asked }));
-      expect(parsed, `${client.clientId} ${String(asked)}`).toEqual({ request: expect.objectContaining({ resource: granted }) });
+      expect(parsed, `${client.clientId} ${String(asked)}`).toEqual({
+        request: expect.objectContaining({ resource: granted, namedResource: named, coversAllResources: coversAll }),
+      });
     }
   });
 
