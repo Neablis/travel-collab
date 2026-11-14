@@ -140,7 +140,8 @@ for collaboration later landing on a product people already want to join.
 | M57 | The assistant is a graph of personas, and you can watch it work | **Minted, scoped and placed ahead of M44 2026-11-01 by Mitchell; current.** From the candidate and its design (`docs/specs/2026-10-30-assistant-personas-design.md`); see *2026-11-01 — minted and placed: M57*. Six personas in a typed graph with a reachability baseline, persona and outcome columns in the ledger, `switch_persona` once a turn, the trip planner split, and an operator Debug mode in the Ask panel plus a Personas tab in the console (ADR-085): `M57-assistant-personas.md` |
 | M58 | A notebook anyone can read, and a poll for the people going | **Closed 2026-11-06, gate 11 of 11** ([walk] on Mitchell's word, after `0074` was applied). A notebook made public at `/n/<token>` for people without an account. Every widget shows unless its instance is hidden, behind three floors. Make-private answers 404, and the page ends in a sign-up band with no way to join. Adds a `poll` widget for members (ADR-088): `M58-a-notebook-anyone-can-read.md` |
 | M59 | Self-host Caesura on a Coolify VPS | **Scoped 2026-11-08 by Mitchell, placed ahead of M53; current.** Off Vercel onto a Hetzner box running Coolify: one deployment-env module, no Vercel imports, a Docker build, Coolify per-PR previews, self-hosted Redis and Plausible, Coolify crons, hard cutover with Vercel paused. Decisions and gate: `M59-self-host-on-coolify-vps.md` |
-| M61 | Discover ranks what's worth borrowing now | **Minted 2026-11-09 by Mitchell, placed directly after M60 (scoped in PR 712), ahead of M53; not scoped.** See *2026-11-09 — minted: M61, a ranked Discover*. One stored score per public day from decayed adds and comments, Bayesian stars and a new-day lift, recomputed hourly by a Coolify cron into `saved_day_ranks` and cached under its own tag; a `top` sort as Discover's default. Ten recommended decisions: `M61-discover-ranks-what-is-worth-borrowing.md` |
+| M60 | A personal agent can find Caesura, and act for you within what you allow | **Closed 2026-11-14, gate 11 of 11, with two boxes amended out and carried as known issues** (the kit validator run, KI-2026-11-14-a; a domain-audience token through v1's gates, KI-2026-11-14-b; part 0 PR 712). Four boxes ticked on Mitchell's word that he saw them work on production. `poppy.json`, signed client assertions for agents, the `Poppy-Session` header on v1 and MCP, v1 accepting OAuth tokens, signed-out public reads free and account access Premium, a kill switch, tasks and feedback, on top of M55's OAuth server (ADR-089); see *2026-11-09 — minted: M60, Personal Agent Protocol*: `M60-personal-agents-act-for-you.md` |
+| M61 | Discover ranks what's worth borrowing now | **Minted 2026-11-09 by Mitchell, placed directly after M60 (scoped in PR 712), ahead of M53. Scoped 2026-11-11 with every decision as recommended (ADR-090); five parts as one stack, plan `docs/plans/2026-11-11-M61-discover-ranks.md`.** See *2026-11-09 — minted: M61, a ranked Discover*. One stored score per public day from decayed adds and comments, Bayesian stars and a new-day lift, recomputed hourly by a Coolify cron into `saved_day_ranks` and cached under its own tag; a `top` sort as Discover's default. Decisions and gate: `M61-discover-ranks-what-is-worth-borrowing.md` |
 
 *A closed milestone's row is its gate, one line and its file. The longer rows
 they carried until 2026-11-01 are verbatim in `decisions-archive.md`, under
@@ -253,6 +254,22 @@ of this file.
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
 - **Table rows for closed milestones**, as they stood before the 2026-11-01 pass: *Moved out of README.md on 2026-11-01*, at the end
+
+### 2026-11-09 — minted: M60, Personal Agent Protocol
+
+**Asked 2026-11-09.** Mitchell: *"Can you read through this new AI agent protocol
+https://personalagentprotocol.org/ and make a new milestone to add the ability for Caesura to be
+consumed by ai agents such as muse and gemini."* The site's host is unreachable from a cloud
+session, so the spec (draft 0.4) was read from its source repository at `a2f16ec`. Meta's Muse is
+a Poppy client; nothing public says Gemini is, so D12 recommends serving it through the MCP server
+and OpenAPI M55 already built, which `poppy.json` lists. **M60 is minted, not scoped**, and placed
+last, after M59, since he named no place for it. Fourteen recommended decisions are in
+`M60-personal-agents-act-for-you.md`. Order then: M59 → M53 → M60, with M48 parked.
+
+**Scoped and placed the same day.** Mitchell: *"Let's scope M60, go with your recommendations. D4 -
+Premium + free like you suggested, D3 - Recommended, D14 - Next in queue."* M59 had been scoped and
+made current on 2026-11-08, so *next in queue* is directly after it. **Order: M59 → M60 → M53**,
+with M48 parked. The decisions and ADR-089 are in the milestone file.
 
 ### 2026-11-09 — minted: M61, a ranked Discover
 
