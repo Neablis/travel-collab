@@ -3,7 +3,7 @@
 // nothing: the agent loop calls it, gets canned tool calls back, and the rest of
 // /ask proceeds exactly as it would for a real model. That is the point — a
 // shared deployment stays exercisable at zero token cost, and `ai-live` is off
-// in EVERY Vercel environment today, so this file is what the deployed
+// in EVERY Coolify environment today, so this file is what the deployed
 // assistant actually is.
 //
 // It has one surface, because /ask is the one AI route (ADR-033). Everything
@@ -544,7 +544,7 @@ function canPropose(options: CallOptionsLike): boolean {
 // they mean "find me a ready-made day", and nothing that overlaps
 // `CHANGE_VERBS`' ordinary "add a coffee stop".
 //
-// It matters that this branch exists at all: `ai-live` is off in every Vercel
+// It matters that this branch exists at all: `ai-live` is off in every Coolify
 // environment, so without it ADR-042's whole flow is unreachable anywhere
 // Mitchell can click it.
 const PLAYBOOK_PROMPTS = /\bplaybook|\blibrary\b|\bsaved day|\bready-made\b|\bsomeone else's day\b/i;
@@ -702,7 +702,7 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
  * judgement that decides whether this model proposes.
  *
  * Reusing that predicate is the point, not a shortcut: the switched-off
- * deployment is the one every Vercel environment runs, so a classifier that
+ * deployment is the one every Coolify environment runs, so a classifier that
  * said "question" for a turn this model then wants to propose on would hand
  * itself a tool set it cannot use, and the proposal card would stop appearing
  * on the only path anyone deploys. The end-to-end cover for that is
@@ -746,7 +746,7 @@ function asksToWrite(text: string): boolean {
 //      was really a `plan` turn.
 //   2. **`plan` was unreachable by its own name.** `CHANGE_VERBS` deliberately
 //      excludes the word, on the sound ground that *"What's the plan for day
-//      2"* is a question — so on every Vercel environment, where `ai-live` is
+//      2"* is a question — so on every Coolify environment, where `ai-live` is
 //      off and this IS the classifier, *"plan me a six day trip"* classified as
 //      a question and was offered no write tools. That is M9's headline flow
 //      and KI-12's gate box, dark on the only path anyone can click.
@@ -842,7 +842,7 @@ const SIMULATED_PAGE_NOTICE =
  * A page-scoped turn: compose, then say so.
  *
  * **This is the branch with the least slack in the file.** `ai-live` is off in
- * every Vercel environment, so a deployed app that cannot reach here cannot
+ * every Coolify environment, so a deployed app that cannot reach here cannot
  * author a Notebook page at all (ADR-033's consequences). It used to be reached
  * through `generateText` on the command endpoint, which is why `doStream`
  * carried a loud throw for it; that throw is gone because the command path is,
