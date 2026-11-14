@@ -138,7 +138,7 @@ export const FAIL_OPEN_CERTAINTY: AskCertainty = "unsure";
 // turn — the same trick, and the same reasoning, as `ASK_SCOPE_PREFIX` in
 // context.ts: the instruction is the only channel that reaches both a real
 // model and the simulated one, so writer and reader live in one module and
-// cannot drift apart. Without it the flag-off path (which is every Vercel
+// cannot drift apart. Without it the flag-off path (which is every deployed
 // environment) would answer a classification call with `read_trip`, fail open
 // on every turn, and quietly buy nothing.
 const ASK_INTENT_MARKER = "Set intent to question, edit, plan or off_topic.";

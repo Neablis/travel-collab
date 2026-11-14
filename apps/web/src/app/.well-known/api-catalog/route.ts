@@ -4,9 +4,9 @@
 // `service-doc` is `/developers/reference` (for a person) — the two RFC 8631
 // relations RFC 9727 names for exactly this.
 //
-// **Reachability is not this file's to decide.** The Vercel firewall challenges
-// bots on everything outside `/api/*`, so this path needs an exemption in the
-// dashboard before a bot can read it — see `docs/guidelines/using-the-api.md`.
+// **Reachability is not this file's to decide.** Any bot protection put in
+// front of the deployment (none since M59: Cloudflare is DNS-only) must exempt
+// this path before a bot can read it — see `docs/guidelines/using-the-api.md`.
 //
 // A plain static handler: no auth, no server imports. It sits under the
 // `.well-known/**/route.ts` lint-wall exemption only because every route here

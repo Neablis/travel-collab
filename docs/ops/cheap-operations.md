@@ -1,10 +1,14 @@
 # Running Caesura as cheaply as possible
 
 > **Superseded as a description of hosting (M59).** The app now runs on a
-> Coolify-managed VPS: crons are Coolify scheduled tasks (`/api/cron/embed-days`
-> 04:00 UTC, `/api/cron/tier-rollup` 04:30 UTC), `apps/web/vercel.json` and the
-> Vercel preview workflow are gone. The Vercel sections below are the cost
-> analysis as written on 2026-10-25 and are kept for the comparison.
+> Coolify-managed VPS (`docs/ops/coolify-vps.md`): crons are Coolify scheduled
+> tasks (`/api/cron/embed-days` 04:00 UTC, `/api/cron/tier-rollup` 04:30 UTC,
+> `/api/cron/discover-rank` hourly), and previews are built by Coolify on the
+> box. `apps/web/vercel.json` and `.github/workflows/vercel-preview.yml` no
+> longer exist, so every reference to them below (including the repo-evidence
+> list at the end) describes the tree as it stood then. The Vercel sections
+> below are the cost analysis as written on 2026-10-25 and are kept for the
+> comparison; none of them is a step to take today.
 
 Status: draft for Mitchell's review. No Vercel or Neon dashboard was accessed
 while writing this (no account logins, no bill figures seen), so every number

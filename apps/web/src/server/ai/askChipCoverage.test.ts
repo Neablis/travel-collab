@@ -11,7 +11,7 @@
 // were dead ends — the empty-trip chip, the empty-day chip, the day-scoped
 // conflict chip and the day-scoped booking chip — each offered from real trip
 // state and each answered with something that ignored the question. That matters
-// more than its severity suggests, because `ai-live` is off in every Vercel
+// more than its severity suggests, because `ai-live` is off in every deployed
 // environment: the simulated model is the ONLY path anyone experiences on a
 // deployment.
 //

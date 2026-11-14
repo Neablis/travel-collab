@@ -13,8 +13,9 @@
 // they share no state, no failure mode, and no dependencies — that one is a
 // pure array helper in the domain-adjacent sense, this one is I/O.
 //
-// Why Postgres and not memory: this deploys to Vercel serverless, where each
-// instance is short-lived and there is no shared process. An in-memory counter
+// Why Postgres and not memory: this was written for Vercel serverless (before
+// M59), where each instance is short-lived and there is no shared process, and
+// a self-hosted deployment can still run more than one process. An in-memory counter
 // caps nothing — an attacker's requests fan out across instances, and each one
 // starts at zero. The review suggested reusing the `events` table's per-actor
 // timestamps, and that was rejected: a turn the model answers with zero write
@@ -90,7 +91,7 @@ const DAY_MS = 24 * HOUR_MS;
 // not need a module reload to take effect.
 //
 // A malformed value falls back to the default rather than to "unlimited": for a
-// spend gate, a typo in a Vercel env var must never be the thing that removes
+// spend gate, a typo in a deployment's env var must never be the thing that removes
 // the ceiling.
 // `rate_limit_counters.hits` is a Postgres `integer`, so a ceiling above its
 // maximum is not a ceiling at all — the counter overflows before it is ever

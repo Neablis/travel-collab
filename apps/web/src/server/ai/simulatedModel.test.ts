@@ -132,7 +132,7 @@ describe("simulatedModel", () => {
 // -----------------------------------------------------------------------------
 //
 // This is the branch with the least slack in the file. `ai-live` is off in every
-// Vercel environment, so a deployed app that cannot reach it cannot author a
+// deployed environment, so a deployed app that cannot reach it cannot author a
 // Notebook page at all — and it used to be reached through `generateText` on an
 // endpoint that no longer exists, so "it still works" is a claim about the
 // STREAMING path specifically.
@@ -250,7 +250,7 @@ describe("simulatedModel — the page turn", () => {
   });
 });
 
-// The ask surface is the one the deployed sidebar runs on: every Vercel
+// The ask surface is the one the deployed sidebar runs on: every deployed
 // environment has `ai-live` off, so if this branch cannot answer, the assistant
 // is broken in production. It is not a canned sentence — it calls the real read
 // tools and writes its prose from what they returned.
@@ -356,7 +356,7 @@ describe("simulatedModel — the ask surface", () => {
   });
 
   // The four chips the final branch review found were dead ends on the only
-  // path anyone deploys (ai-live is off in every Vercel environment). Each one
+  // path anyone deploys (ai-live is off in every deployed environment). Each one
   // is asserted here as prose; `askChipCoverage.test.ts` is what stops the
   // chip and the answer drifting apart again.
   it("answers what a day still needs booked, from the stops' own kinds and tags", async () => {
@@ -862,7 +862,7 @@ describe("simulatedModel — proposing a change", () => {
   });
 });
 
-// The pre-turn classification call (askIntent.ts). Every Vercel environment
+// The pre-turn classification call (askIntent.ts). Every deployed environment
 // runs with `ai-live` off, so if this branch did not exist the classifier
 // would fail open on every deployed turn and the whole optimisation would buy
 // nothing there.
@@ -919,7 +919,7 @@ describe("simulatedModel — the intent classification call", () => {
   // `classifyAskIntent`, so the SDK's schema parsing is in the loop. Before
   // the KI-88 fix the simulated model emitted a bare `write`, which is not
   // JSON for the response schema `Output.choice` now sends — every turn on
-  // every Vercel environment (where `ai-live` is off, always) would have
+  // every deployed environment (where `ai-live` is off, always) would have
   // failed open and the optimisation would have bought nothing, silently, on
   // the only path anyone experiences.
   it("produces a verdict the real classifier parses, on both answers", async () => {
@@ -976,7 +976,7 @@ describe("simulatedModel — the intent classification call", () => {
 
 // **The deployed symptom, not the architectural gap** (M9 design §1).
 //
-// `ai-live` is off in every Vercel environment, so this model IS the
+// `ai-live` is off in every deployed environment, so this model IS the
 // classifier everywhere anybody can click. `CHANGE_VERBS` deliberately excludes
 // the word "plan" — sound, because *"What's the plan for day 2"* is a question
 // — and the cost of that exclusion was that M9's headline flow, and KI-12's

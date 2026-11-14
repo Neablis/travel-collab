@@ -212,7 +212,7 @@ function addActivity(
  *   [15]     the backlog, so four parked ideas read as one wishlist drop
  *
  * `api/dev/reset-demo-data` deliberately flattens this back into one batch —
- * it runs inside a Vercel function with a 30s ceiling and wants the whole seed
+ * it was written for a Vercel function's 30s ceiling and wants the whole seed
  * to roll back together. That is a considered trade of History readability for
  * atomicity on a throwaway preview reset, not an oversight.
  */

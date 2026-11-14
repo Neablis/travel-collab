@@ -64,8 +64,8 @@ import { route } from "@/server/public-api/route";
  * `content/` is 10 days and 66 stops in 55 KB, so a stop with a location, notes
  * and a cost costs about 830 bytes. The stop ceiling below is 1,000, which is
  * roughly 830 KB — this leaves comfortable headroom above it while staying well
- * under the 4.5 MB a Vercel function will accept at all, so the refusal a
- * caller gets is ours and legible rather than the platform's.
+ * under the 4.5 MB a Vercel function accepted at all (the host before M59), so
+ * the refusal a caller gets is ours and legible rather than the platform's.
  */
 const MAX_UPLOAD_BYTES = 2_000_000;
 

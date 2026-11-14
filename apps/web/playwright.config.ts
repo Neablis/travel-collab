@@ -94,7 +94,7 @@ export default defineConfig({
     // the tile host on every context it creates (and `eslint.config.mjs`
     // refuses `test` from `@playwright/test` in a spec, so a new one cannot
     // skip it). The map specs also assert nothing else left the machine; whether
-    // the REAL service renders is a manual check on a Vercel preview
+    // the REAL service renders is a manual check on a preview
     // (`docs/guidelines/third-party-services-on-a-preview.md`).
     //
     // This flag is the backstop behind that default: every hostname except
@@ -296,7 +296,7 @@ export default defineConfig({
       // `.env.local` must not be what the server ends up trusting.
       ADMIN_USER_IDS: E2E_ADMIN_USER_ID,
       // Auth.js v5 rejects requests from untrusted hosts under `next start`
-      // (production mode) unless the platform sets this itself (Vercel does).
+      // (production mode) unless the platform sets this itself (Vercel did; Coolify sets `AUTH_URL`).
       // CI's workflow env already sets this for the job as a whole (see
       // ci.yml), which is why `pnpm start` there works without it appearing
       // here too — but `test:e2e:ci-like` (KI-27) invokes this config

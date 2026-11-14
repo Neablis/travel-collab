@@ -88,8 +88,9 @@ describe("the Postgres counter", () => {
     expect(await counters.bump(key("b"), T0)).toBe(1);
   });
 
-  // The reason this is a database counter and not a module-level Map: on Vercel
-  // these calls land on different instances with no shared memory. Concurrent
+  // The reason this is a database counter and not a module-level Map: on a host
+  // running several instances (Vercel did) these calls land on different
+  // instances with no shared memory. Concurrent
   // bumps must each get a distinct number, or two parallel attacks each see "1".
   it("gives every concurrent bump a distinct count", async () => {
     const counters = pgCounters();

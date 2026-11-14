@@ -4,7 +4,7 @@ import { e2eTripName } from "./tripNames";
 
 // M16's happy path: a discussion you can see in the sidebar and continue.
 // Runs against the simulated model (AI_LIVE=false in playwright.config.ts's
-// webServer.env), which is what every Vercel environment runs too — so this is
+// webServer.env), which is what every deployed environment runs too — so this is
 // the deployed behaviour, not a stub.
 //
 // The kill-switch/badging half lives in m10-simulated-ai.spec.ts; this spec is
@@ -179,7 +179,7 @@ test("the assistant takes you to the map and to a notebook, and turns editing on
 // The four chips the final branch review found were dead ends. Every one is
 // derived from real trip state, and every one used to be answered by something
 // that ignored the question — on the ONLY path a deployment runs, since
-// `ai-live` is off in every Vercel environment.
+// `ai-live` is off in every deployed environment.
 //
 // `askChipCoverage.test.ts` enumerates the chips and pins the answers. What only
 // a browser can add is that the chip is a control you can CLICK: the Ask button
