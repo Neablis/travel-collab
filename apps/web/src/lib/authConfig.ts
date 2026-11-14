@@ -100,7 +100,7 @@ export function devLoginIdentity(
  * Which deployment environment minted (or is reading) a session token.
  *
  * Exists because Preview and Production **share one `AUTH_SECRET`** — one
- * variable scoped to both in the Vercel dashboard — and sessions here are
+ * variable set on both scopes in Coolify — and sessions here are
  * stateless JWTs with no adapter. A token signed anywhere therefore verifies
  * everywhere, and `AUTH_DEV_LOGIN=true` is set on Preview, where the
  * credentials provider accepts ANY username with no password and yields
@@ -119,7 +119,7 @@ export function devLoginIdentity(
  *
  * The deployment environment (`APP_ENV` / `VERCEL_ENV`) is set by the platform and never by us — the same property
  * `isDevLoginEnabled()` leans on — so a deployment cannot lie about which
- * environment it is. Unset off-Vercel, where "development" covers local dev,
+ * environment it is. Unset outside a deployment, where "development" covers local dev,
  * `pnpm check` and the Playwright lane alike; those mint and read their own
  * tokens within one process, so the value only has to be stable, not
  * meaningful.

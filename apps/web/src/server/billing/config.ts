@@ -4,7 +4,7 @@
 //
 // Two pairs of names (ADR-076 §5), none of their values in this repo.
 // `.env.example` carries the names with the secret ones marked, and the values
-// live in Vercel's environment scopes — the same arrangement
+// live in the Coolify application's environment scopes — the same arrangement
 // `LOCATIONIQ_API_KEY` and `ANTHROPIC_API_KEY` have.
 //
 // **Read lazily, never at module load.** `serverConfig` is a module-level
@@ -54,8 +54,8 @@ export class BillingNotConfiguredError extends Error {
     super(
       `${what} is not set. Billing needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, and ` +
         `test mode beside live needs STRIPE_TEST_SECRET_KEY and STRIPE_TEST_WEBHOOK_SECRET; ` +
-        `see .env.example. Vercel injects environment variables at build time, so setting ` +
-        `one in the dashboard needs a redeploy before it reaches a deployment.`,
+        `see .env.example. Coolify hands environment variables to the container when it starts, ` +
+        `so setting one there needs a redeploy before it reaches a deployment.`,
     );
     this.name = "BillingNotConfiguredError";
   }

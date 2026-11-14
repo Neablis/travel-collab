@@ -200,17 +200,17 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   },
   "cron/embed-days": {
     status: "never",
-    why: "The embed-queue sweep — runs on Vercel Cron's secret, never on an API token",
+    why: "The embed-queue sweep — runs on the cron secret, never on an API token",
     reaches: [{ module: "@/server/ai/sweep" }, { module: "@/server/cronAuth" }],
   },
   "cron/tier-rollup": {
     status: "never",
-    why: "The weekly tier rollup — runs on Vercel Cron's secret, never on an API token",
+    why: "The weekly tier rollup — runs on the cron secret, never on an API token",
     reaches: [{ module: "@/server/entitlements/tierRollup" }, { module: "@/server/cronAuth" }],
   },
   "cron/discover-rank": {
     status: "never",
-    why: "The discover-rank recompute — runs on Vercel Cron's secret, never on an API token",
+    why: "The discover-rank recompute — runs on the cron secret, never on an API token",
     reaches: [
       { module: "@/server/discoverRank" },
       { module: "@/server/libraryCache" },

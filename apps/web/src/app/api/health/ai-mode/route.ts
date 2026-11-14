@@ -7,7 +7,7 @@ import { deployEnv } from "@/lib/deployment/env";
 // `pnpm dev`). This makes the effective mode queryable rather than
 // inferable — e2e/global.setup.ts checks it before anything else runs and
 // refuses to proceed against a live model. Also the missing observability
-// KI-24 names for AI_LIVE on Vercel: the mode is now visible, not just
+// KI-24 names for AI_LIVE on a deployment: the mode is now visible, not just
 // warned about in a log line.
 //
 // `source` says what decided that answer. `"env"` means AI_LIVE decided it,
@@ -44,8 +44,8 @@ import { deployEnv } from "@/lib/deployment/env";
 // check BEFORE switching the flag on.
 //
 // `environment` is which deployment environment answered: `APP_ENV` / `VERCEL_ENV` exactly,
-// or null when it is unset — off Vercel, or on a project that does not expose
-// system environment variables. Null is never guessed into "development": the
+// or null when it is unset — locally, or on a deployment that sets no
+// `APP_ENV`. Null is never guessed into "development": the
 // live-set script treats that word as permission, and a production deployment
 // with the variable hidden must not be able to grant it. It is how a script that spends real model calls
 // (`scripts/assistant-live-set.mjs`) refuses production: a deployment's own

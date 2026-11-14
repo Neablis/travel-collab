@@ -19,9 +19,9 @@ import { SITE_DESCRIPTION } from "@/lib/siteMetadata";
 // `.well-known/api-catalog/route.ts`, so a preview deploy points at itself and
 // not at production.
 //
-// **Reachability is not this file's to decide.** The Vercel firewall
-// challenges bots outside `/api/*`, so this path needs the same dashboard
-// exemption as the api-catalog — see `docs/guidelines/using-the-api.md`.
+// **Reachability is not this file's to decide.** Any bot protection put in
+// front of the deployment needs the same exemption for this path as for the
+// api-catalog — see `docs/guidelines/using-the-api.md`.
 //
 // `discovery.test.ts` follows every link below to a route or page that exists.
 

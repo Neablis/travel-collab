@@ -625,8 +625,8 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       // happens BEFORE the whole body is held rather than after.
       //
       // **The first version buffered and then measured** (CodeRabbit, PR #191).
-      // Vercel refuses a payload over 4.5 MB before a function sees it, so the
-      // allocation was always bounded and this was never unbounded-memory — but
+      // Vercel (the host then) refused a payload over 4.5 MB before a function saw it, so the
+      // allocation was bounded there and this was never unbounded-memory — but
       // an endpoint declaring a 2 MB ceiling still read every byte of a 4 MB
       // body before saying no, which is work done on behalf of a request
       // already known to be refused.

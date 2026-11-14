@@ -1,6 +1,6 @@
 // **No automated test may talk to a real third party** (Mitchell, 2026-09-24).
 // A third party's failure is covered by a UI placeholder tested against an MSW
-// stub, and its success by a manual walkthrough on a Vercel preview — never by
+// stub, and its success by a manual walkthrough on a preview — never by
 // a test that dials out. This module is the unit and integration lanes' half of
 // enforcing that: any request to a host that is not this machine fails, loudly,
 // naming where it was going. The one exception is at the socket layer: the host

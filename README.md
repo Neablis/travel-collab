@@ -11,7 +11,7 @@ anyone does is ever lost.
 
 ## What it does today
 
-The full single-player product is live (Vercel + Neon, Google sign-in), plus
+The full single-player product is live (a Coolify VPS + Neon, Google sign-in), plus
 the first slices of what comes after:
 
 - **Plan a trip as days and stops.** A drag-to-plan day-column board with an
@@ -75,7 +75,7 @@ apps/web/              Next.js app — UI + server, separated by a lint wall
 
 ## Getting started
 
-Prereqs: Node 24 (pinned in `.nvmrc` — `nvm use`; CI, Vercel and `engines` all read the same major), [pnpm](https://pnpm.io), Docker (for local Postgres).
+Prereqs: Node 24 (pinned in `.nvmrc` — `nvm use`; CI, the production Dockerfile and `engines` all use the same major), [pnpm](https://pnpm.io), Docker (for local Postgres).
 
 ```sh
 pnpm install

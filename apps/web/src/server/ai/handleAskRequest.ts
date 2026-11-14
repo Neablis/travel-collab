@@ -686,9 +686,9 @@ export async function handleAskRequest(
       // **The fifth reader of the same latch: M20 link 9's durable row.**
       //
       // The log is not a ledger. `console.info("ai.ask", …)` already carries
-      // every field this row needs and is still not sufficient — Vercel's
-      // runtime logs are retained briefly and are not queryable as a series
-      // (`M16-assistant-read-agent.md` records finding exactly ONE `ai.ask`
+      // every field this row needs and is still not sufficient — runtime logs
+      // are retained briefly and are not queryable as a series (on Vercel, the
+      // host then, `M16-assistant-read-agent.md` records finding exactly ONE `ai.ask`
       // entry across seven days). The table exists because the log cannot
       // answer a question about last month, which is the question a price has
       // to be set from.
@@ -702,7 +702,8 @@ export async function handleAskRequest(
       // **Tracked on `settled`, not fire-and-forget.** It was
       // `void recordTurnLedger(ledger)`, which reads as harmless beside a
       // never-throwing writer — but "never throws" is not "finishes", and a
-      // Vercel invocation may stop once the streaming response closes. See
+      // serverless invocation (Vercel's, the host before M59) could stop once the
+      // streaming response closed. See
       // `settled`'s own comment. Neither writer throws, so the combined promise
       // cannot reject and the abort and error paths, which still do not await,
       // cannot produce an unhandled rejection.
@@ -2024,7 +2025,7 @@ const ApplyProposalRequest = z.object({
 /**
  * What one approval records. `console.info`, matching `ai.ask`'s shape
  * (askAnalytics.ts) and `trip-access.ts`'s — no table, no migration (plan
- * Constraint 6), and Vercel captures it as a queryable line.
+ * Constraint 6), and the app's container log captures it as one line.
  *
  * It exists because `proposalId` is otherwise a field the request carries and
  * nothing reads, and because "how many proposals were approved vs drafted" is

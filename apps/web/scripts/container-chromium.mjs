@@ -51,18 +51,19 @@
  *
  * ## Why `--ssl-version-max=tls1.2` is NOT here
  *
- * `walk-preview.mjs` needs that cap and says why: `*.vercel.app` is on the
- * gateway's TLS-inspection BYPASS list, so it is tunnelled rather than
- * inspected, and the tunnel cannot carry Chromium's TLS 1.3 ClientHello once
- * the post-quantum key share is in it.
+ * `walk-preview.mjs` needed that cap while previews were on `*.vercel.app`,
+ * which is on the gateway's TLS-inspection BYPASS list, so it was tunnelled
+ * rather than inspected, and the tunnel cannot carry Chromium's TLS 1.3
+ * ClientHello once the post-quantum key share is in it. The cap went with
+ * Vercel in M59.
  *
  * KI-49 assumed the cap would have to come along, and called that the reason
  * the recipe could not simply be copied — CI would silently stop exercising
  * TLS 1.3. Measured 2026-09-23, that assumption is wrong: a top-level
  * navigation to `https://tiles.openfreemap.org/styles/positron` returns 200
  * with the SPKI pin alone and no cap. The tile host is *inspected*, not
- * tunnelled, so it never meets the ClientHello limit. The cap stays where the
- * host that needs it is walked, and the e2e lane keeps TLS 1.3 everywhere —
+ * tunnelled, so it never meets the ClientHello limit. The cap stayed where the
+ * host that needed it was walked, and the e2e lane keeps TLS 1.3 everywhere —
  * in the container as well as in CI.
  *
  * ## Why no `executablePath` either

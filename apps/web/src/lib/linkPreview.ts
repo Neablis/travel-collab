@@ -10,9 +10,9 @@ import { pageMetadata } from "./siteMetadata";
 // og:image at the image route.
 //
 // **Absolute, from `deploymentOrigin()`**: a server component has no relative
-// base to fetch against. On a protected Vercel preview that request is
-// challenged rather than served, so previews fall back to the page's own
-// metadata; production is not protected.
+// base to fetch against. On a protected preview (Vercel's, before M59) that
+// request was challenged rather than served, so previews fell back to the
+// page's own metadata; previews on Coolify are public, as production is.
 //
 // **Any failure falls back**, never throws: a slow or broken lookup must cost
 // the unfurl its personal card, not the page its render. Three seconds, because

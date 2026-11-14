@@ -7,7 +7,7 @@ import { BASE_URL } from "../../src/config";
 // The map is the one place this suite's pages used to: both maps load their
 // basemap style from `tiles.openfreemap.org`, and the style names the tile,
 // glyph and sprite URLs that follow it. Whether the REAL service renders is
-// checked by hand on a Vercel preview — `docs/guidelines/
+// checked by hand on a preview — `docs/guidelines/
 // third-party-services-on-a-preview.md` — and not here.
 //
 // **On by default, for every context.** `e2e/fixtures/test.ts` calls

@@ -62,8 +62,8 @@ export async function aiLiveMode(): Promise<AiLiveMode> {
 // not "development": it is unset locally and in CI.
 //
 // KI-24: this used to be a module-load check, which fires at most once per
-// cold start. A Vercel serverless function stays warm across many
-// invocations after that, and a long-lived container is the same: a single
+// cold start. A long-lived container (and, before M59, a warm Vercel
+// function) serves many invocations after that: a single
 // import-time line is exactly the kind of evidence that has usually scrolled
 // out of log retention by the time anyone investigates a spend spike this
 // override caused — it could go on serving live traffic for hours with

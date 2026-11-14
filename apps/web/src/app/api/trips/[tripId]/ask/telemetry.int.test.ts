@@ -232,7 +232,7 @@ describe("POST /api/trips/:id/ask — AI telemetry", () => {
     const turns = streamedMetrics().find((metric) => metric.name === "ai.ask.turns")!;
     expect(attr(turns as unknown as StreamedSpan, "agent")).toBe("ask");
     expect(attr(turns as unknown as StreamedSpan, "outcome")).toBe("completed");
-    // The flag is off by default in every Vercel environment, and a simulated
+    // The flag is off by default in every deployed environment, and a simulated
     // turn contacted no provider — the attribute anyone computing cost filters on.
     expect(attr(turns as unknown as StreamedSpan, "simulated")).toBe(true);
   });

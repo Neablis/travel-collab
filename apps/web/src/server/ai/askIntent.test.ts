@@ -72,7 +72,7 @@ function modelSaying(text: string, finishReason = "stop") {
  *
  * Built through `askIntentVerdictText` on purpose: that is the same function
  * `simulatedModel` emits through, so every green assertion below is also a
- * round-trip of the wire shape the flag-off path — the only path any Vercel
+ * round-trip of the wire shape the flag-off path — the only path any deployed
  * environment runs — produces. If an SDK upgrade moved the output helper off
  * the shape this file expects, it goes red rather than the deployment going
  * quiet. (It already paid for itself once: `certainty` moved the verdict from

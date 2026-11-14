@@ -136,7 +136,7 @@ function probeFilter() {
 // --- probe 3: Node major vs the pinned version (KI-2026-09-02-a) ---------
 // `.nvmrc` is the one place the project's Node major is written down; CI's
 // setup-node reads it (`node-version-file`), `engines` says the same major, and
-// Vercel builds on it. A different major here means this lane is verifying
+// the Dockerfile's `NODE_VERSION` builds production on it. A different major here means this lane is verifying
 // something neither CI nor production runs — Node 26 turned the jsdom unit
 // lane red on a tree CI passed, and Node 22 hid nothing only by luck.
 export function pinnedNodeMajor(nvmrcText) {
@@ -153,7 +153,7 @@ export function nodeLaneStatus(nodeVersion, pinned) {
   if (major !== pinned) {
     return {
       status: BLOCKED,
-      note: `Node ${major}, but the project pins ${pinned} (.nvmrc) — CI and Vercel run ${pinned}; \`nvm use\` first`,
+      note: `Node ${major}, but the project pins ${pinned} (.nvmrc) — CI and production run ${pinned}; \`nvm use\` first`,
       ki: "KI-2026-09-02-a",
     };
   }

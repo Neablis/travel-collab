@@ -16,8 +16,9 @@ import { DEMO_TRIP_LEAD_DAYS, isoDateInDays } from "@/lib/seedDate";
 //
 // The seed batches ~70 commands into one executeTripCommandBatch call (see
 // below), but the delete loop and CreateTrip stay outside it (DeleteTrip
-// isn't BatchableCommand, and CreateTrip is a trip's genesis) — a Vercel
-// function's default timeout is comfortably enough for that, but not
+// isn't BatchableCommand, and CreateTrip is a trip's genesis) — a
+// serverless function's default timeout (Vercel's, when this was written) is
+// comfortably enough for that, but not
 // necessarily for what used to be ~70 sequential round trips against a
 // growing event stream, so this still gets an explicit ceiling.
 export const maxDuration = 30;

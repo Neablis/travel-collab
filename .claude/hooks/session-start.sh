@@ -167,8 +167,8 @@ ensure_pgvector() {
 }
 
 # The pinned Node (.nvmrc), for the rest of the session. The remote image ships
-# Node 22 on PATH; CI (`node-version-file: .nvmrc`), `engines` and Vercel all
-# run the pinned major, and verifying on a different one is how a lane goes red
+# Node 22 on PATH; CI (`node-version-file: .nvmrc`), `engines` and the
+# production image (the Dockerfile's `NODE_VERSION`) all run the pinned major, and verifying on a different one is how a lane goes red
 # on a tree CI passes (KI-2026-09-02-a) — or green on one production cannot
 # load: Node 22 and 24 both reject a TypeScript parameter property in
 # strip-types mode, and that is the class of failure the pin plus

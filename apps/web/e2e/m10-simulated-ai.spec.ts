@@ -9,7 +9,7 @@ import { e2eTripName } from "./tripNames";
 // simulatedModel.ts instead of contacting a real provider: no token cost, and
 // the answer is deterministic by construction. This is the only AI path e2e is
 // ever allowed to exercise, per Mitchell's hard constraint (no e2e test may
-// make a real call to the Vercel AI Gateway or any model provider).
+// make a real call to any model provider).
 //
 // M16 Wave 2 moved the rail's ask box from POST /trips/:id/ai (the command
 // endpoint, which applies a batch and answers with a derived receipt) to POST
@@ -213,7 +213,7 @@ async function tripWithStops(
 // the simulated intent classifier consulted `asksForAChange` alone while
 // `askTurn` reached the library branch on `asksForAPlaybookDay`, so write tools
 // were never offered and the card could not appear. `ai-live` is off on every
-// Vercel environment, so that was the only path anyone could click. A spec
+// deployed environment, so that was the only path anyone could click. A spec
 // phrased "add a day from the playbook library" would have passed throughout.
 //
 // **The city is minted.** The published library is global and cumulative

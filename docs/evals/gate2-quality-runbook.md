@@ -75,9 +75,9 @@ The flag is `RAG_PLAN_RETRIEVAL` (env var, off by default).
 2. **On for Mitchell only.** Set the env var on a preview deployment, or gate
    by user id in code. Dogfood: run real plan turns, check the `rag: plan
    examples` logs for retrieved-vs-used.
-3. **On in production.** Set `RAG_PLAN_RETRIEVAL=1` on the Vercel production
-   env. This is a deploy-time switch — no percentage rollout without a Vercel
-   Flag (left as a future option; the user base is small enough that a binary
+3. **On in production.** Set `RAG_PLAN_RETRIEVAL=1` on the Coolify
+   application's production scope and redeploy. This is a deploy-time switch —
+   no percentage rollout without a feature flag (left as a future option; the user base is small enough that a binary
    switch is proportionate).
 4. **Watch for one week**, then decide on the tier drop (decision 7 in M48).
 

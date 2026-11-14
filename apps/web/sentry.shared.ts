@@ -48,7 +48,7 @@ export const SENTRY_ENVIRONMENT =
  * to disable Sentry entirely: `Sentry.init({ dsn: "" })` is the SDK's own
  * documented no-op, and it is what `sentryEnabled` below reports on.
  *
- * **Off on a Vercel preview, whatever the variable says** (Mitchell, PR #269
+ * **Off on a preview, whatever the variable says** (Mitchell, PR #269
  * preview: "Sentry shouldnt be running on previews any"). A preview is a
  * reviewer walking a branch, and its errors were already filed apart from
  * production's under `environment: "preview"` — but every preview page still

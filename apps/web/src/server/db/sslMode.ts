@@ -4,9 +4,9 @@
  * Neon's connection string says `sslmode=require`. `pg-connection-string@2`
  * treats `prefer`, `require` and `verify-ca` as aliases for `verify-full`, and
  * says so with a `SECURITY WARNING` through `process.emitWarning` the first
- * time each process parses one. Node writes that to stderr, and Vercel ranks
- * the whole request by its worst line, so the first request on every cold
- * instance read as an error although it returned 200 (KI-2026-10-03-b).
+ * time each process parses one. Node writes that to stderr, and Vercel (the
+ * host until M59) ranked the whole request by its worst line, so the first
+ * request on every cold instance read as an error although it returned 200 (KI-2026-10-03-b).
  *
  * Rewriting those three to `verify-full` changes nothing about the connection
  * (it is the meaning already in force) and keeps the strict meaning when `pg@9`

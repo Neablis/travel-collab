@@ -29,8 +29,8 @@ import type { HandOffTo } from "@tc/contracts";
 
 /**
  * The `ai.grant` line — `console.info`, matching `ai.ask` (askAnalytics.ts) and
- * `ai.proposal.apply`: no table and no migration, and Vercel captures it as a
- * queryable line.
+ * `ai.proposal.apply`: no table and no migration, and the app's container log
+ * captures it as one line.
  *
  * **`withIsolationScope` is what keeps the actor out of Sentry, and it is not
  * optional.** Sentry's `Console` integration is on by default and copies every

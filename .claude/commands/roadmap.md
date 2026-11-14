@@ -143,9 +143,9 @@ it, and which of its phases are done.
   closed gate, and `TODO.md` says exactly this: check items off when the gate
   passes, not when code merges.
 - **A doc's claim about a system outside git is a dated snapshot, not a fact.**
-  "migrate-production has NOT run", "X is not set in Vercel", "PR #N is open":
+  "migrate-production has NOT run", "X is not set in Coolify", "PR #N is open":
   before you hand one to Mitchell as a to-do, check it against the system (the
-  digest's `PROD MIGRATIONS` line, the Vercel MCP's env listing by name, the
+  digest's `PROD MIGRATIONS` line, the Coolify application's variable list by name, the
   GitHub MCP), or label it *unverified*. On 2026-09-27 two operator items were
   reported as outstanding three days after both were done.
 - **An unticked box is not proof of open work either.** When code for a box has

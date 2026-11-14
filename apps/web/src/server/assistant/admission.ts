@@ -1565,8 +1565,8 @@ export const ADMISSION: readonly AdmissionStage[] = [
  * allowed"**.
  *
  * `console.info`, matching `ai.ask` (askAnalytics.ts) and `ai.proposal.apply`:
- * no table and no migration (ADR-043 builds ports, not policy), and Vercel
- * captures it as a queryable line. Every field is server-resolved — a stage
+ * no table and no migration (ADR-043 builds ports, not policy), and the app's
+ * container log captures it as one line. Every field is server-resolved — a stage
  * name, a role's answer, a tool name from the registry, a model id — so unlike
  * `ai.ask` this record carries nothing a model wrote and needs no sanitising.
  */

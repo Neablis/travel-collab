@@ -19,7 +19,7 @@ import { join, relative, resolve } from "node:path";
 // success over the top of it. Two branches make that happen without anybody
 // doing anything strange:
 //
-//   * Preview. PR A's Vercel build migrates the one shared Neon `preview`
+//   * Preview. PR A's preview build migrates the one shared Neon `preview`
 //     branch. PR B was generated before A and does not contain it; B's build
 //     runs next, B's migration is skipped, and B's preview 500s on exactly the
 //     feature under review — reading as a code bug (KI-2026-09-05-k, F-D03).
