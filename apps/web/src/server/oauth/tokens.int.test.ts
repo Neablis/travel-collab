@@ -30,8 +30,20 @@ vi.mock("./clients", async (importOriginal) => {
     },
   };
 });
+// The real `mintSecret`, unless a test queues the secret it must answer next:
+// queueing one already stored makes the token INSERT fail on its unique hash,
+// which is a real database failure between the spend and the issue.
+const minted = vi.hoisted(() => ({ next: [] as string[] }));
+vi.mock("./grants", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./grants")>();
+  return {
+    ...actual,
+    mintSecret: (prefix: string) => minted.next.shift() ?? actual.mintSecret(prefix),
+  };
+});
 afterEach(() => {
   race.gate = null;
+  minted.next = [];
 });
 
 // RFC 7636 appendix B.
@@ -230,6 +242,34 @@ describe("parallel refresh rotation", () => {
     expect(held.arrived(), "both calls read the token unrotated").toBe(2);
     expect(outcomes.map(errorOf).sort()).toEqual(["invalid_grant", "ok"]);
     expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedReason: "refresh-reuse" }));
+  });
+});
+
+// KI-2026-11-12-a: the spend and the issue are one transaction, so a failed
+// issue leaves the code or refresh token unspent and the client's retry works,
+// instead of reading as reuse and revoking the grant.
+describe("an issue that fails after the secret is checked", () => {
+  /** An access token already stored, so issuing it again breaks `oauth_tokens_hash`. */
+  async function aStoredSecret(): Promise<string> {
+    const elsewhere = await consented();
+    return tokensOf(await elsewhere.exchange()).access_token;
+  }
+
+  it("leaves the code unspent, so the retry gets tokens and the grant stays live", async () => {
+    const { exchange, grant } = await consented();
+    minted.next.push(await aStoredSecret());
+    await expect(exchange()).rejects.toThrow(/insert into "oauth_tokens"/);
+    expect(errorOf(await exchange())).toBe("ok");
+    expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedAt: null }));
+  });
+
+  it("leaves the refresh token unrotated, so the retry gets tokens and the grant stays live", async () => {
+    const { exchange, app, grant } = await consented();
+    const { refresh_token } = tokensOf(await exchange());
+    minted.next.push(await aStoredSecret());
+    await expect(refresh({ refreshToken: refresh_token, clientId: app.clientId })).rejects.toThrow(/insert into "oauth_tokens"/);
+    expect(errorOf(await refresh({ refreshToken: refresh_token, clientId: app.clientId }))).toBe("ok");
+    expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedAt: null }));
   });
 });
 
