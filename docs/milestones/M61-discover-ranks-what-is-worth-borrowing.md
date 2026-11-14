@@ -264,11 +264,7 @@ Five parts, as one stack, once scoped. The files go in the plan.
   none exists. Follow-up for Mitchell: file one through the known-issues process, and consider
   running the migration before the deploy, or making the new reads tolerate a missing table. It is
   not filed here, because this close does not run that process.
-- **The `0076` back-fill of `first_published_at` was never checked against production data.** It
-  was reviewed as safe on a populated table (a nullable add and one short UPDATE from
-  `published_at`), and `migrate-production` reported success. Nobody has looked at the values it
-  wrote. The *Discover rank* tab is where to check them: a long-published day should show no
-  new-day lift.
+- **The `0076` back-fill of `first_published_at` checked against production, 2026-11-14 05:14 UTC (read-only, SELECT only, Neon `production` branch): correct.** Of 239 `saved_days` rows with `published_at` set (243 in all), `first_published_at` is NULL on 0, is set on 0 unpublished rows, and equals `published_at` on all 239 (0 later, 0 earlier); 2 days published after the migration also match. Query: `SELECT count(*) FILTER (...)` over `saved_days` comparing `first_published_at` with `published_at`. Not checked by eye on Discover: the *[walk]* is still waived.
 - **The orchestrator's share target (under 15%) was missed in every session that has a figure:**
   27.9% in session 1, 37.6% in session 2, and 83.9% in session 3, where the work was a re-review, a
   merge, a migration dispatch and a cron setup, which is orchestration by nature and had no
