@@ -58,7 +58,7 @@
   or a support report of "I allowed it and got a blank page".
 - **Cross-reference:** KI-20261111-a (the DCR 500; the walkthrough that
   surfaced this), KI-2026-11-12-a (token endpoint spends the secret before
-  issuing), ADR-083 §6 and amendment F (consent is the defence; the loopback
+  issuing; resolved by PR 735, 2026-11-14), ADR-083 §6 and amendment F (consent is the defence; the loopback
   warning), ADR-089 (Poppy design doc; decision 13's walkthrough needs a
   working loop).
 - **First noted:** 2026-11-11, fresh-agent Poppy full-loop test by Sunny
