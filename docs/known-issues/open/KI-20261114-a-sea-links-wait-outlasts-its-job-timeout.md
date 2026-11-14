@@ -1,4 +1,4 @@
-### KI-2026-11-14 — `sea-links` is cancelled at its 25 min limit before checking any link, and checks links the moment the wait ends, when they can still answer 502/503
+### KI-2026-11-14-a — `sea-links` is cancelled at its 25 min limit before checking any link, and checks links the moment the wait ends, when they can still answer 502/503
 - **Severity:** reliability — not a required check (`ci-ok` is unaffected), but a red or cancelled `sea-links` on a ready PR says nothing about the links.
 - **Area:** `.github/workflows/preview-link-check.yml` (the `Wait for the preview to be of the head` step, `timeout-minutes`), `scripts/check-preview-links.mjs`
 - **Symptom / What happens:**
