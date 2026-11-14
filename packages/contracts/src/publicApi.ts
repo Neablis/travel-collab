@@ -75,7 +75,7 @@ export const API_SCOPES: readonly ApiScope[] = ApiScope.options;
 export interface ApiScopeDescription {
   /** Two or three words, for the checkbox label. */
   readonly title: string;
-  /** One sentence, in the second person, naming what the holder may actually do. */
+  /** Two sentences, in the second person: what the holder may actually do, then which tasks need the scope and whether a task completes without it (Poppy 1.0 §4.7). */
   readonly description: string;
 }
 
@@ -103,46 +103,49 @@ export const SCOPE_CATALOGUE: Readonly<Record<ApiScope, ApiScopeDescription>> = 
   "trips:read": {
     title: "Read trips",
     description:
-      "See your trips, their days and stops, costs, history, and existing share links.",
+      "See your trips, their days and stops, costs, history, and existing share links. Reading or listing any of your trips needs this scope; without it, your trips stay hidden, though public Discover playbooks can still be browsed.",
   },
   "trips:write": {
     title: "Change trips",
     description:
-      "Create, change and delete trips, days and stops; undo, redo and revert.",
+      "Create, change and delete trips, days and stops; undo, redo and revert. Creating or changing a trip needs this scope; without it, trips can only be read.",
   },
   "notebook:read": {
     title: "Read the Notebook",
-    description: "Read the Notebook pages on a trip.",
+    description:
+      "Read the Notebook pages on a trip. Opening a Notebook page needs this scope; without it, trip tasks still work but Notebook content stays hidden.",
   },
   "notebook:write": {
     title: "Write the Notebook",
-    description: "Create, change and delete the Notebook pages on a trip.",
+    description:
+      "Create, change and delete the Notebook pages on a trip. Writing a Notebook page needs this scope; without it, Notebook pages can only be read.",
   },
   "library:read": {
     title: "Read your library",
     description:
-      "Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.",
+      "Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks. Reading your saved days or your Playbooks needs this scope; without it, trip tasks still work, and only published Playbooks can be browsed.",
   },
   "library:write": {
     title: "Change your library",
     description:
-      "Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.",
+      "Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover. Changing the library needs this scope; without it, saved days and Playbooks can only be read.",
   },
   "sharing:write": {
     title: "Invite and share",
     description:
-      "Invite people to a trip and revoke invites, and create or revoke share links.",
+      "Invite people to a trip and revoke invites, and create or revoke share links. Inviting someone or sharing a trip needs this scope; without it, trips can be managed but not shared.",
   },
   "account:read": {
     title: "Read your account",
-    description: "See who you are and what plan you hold.",
+    description:
+      "See who you are and what plan you hold. Checking your account or plan needs this scope; without it, trip and library tasks still work.",
   },
   // Honest about the spend (Mitchell, 2026-09-30): it reads nothing of yours,
   // but every lookup costs a geocoding budget everyone shares.
   "places:read": {
     title: "Search places",
     description:
-      "Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day.",
+      "Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day. Finding a place by name needs this scope; without it, stops can still be added with coordinates, but not found by name.",
   },
 });
 

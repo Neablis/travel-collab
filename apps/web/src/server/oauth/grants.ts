@@ -8,10 +8,11 @@ import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { markClientUsed, storeClient, type OAuthClient } from "./clients";
 
 // **A grant is one person's consent to one client** (ADR-083 §1): the scopes,
-// the redirect and the resource they agreed to, for at most a year. Codes and
-// tokens hang off it, and every one of them is only as alive as its grant, read
-// on use. Revoking the grant is therefore the one write that cuts off its
-// codes, refresh tokens and access tokens together.
+// the redirect and the resource they agreed to, for at most a year — or, for a
+// Personal Agent that named no resource, every resource (Poppy 1.0 §4.5).
+// Codes and tokens hang off it, and every one of them is only as alive as its
+// grant, read on use. Revoking the grant is therefore the one write that cuts
+// off its codes, refresh tokens and access tokens together.
 
 export type GrantRow = typeof oauthGrants.$inferSelect;
 export type GrantRevokedReason = NonNullable<GrantRow["revokedReason"]>;
@@ -30,6 +31,10 @@ export function mintSecret(prefix: string): string {
 /**
  * Record consent, writing a CIMD client's row now that someone allowed it. The
  * client's first grant also stops it expiring unused.
+ *
+ * `coversAllResources` is only for a Personal Agent that named no resource at
+ * sign-in (Poppy 1.0 §4.5): its grant covers every resource, and each later
+ * token request names one. Every other grant is single-resource, as before.
  */
 export async function createGrant(input: {
   ownerId: string;
@@ -37,6 +42,7 @@ export async function createGrant(input: {
   redirectUri: string;
   scopes: readonly ApiScope[];
   resource: string;
+  coversAllResources?: boolean;
   now: Date;
 }): Promise<GrantRow> {
   const clientRowId = await storeClient(input.client, input.now);
@@ -50,6 +56,7 @@ export async function createGrant(input: {
       redirectUri: input.redirectUri,
       scopes: [...input.scopes],
       resource: input.resource,
+      coversAllResources: input.coversAllResources ?? false,
       createdAt: input.now,
       lastUsedAt: null,
       expiresAt: new Date(input.now.getTime() + GRANT_LIFETIME_MS),
@@ -62,12 +69,17 @@ export async function createGrant(input: {
   return row!;
 }
 
-/** Issue the one-minute code the client exchanges, bound to the challenge, redirect and resource it asked with. */
+/**
+ * Issue the one-minute code the client exchanges, bound to the challenge,
+ * redirect and resource it asked with — or to no resource, when the authorize
+ * request named none (`resource: null`): the exchange then names the audience
+ * it wants, or none for the grant's default.
+ */
 export async function issueCode(input: {
   grantId: string;
   codeChallenge: string;
   redirectUri: string;
-  resource: string;
+  resource: string | null;
   now: Date;
 }): Promise<string> {
   const secret = mintSecret(OAUTH_CODE_PREFIX);

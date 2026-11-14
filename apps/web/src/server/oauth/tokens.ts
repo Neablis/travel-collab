@@ -78,14 +78,26 @@ const refuse = (error: TokenErrorCode, description: string): TokenOutcome => ({ 
 /** Every digest a presented secret could be stored under (current pepper, then previous). */
 const hashesOf = (secret: string) => keyedDigestCandidates(secret).map((candidate) => candidate.digest);
 
-/** Inside the transaction that spent the code or rotated the refresh token, as `tx`. */
-async function issueTokens(tx: Queryable, grant: GrantRow, now: Date): Promise<TokenResponse> {
+/** Inside the transaction that spent the code or rotated the refresh token, as `tx`. `resource` is the audience the access token is minted for: the token request's, or the grant's default. */
+async function issueTokens(tx: Queryable, grant: GrantRow, resource: string, now: Date): Promise<TokenResponse> {
   const access = mintSecret(OAUTH_ACCESS_PREFIX);
   const refresh = mintSecret(OAUTH_REFRESH_PREFIX);
   const refreshExpiry = Math.min(now.getTime() + REFRESH_LIFETIME_MS, grant.expiresAt.getTime());
   const row = (secret: string, kind: "access" | "refresh", expiresAt: Date) => {
     const { digest, keyVersion } = keyedDigest(secret);
-    return { id: randomUUID(), tokenHash: digest, keyVersion, grantId: grant.id, kind, createdAt: now, expiresAt };
+    return {
+      id: randomUUID(),
+      tokenHash: digest,
+      keyVersion,
+      grantId: grant.id,
+      kind,
+      // Only the access token carries an audience: a refresh token is not
+      // presented as a bearer, and naming one audience for it would pin every
+      // rotation to the first token's.
+      resource: kind === "access" ? resource : null,
+      createdAt: now,
+      expiresAt,
+    };
   };
   await tx
     .insert(oauthTokens)
@@ -104,15 +116,16 @@ async function issueTokens(tx: Queryable, grant: GrantRow, now: Date): Promise<T
 
 /**
  * The checks every grant type shares: the grant is live, it was made for the
- * client presenting it, and the `resource` named (if any) is this server's
- * (amendment C).
+ * client presenting it, and the `resource` named (if any) is one this grant
+ * covers (amendment C, Poppy 1.0 §4.5). Returns the audience the tokens are
+ * minted for: the named resource, or the grant's default when none was named.
  */
 async function grantFor(
   grantId: string,
   clientId: string,
   resource: string | undefined,
   now: Date,
-): Promise<{ ok: true; grant: GrantRow } | { ok: false; outcome: TokenOutcome }> {
+): Promise<{ ok: true; grant: GrantRow; resource: string } | { ok: false; outcome: TokenOutcome }> {
   const grant = await grantOf(grantId);
   if (grant === null || !grantIsLive(grant, now)) {
     return { ok: false, outcome: refuse("invalid_grant", "the grant has been revoked or has expired") };
@@ -120,10 +133,19 @@ async function grantFor(
   if ((await storedClientRowId(clientId)) !== grant.clientId) {
     return { ok: false, outcome: refuse("invalid_grant", "this was not issued to that client_id") };
   }
-  if ((resource !== undefined && resource !== grant.resource) || !isAudience(grant.resource)) {
+  if (resource !== undefined && !isAudience(resource)) {
+    return { ok: false, outcome: refuse("invalid_target", "the resource named is not one this server serves") };
+  }
+  // A grant covers its own resource, and a grant that covers every resource
+  // covers the other one too; a named resource outside that is as wrong as a
+  // stranger's.
+  if (resource !== undefined && resource !== grant.resource && !grant.coversAllResources) {
+    return { ok: false, outcome: refuse("invalid_target", "the grant does not cover that resource") };
+  }
+  if (!isAudience(grant.resource)) {
     return { ok: false, outcome: refuse("invalid_target", `the resource of this grant is not one this server serves`) };
   }
-  return { ok: true, grant };
+  return { ok: true, grant, resource: resource ?? grant.resource };
 }
 
 /**
@@ -258,8 +280,8 @@ export async function exchangeCode(
   if (!checked.ok) return checked.outcome;
   const authenticated = early ?? (await authenticateClient({ ...input, clientId: input.clientId }, checked.grant, { userId: checked.grant.ownerId }, { ...deps, now }));
   if (!authenticated.ok) return authenticated.outcome;
-  if (code.resource !== checked.grant.resource) {
-    return refuse("invalid_target", "the code was issued for another resource than its grant");
+  if (code.resource !== null && code.resource !== checked.resource) {
+    return refuse("invalid_target", "the code was issued for another resource");
   }
   // Exact: the redirect the code was sent to, as a string (RFC 6749 §4.1.3).
   if (code.redirectUri !== input.redirectUri) return refuse("invalid_grant", "redirect_uri differs from the authorize request's");
@@ -274,7 +296,7 @@ export async function exchangeCode(
       .set({ usedAt: now })
       .where(and(eq(oauthCodes.id, code.id), isNull(oauthCodes.usedAt)))
       .returning({ id: oauthCodes.id });
-    return spent === undefined ? null : issueTokens(tx, checked.grant, now);
+    return spent === undefined ? null : issueTokens(tx, checked.grant, checked.resource, now);
   });
   if (issued === null) {
     await cutOffGrant(code.grantId, "code-reuse", now);
@@ -330,7 +352,7 @@ export async function refresh(
       .set({ rotatedAt: now })
       .where(and(eq(oauthTokens.id, token.id), isNull(oauthTokens.rotatedAt)))
       .returning({ id: oauthTokens.id });
-    return rotated === undefined ? null : issueTokens(tx, checked.grant, now);
+    return rotated === undefined ? null : issueTokens(tx, checked.grant, checked.resource, now);
   });
   if (issued === null) {
     await cutOffGrant(token.grantId, "refresh-reuse", now);

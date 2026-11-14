@@ -68,13 +68,14 @@ export async function POST(request: Request) {
     redirectUri: authorize.redirectUri,
     scopes,
     resource: authorize.resource,
+    coversAllResources: authorize.coversAllResources,
     now,
   });
   const code = await issueCode({
     grantId: grant.id,
     codeChallenge: authorize.codeChallenge,
     redirectUri: authorize.redirectUri,
-    resource: authorize.resource,
+    resource: authorize.namedResource,
     now,
   });
   return Response.json({ redirectTo: redirectBack(authorize.redirectUri, authorize.state, { code }) });

@@ -7,7 +7,7 @@ import { clientIsBlocked, storedClientRowId } from "@/server/oauth/clients";
 import { bearerToken } from "@/server/bearerToken";
 import { agentSessionOpenQuota, consumeQuota, type QuotaDecision } from "@/server/quota";
 import { poppyError } from "./errors";
-import { POPPY_PROTOCOL_VERSION } from "./discovery";
+import { POPPY_PROTOCOL_VERSION, POPPY_SUPPORTED_VERSIONS } from "./discovery";
 import { verifySessionHeader, type SessionClaims, type SessionDeps } from "./sessionHeader";
 
 // **A Session is one row** (Poppy 5.3 step 4, 5.5; ADR-089 decision 8), found
@@ -114,12 +114,15 @@ export async function openOrContinueSession(input: {
 }
 
 /**
- * Two versions are compatible when they share a major version and, before 1.0,
- * a minor one (Poppy 3.4); this deployment serves exactly one.
+ * The versions this deployment serves (Poppy 1.0 §3.4): the pinned 1.0, and
+ * 0.4 for the agents that have not moved yet. Anything else — a missing
+ * header, or a version neither pinned nor listed — is `version_unsupported`.
  */
 function versionServed(header: string | null): boolean {
   const match = header === null ? null : /^(\d+)\.(\d+)$/.exec(header);
-  return match !== null && `${Number(match[1])}.${Number(match[2])}` === POPPY_PROTOCOL_VERSION;
+  if (match === null) return false;
+  const version = `${Number(match[1])}.${Number(match[2])}`;
+  return version === POPPY_PROTOCOL_VERSION || POPPY_SUPPORTED_VERSIONS.includes(version);
 }
 
 /**

@@ -11,9 +11,16 @@
 // A plain static handler: no auth, no server imports. It sits under the
 // `.well-known/**/route.ts` lint-wall exemption only because every route here
 // does, not because it needs one.
-/** The catalog linkset, every href absolute against the request's origin. */
-export function GET(request: Request) {
-  const origin = new URL(request.url).origin;
+//
+// **Absolute URLs, from the deployment's configured origin** (`deploymentOrigin()`),
+// as `/llms.txt` does: the request's own origin is the container's bind address
+// in production (`https://0.0.0.0:3000`), which is what every href here carried
+// until this fix.
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+
+/** The catalog linkset, every href absolute against the deployment's configured origin. The request is received and ignored: deriving the origin from it is the bind-address bug. */
+export function GET(_request?: Request) {
+  const origin = deploymentOrigin();
   const linkset = {
     linkset: [
       {

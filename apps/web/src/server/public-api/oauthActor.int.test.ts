@@ -7,12 +7,13 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
-import { oauthGrants } from "@/server/db/schema";
+import { oauthTokens } from "@/server/db/schema";
 import { allGrantsFor, issueGrant, revokeGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { grantOf } from "@/server/oauth/grants";
 import { oauthIssuer } from "@/server/oauth/metadata";
+import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { connectForTest as connect } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
 
@@ -89,10 +90,13 @@ describe("a tco_ token inside an MCP dispatch", () => {
   });
 
   // A client already calling /api/mcp gains nothing from being told to call
-  // /api/mcp: a grant made for another deployment needs a fresh connection.
-  it("is 401 with its own reason when its grant was made for another server", async () => {
-    const { grant, access } = await connect(await entitled(), ["account:read"]);
-    await db.update(oauthGrants).set({ resource: "https://elsewhere.example/api/mcp" }).where(eq(oauthGrants.id, grant.id));
+  // /api/mcp: a token made for another deployment needs a fresh connection.
+  it("is 401 with its own reason when its token was made for another server", async () => {
+    const { access } = await connect(await entitled(), ["account:read"]);
+    // The audience lives on the token, not the grant: rewrite the token's own
+    // resource, as if it had been minted elsewhere.
+    const { digest } = keyedDigest(access);
+    await db.update(oauthTokens).set({ resource: "https://elsewhere.example/api/mcp" }).where(eq(oauthTokens.tokenHash, digest));
     const res = await inDispatch(() => account(access));
     expect(res.status).toBe(401);
     expect((await res.json()).error.message).toBe("This token was issued for a different server. Connect again.");

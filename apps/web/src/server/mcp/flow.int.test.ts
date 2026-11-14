@@ -8,11 +8,12 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "@/server/db/client";
-import { oauthGrants } from "@/server/db/schema";
+import { oauthTokens } from "@/server/db/schema";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { listGrants, revokeGrant } from "@/server/oauth/grants";
 import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
+import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { upsertUser } from "@/server/users";
 
 let sessionUserId: string | null = null;
@@ -192,16 +193,16 @@ describe("connecting through a client metadata document", () => {
   });
 });
 
-describe("a grant made for another resource", () => {
-  // The audience is checked against the grant's own record on every call, not
+describe("a token made for another resource", () => {
+  // The audience is checked against the token's own record on every call, not
   // inferred from where the call arrived (amendment C).
   it("is refused on the call with the resource_metadata challenge", async () => {
     const owner = await premiumUser();
     sessionUserId = owner;
     const { access } = await connect(await registerByDcr(), DCR_REDIRECT, "Test app");
     sessionUserId = null;
-    const [grant] = await listGrants(owner);
-    await db.update(oauthGrants).set({ resource: "https://elsewhere.example/api/mcp" }).where(eq(oauthGrants.id, grant!.id));
+    const { digest } = keyedDigest(access);
+    await db.update(oauthTokens).set({ resource: "https://elsewhere.example/api/mcp" }).where(eq(oauthTokens.tokenHash, digest));
     const res = await whoami(access);
     expect(res.status).toBe(401);
     expect(res.headers.get("WWW-Authenticate")).toMatch(/^Bearer resource_metadata="[^"]+", error="invalid_token"$/);

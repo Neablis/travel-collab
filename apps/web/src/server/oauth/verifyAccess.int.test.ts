@@ -9,9 +9,10 @@ import { db } from "@/server/db/client";
 import { oauthClientBlocks, oauthClients, oauthGrants, oauthTokens } from "@/server/db/schema";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
+import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { connectForTest as connect } from "@/server/test-support/oauthConnection";
 import { upsertUser } from "@/server/users";
-import { oauthIssuer } from "./metadata";
+import { mcpResource, oauthIssuer } from "./metadata";
 import { grantIsLive, grantOf, revokeGrant } from "./grants";
 import { revokeSecret } from "./tokens";
 import { verifyAccessToken } from "./verifyAccess";
@@ -35,6 +36,12 @@ async function person(premium: boolean): Promise<string> {
 }
 
 describe("verifyAccessToken", () => {
+  /** Rewrite the resource a token was minted for, as if it came from elsewhere. */
+  async function setTokenResource(access: string, resource: string | null): Promise<void> {
+    const { digest } = keyedDigest(access);
+    await db.update(oauthTokens).set({ resource }).where(eq(oauthTokens.tokenHash, digest));
+  }
+
   it("answers the grant, its owner, its client's name and its scopes for a live token", async () => {
     const owner = await person(true);
     const { grant, access } = await connect(owner, ["trips:read", "account:read"]);
@@ -47,10 +54,31 @@ describe("verifyAccessToken", () => {
 
   it("answers the domain audience for a grant made for the domain, and refuses a third resource", async () => {
     const owner = await person(true);
-    const { grant, access } = await connect(owner, ["trips:read"], new Date(), oauthIssuer());
+    const { access } = await connect(owner, ["trips:read"], new Date(), oauthIssuer());
     expect(await verifyAccessToken(access)).toMatchObject({ ok: true, access: { audience: "domain" } });
-    await db.update(oauthGrants).set({ resource: "https://elsewhere.example" }).where(eq(oauthGrants.id, grant.id));
+    // The audience lives on the token, not the grant: a token minted for a
+    // resource this server does not serve is refused, whatever its grant says.
+    await setTokenResource(access, "https://elsewhere.example");
     expect(await verifyAccessToken(access)).toEqual({ ok: false, refusal: { reason: "resource" } });
+  });
+
+  it("answers the token's own audience when it differs from its grant's", async () => {
+    const owner = await person(true);
+    const { grant, access } = await connect(owner, ["trips:read"], new Date(), oauthIssuer());
+    // A sign-in that named no resource mints a domain token by default and an
+    // MCP token on request (Poppy 1.0 §4.5): the token's row carries which.
+    const [token] = await db
+      .select()
+      .from(oauthTokens)
+      .where(and(eq(oauthTokens.grantId, grant.id), eq(oauthTokens.kind, "access")));
+    await db
+      .update(oauthTokens)
+      .set({ resource: mcpResource() })
+      .where(eq(oauthTokens.id, token!.id));
+    expect(await verifyAccessToken(access)).toMatchObject({ ok: true, access: { audience: "mcp" } });
+    // And a token minted before the column existed reads as its grant's.
+    await db.update(oauthTokens).set({ resource: null }).where(eq(oauthTokens.id, token!.id));
+    expect(await verifyAccessToken(access)).toMatchObject({ ok: true, access: { audience: "domain" } });
   });
 
   it("refuses a token whose client the operator blocked, and takes it back once unblocked", async () => {
@@ -127,9 +155,9 @@ describe("verifyAccessToken", () => {
     expect(await verifyAccessToken(access)).toEqual({ ok: false, refusal: { reason: "not-entitled", ownerId: owner } });
   });
 
-  it("refuses a token whose grant names another resource (amendment C)", async () => {
-    const { grant, access } = await connect(await person(true));
-    await db.update(oauthGrants).set({ resource: "https://elsewhere.example/api/mcp" }).where(eq(oauthGrants.id, grant.id));
+  it("refuses a token made for another resource (amendment C)", async () => {
+    const { access } = await connect(await person(true));
+    await setTokenResource(access, "https://elsewhere.example/api/mcp");
     expect(await verifyAccessToken(access)).toEqual({ ok: false, refusal: { reason: "resource" } });
   });
 });
