@@ -80,10 +80,12 @@ test("an owner books a stop, sees the chip on its card, and a share link shows n
   }
 });
 
-// A short card at phone width: the chip used to inherit the phone's 44px
-// touch floor, so on a card shorter than that it reached over the card's edit
-// target. The card body outside the chip must still open the editor.
-test("on a short phone card the Booked chip stays inside the card and the body opens the editor", async ({ page }) => {
+// A short card at phone width (KI-2026-11-03-a). A 44px chip would reach over
+// a short card's edit target, and a smaller button is below SPEC §13.1's floor,
+// so on a phone the chip is a label and the code is copied from the editor.
+// The tap lands ON the chip: a click beside it could not tell a chip that still
+// takes the tap from one that lets it through to the card.
+test("on a short phone card the Booked chip is a label, a tap on it opens the editor, and the editor copies the code", async ({ page }) => {
   test.slow();
   await page.setViewportSize({ width: 390, height: 844 });
   const created = await page.request.post("/api/trips", { data: { name: e2eTripName("Booking phone") } });
@@ -107,14 +109,24 @@ test("on a short phone card the Booked chip stays inside the card and the body o
 
   await page.goto(`/trips/${tripId}?view=Plan`);
   const card = page.getByTestId(/^activity-card-/);
-  const chip = card.getByRole("button", { name: /^Booked · Hotel Okura/ });
+  const chip = card.getByTestId("booking-chip-label");
   await expect(chip).toBeVisible();
+  await expect(chip).toHaveText("Booked · Hotel Okura");
+  await expect(card.getByRole("button", { name: /^Booked · Hotel Okura/ })).toHaveCount(0);
   const cardBox = (await card.boundingBox())!;
   const chipBox = (await chip.boundingBox())!;
   expect(chipBox.y).toBeGreaterThanOrEqual(cardBox.y - 0.5);
   expect(chipBox.y + chipBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 0.5);
 
-  // Just left of the chip, at the card's vertical middle: the editor's target.
-  await page.mouse.click(chipBox.x - 4, cardBox.y + cardBox.height / 2);
+  await page.mouse.click(chipBox.x + chipBox.width / 2, chipBox.y + chipBox.height / 2);
   await expect(page.getByRole("heading", { name: "Edit activity" })).toBeVisible();
+  await expect(page.getByTestId("toast")).toHaveCount(0);
+
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const copy = page.getByRole("button", { name: "Copy code" });
+  await expect(copy).toBeVisible();
+  expect((await copy.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await copy.click();
+  await expect(page.getByText("Code copied")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("ZX9QK7");
 });
