@@ -546,7 +546,7 @@ function asksForAPlaybookDay(text: string): boolean {
  * The cities come from `read_trip`'s own readout rather than from the question,
  * so the day this proposes is one that touches somewhere the trip actually
  * goes. On an empty or unlocated trip that list is empty, which
- * `search_playbooks` reads as "browse the most-added days" — still a real
+ * `search_playbooks` reads as "browse the top days" — still a real
  * answer.
  *
  * `null` means there was nothing to insert: the library had no matching day, so

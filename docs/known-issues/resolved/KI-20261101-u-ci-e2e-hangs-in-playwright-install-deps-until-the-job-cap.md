@@ -1,4 +1,4 @@
-### KI-2026-11-01-u — CI's e2e shards can hang in `playwright install-deps chromium` until the 20-minute job cap
+### KI-2026-11-01-u — CI's e2e shards can hang in `playwright install-deps chromium` until the 20-minute job cap — RESOLVED
 
 - **Severity:** reliability. No test runs and `ci-ok` goes red, on a PR whose code is fine.
 - **Area:** `.github/workflows/ci.yml` (the e2e job: `timeout-minutes: 20`, and the step
@@ -23,7 +23,7 @@
   this day was name resolution failing on the runner, not a hung Playwright. The same image version
   passed this step on 2026-11-10 (run 42738117635), and re-runs at 17:59Z passed (run 42758239323
   attempt 5, run 43037721098 attempt 4; run 43037550861 attempt 4 got past the step and failed a
-  different test, see KI-20261111-a). The 2026-11-01 occurrence above was therefore probably the same
+  different test, see KI-20261111-b). The 2026-11-01 occurrence above was therefore probably the same
   class of failure, still unverified for that day.
 - **How to tell it from a real failure:** the cancelled step is `install-deps`, not `Run e2e`, and
   both shards stop at the same minute. A spec that fails runs, and fails in the same place on a
@@ -39,16 +39,22 @@
   most likely matter to its baselines (not verified). Tripwire: **hit on 2026-11-11** (a second occurrence); the
   entry stays open until the step is bounded and cached, and any edit to the e2e job should include
   that.
-- **Fix:** in flight, PR 721. The e2e job now writes `/etc/apt/apt.conf.d/99-ci-fail-fast`
+- **Fix:** PR 721 (merged). The e2e job now writes `/etc/apt/apt.conf.d/99-ci-fail-fast`
   (`Acquire::Retries "2"`, 15s http/https timeouts) and runs `install-deps` in its own step with
   `timeout-minutes: 4`, wrapped in three attempts with 10s/20s backoff that exits non-zero if all
   fail. A mirror blip recovers; an outage like the 2026-11-11 one (apt retrying every 20s, about
   10 minutes per attempt) fails in minutes. Left out on purpose: an apt package cache (needs
   root-owned `/var/cache/apt` handling, out of scope for a small fix) and skipping the fonts
-  (`apps/web/e2e/m42-demo-trips.spec.ts` uses `toHaveScreenshot`). The entry stays open: the
-  outage cannot be reproduced on demand, so it closes once a CI run shows the new step passing
-  on the normal path.
-- **Cross-reference:** KI-20261111-a (a separate e2e flake seen on the same day); M43 retro (*What could be better*); M56's retro records a different
+  (`apps/web/e2e/m42-demo-trips.spec.ts` uses `toHaveScreenshot`).
+- **Proof (2026-11-14):** the entry's own closing condition was "a CI run shows the new step
+  passing on the normal path". `ci` run 43085708751 on `819afe8` (PR 721's head) passed, and the
+  new step `Install Playwright OS deps` took 13s on `test / e2e (1/2)` (19:17:40Z to 19:17:53Z) and
+  10s on `test / e2e (2/2)` (19:17:33Z to 19:17:43Z), read from the run's jobs over REST. That
+  proves the normal path. It does not prove the outage path: the 2026-11-11 DNS failure cannot be
+  reproduced on demand, so the fail-fast behaviour (a bounded step, three attempts) has been
+  seen working only as written, not under a real outage. If the step fails again, reopen this
+  with a new entry citing the run.
+- **Cross-reference:** KI-20261111-b (a separate e2e flake seen on the same day); M43 retro (*What could be better*); M56's retro records a different
   runner stall (`test / unit` cancelled at its cap, run 41100755426).
 - **First noted:** 2026-11-01, review of PR 660 at `d2c9470`.
-- **Last updated:** 2026-11-11, M60 part 0, with the three runs above.
+- **Last updated:** 2026-11-14, M60 close: resolved by PR 721, proof above.

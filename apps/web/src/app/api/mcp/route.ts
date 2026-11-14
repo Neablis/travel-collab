@@ -2,6 +2,7 @@ import { createMcpHandler } from "@modelcontextprotocol/server";
 import type { McpCaller } from "@/server/mcp/dispatch";
 import { buildServer, reportMcpError } from "@/server/mcp/server";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
+import { poppyGate } from "@/server/poppy/sessions";
 import { resolveActor } from "@/server/public-api/actor";
 import { oauthChallenge, oauthRefusalResponse } from "@/server/public-api/route";
 import { TOOLS } from "./tools";
@@ -22,6 +23,21 @@ import { TOOLS } from "./tools";
 
 /** One JSON-RPC exchange with the connector, as the OAuth token's holder, or the refusal of that token. */
 export async function POST(request: Request): Promise<Response> {
+  // A Personal Agent's Session header (Poppy 5.3) is verified first, so its 400
+  // is not hidden behind the 401 a client without a token would get. A request
+  // without the header never enters it.
+  let session: Exclude<Awaited<ReturnType<typeof poppyGate>>, { refused: Response }>;
+  try {
+    const gate = await poppyGate(request);
+    if ("refused" in gate) return gate.refused;
+    session = gate;
+  } catch (error) {
+    console.error("mcp session verification threw", { error });
+    return Response.json(
+      { error: { code: "server-error", message: "Something went wrong. The failure has been logged." } },
+      { status: 500 },
+    );
+  }
   const header = request.headers.get("authorization");
   if (header === null) {
     return Response.json(
@@ -41,6 +57,18 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (!resolution.ok && resolution.refusal.reason === "oauth") return oauthRefusalResponse(resolution.refusal.refusal);
   if (!resolution.ok || resolution.actor.via !== "oauth") return oauthRefusalResponse({ reason: "unknown" });
+
+  // Opened only now that the token is accepted: no row for a request the credential refuses.
+  try {
+    const ended = await session.open(resolution.actor.userId);
+    if (ended !== null) return ended;
+  } catch (error) {
+    console.error("mcp session open threw", { error });
+    return Response.json(
+      { error: { code: "server-error", message: "Something went wrong. The failure has been logged." } },
+      { status: 500 },
+    );
+  }
 
   const caller: McpCaller = { request, userId: resolution.actor.userId, grantId: resolution.actor.grantId };
   const handler = createMcpHandler(() => buildServer(TOOLS, caller), {

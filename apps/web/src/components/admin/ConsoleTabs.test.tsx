@@ -21,4 +21,10 @@ describe("the console's tab strip", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Library" }));
     expect(push).toHaveBeenCalledWith("/admin?tab=library");
   });
+
+  it("offers Discover rank (M61 part 5)", async () => {
+    render(<ConsoleTabs value="users" />);
+    await userEvent.click(screen.getByRole("tab", { name: "Discover rank" }));
+    expect(push).toHaveBeenCalledWith("/admin?tab=discover-rank");
+  });
 });

@@ -41,7 +41,7 @@ const Query = z.object({
   length: LengthBand.optional().describe("How many days: one, two-three, four-six or seven-plus. Default any."),
   rating: RatingFloor.optional().describe("Minimum average rating; any floor drops unrated Playbooks. Default any."),
   sort: DiscoverSort.optional().describe(
-    "Default most-added. Places matched always rank first. `newest` is the only sort whose order does not move as people add and review.",
+    "Default most-added; `top` is the app's own Discover order. Places matched always rank first. `newest` is the only sort whose order does not move as people add and review.",
   ),
 });
 type Query = z.infer<typeof Query>;
@@ -57,6 +57,8 @@ type ApiDiscoverDay = z.infer<typeof ApiDiscoverDay>;
 export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {
   summary: "Discover published Playbooks from everyone — filter by place, length and rating, ranked as the app ranks them",
   scope: "library:read",
+  // Published Playbooks are public on the web, so a Personal Agent may read them with no account.
+  signedOut: true,
   query: Query,
   collection: {
     item: ApiDiscoverDay,
@@ -75,7 +77,7 @@ export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {
         sort: q.sort ?? "most-added",
         length: q.length ?? "any",
         rating: q.rating ?? "any",
-        readerId: actor.userId,
+        readerId: actor.via === "signed-out" ? null : actor.userId,
       },
       page,
     );

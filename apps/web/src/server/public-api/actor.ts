@@ -2,6 +2,7 @@ import { OAUTH_ACCESS_PREFIX, type ApiScope } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { verifyToken, type TokenRefusal } from "@/server/api-tokens";
 import { inMcpDispatch } from "@/server/oauth/dispatchContext";
+import { bearerToken } from "@/server/bearerToken";
 import { verifyAccessToken, type AccessRefusal } from "@/server/oauth/verifyAccess";
 
 // **Who is asking, and by what authority** (M22 Phase 2, Decision 3).
@@ -42,7 +43,15 @@ export type Actor =
       scopes: ReadonlySet<ApiScope>;
       /** A grant is never confined to trips; the field is here so code over the union reads one shape. */
       tripIds: null;
-    };
+    }
+  /**
+   * A Personal Agent's Session with no access token (Poppy 5.4). **It holds no
+   * scope and reaches no trip**, so only a route that declares `signedOut`
+   * runs for it, and `route()` is the one place that makes one.
+   */
+  | { userId: ""; via: "signed-out"; scopes: ReadonlySet<ApiScope>; tripIds: null };
+
+export const SIGNED_OUT_ACTOR: Actor = { userId: "", via: "signed-out", scopes: new Set(), tripIds: null };
 
 /** Why nobody could be resolved. Mapped to a status and a wire code by `route()`. */
 export type ActorRefusal =
@@ -52,14 +61,6 @@ export type ActorRefusal =
   | { reason: "oauth"; refusal: AccessRefusal };
 
 export type ActorResolution = { ok: true; actor: Actor } | { ok: false; refusal: ActorRefusal };
-
-// **Case-insensitive, and the token is the non-space run.** RFC 7235 makes the
-// auth-scheme case-insensitive, so `bearer tc_…` from a client that lowercases
-// its headers is a real credential — and answering it as "anonymous" is the
-// 401 an integrator cannot debug, because their token IS valid. `\S+` rather
-// than `.+` also stops a trailing space or `\r` riding along into the digest,
-// which would fail verification for a reason nothing in the response names.
-const BEARER = /^Bearer[ \t]+(\S+)[ \t]*$/i;
 
 /**
  * Resolve a request to an actor.
@@ -78,10 +79,10 @@ const BEARER = /^Bearer[ \t]+(\S+)[ \t]*$/i;
  */
 export async function resolveActor(request: Request, now: Date = new Date()): Promise<ActorResolution> {
   const header = request.headers.get("authorization");
-  const bearer = header === null ? null : BEARER.exec(header);
-  if (bearer !== null && bearer[1]!.startsWith(OAUTH_ACCESS_PREFIX)) return resolveOAuth(bearer[1]!, now);
+  const bearer = bearerToken(request);
+  if (bearer !== null && bearer.startsWith(OAUTH_ACCESS_PREFIX)) return resolveOAuth(bearer, now);
   if (bearer !== null) {
-    const verified = await verifyToken(bearer[1]!, now);
+    const verified = await verifyToken(bearer, now);
     if (!verified.ok) return { ok: false, refusal: { reason: "token", refusal: verified.refusal } };
     return {
       ok: true,
@@ -106,15 +107,18 @@ export async function resolveActor(request: Request, now: Date = new Date()): Pr
 }
 
 /**
- * A `tco_` access token: its audience is `/api/mcp` (RFC 8707), so it resolves
- * only inside an MCP tool dispatch and is refused, unread, everywhere else.
- * Without this, the same token would work on a direct `/api/v1` call, since
- * the tools dispatch through those very handlers.
+ * A `tco_` access token, by its grant's audience (RFC 8707, Poppy 7): `/api/mcp`
+ * resolves only inside an MCP tool dispatch, a domain one only outside it, and
+ * each is refused at the other. Without the first, an MCP token would work on a
+ * direct `/api/v1` call, since the tools dispatch through those very handlers;
+ * without the second, a Personal Agent's token would reach the connector.
  */
 async function resolveOAuth(secret: string, now: Date): Promise<ActorResolution> {
-  if (!inMcpDispatch()) return { ok: false, refusal: { reason: "oauth", refusal: { reason: "audience" } } };
   const verified = await verifyAccessToken(secret, now);
   if (!verified.ok) return { ok: false, refusal: { reason: "oauth", refusal: verified.refusal } };
+  if ((verified.access.audience === "mcp") !== inMcpDispatch()) {
+    return { ok: false, refusal: { reason: "oauth", refusal: { reason: "audience" } } };
+  }
   return {
     ok: true,
     actor: {
@@ -136,6 +140,7 @@ async function resolveOAuth(secret: string, now: Date): Promise<ActorResolution>
 export function credentialKey(actor: Actor): string | null {
   switch (actor.via) {
     case "session":
+    case "signed-out":
       return null;
     case "token":
       return actor.tokenId;
@@ -165,5 +170,6 @@ export function actorHasScope(actor: Actor, scope: ApiScope): boolean {
  */
 export function actorMayReachTrip(actor: Actor, tripId: string): boolean {
   if (actor.via === "session") return true;
+  if (actor.via === "signed-out") return false;
   return actor.tripIds === null || actor.tripIds.has(tripId);
 }

@@ -29,6 +29,29 @@ describe("Discover's state as a URL", () => {
     expect(discoverQueryString(DISCOVER_URL_DEFAULTS)).toBe("");
   });
 
+  // M61 decision 7: `top` is the default, so the old implicit default, a
+  // `?sort=most-added` link, has to be spelled out and still read as itself.
+  it("defaults to top, and a most-added link still asks for most-added", () => {
+    expect(DISCOVER_URL_DEFAULTS.sort).toBe("top");
+    expect(fromQuery("").sort).toBe("top");
+    expect(fromQuery("sort=most-added").sort).toBe("most-added");
+    expect(discoverQueryString({ ...DISCOVER_URL_DEFAULTS, sort: "most-added" })).toBe("sort=most-added");
+  });
+
+  // The place page (`placeCanonical`) canonicalises only a link that differs
+  // from these defaults in no field but its places; a most-added link does.
+  it("reads a most-added link as asking for something, so it stays off the place page", () => {
+    // The page's own test, over the fields it compares (everything but the places and tag).
+    const asks = (query: string) => {
+      const state = fromQuery(query);
+      return (["scope", "sort", "length", "rating", "after"] as const).some(
+        (key) => state[key] !== DISCOVER_URL_DEFAULTS[key],
+      );
+    };
+    expect(asks("city=Kyoto&sort=most-added")).toBe(true);
+    expect(asks("city=Kyoto")).toBe(false);
+  });
+
   // A hand-edited or stale URL falls back per field rather than failing the
   // page — and a country code is normalised to the stored upper case.
   it("drops what it cannot read and keeps the rest", () => {

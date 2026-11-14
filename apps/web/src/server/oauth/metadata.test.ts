@@ -10,7 +10,7 @@ describe("the metadata documents", () => {
   it("names the MCP endpoint as the resource, exactly, under the configured origin", () => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "caesura.today");
-    expect(protectedResourceMetadata()).toMatchObject({
+    expect(protectedResourceMetadata("api/mcp")).toMatchObject({
       resource: "https://caesura.today/api/mcp",
       authorization_servers: ["https://caesura.today"],
       bearer_methods_supported: ["header"],
@@ -19,10 +19,29 @@ describe("the metadata documents", () => {
     expect(oauthIssuer()).toBe("https://caesura.today");
   });
 
-  it("offers S256 only, public clients only, CIMD and the iss parameter", () => {
+  // ADR-089 decision 7 (Poppy spec 3.2): the domain's own document names the
+  // domain, and the MCP form keeps naming the MCP endpoint so Claude is untouched.
+  it("names the origin as the bare document's resource, and the issuer lists both resources", () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "caesura.today");
+    expect(protectedResourceMetadata()).toMatchObject({
+      resource: "https://caesura.today",
+      authorization_servers: ["https://caesura.today"],
+    });
+    expect(protectedResourceMetadata("api/mcp").resource).toBe("https://caesura.today/api/mcp");
+    expect(authorizationServerMetadata().protected_resources).toEqual([
+      "https://caesura.today",
+      "https://caesura.today/api/mcp",
+    ]);
+  });
+
+  it("offers S256 only, public clients and signed assertions, CIMD and the iss parameter", () => {
     const metadata = authorizationServerMetadata();
     expect(metadata.code_challenge_methods_supported).toEqual(["S256"]);
-    expect(metadata.token_endpoint_auth_methods_supported).toEqual(["none"]);
+    expect(metadata.token_endpoint_auth_methods_supported).toEqual(["none", "private_key_jwt"]);
+    expect(metadata.token_endpoint_auth_signing_alg_values_supported).toEqual(["ES256", "PS384"]);
+    expect(metadata.revocation_endpoint_auth_methods_supported).toEqual(["none", "private_key_jwt"]);
+    expect(metadata.revocation_endpoint_auth_signing_alg_values_supported).toEqual(["ES256", "PS384"]);
     expect(metadata.client_id_metadata_document_supported).toBe(true);
     expect(metadata.authorization_response_iss_parameter_supported).toBe(true);
     expect(metadata.scopes_supported).toContain("offline_access");

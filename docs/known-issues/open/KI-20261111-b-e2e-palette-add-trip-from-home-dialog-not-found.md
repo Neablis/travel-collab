@@ -1,4 +1,4 @@
-### KI-2026-11-11-a — e2e "Add › Trip from Home is Home's own button" intermittently finds no "New trip" dialog
+### KI-2026-11-11-b — e2e "Add › Trip from Home is Home's own button" intermittently finds no "New trip" dialog
 
 - **Severity:** reliability. One desktop spec in an e2e shard fails after its retry, so `ci-ok` goes
   red on a PR whose code is fine; a re-run with no code change passes.

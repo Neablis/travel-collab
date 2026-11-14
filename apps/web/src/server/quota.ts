@@ -110,7 +110,8 @@ const DAY_MS = 24 * HOUR_MS;
 const MAX_INT4 = 2_147_483_647;
 const MAX_COUNTER_HITS = MAX_INT4 - 1;
 
-function envCeiling(name: string, fallback: number): number {
+/** The positive integer the env var names, or `fallback` when it is unset or unusable (so a bad value never lifts a ceiling). */
+export function envCeiling(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === "") return fallback;
   const parsed = Number(raw);
@@ -406,6 +407,135 @@ export function oauthCimdQuota(): QuotaPolicy[] {
       windowMs: HOUR_MS,
       perUser: envCeiling("OAUTH_CIMD_RATE_LIMIT_PER_USER_HOURLY", 30),
       global: envCeiling("OAUTH_CIMD_RATE_LIMIT_GLOBAL_HOURLY", 2000),
+    },
+  ];
+}
+
+/**
+ * Metadata and key-set fetches made before any account is known: a Personal
+ * Agent's `Poppy-Session`, or a client assertion that arrives before its grant
+ * is. A policy of its own, so these cannot spend the global share
+ * `/oauth/authorize` draws on for the clients people are connecting
+ * (`oauthCimdQuota`). Charged to the caller's IP, never to a `client_id` the
+ * caller names, and only for a client that has a stored row: a made-up URL is
+ * answered without a fetch. The most that remains is one fetch per known client
+ * per cache window, so the global is sized by the steady state, not by an
+ * attacker: a busy agent costs about 24 units an hour (its document and key set,
+ * every five minutes), so 3,000 carries over a hundred of them with room to spare.
+ */
+export function signedOutFetchQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "oauth-signed-out-fetch-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_PER_CALLER_HOURLY", 120),
+      global: envCeiling("OAUTH_SIGNED_OUT_FETCH_RATE_LIMIT_GLOBAL_HOURLY", 3000),
+    },
+  ];
+}
+
+/**
+ * Personal Agent Sessions opened (Poppy 5.5). Only the insert is charged:
+ * continuing one is free. A Session is only opened once an access token is
+ * accepted, so the bucket is the account's, per agent: `(client_id, account)`
+ * signed in, `(client_id, caller IP)` signed out. One popular agent's users
+ * therefore never share a ceiling, and what one account can write through one
+ * agent is bounded.
+ */
+export function agentSessionOpenQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "agent-session-open-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("AGENT_SESSION_OPEN_RATE_LIMIT_PER_ACCOUNT_HOURLY", 60),
+      global: envCeiling("AGENT_SESSION_OPEN_RATE_LIMIT_GLOBAL_HOURLY", 20000),
+    },
+  ];
+}
+
+/**
+ * Metadata and key-set fetches for an agent nobody has Allowed, made only to
+ * answer a signed-out read (ADR-089 decision 5). Its own policy, charged to the
+ * caller's IP, so a caller naming made-up domains spends neither the share
+ * `signedOutFetchQuota` keeps for known agents nor `/oauth/authorize`'s. A
+ * failed fetch is remembered for a minute (`FETCH_FAILURE_SECONDS`), so one bad
+ * domain costs one unit a minute whatever the traffic.
+ */
+export function unknownAgentFetchQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "oauth-signed-out-unknown-fetch-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_PER_IP_HOURLY", 120),
+      global: envCeiling("OAUTH_SIGNED_OUT_UNKNOWN_FETCH_RATE_LIMIT_GLOBAL_HOURLY", 500),
+    },
+  ];
+}
+
+/**
+ * Reports a Personal Agent sends (Poppy 9.3, ADR-089 decision 11), per
+ * `client_id`: 9.3 asks for one report per task, so 20 an hour is generous for an
+ * honest agent and bounds what a dishonest one can write. Charged before the body
+ * is read, so a stream of malformed ones is limited too.
+ */
+export function agentFeedbackQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "agent-feedback-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("AGENT_FEEDBACK_RATE_LIMIT_PER_CLIENT_HOURLY", 20),
+      global: envCeiling("AGENT_FEEDBACK_RATE_LIMIT_GLOBAL_HOURLY", 500),
+    },
+  ];
+}
+
+/**
+ * The same reports per caller IP. A `client_id` is a URL anyone can mint, so the
+ * per-client share alone is multiplied by every domain one stranger can name; this
+ * is the ceiling on the stranger.
+ */
+export function agentFeedbackIpQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "agent-feedback-ip-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("AGENT_FEEDBACK_RATE_LIMIT_PER_IP_HOURLY", 30),
+      global: envCeiling("AGENT_FEEDBACK_RATE_LIMIT_IP_GLOBAL_HOURLY", 1000),
+    },
+  ];
+}
+
+/**
+ * What a Personal Agent's signed-out Session may read (Poppy 5.4, ADR-089
+ * decision 5), per `(client_id, sid)`: a Session is the unit an agent can make
+ * as many of as it likes, and `agentSessionOpenQuota` bounds that, so the two
+ * together bound what one agent can pull without an account. Those Sessions
+ * still add up, so `signedOutClientReadQuota` caps them as one.
+ */
+export function signedOutReadQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "signed-out-read-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_PER_SESSION_HOURLY", 300),
+      global: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_GLOBAL_HOURLY", 20000),
+    },
+  ];
+}
+
+/**
+ * Everything one `client_id` may read signed out, across all its Sessions. Without it a single
+ * agent opening Sessions at `agentSessionOpenQuota`'s rate reaches the global ceiling
+ * above alone, and every other agent's signed-out read is refused for the rest of the hour.
+ * The ceiling is a fraction of the global one, so it takes several agents to exhaust it.
+ */
+export function signedOutClientReadQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "signed-out-read-client-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_PER_CLIENT_HOURLY", 2000),
+      global: envCeiling("SIGNED_OUT_READ_RATE_LIMIT_GLOBAL_HOURLY", 20000),
     },
   ];
 }

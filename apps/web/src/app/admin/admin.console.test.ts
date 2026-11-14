@@ -213,3 +213,36 @@ describe("the grant-cost panel stays deleted", () => {
     }
   });
 });
+
+describe("the Agents tab is read behind the gate", () => {
+  // M60 part 4. The tab lists every Personal Agent that has opened a Session and
+  // the operator's blocks; a non-operator must reach `notFound()` before
+  // `agentsSeen` runs, and the tab must be registered or `?tab=agents` would
+  // fall back to Financial for the operator as well.
+  it("registers the tab and calls agentsSeen only after the admin check", () => {
+    const page = codeOf(path.join(HERE, "page.tsx"));
+    const gate = page.indexOf("notFound()");
+    const read = page.indexOf("agentsSeen(");
+    expect(read, "page.tsx no longer reads the agents seen").toBeGreaterThan(-1);
+    expect(page.indexOf("adminUserId()")).toBeLessThan(gate);
+    expect(gate).toBeLessThan(read);
+    expect(page).toMatch(/tab === "agents"/);
+  });
+});
+
+describe("the Discover rank tab is read behind the gate", () => {
+  // M61 part 5. The tab lists days by score; a non-operator must reach
+  // `notFound()` before `topDiscoverRanks` runs, and the tab must be registered
+  // or `?tab=discover-rank` would fall back to Financial for the operator too.
+  it("registers the tab and calls topDiscoverRanks only after the admin check", () => {
+    const page = codeOf(path.join(HERE, "page.tsx"));
+    const gate = page.indexOf("notFound()");
+    const read = page.indexOf("topDiscoverRanks(");
+    expect(read, "page.tsx no longer reads the discover ranks").toBeGreaterThan(-1);
+    expect(page.indexOf("adminUserId()")).toBeLessThan(gate);
+    expect(gate).toBeLessThan(read);
+    expect(page).toMatch(/tab === "discover-rank"/);
+    // The constants shown are the module's, not a copy that could drift.
+    expect(page).toMatch(/constants=\{RANK_CONSTANTS\}/);
+  });
+});

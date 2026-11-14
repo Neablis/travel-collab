@@ -54,6 +54,7 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
       marking={request.marking}
       redirectHost={new URL(request.redirectUri).host}
       cimdHost={request.client.cimdHost}
+      personalAgent={request.client.authMethod === "private_key_jwt" ? { logoUri: request.client.logoUri } : null}
       scopes={request.scopes}
       entitled={await accountCan(userId, "api.tokens")}
       params={posted}

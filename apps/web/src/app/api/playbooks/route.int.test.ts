@@ -4,7 +4,7 @@ import type { DiscoverResponse } from "@/lib/playbooks";
 import { eq } from "drizzle-orm";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
-import { savedDays } from "@/server/db/schema";
+import { savedDayRanks, savedDays } from "@/server/db/schema";
 import { putReview } from "@/server/reviews";
 
 // Discover's day search (M11b link 5), against the real containment query.
@@ -469,6 +469,26 @@ describe("GET /api/playbooks", () => {
     );
     expect(status).toBe(200);
     expect(names(body)).toContain(name);
+  });
+
+  // Top is the default order (M61 decision 12), so an absent or stale `sort`
+  // lands on it, not on the old most-added. The scored day has fewer adds, so
+  // most-added would put the other first.
+  it.each(["sort=loudest", ""])("falls back to top, not most-added, on `%s`", async (sortParam) => {
+    const only = city(`fallback-top-${sortParam === "" ? "none" : "bad"}`);
+    const scored = await saveDay(`Scored ${RUN}`, [{ city: only }]);
+    const popular = await saveDay(`Popular ${RUN}`, [{ city: only }]);
+    await publish(scored);
+    await publish(popular);
+    await db.update(savedDays).set({ adds: 5 }).where(eq(savedDays.id, popular));
+    // Publishing seeds a rank row of its own (part 2), so set the score on it.
+    const row = { savedDayId: scored, score: 9, addsRecent: 0, commentsRecent: 0, quality: 1, newDayLift: 1, computedAt: new Date() };
+    await db.insert(savedDayRanks).values(row).onConflictDoUpdate({ target: savedDayRanks.savedDayId, set: { score: 9 } });
+    await db.delete(savedDayRanks).where(eq(savedDayRanks.savedDayId, popular));
+
+    currentUserId = READER;
+    const { body } = await discover(`city=${only}&${sortParam}`);
+    expect(names(body)).toEqual([`Scored ${RUN}`, `Popular ${RUN}`]);
   });
 
   // **The season filter is cut** (M26 link 2, SPEC §33.2). It filtered on the

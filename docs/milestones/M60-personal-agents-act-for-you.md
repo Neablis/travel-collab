@@ -187,14 +187,21 @@ reopened; ADR-089 carries the mechanism.
 ## Exit gate
 
 - [x] **Decisions D1–D14 are answered and recorded here**, and the ADR is written (ADR-089, 2026-11-09).
-- [ ] **`poppy.json` passes** the kit validator's `check --file` and `--milestone foundation`
-      against the preview, with the run's output recorded here.
-      Open: needs the validator run against the preview, which waits on sign-in there. In CI, the
-      document's shape is asserted by `apps/web/src/server/poppy/discovery.test.ts` (cases: pinned
-      version and sign-in details; every published scope described; MCP server, OpenAPI, tasks
-      endpoint listed; origin from configuration) and `apps/web/src/server/oauth/wellKnown.test.ts`
-      ("serves the document for the configured origin, never the request's Host"). That is not the
-      kit validator's verdict.
+- [ ] ~~**`poppy.json` passes** the kit validator's `check --file` and `--milestone foundation`
+      against the preview, with the run's output recorded here.~~
+      **Amended OUT of the gate at the close, 2026-11-14; not passed, not run, no output
+      recorded.** It carries forward as KI-2026-11-14-a
+      (`docs/known-issues/open/KI-20261114-a-poppy-json-not-run-through-the-kit-validator.md`),
+      whose fix path is to run both commands against https://caesura.today and record the output.
+      The close session's brief directed this deferral; a gate definition changes only by
+      Mitchell's decision (`docs/milestones/README.md`), so he confirms it when he merges part 0.
+      What CI asserts is the document's shape: `apps/web/src/server/poppy/discovery.test.ts` (cases:
+      pinned version and sign-in details; every published scope described; MCP server, OpenAPI,
+      tasks endpoint listed; origin from configuration) and
+      `apps/web/src/server/oauth/wellKnown.test.ts` ("serves the document for the configured origin,
+      never the request's Host"). That is not the kit validator's verdict. PR 733 added
+      `auth.issuer` to the document after the run was planned, and the kit's 0.4 validator is the
+      check of record (ADR-089 D13).
 - [x] **The metadata agrees with itself**: the bare protected-resource document names
       `https://caesura.today`, the issuer's `protected_resources` lists it, and `/api/mcp`'s
       document still names `/api/mcp`.
@@ -203,7 +210,7 @@ reopened; ADR-089 carries the mechanism.
       resource, exactly, under the configured origin") and
       `apps/web/src/server/oauth/wellKnown.test.ts` ("names the origin bare and the MCP endpoint on
       the MCP path, whatever Host says").
-- [ ] **A Session header is verified or refused** on v1 and MCP: a valid one starts a session; a
+- [x] **A Session header is verified or refused** on v1 and MCP: a valid one starts a session; a
       missing delegation, a wrong `aud`, `htm` or `htu`, a stale `iat` or a wrong `ath` answers
       `invalid_session` (400, JSON); a missing `Poppy-Version` answers `version_unsupported`; an
       ended session answers `session_ended`. Each case is a test seen failing first.
@@ -218,7 +225,10 @@ reopened; ADR-089 carries the mechanism.
       Poppy-Version as version_unsupported") and `apps/web/src/app/api/mcp/route.int.test.ts` (MCP:
       "answers invalid_session and version_unsupported as 400, before the 401 an anonymous call
       gets"). Red-first: the failure texts are in PR 716's body, not repeated here.
-- [ ] **A client assertion is required and checked** for a `private_key_jwt` client: a wrong
+      Ticked 2026-11-14 at the close on that evidence: CI green on PR 718's head (runs 42738117635
+      on 4254305 and 43037721098 on 201a362, whose tree is identical), and the red-first tables in
+      the bodies of PRs 715 and 716.
+- [x] **A client assertion is required and checked** for a `private_key_jwt` client: a wrong
       `aud` (including the token endpoint's URL) or a reused `jti` is `invalid_client`.
       CI run 42738117635 on 4254305 (PR 718's head, which holds the whole milestone; 9 of 9 jobs success, `ci-ok` included): `apps/web/src/server/oauth/clientAssertion.test.ts` (cases: "refuses any aud but the
       issuer, character for character", which lists the token endpoint's URL; "refuses an assertion
@@ -228,7 +238,7 @@ reopened; ADR-089 carries the mechanism.
       is `invalid_client`) and `apps/web/src/app/api/oauth/token/route.int.test.ts` ("answers 401
       invalid_client without its client_assertion, and 200 with one"). Every verifier refusal is
       one `invalid_client` path in `tokens.ts`.
-- [ ] **No scope beyond what was asked** is ever granted, and a sign-in without `scope` is
+- [x] **No scope beyond what was asked** is ever granted, and a sign-in without `scope` is
       `invalid_scope`.
       CI run 42738117635 on 4254305 (PR 718's head, which holds the whole milestone; 9 of 9 jobs success, `ci-ok` included): `apps/web/src/server/oauth/authorizeRequest.test.ts` ("requires scope from a
       private_key_jwt client, and still defaults it for a public one": no `scope`, and only
@@ -236,15 +246,20 @@ reopened; ADR-089 carries the mechanism.
       `apps/web/src/app/api/oauth/authorize/route.int.test.ts` ("refuses a scope the client did not
       ask for, and an empty choice") and `apps/web/src/server/oauth/tokens.int.test.ts` ("is refused
       a scope beyond what the grant holds, and a refusal rotates nothing").
-- [ ] **The v1 API takes a Poppy access token** with every gate `route()` already applies, and an
-      `/api/mcp`-audience token is still refused outside MCP.
-      Open, partly covered. The audience clauses are tested: `apps/web/src/server/public-api/oauthActor.int.test.ts`
-      ("is accepted on v1 when the grant was made for the domain, and refused inside an MCP
-      dispatch"; "is refused on v1 when the grant was made for /api/mcp, and accepted inside the
-      dispatch"; "is 401 on a bare /v1/account call"). The gates (scope, 402 on a lapsed plan, the
-      owner's trip reach) are asserted there only for a token made for `/api/mcp`, run inside an MCP
-      dispatch; no test sends a domain-audience token through them on v1. The code path is shared,
-      but that is an inference, not an assertion.
+- [ ] ~~**The v1 API takes a Poppy access token** with every gate `route()` already applies, and an
+      `/api/mcp`-audience token is still refused outside MCP.~~
+      **Amended OUT of the gate at the close, 2026-11-14; not passed.** It carries forward as
+      KI-2026-11-14-b
+      (`docs/known-issues/open/KI-20261114-b-no-test-sends-a-domain-audience-token-through-v1s-gates.md`),
+      a test gap. The audience clauses are tested:
+      `apps/web/src/server/public-api/oauthActor.int.test.ts` ("is accepted on v1 when the grant was
+      made for the domain, and refused inside an MCP dispatch"; "is refused on v1 when the grant was
+      made for /api/mcp, and accepted inside the dispatch"; "is 401 on a bare /v1/account call").
+      The gates (scope, 402 on a lapsed plan, the owner's trip reach) are asserted there only for a
+      token made for `/api/mcp`, run inside an MCP dispatch; no test sends a domain-audience token
+      through them on v1. The code path is shared, but that is an inference, not an assertion. Fix
+      path: an integration test in that area. The close session's brief directed this deferral;
+      Mitchell confirms it when he merges part 0.
 - [x] **Signed out reaches only the public reads** (D5), and nothing that writes.
       CI run 42738117635 on 4254305 (PR 718's head, which holds the whole milestone; 9 of 9 jobs success, `ci-ok` included): `apps/web/src/server/public-api/route.int.test.ts` (cases: "reaches a route that
       declares signedOut and no other"; "is still 401 without a Session header, and with a
@@ -252,39 +267,223 @@ reopened; ADR-089 carries the mechanism.
       not stored as a client") and `apps/web/src/server/public-api/openapi.test.ts` ("publishes the
       signed-out read as optional security, and every other operation as requiring a bearer", which
       runs over every operation including the writes).
-- [ ] **Claude's connector still connects and works** on the preview, outside any Poppy Session
+- [x] **Claude's connector still connects and works** on the preview, outside any Poppy Session
       (D7, D12).
-      Open: needs claude.ai's connector check on the preview, which waits on sign-in there. In CI,
-      `apps/web/src/app/api/mcp/route.int.test.ts` covers the connector's own token and the MCP
-      dispatch ("lists every tool with its annotations, statelessly"; "answers tools/call with and
-      without the Mcp-Method and Mcp-Name headers"), not claude.ai itself.
-- [ ] **The tasks endpoint answers**, and a feedback report shows in the operator console.
-      Open, split. Tasks endpoint, covered by CI run 42738117635 on 4254305:
-      `apps/web/src/app/api/poppy/tasks/route.int.test.ts` ("answers a verified Session with the
-      excluded tasks and the feedback endpoint, cacheable") and `apps/web/src/server/poppy/tasks.test.ts`.
-      Feedback stored and listed in code: `apps/web/src/app/api/poppy/feedback/route.int.test.ts`
-      ("answers 202 with no body and stores the report under the verified client_id"; "recentReports"),
+      Mitchell, 2026-11-14, on production (not the preview, which never had working sign-in; his
+      word, not a recorded run). In CI, `apps/web/src/app/api/mcp/route.int.test.ts` covers the
+      connector's own token and the MCP dispatch ("lists every tool with its annotations,
+      statelessly"; "answers tools/call with and without the Mcp-Method and Mcp-Name headers"), not
+      claude.ai itself.
+- [x] **The tasks endpoint answers**, and a feedback report shows in the operator console.
+      Mitchell, 2026-11-14, on production (his word, not a recorded run). Test evidence, CI run
+      42738117635 on 4254305: tasks endpoint, `apps/web/src/app/api/poppy/tasks/route.int.test.ts`
+      ("answers a verified Session with the excluded tasks and the feedback endpoint, cacheable")
+      and `apps/web/src/server/poppy/tasks.test.ts`. Feedback stored and listed in code:
+      `apps/web/src/app/api/poppy/feedback/route.int.test.ts` ("answers 202 with no body and stores
+      the report under the verified client_id"; "recentReports"),
       `apps/web/src/app/api/admin/agents/route.int.test.ts` ("lists the reports newest first") and
-      `apps/web/src/components/admin/AgentsTab.test.tsx` ("reports from agents"). Remaining: a report
-      sent to the preview shows in its operator console, which needs the walk.
-- [ ] **Disconnect in Connected apps signs the agent out**: its next refresh is `invalid_grant`.
-      Open, partly covered by CI run 42738117635 on 4254305:
+      `apps/web/src/components/admin/AgentsTab.test.tsx` ("reports from agents").
+- [x] **Disconnect in Connected apps signs the agent out**: its next refresh is `invalid_grant`.
+      Mitchell, 2026-11-14, on production (his word, not a recorded run). Test evidence, CI run
+      42738117635 on 4254305:
       `apps/web/src/app/api/account/connected-apps/[grantId]/route.int.test.ts` ("revokes the grant
       as the owner, and its tokens stop on their next use": refresh is `invalid_grant`) and
       `apps/web/src/components/account/ConnectedAppsSection.test.tsx` ("a Personal Agent ... has the
       same Disconnect, confirmed"). That refresh uses an ordinary registered client; no test
-      refreshes a `private_key_jwt` agent's revoked grant with a valid assertion. Walk-covered.
-- [ ] **[walk]** With the validator's test identity (or Muse, if Meta's agent can reach a preview
+      refreshes a `private_key_jwt` agent's revoked grant with a valid assertion, so the
+      agent-with-assertion case rests on his word.
+- [x] **[walk]** With the validator's test identity (or Muse, if Meta's agent can reach a preview
       by then), Mitchell signs in on the consent page, approves read-only scopes, and the agent
       lists his trips; then he disconnects it in Connected apps.
-- [ ] A retro is appended at gate close.
+      Mitchell, 2026-11-14, on production (his word, as M58's walk was ticked). It was walked on
+      production, not on a preview: the 2026-11-11 full-loop test, in which he approved the test
+      client's read-only scopes (`trips:read library:read`) from his phone and the agent listed his
+      trips. KI-2026-11-12-b on `main` records him approving that client's consent page.
+- [x] A retro is appended at gate close (2026-11-14, below).
 
-**Gate status, 2026-11-11.** As of 2026-11-10 Coolify PR previews are on (KI-20261110) and
-https://718.preview.caesura.today/api/health reports version
-4254305ad01386281d67ad84a63b4f61d5a742b8, PR 718's head. Sign-in on the preview is not working yet
-("Sign-in isn't set up on this deployment"): the Preview-scope env (`AUTH_URL` and the rest) is
-being corrected in Coolify. The walk, the kit validator run and claude.ai's connector check wait on
-that. The boxes ticked above are the test-backed ones, from CI run 42738117635 on PR 718's head;
-the unticked ones need the preview. The preview-DB check for migration `0075`
-came back clean (Mitchell, 2026-11-10): no preview applied the pre-review `0075`
-(`created_at` 1794264391750 is absent from the preview DB), so there is nothing to recover.
+**Gate status, 2026-11-14 (closed).** 11 of 11 boxes ticked, with two more amended out at the close
+and carried as known issues (the kit validator run, KI-2026-11-14-a; a domain-audience token through
+v1's gates, KI-2026-11-14-b). Four boxes (the connector, the tasks endpoint and console report,
+Disconnect, the walk) rest on Mitchell's word on 2026-11-14 that he saw them work on production, with
+the tests noted under each; the rest are CI evidence on PR 718's head. Coolify PR previews were on from
+2026-11-10, but sign-in on a preview never worked ("Sign-in isn't set up on this deployment"), which
+is why nothing was walked there.
+
+## Retro — written 2026-11-14 (11 of 11 boxes ticked, 2 amended out and carried as known issues)
+
+### What went well
+
+- **All five code parts landed as one stack with every merged part green.** PRs 714 to 717 merged
+  in `d05a1fd` and PR 718 in `44eac29` (2026-11-11), 94 files, +10,740/−186 (`git diff --shortstat
+  d807ec7 44eac29`). PR 718's head `201a362` passed `ci` run 43037721098 (attempt 4, 9 of 9 jobs);
+  its earlier head `4254305` passed run 42738117635 (9 of 9 jobs), and the tree of `201a362` is
+  identical to it.
+- **Red-first was kept and is recorded.** Each part's body has the source edit and the real failure
+  text for its new tests (PR 715's table for the assertion verifier and scope, PR 716's for the Session
+  header's fifteen refusal cases). Three gate boxes (Session header, client assertion, scope) are
+  ticked on that plus CI.
+- **The migration was applied and the gate's migration question closed cleanly.** `0075_agent_sessions`
+  is applied in production: `migrate-production` run 43139104139 first applied it on `19be89e`
+  (2026-11-12 02:07Z), and run 43155805732 on `678a90d` (2026-11-12) succeeded again;
+  `678a90d` contains `44eac29`. The preview-DB check came back clean (Mitchell, 2026-11-10): no
+  preview had applied the pre-review `0075`, so there was nothing to recover.
+- **A real production check happened.** On 2026-11-11 Mitchell ran a fresh test agent through the
+  whole loop on production, approving its read-only scopes from his phone; that found KI-2026-11-12-b
+  (a consent Allow to a loopback redirect strands the user; filed by PR 732, still open), and the
+  OAuth surfaces' empty 500s were found and given a JSON body by PR 729 (KI-2026-11-11-a). On 2026-11-14 he said he saw the connector,
+  the tasks endpoint, a feedback report in the console and Disconnect work on production.
+- **KI-2026-11-01-u is resolved.** PR 721 bounded `install-deps` and gave apt fail-fast options;
+  `ci` run 43085708751 on `819afe8` ran the new step in 13s and 10s on the two e2e shards.
+- **PR 733 added `auth.issuer` to `poppy.json`** after the part that wrote it, so the document names
+  the issuer the protocol expects; its test is on `main`.
+
+### What could be better
+
+- **A merged migration was not applied, and nothing read the alarm.** `0075` merged with M60
+  (`d05a1fd`, 2026-11-11 18:38Z) and deployed, but production stayed at `0074` until
+  02:07Z the next day. Every OAuth surface threw, Claude's connector included, for about 7½ hours.
+  `migration-pending` went red on the merge and stayed red. The known issue is KI-2026-11-11-a
+  (`docs/known-issues/open/KI-20261111-a-poppy-dcr-registration-returns-500.md`). The part's PR
+  body should have named the dispatch; `close-a-milestone` step 7 already says to, but the merge of
+  the top part was not followed by it. A required step that waits on a person needs a check that
+  turns red on the main branch, not only on a PR (the detector existed and was ignored).
+- **Preview sign-in never worked on PR previews.** Coolify PR previews were not switched on until
+  2026-11-10 (KI-20261110, and M59's gate box), and once on, the Preview-scope env gave "Sign-in isn't
+  set up on this deployment". So the kit validator run, claude.ai's connector check and the [walk]
+  had nothing to run against, and they were done on production on Mitchell's word instead. That
+  cost two of the gate's boxes, deferred below, and made four rest on his word instead of a
+  recorded run. The preview-link-check workflow stayed green all the while, because it ends
+  without `exit 1` when no preview answers (KI-2026-11-10, preview-link-check passes when the
+  preview never answers).
+- **Two CI events cost the most calls.** On 2026-11-11 the runners' name resolution failed, so
+  `playwright install-deps` timed out in 3 attempts on each of PRs 716, 717 and 718, and a run
+  needed attempt 4 or 5 to pass (KI-2026-11-01-u, now resolved by PR 721). Separately the palette
+  spec "Add › Trip from Home is Home's own button" flaked once on PR 716 and once on PR 717
+  (KI-2026-11-11-b, `docs/known-issues/open/KI-20261111-b-e2e-palette-add-trip-from-home-dialog-not-found.md`;
+  this entry was filed as KI-2026-11-11-a and renamed at this close because `main` already had a
+  different `-a`). Both were told apart from real reds by their location moving between runs; the
+  cost was the session spent chasing them.
+- **A fix skipped the lowest part.** Part 4's JSDoc on `admin/agents/[clientId]/block/route.ts`
+  failed the docstring wall at `f7fec5d`, and the fix first landed on part 5 (`280ccf3`), not on
+  part 4 where the file lives. It reached part 4 only later, as `9748638`, and then had to be merged
+  up again. `building-a-milestone.md` says a fix goes on the lowest part it touches and merges up;
+  the fix was made on the wrong part first. This was a one-off, so no new rule.
+- **The tracker in PR 712's body overstated.** It said the Session header, client assertion and
+  scope boxes were ticked at `25caada`; the file had only the metadata and signed-out boxes ticked.
+  The three were ticked at this close from the same evidence. A tracker row should be written from
+  the file, not from the plan to edit it.
+- **The close was expensive for a prose-only part.** Most of session 4's spend was the Coolify
+  preview setup, not M60, and session 5's costliest agents ticked the test-backed boxes and recorded
+  the two CI flakes. See *Spend*.
+
+### Leftovers
+
+- **`poppy.json` through the kit validator** (`check --file` and `--milestone foundation`): not run,
+  box amended out of the gate. KI-2026-11-14-a
+  (`docs/known-issues/open/KI-20261114-a-poppy-json-not-run-through-the-kit-validator.md`).
+- **A domain-audience token through v1's scope, 402 and trip gates:** no test; box amended out of
+  the gate. KI-2026-11-14-b
+  (`docs/known-issues/open/KI-20261114-b-no-test-sends-a-domain-audience-token-through-v1s-gates.md`).
+  Both deferrals came in the close session's brief; **Mitchell confirms them when he merges part 0**
+  (a gate changes only by his decision).
+- **The agent-with-assertion refresh after Disconnect** has no test (stated under that box); it is
+  not its own known issue, since the box was ticked on his word and the ordinary-client case is tested.
+- **Token endpoint spends a secret before issuing:** KI-2026-11-12-a.
+- **Preview-link-check passes with no preview:** KI-2026-11-10 (open).
+- **The agent logo decision** (PR 712's open items) stays Mitchell's call.
+
+## Spend
+
+Four of the five sessions that worked this milestone were measured; **session 2's metrics were
+unreadable**, so the totals below leave it out. It dispatched 25 agents (13 `phase-implementer`, 12
+`part-reviewer`, one of the reviews an Opus pass) with an orchestrator peak of about 258k; its spend
+is unknown, and every total here is a floor. **Cost by model was not recorded in any session, and no
+dollar figure was recorded, so none is given and `$ per 1,000 lines` is not measurable.** Lines
+added: 10,740 (`git diff --shortstat d807ec7 44eac29`, 94 files, +10,740/−186, which includes `docs/` and
+the migration snapshots); with `docs/`, generated JSON and the lockfile left out, 10,636 over 91 files.
+
+| Session | What it did | Agents | Calls | Units | Orchestrator |
+|---|---|---|---|---|---|
+| 1 | not recorded | 4 | 103 | 2.12M | 1.59M (peak 276k) |
+| 2 | build (metrics unreadable) | 25 dispatches | not measured | not measured | peak about 258k |
+| 3 | build (implementers, reviewers) | 17 | 439 | 4.54M | 1.01M (22.2%, peak 193k) |
+| 4 | mostly Coolify preview setup | 6 | 156 | 3.69M | 2.38M (64.5%, peak 254k) |
+| 5 | this close | 6 | 153 | 3.34M | 2.16M (64.7%, peak 233k) |
+| Measured (S1, S3, S4, S5) | | 33 | 851 | 13.69M | 7.14M (52.2%) |
+
+Session 3's agents: `phase-implementer` 2.66M (58.6%, peak 125k), orchestrator 1.01M (22.2%),
+`part-reviewer` 872k (19.2%). Session 4's: `general-purpose` 4 agents, 61 calls, 1.30M, and a
+web-fetch agent of 11k. Most of session 4's spend was the Coolify preview setup, not M60.
+
+**Session 5 (this close, generated):**
+
+<!-- session-metrics:milestone v1 -->
+
+6 agents, 153 API calls, 3.34M units. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | Share |
+|---|---|---|---|---|---|---|
+| `orchestrator` | 1 | 81 | 179k | 233k | 2.16M | 64.7% |
+| `general-purpose` | 4 | 59 | 109k | 163k | 1.09M | 32.7% |
+| `phase-implementer` | 1 | 13 | 35k | 38k | 89k | 2.7% |
+
+**Costliest agents**
+
+| Agent (description) | Type | Calls | Avg context | Peak context | Units |
+|---|---|---|---|---|---|
+| Tick M60 test-backed gate boxes | `general-purpose` | 30 | 130k | 163k | 577k |
+| Record two CI flakes as KIs on part 0 | `general-purpose` | 12 | 91k | 102k | 226k |
+| CI install-deps fail-fast fix | `general-purpose` | 10 | 87k | 93k | 193k |
+| Split KI note from PR 721 | `general-purpose` | 7 | 81k | 85k | 97k |
+| Part 4 JSDoc fix, merge up | `phase-implementer` | 13 | 35k | 38k | 89k |
+
+**Orchestrator turns, by what started them**
+
+| What started the turn | Turns | Units | Share of orchestrator | Idle |
+|---|---|---|---|---|
+| GitHub / trigger notification | 0 | 0 | 0.0% | 0 of 0 (0 units) |
+| Subagent report | 5 | 312k | 14.4% | – |
+| Subagent finished | 9 | 1.01M | 46.5% | – |
+| Harness | 0 | 0 | 0.0% | – |
+| Human | 6 | 844k | 39.0% | – |
+| Other (unrecognised frame) | 0 | 0 | 0.0% | – |
+
+**Follow-ups and cache re-writes**
+
+| Measure | Count | Tokens |
+|---|---|---|
+| `SendMessage` calls by the orchestrator | 0 | – |
+| Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
+| Full cache re-writes in subagents | 0 | 0 |
+| — directly after a coordinator message | 0 | 0 |
+
+**Guard hooks**
+
+None recorded.
+
+**Targets**
+
+| Target | Result | Measured |
+|---|---|---|
+| Orchestrator share of units < 15% | missed | 64.7% |
+| No phase-implementer averaging > 250k context | met | worst 35k |
+| GitHub wakes per merged part < 5 | met | 0 / 5 = 0.0 |
+| Dollars per 1k lines added < 20 | not measurable | needs --cost-usd and --lines-added |
+| Coordinator-message re-writes <= 2 | met | 0 |
+
+### Spend against the last milestone
+
+- **Orchestrator share under 15%: missed.** 52.2% over the measured sessions (7.14M of 13.69M); the
+  two late sessions were 64.5% (session 4) and 64.7% (session 5). Session 4 spent most of its
+  orchestrator calls setting up Coolify PR previews, which is M59's open work rather than M60's;
+  session 5's was a CI outage and a flake chase (its costliest agents were the gate-box tick, the two
+  CI flake KIs, and PR 721's fail-fast fix), with the orchestrator carrying the rest.
+  Builder context was fine (session 3 peak 125k; session 5's `phase-implementer` peak 38k).
+- **Dollars per 1,000 lines: not measurable.** No session recorded dollars, so the comparison with
+  M44 ($5.04 per 1,000 lines, close session only) cannot be made, and M44's own figure covered one
+  session of three.
+- **GitHub wakes per merged part under 5: met** in session 5 (0 of 5). Not recorded for the earlier
+  sessions.
+- **Cache re-writes after a coordinator message: met** in session 5 (0).

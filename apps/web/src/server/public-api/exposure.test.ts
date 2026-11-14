@@ -12,6 +12,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SERVER = path.resolve(HERE, "..");
 const API = path.resolve(HERE, "../../app/api");
 const V1 = path.join(API, "v1");
+const APP = path.resolve(HERE, "../../app");
 
 const posix = (p: string) => p.split(path.sep).join("/");
 
@@ -113,7 +114,11 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
 
   it("has a line for every internal route, and no line for a route that is gone", () => {
     const missing = internal.filter((dir) => !(dir in EXPOSURE));
-    const stale = Object.keys(EXPOSURE).filter((key) => !internal.includes(key));
+    // A front door outside `app/api` (a `.well-known` document) is keyed by its
+    // path under `app/`, and is stale when that route is gone.
+    const stale = Object.keys(EXPOSURE).filter((key) =>
+      key.startsWith(".well-known/") ? !existsSync(path.join(APP, key, "route.ts")) : !internal.includes(key),
+    );
     expect(
       { missing, stale },
       "add each missing route to exposure.ts as public, planned, never or front-door; drop stale lines",
@@ -135,6 +140,12 @@ describe("exposure.ts decides every internal route, and the API obeys it", () =>
       expect.arrayContaining(["oauth/register", "oauth/token", "oauth/revoke", "oauth/authorize", "mcp"]),
     );
     expect(doors.filter(([key]) => published.has(key)).map(([key]) => `v1/${key}`)).toEqual([]);
+  });
+
+  // Poppy spec 3: its URL is fixed by the protocol, so it is a front door with
+  // no v1 route behind it.
+  it("lists poppy.json as a front door", () => {
+    expect(EXPOSURE[".well-known/poppy.json"]?.status).toBe("front-door");
   });
 
   it("publishes nothing at a never route's own path", () => {

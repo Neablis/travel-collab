@@ -9,6 +9,8 @@ const {
   cacheTagHeader,
   invalidateAuthor,
   invalidateDayRead,
+  invalidateDiscoverRank,
+  DISCOVER_RANK_TAG,
   invalidatePublicDay,
   invalidatePublicDays,
   libraryCached,
@@ -77,6 +79,14 @@ describe("the narrower clears", () => {
     await invalidateAuthor(OWNER);
 
     expect(revalidateTag.mock.calls.map(([tag]) => tag)).toEqual([`author:${OWNER}`, "library"]);
+  });
+
+  // The hourly rank rewrite moves only the order, never a day's content.
+  it("a rank rewrite clears the discover-rank tag and nothing else", async () => {
+    await invalidateDiscoverRank();
+
+    expect(DISCOVER_RANK_TAG).toBe("discover-rank");
+    expect(revalidateTag.mock.calls).toEqual([["discover-rank", { expire: 0 }]]);
   });
 
   it("a rewrite of many days clears each tag once", async () => {

@@ -20,6 +20,7 @@ import {
   OAUTH_CODE_PREFIX,
   OAUTH_REFRESH_PREFIX,
   SCOPE_CATALOGUE,
+  SCOPE_HINTS,
 } from "../src/publicApi.ts";
 
 const SOURCE = readFileSync(fileURLToPath(new URL("../src/publicApi.ts", import.meta.url)), "utf8");
@@ -137,6 +138,31 @@ describe("SCOPE_CATALOGUE", () => {
 
   it("cannot be edited at runtime", () => {
     expect(Object.isFrozen(SCOPE_CATALOGUE)).toBe(true);
+  });
+});
+
+// ADR-089 decision 9: poppy.json's `scope_hints` must carry both fields for
+// every scope, because the spec (4.7) says a scope with no entry is one a
+// Personal Agent cannot judge, and treats it as unknown.
+describe("SCOPE_HINTS", () => {
+  it("hints every scope, with both fields the protocol requires", () => {
+    expect(Object.keys(SCOPE_HINTS).sort()).toEqual([...API_SCOPES].sort());
+    for (const scope of API_SCOPES) {
+      const hint = SCOPE_HINTS[scope];
+      expect(["none", "reversible", "irreversible"], scope).toContain(hint.changes);
+      expect(typeof hint.personal_data, scope).toBe("boolean");
+    }
+  });
+
+  it("calls publishing to Discover irreversible, and a read-only scope none", () => {
+    expect(SCOPE_HINTS["library:write"].changes).toBe("irreversible");
+    for (const scope of ["trips:read", "notebook:read", "library:read", "account:read", "places:read"] as const) {
+      expect(SCOPE_HINTS[scope].changes, scope).toBe("none");
+    }
+  });
+
+  it("cannot be edited at runtime", () => {
+    expect(Object.isFrozen(SCOPE_HINTS)).toBe(true);
   });
 });
 
@@ -266,6 +292,7 @@ describe("ConnectedApp", () => {
     expiresAt: "2027-10-27T10:00:00.000Z",
     revokedAt: null,
     revokedReason: null,
+    personalAgent: null,
   };
 
   it("accepts a live grant and one its owner disconnected", () => {
@@ -296,6 +323,15 @@ describe("ConnectedApp", () => {
       clientId: "c1",
     });
     expect(Object.keys(parsed).sort()).toEqual(Object.keys(app).sort());
+  });
+
+  // A Personal Agent's row names itself (Poppy 4.1); every other app is `null`,
+  // so the field is never absent and a client cannot mistake "unknown" for "no".
+  it("says whether an app is a Personal Agent, and carries its logo only when it has one", () => {
+    expect(ConnectedApp.safeParse({ ...app, personalAgent: { logoUri: "https://meta.ai/logo.png" } }).success).toBe(true);
+    expect(ConnectedApp.safeParse({ ...app, personalAgent: { logoUri: null } }).success).toBe(true);
+    const { personalAgent: _omitted, ...without } = app;
+    expect(ConnectedApp.safeParse(without).success).toBe(false);
   });
 
   it("names its scopes from the API's own set", () => {

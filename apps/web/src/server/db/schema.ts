@@ -332,6 +332,9 @@ export const oauthClients = pgTable(
     // Null until its first grant. A `dcr` client still null 24 hours after
     // `created_at` has expired: refused on read, never deleted.
     firstUsedAt: timestamp("first_used_at", { withTimezone: true, mode: "date" }),
+    // The logo a Personal Agent's document named, as of the last Allow, so
+    // Account → Connected apps shows it without fetching anything.
+    logoUri: text("logo_uri"),
   },
   (t) => [
     check("oauth_clients_kind", sql`${t.kind} in ('dcr', 'cimd')`),
@@ -367,8 +370,15 @@ export const oauthGrants = pgTable(
     // `owner` disconnected it; `code-reuse` and `refresh-reuse` are the server
     // cutting off a grant whose secret was presented twice (ADR-083 §4).
     revokedReason: text("revoked_reason").$type<"owner" | "code-reuse" | "refresh-reuse">(),
+    // How the client authenticated at the token endpoint when this was allowed:
+    // `private_key_jwt` is a Personal Agent (Poppy 4.1). Stored on the grant, not
+    // read from the client's document or a cache, so a public client's refresh and
+    // revoke never depend on fetching that document, and a Personal Agent's grant
+    // stays one when its document later changes. Grants made before it are `none`.
+    tokenEndpointAuthMethod: text("token_endpoint_auth_method").$type<"none" | "private_key_jwt">().notNull().default("none"),
   },
   (t) => [
+    check("oauth_grants_auth_method", sql`${t.tokenEndpointAuthMethod} in ('none', 'private_key_jwt')`),
     check(
       "oauth_grants_revoked_reason",
       sql`${t.revokedReason} is null or (${t.revokedAt} is not null and ${t.revokedReason} in ('owner', 'code-reuse', 'refresh-reuse'))`,
@@ -1240,6 +1250,16 @@ export const savedDays = pgTable(
     //
     // `mode: "date"` — see the `savedDays` note above (KI-53).
     publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    // The FIRST time this day was made public, set once and never cleared or
+    // overwritten (M61 decision 11). `published_at` above is the honest "newest"
+    // date and moves on every republish; Discover's new-day lift must not, or an
+    // author could re-earn it by unpublishing and publishing again, and a
+    // content re-import without `keptOn` would re-earn it for a whole bundle.
+    // Null while never published; the lift falls back to `created_at`. Written
+    // by `setSavedDayVisibility` and `updatePlaybookContent` (coalesce),
+    // `newSavedDayRow`, and carried
+    // across the importer's delete and re-insert.
+    firstPublishedAt: timestamp("first_published_at", { withTimezone: true, mode: "date" }),
     // A SOFT delete: when the owner removes this day from their library, the
     // row stays and this takes the moment. Mitchell, 2026-09-01: *"add a button
     // to delete a notebook activity you own ... for now we can even just add a
@@ -1389,6 +1409,31 @@ export const savedDayReviews = pgTable(
     check("saved_day_reviews_note_length", sql`char_length(${t.note}) <= 140`),
   ],
 );
+
+// Discover's stored score (M61, ADR-090): one row per public day, written by
+// `recomputeDiscoverRanks` and by nothing else. A derived projection in the
+// sense of invariant 2 — rebuildable from `saved_day_adds`, `saved_day_reviews`
+// and `saved_days` by running the recompute — and so it holds no history and
+// stays out of the event log, on `saved_day_reviews`' terms.
+//
+// **No foreign key, and a row for a day that left the library is deleted.**
+// The recompute removes the rows of unpublished, deleted, moderated and pruned
+// days, so the table is what truncating it and recomputing would give. The
+// reads still join through `matchPredicate`, because between two recomputes a
+// day can leave and its row linger.
+//
+// The components are columns, not just the product, so the operator tab can
+// show why a day ranks where it does (decision 8) without redoing the maths.
+export const savedDayRanks = pgTable("saved_day_ranks", {
+  savedDayId: uuid("saved_day_id").primaryKey(),
+  score: doublePrecision("score").notNull(),
+  addsRecent: doublePrecision("adds_recent").notNull(),
+  commentsRecent: doublePrecision("comments_recent").notNull(),
+  quality: doublePrecision("quality").notNull(),
+  newDayLift: doublePrecision("new_day_lift").notNull(),
+  // `mode: "date"` — see the `savedDays` note above (KI-53).
+  computedAt: timestamp("computed_at", { withTimezone: true, mode: "date" }).notNull(),
+});
 
 // A playbook day's cover photo (M37 part 5): `trip_covers`' columns, one row
 // per saved day, set and cleared by the day's author through
@@ -2158,4 +2203,56 @@ export const pendingEmbeddings = pgTable(
     // index in order instead of sorting every pending row to take n.
     index("pending_embeddings_status_created").on(t.status, t.createdAt),
   ],
+);
+
+// **A Personal Agent's Session** (Poppy 5, ADR-089 decision 8): one row per
+// `(client_id, sid, agent_user_id)`, written by the first verified request
+// with a new `sid`. `agent_user_id` is the agent's pairwise ID for a person
+// and is joined to nothing but `account_id`. Idle for 30 days or ended, a row
+// answers `session_ended`. Like the OAuth tables: CRUD, not events, and no
+// foreign keys (ADR-025).
+export const agentSessions = pgTable(
+  "agent_sessions",
+  {
+    id: uuid("id").primaryKey(),
+    // The agent's protocol `client_id`: its metadata document's URL.
+    clientId: text("client_id").notNull(),
+    sid: text("sid").notNull(),
+    agentUserId: text("agent_user_id").notNull(),
+    agentId: text("agent_id"),
+    // A `users.id`, set by the first request that carried an access token.
+    accountId: text("account_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "date" }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    uniqueIndex("agent_sessions_client_sid_user").on(t.clientId, t.sid, t.agentUserId),
+    // The retention sweep deletes by it (`sweepAgentSessions`).
+    index("agent_sessions_last_seen").on(t.lastSeenAt),
+  ],
+);
+
+// A Personal Agent the operator cut off (ADR-089 decision 3), by protocol
+// `client_id`. Part 4 reads and writes it; this part only creates the table so
+// the milestone has one migration.
+export const oauthClientBlocks = pgTable("oauth_client_blocks", {
+  clientId: text("client_id").primaryKey(),
+  blockedAt: timestamp("blocked_at", { withTimezone: true, mode: "date" }).notNull(),
+  // A `users.id`: the operator who blocked it.
+  blockedBy: text("blocked_by").notNull(),
+});
+
+// What a Personal Agent reported about a task (ADR-089 decision 11, part 5).
+// The text is data, never a prompt.
+export const agentFeedback = pgTable(
+  "agent_feedback",
+  {
+    id: uuid("id").primaryKey(),
+    clientId: text("client_id").notNull(),
+    task: text("task").notNull(),
+    description: text("description").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [index("agent_feedback_created").on(t.createdAt)],
 );

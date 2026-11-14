@@ -62,7 +62,7 @@ export async function GET(request: Request) {
       cities,
       countries,
       scope: DiscoverScope.catch("everyone").parse(params.get("scope")),
-      sort: DiscoverSort.catch("most-added").parse(params.get("sort")),
+      sort: DiscoverSort.catch("top").parse(params.get("sort")),
       budget: BudgetBand.catch("any").parse(params.get("budget")),
       // `.catch("any")` for the reason every parameter here falls back rather
       // than 400ing: an unrecognised or stale `?length=` stops narrowing instead

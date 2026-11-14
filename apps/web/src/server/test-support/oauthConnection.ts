@@ -17,13 +17,19 @@ const CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 const REDIRECT = "https://example.com/cb";
 
 /** A client named "Test app" granted `scopes` by `ownerId` at `now`, and the tokens it holds. */
-export async function connectForTest(ownerId: string, scopes: ApiScope[] = ["trips:read"], now = new Date()) {
+export async function connectForTest(
+  ownerId: string,
+  scopes: ApiScope[] = ["trips:read"],
+  now = new Date(),
+  /** The audience the grant is made for: `/api/mcp` as Claude's connector asks, or the domain as a Personal Agent does. */
+  resource: string = mcpResource(),
+) {
   const registered = await registerClient({ client_name: "Test app", redirect_uris: [REDIRECT] }, randomUUID());
   const resolved = await resolveClient(registered.ok ? String(registered.body.client_id) : "");
   if (!resolved.ok) throw new Error("no client");
   const clientId = resolved.client.clientId;
-  const grant = await createGrant({ ownerId, client: resolved.client, redirectUri: REDIRECT, scopes, resource: mcpResource(), now });
-  const code = await issueCode({ grantId: grant.id, codeChallenge: CHALLENGE, redirectUri: REDIRECT, resource: mcpResource(), now });
+  const grant = await createGrant({ ownerId, client: resolved.client, redirectUri: REDIRECT, scopes, resource, now });
+  const code = await issueCode({ grantId: grant.id, codeChallenge: CHALLENGE, redirectUri: REDIRECT, resource, now });
   const tokens = await exchangeCode({ code, codeVerifier: VERIFIER, redirectUri: REDIRECT, clientId }, now);
   if (!tokens.ok) throw new Error(tokens.description);
   return { grant, clientId, access: tokens.body.access_token, refresh: tokens.body.refresh_token };

@@ -14,7 +14,10 @@ import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { PriceCheckPanel, PriceCheckPending } from "@/components/admin/PriceCheckPanel";
 import { LibraryTab } from "@/components/admin/LibraryTab";
 import { AiModelsTab } from "@/components/admin/AiModelsTab";
+import { AgentsTab } from "@/components/admin/AgentsTab";
 import { PersonasTab } from "@/components/admin/PersonasTab";
+import { DiscoverRankTab } from "@/components/admin/DiscoverRankTab";
+import { RANK_CONSTANTS, topDiscoverRanks } from "@/server/discoverRank";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
 import { adminAccountDetail } from "@/server/admin/accountDetail";
@@ -22,6 +25,8 @@ import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitleme
 import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { personaReport } from "@/server/entitlements/personaReport";
 import { grantForPersona, toolsFor } from "@/server/assistant/grants";
+import { AGENTS_SEEN_CAP, agentsSeen } from "@/server/poppy/agentsSeen";
+import { recentReports } from "@/server/poppy/feedback";
 import { EDGES, ENTRY, PERSONAS, type PersonaId } from "@/server/assistant/personas";
 import type { PersonaMapDef } from "@/lib/adminPersonas";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
@@ -88,6 +93,9 @@ import { adminNotebooks } from "@/server/savedNotebooks";
 // really does cost $0.0006, and a price is two because two more would be false
 // precision on a number read at a glance.
 
+/** How many ranked days the Discover rank tab lists (M61 decision 8). */
+const DISCOVER_RANK_ROWS = 50;
+
 export default async function AdminPage({
   searchParams,
 }: {
@@ -141,6 +149,28 @@ export default async function AdminPage({
     return (
       <ConsoleShell tab={tab}>
         <PersonasTab report={report} />
+      </ConsoleShell>
+    );
+  }
+
+  if (tab === "agents") {
+    // **The Personal Agents seen, the operator's blocks and the reports** (M60 parts 4 and 5): read
+    // after the gate, on its own, like every tab.
+    const [agents, reports] = await Promise.all([agentsSeen(), recentReports()]);
+    return (
+      <ConsoleShell tab={tab}>
+        <AgentsTab agents={agents} reports={reports} seenCap={AGENTS_SEEN_CAP} />
+      </ConsoleShell>
+    );
+  }
+
+  if (tab === "discover-rank") {
+    // **The ranked days and the constants behind them** (M61 part 5): read
+    // after the gate, on its own, like every tab.
+    const rows = await topDiscoverRanks(DISCOVER_RANK_ROWS);
+    return (
+      <ConsoleShell tab={tab}>
+        <DiscoverRankTab rows={rows} constants={RANK_CONSTANTS} />
       </ConsoleShell>
     );
   }

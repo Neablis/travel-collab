@@ -1160,7 +1160,7 @@ export const SearchPlaybooksInputSchema = z.object({
     .max(MAX_SEARCH_CITIES, `Name at most ${MAX_SEARCH_CITIES} cities per call.`)
     .optional()
     .describe(
-      'City names, spelled exactly as read_trip spells them (e.g. ["Kyoto", "Osaka"]). A day matches if it touches ANY of them. Omit to browse the most-added days.',
+      'City names, spelled exactly as read_trip spells them (e.g. ["Kyoto", "Osaka"]). A day matches if it touches ANY of them. Omit to browse the top days.',
     ),
   limit: z
     .number()

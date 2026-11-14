@@ -26,10 +26,20 @@ export function mcpResource(): string {
   return `${deploymentOrigin()}/api/mcp`;
 }
 
-/** RFC 9728: where a client learns which server issues tokens for `/api/mcp`. */
-export function protectedResourceMetadata() {
+/** Whether `resource` is an audience a grant may be made for: this server's domain, or its MCP endpoint. */
+export function isAudience(resource: string): boolean {
+  return resource === oauthIssuer() || resource === mcpResource();
+}
+
+/**
+ * RFC 9728: where a client learns which server issues tokens. The bare form
+ * speaks for the domain, which Poppy (spec 3.2) requires to be the `resource`
+ * exactly; the `api/mcp` form keeps naming the MCP endpoint, as the MCP 401's
+ * `resource_metadata` and every connector expect (ADR-089 decision 7).
+ */
+export function protectedResourceMetadata(path: "" | "api/mcp" = "") {
   return {
-    resource: mcpResource(),
+    resource: path === "api/mcp" ? mcpResource() : oauthIssuer(),
     authorization_servers: [oauthIssuer()],
     scopes_supported: OAUTH_SCOPES,
     bearer_methods_supported: ["header"],
@@ -49,13 +59,19 @@ export function authorizationServerMetadata() {
     grant_types_supported: ["authorization_code", "refresh_token"],
     // S256 alone: `plain` would hand the verifier to anyone who saw the request.
     code_challenge_methods_supported: ["S256"],
-    // Public clients only; there is no secret to authenticate with.
-    token_endpoint_auth_methods_supported: ["none"],
-    revocation_endpoint_auth_methods_supported: ["none"],
+    // Public clients, and a Personal Agent that signs in as itself (Poppy 4.1)
+    // with a client assertion, which is never a shared secret.
+    token_endpoint_auth_methods_supported: ["none", "private_key_jwt"],
+    token_endpoint_auth_signing_alg_values_supported: ["ES256", "PS384"],
+    revocation_endpoint_auth_methods_supported: ["none", "private_key_jwt"],
+    revocation_endpoint_auth_signing_alg_values_supported: ["ES256", "PS384"],
     // Amendment E: a client's metadata document is the first way in, DCR the fallback.
     client_id_metadata_document_supported: true,
     // Amendment A: every redirect back carries `iss`.
     authorization_response_iss_parameter_supported: true,
     scopes_supported: OAUTH_SCOPES,
+    // RFC 9728 section 4, and Poppy spec 3.2: the issuer confirms the domain
+    // from its side, so a document copied to another domain cannot claim us.
+    protected_resources: [issuer, mcpResource()],
   };
 }

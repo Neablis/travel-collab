@@ -22,7 +22,9 @@ import { Text } from "@/components/ui/text";
 // - for a client metadata document, the host that published it (amendment G);
 // - for a loopback redirect, a warning that access goes to a program on this
 //   computer, whoever it claims to be (amendment F; Claude Code included);
-// - no logo, ever (amendment J): a logo is the cheapest thing to fake.
+// - no logo, except a Personal Agent's (Poppy 4.1), whose document is checked
+//   to name it on the agent's own domain; it sits beside a name still marked
+//   unverified, so it is never what vouches for the app.
 //
 // Allow posts with `fetch` and then assigns `window.location`: a form POST that
 // redirected to another origin would be blocked by the CSP's `form-action 'self'`.
@@ -37,6 +39,8 @@ export interface ConsentScreenProps {
   redirectHost: string;
   /** The host of the client's metadata document, for a CIMD client. */
   cimdHost: string | null;
+  /** Set for a Personal Agent (`private_key_jwt`), which signs in as itself; its logo, if its document names one. */
+  personalAgent?: { logoUri: string | null } | null;
   /** What the app asked for. */
   scopes: readonly ApiScope[];
   /** Whether this account may connect apps (`api.tokens`). */
@@ -63,10 +67,13 @@ export function ConsentScreen({
   marking,
   redirectHost,
   cimdHost,
+  personalAgent = null,
   scopes,
   entitled,
   params,
 }: ConsentScreenProps) {
+  // A logo that does not load is left out rather than shown broken.
+  const [logoFailed, setLogoFailed] = useState(false);
   const [chosen, setChosen] = useState<ApiScope[]>(() => scopes.filter(isRead));
   const sectionId = useId();
   const noneHintId = useId();
@@ -105,10 +112,21 @@ export function ConsentScreen({
     <PageContainer width="measure" as="main" className="py-10">
       <Card className="flex flex-col gap-5 p-6">
         <div className="flex flex-col gap-2">
+          {personalAgent?.logoUri && !logoFailed ? (
+            // eslint-disable-next-line @next/next/no-img-element -- an agent's own https logo, which next/image would proxy through our optimizer
+            <img
+              src={personalAgent.logoUri}
+              alt=""
+              className="size-12 rounded-md"
+              onError={() => setLogoFailed(true)}
+            />
+          ) : null}
           <Heading level={1}>
             {recognised
               ? "Claude wants to connect to your Caesura account"
-              : `An app calling itself "${clientName}" wants to connect to your Caesura account`}
+              : personalAgent !== null
+                ? `${clientName} (${cimdHost}) wants to act for you on Caesura`
+                : `An app calling itself "${clientName}" wants to connect to your Caesura account`}
           </Heading>
           {recognised ? (
             <Badge variant="success" className="self-start">

@@ -291,4 +291,19 @@ describe("openapi.json is derived from the declarations", () => {
       }
     }
   });
+
+  // Poppy 3.2: an agent reads the security requirements to learn what needs an account. A
+  // route that answers a signed-out Session lists the empty requirement beside the scope's.
+  it("publishes the signed-out read as optional security, and every other operation as requiring a bearer", async () => {
+    const doc = JSON.parse(await generate()) as {
+      paths: Record<string, Record<string, { security: Record<string, string[]>[] }>>;
+    };
+    expect(doc.paths["/v1/discover/playbooks"]!.get!.security).toEqual([{}, { bearerAuth: ["library:read"] }]);
+    for (const [url, methods] of Object.entries(doc.paths)) {
+      for (const [method, operation] of Object.entries(methods)) {
+        if (url === "/v1/discover/playbooks" && method === "get") continue;
+        expect(operation.security.some((requirement) => Object.keys(requirement).length === 0), `${method} ${url}`).toBe(false);
+      }
+    }
+  });
 });
