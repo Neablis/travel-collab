@@ -79,5 +79,17 @@ export const PlaceMatch = z.discriminatedUnion("kind", [
 ]);
 export type PlaceMatch = z.infer<typeof PlaceMatch>;
 
-export const PlaceSearchResponse = z.object({ places: z.array(PlaceMatch) });
+export const PlaceSearchResponse = z.object({
+  places: z.array(PlaceMatch),
+  /**
+   * Present, and `true`, only when the world was asked for and not answered:
+   * the account's or the global quota refused, or the vendor failed or timed
+   * out with nothing cached (KI-2026-10-30-b). A world that answered with
+   * nothing new leaves it absent, so a client can tell "no such place" from
+   * "only the library was searched". Not set for a query too short or too
+   * long to send, or a full library list, where the world is not asked by
+   * design.
+   */
+  worldLimited: z.literal(true).optional(),
+});
 export type PlaceSearchResponse = z.infer<typeof PlaceSearchResponse>;

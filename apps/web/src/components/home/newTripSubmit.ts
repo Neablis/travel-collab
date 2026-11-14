@@ -76,6 +76,13 @@ export interface SetupLatch {
   insertedDays?: readonly string[];
   /** The pace and tags that landed. Optional for `insertedDays`' reason. */
   styledAs?: { pace: TripPace | null; tags: readonly ActivityTagDescribed[] };
+  /**
+   * How many empty days an undated trip has been given (KI-2026-10-30-m),
+   * counted per `AddDay` that landed. An `AddDay` appends and is not a no-op
+   * the domain would refuse, so a retry sends only the ones still missing.
+   * Optional for `insertedDays`' reason.
+   */
+  undatedDaysAdded?: number;
 }
 
 /**
@@ -97,8 +104,8 @@ export type SetupResult =
       missedDays: readonly string[];
       /**
        * How many days the trip has, when this laid them out: the empty ones
-       * plus every chosen day in it. `null` for a trip it gave no dates, whose
-       * length it did not set.
+       * plus every chosen day in it. `null` when it set no length: no dates
+       * and no answered length.
        */
       dayCount: number | null;
     }
@@ -220,6 +227,26 @@ export async function createTripWithSetup({
     applied = { ...applied, datedAs: desiredDates };
   }
 
+  // **An undated trip's length** (KI-2026-10-30-m). With no start there is no
+  // range for `SetTripDates` to lay out, so "Not yet" and "A week" made a trip
+  // with no days at all. The same empty days the dated branch lays out — the
+  // answered length less the chosen days — appended one `AddDay` each, and
+  // latched per day, since an append is not a no-op a retry would be refused.
+  // Only while the trip is undated: a dated attempt's days are its range's.
+  if (desiredDates === null && applied.datedAs === null && setup.days !== null) {
+    for (let added = applied.undatedDaysAdded ?? 0; added < emptyDays; added += 1) {
+      const result = await dispatch({ type: "AddDay", tripId, dayId: newDayId() });
+      if (!result.ok) {
+        return {
+          ok: false,
+          error: `Trip created, but adding its days failed: ${result.error.message}. Try again.`,
+          latch: applied,
+        };
+      }
+      applied = { ...applied, undatedDaysAdded: added + 1 };
+    }
+  }
+
   // **Budget**, on the same nullable-compare rule as dates.
   const budget = setup.budget;
   const budgetApplied = applied.budgetAppliedAs;
@@ -303,6 +330,7 @@ export async function createTripWithSetup({
   const placedLength = (setup.savedDays ?? [])
     .filter((day) => inserted.includes(day.savedDayId))
     .reduce((sum, day) => sum + day.dayCount, 0);
-  const dayCount = applied.datedAs === null ? null : emptyDays + placedLength;
+  const lengthSet = applied.datedAs !== null || (desiredDates === null && setup.days !== null);
+  const dayCount = lengthSet ? emptyDays + placedLength : null;
   return { ok: true, latch: applied, missedDays, dayCount };
 }

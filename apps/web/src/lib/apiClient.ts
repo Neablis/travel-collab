@@ -1485,16 +1485,30 @@ export async function searchCities(q: string): Promise<ApiResult<CityMatch[]>> {
 /**
  * Cities AND countries whose name starts with `q`, labelled by kind (M12 link
  * 7) — `searchCities`' successor, on its terms: the server answers a blank `q`,
- * and the caller debounces.
- *
- * `world` also asks for places outside the library (M56 D3), which only a
- * signed-in caller gets, each search charged to their account on a cache miss.
- * New trip's Where page asks for them; Discover does not.
+ * and the caller debounces. The library only: Discover's box.
  */
-export async function searchPlaces(q: string, opts: { world?: boolean } = {}): Promise<ApiResult<PlaceMatch[]>> {
+export async function searchPlaces(q: string): Promise<ApiResult<PlaceMatch[]>> {
   try {
-    const res = await fetch(apiUrl(`/api/places?q=${encodeURIComponent(q)}${opts.world ? "&world=1" : ""}`));
+    const res = await fetch(apiUrl(`/api/places?q=${encodeURIComponent(q)}`));
     return await readJson(res, (data) => PlaceSearchResponse.parse(data).places);
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * `searchPlaces`, also asking for places outside the library (`world=1`, M56
+ * D3), which only a signed-in caller gets, each search charged to their
+ * account on a cache miss. New trip's Where page asks; Discover does not.
+ *
+ * The whole body, not just the places: `worldLimited` says the world was
+ * asked and not answered (a refused quota, a failed vendor), which the Where
+ * page words differently from "no such place" (KI-2026-10-30-b).
+ */
+export async function searchPlacesWithWorld(q: string): Promise<ApiResult<PlaceSearchResponse>> {
+  try {
+    const res = await fetch(apiUrl(`/api/places?q=${encodeURIComponent(q)}&world=1`));
+    return await readJson(res, (data) => PlaceSearchResponse.parse(data));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

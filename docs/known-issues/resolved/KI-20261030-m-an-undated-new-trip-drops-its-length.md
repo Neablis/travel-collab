@@ -1,4 +1,4 @@
-### KI-2026-10-30-m — a new trip with no start date is created with no days, whatever How long said
+### KI-2026-10-30-m — a new trip with no start date is created with no days, whatever How long said — RESOLVED
 
 - **Severity:** correctness. An answer New trip requires is collected and never reaches the trip,
   which is the defect M56 exists to remove (milestone, *Why this exists*).
@@ -18,3 +18,18 @@
 - **Cross-reference:** M56 part 2 (PR 642) and part 4 (`newTripSubmit.ts`); KI-2026-09-08-a (the
   latch).
 - **First noted:** 2026-10-30, review of PR 642 at `39a6bbb`.
+- **Resolved 2026-11-14** (overnight KI sweep), by the fix path above, with no contract change.
+  `createTripWithSetup` (`apps/web/src/components/home/newTripSubmit.ts`) now, for a trip with no
+  start and an answered length, appends that length less the chosen published days' lengths as
+  empty days, one `AddDay` each, after the dates step and before the inserts. Each landed
+  `AddDay` is latched in `SetupLatch.undatedDaysAdded`, so a retry sends only the missing ones,
+  and `dayCount` is reported for such a trip. Proven in `newTripSubmit.test.ts`: *lays out an
+  undated trip's length as empty days* failed before the change with `expected [] to deeply
+  equal [ { type: 'AddDay', …(2) }, …(6) ]`, and its siblings (the retry and the chosen-days
+  subtraction) with `expected null to be 3` and `expected [] to deeply equal [ 'AddDay', 'AddDay' ]`.
+  With the loop started at 0 instead of the latched count, the retry test fails with `expected [
+  'AddDay', 'AddDay', 'AddDay', …(1) ] to deeply equal [ 'SetTripBudget' ]`. The old test *sends no
+  dates command when there is no arrival* asserted that nothing at all was dispatched, which is
+  the defect itself; it now asserts only that no `SetTripDates` is sent. Not handled: a retry that
+  first dated the trip and then cleared the start keeps the dated attempt's days and then also
+  appends the undated ones.

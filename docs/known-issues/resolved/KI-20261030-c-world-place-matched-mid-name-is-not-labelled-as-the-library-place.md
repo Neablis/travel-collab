@@ -1,4 +1,4 @@
-### KI-2026-10-30-c — a library place the vendor matches mid-name comes back as an unlabelled world row
+### KI-2026-10-30-c — a library place the vendor matches mid-name comes back as an unlabelled world row — RESOLVED
 
 - **Severity:** a duplicate shape on New trip's Where page; no wrong data.
 - **Area:** `apps/web/src/server/places.ts` (`searchPlaces`, `notInLibrary`).
@@ -19,3 +19,17 @@
 - **Cross-reference:** M56 plan § Part 2 and § Part 3; review of PR 639 (first pass finding 10,
   re-review finding 2); KI-2026-10-30-b.
 - **First noted:** 2026-10-30, review of PR 639.
+- **Resolved 2026-11-14** (overnight KI sweep), by the fix path above. After the vendor answers
+  and `notInLibrary` has run, `heldByLibrary` (`apps/web/src/server/places.ts`) looks the
+  remaining world rows' names up exactly: cities with `saved_days.cities && $names::text[]` (the
+  GIN index's containment), countries by name and code from the memoised aggregate, both counted
+  over published, live, unmoderated days. Each place it finds claims one world row by
+  `notInLibrary`'s own rule (`claim`) and is offered as the library's, labelled, ahead of the
+  world rows; a failed lookup leaves the world rows as they were. Proven in
+  `places/route.int.test.ts` by *offers a library place the vendor matched mid-name as the
+  library's, labelled* (`Yorkmid…` finding "New Yorkmid…") and its country twin (`Guinea…`
+  finding "Papua New Guinea"). With the lookup stubbed to `[]` both fail, `expected [ { kind:
+  'world', …(7) }, …(1) ] to deeply equal [ { kind: 'city', …(3) }, …(1) ]` and `expected [ {
+  kind: 'world', …(7) } ] to deeply equal [ { kind: 'country', …(4) } ]`; both pass with it. The
+  two sibling misses the JSDoc names (a different namesake ranked first; a city-state's city
+  spending its country's claim) are a ranking guess, not this, and stay as documented there.

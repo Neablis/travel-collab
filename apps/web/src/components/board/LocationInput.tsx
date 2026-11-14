@@ -8,7 +8,27 @@ import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { displayPlace } from "@/lib/place";
 
-type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryCode?: string; city?: string; area?: string };
+/**
+ * One `/api/geocode` result. `canonicalName` is the vendor's whole address;
+ * `name` is the place's own name ("Cochon"), absent when the vendor names
+ * nothing but the address (`ownNameOf`, `server/geocoding/locationiq.ts`).
+ */
+type GeocodeResult = {
+  lat: number;
+  lng: number;
+  canonicalName: string;
+  name?: string;
+  countryCode?: string;
+  city?: string;
+  area?: string;
+};
+
+/** What a result is called: its own name, or its address when it has none (KI-2026-10-30-p). */
+const titleOf = (r: GeocodeResult): string => r.name ?? r.canonicalName;
+
+/** A row's second line: the address when the title is not already it, else the country. */
+const detailOf = (r: GeocodeResult): string | undefined =>
+  titleOf(r) !== r.canonicalName ? r.canonicalName : r.countryCode;
 
 export function LocationInput({
   value,
@@ -45,7 +65,7 @@ export function LocationInput({
   }
 
   function pick(r: GeocodeResult) {
-    onChange({ name: r.canonicalName, lat: r.lat, lng: r.lng, countryCode: r.countryCode, city: r.city, area: r.area });
+    onChange({ name: titleOf(r), lat: r.lat, lng: r.lng, countryCode: r.countryCode, city: r.city, area: r.area });
     setResults([]);
   }
 
@@ -95,10 +115,10 @@ export function LocationInput({
                 onClick={() => pick(r)}
                 className="flex h-auto w-full flex-col items-start px-3 py-2 text-left"
               >
-                <Text as="span">{r.canonicalName}</Text>
-                {r.countryCode != null && (
+                <Text as="span">{titleOf(r)}</Text>
+                {detailOf(r) !== undefined && (
                   <Text as="span" variant="secondary">
-                    {r.countryCode}
+                    {detailOf(r)}
                   </Text>
                 )}
               </Button>
