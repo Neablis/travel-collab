@@ -28,6 +28,7 @@ const REPORT: PersonaReport = {
     { id: "schedule", label: "Schedule", tools: ["read_trip", "move_stop"], entryPages: ["trip", "day"], turns: 2, costPerTurnMicroUsd: 1500, costPerOutcomeMicroUsd: 3000, switchesOut: 1, unusedTools: ["move_stop"] },
     { id: "discover", label: "Discover", tools: ["search_places"], entryPages: [], ...zero, switchesOut: 0, unusedTools: ["search_places"] },
   ],
+  unknown: { turns: 1, costPerTurnMicroUsd: 600, costPerOutcomeMicroUsd: null },
   edges: [
     { from: "schedule", to: "discover", kind: "switch", via: "switch_persona", guard: ["role=propose"], count: 1, turns: 1, costPerTurnMicroUsd: 2000, costPerOutcomeMicroUsd: 2000 },
     { from: "schedule", to: null, kind: "hand-off", via: "nowhere", guard: [], count: 0, ...zero },
@@ -55,6 +56,16 @@ describe("the Personas tab", () => {
     expect(discover.getByText("a switch only")).toBeTruthy();
     expect(discover.queryByText(/\$/)).toBeNull();
     expect(screen.queryByText(/NaN/)).toBeNull();
+  });
+
+  it("lists turns with no persona on the map in an Unknown row, and leaves the row out when there are none", () => {
+    const { unmount } = render(<PersonasTab report={REPORT} />);
+    const unknown = within(screen.getByTestId("persona-unknown"));
+    expect(unknown.getByText("Unknown")).toBeTruthy();
+    expect(unknown.getByText("$0.0006")).toBeTruthy();
+    unmount();
+    render(<PersonasTab report={{ ...REPORT, unknown: zero }} />);
+    expect(screen.queryByTestId("persona-unknown")).toBeNull();
   });
 
   it("reads n/a, not a free $0.0000, for turns with no priced turn or no outcome", () => {

@@ -4,8 +4,11 @@
 //
 // **Each test reads its own far-future year**, for the reason `aiModels.int.test.ts`
 // gives: the report spans every account and other files write at the real `now`.
+// The years start at 2151, clear of `aiModels.int.test.ts`'s (2042 onward, one
+// per test). They used to start at 2051, and once that file passed ten tests
+// the two ranges overlapped, so this file's first window counted its turns.
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PersonaMapDef } from "@/lib/adminPersonas";
 import { db } from "@/server/db/client";
 import { aiCapabilityGaps, aiTurnOutcomes, aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
@@ -15,7 +18,7 @@ import { personaReport } from "./personaReport";
 const DAY = 24 * 60 * 60 * 1000;
 const MODEL = "zai/glm-5.3-flash";
 
-let year = 2051;
+let year = 2151;
 function freshNow(): Date {
   year += 1;
   return new Date(`${year}-06-30T12:00:00.000Z`);
@@ -210,10 +213,77 @@ describe("personaReport", () => {
     expect(report.edges.find((e) => e.via === "request_change_tools")).toMatchObject({ count: 1, turns: 1 });
   });
 
+  it("credits a self-loop only on the step where its flag first turns true, not on a persona switched to after it", async () => {
+    const now = freshNow();
+    // Discover escalated and pivoted at step 0; both flags stay latched on Schedule's step after the switch.
+    await turn(daysBefore(now, 1), {
+      entry: "discover",
+      steps: [{ persona: "discover", escalated: true, pivoted: true }, { persona: "schedule", from: "discover", escalated: true, pivoted: true }],
+    });
+    // Schedule escalates at its second step, after a first step without the flag.
+    await turn(daysBefore(now, 2), { entry: "schedule", steps: [{ persona: "schedule" }, { persona: "schedule", escalated: true }] });
+
+    const report = await personaReport(MAP, 30, now);
+
+    const edge = (via: string) => report.edges.find((e) => e.via === via)!;
+    expect(edge("request_change_tools")).toMatchObject({ count: 1, turns: 1 });
+    expect(edge("switch_intent")).toMatchObject({ count: 0, turns: 0 });
+  });
+
+  it("counts a turn with no entry persona, or one off the map, in an unknown row, so the rows add up to the header", async () => {
+    const now = freshNow();
+    const price = microUsdFor(MODEL, 1000, 50, daysBefore(now, 1))!;
+    await turn(daysBefore(now, 1), { entry: "schedule", steps: [{ persona: "schedule" }] });
+    await turn(daysBefore(now, 1), { entry: null, steps: [{ persona: null }], outcomes: ["proposal_applied"] });
+    await turn(daysBefore(now, 2), { entry: "retired-persona", steps: [{ persona: "retired-persona" }, { persona: "schedule" }] });
+
+    const report = await personaReport(MAP, 30, now);
+
+    expect(report.turns).toBe(3);
+    expect(report.unknown).toEqual({ turns: 2, costPerTurnMicroUsd: Math.round((3 * price) / 2), costPerOutcomeMicroUsd: 3 * price });
+    expect(report.nodes.reduce((sum, node) => sum + node.turns, report.unknown.turns)).toBe(report.turns);
+  });
+
+  it("aggregates in the database: no read returns more rows than the window has turns, and the recent list is one page", async () => {
+    const now = freshNow();
+    // Each turn makes four calls and gets two outcomes, so a read that ships every call or outcome row returns more rows than there are turns.
+    const TURNS = 30;
+    for (let i = 0; i < TURNS; i += 1) {
+      await turn(new Date(daysBefore(now, 1).getTime() + i * 1000), {
+        entry: "schedule",
+        steps: [{ persona: "schedule", calls: ["read_trip", "read_trip", "go_to", "open_trip"] }],
+        outcomes: ["proposal_applied", "copied"],
+        gaps: [{ persona: "schedule", target: "go_to" }],
+      });
+    }
+    const rowCounts: number[] = [];
+    const query = db.$client.query.bind(db.$client) as (...args: unknown[]) => Promise<{ rows: unknown[] }>;
+    const spy = vi.spyOn(db.$client, "query").mockImplementation((async (...args: unknown[]) => {
+      const result = await query(...args);
+      rowCounts.push(result.rows.length);
+      return result;
+    }) as never);
+
+    let report;
+    try {
+      report = await personaReport(MAP, 30, now);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(report).toMatchObject({ turns: TURNS, outcomeTurns: TURNS });
+    expect(report.recent).toHaveLength(25);
+    expect(report.edges.find((e) => e.via === "go_to")).toMatchObject({ count: 2 * TURNS, turns: TURNS });
+    expect(report.nodes.find((n) => n.id === "schedule")!.unusedTools).toEqual(["move_stop", "search_places"]);
+    expect(rowCounts.length).toBeGreaterThan(0);
+    expect(Math.max(...rowCounts)).toBeLessThanOrEqual(TURNS);
+  });
+
   it("returns nulls, not NaN or zero, for a window with no turns", async () => {
     const report = await personaReport(MAP, 7, freshNow());
 
     expect(report).toMatchObject({ turns: 0, outcomeTurns: 0, switches: 0, costPerTurnMicroUsd: null, costPerOutcomeMicroUsd: null, recent: [] });
+    expect(report.unknown).toEqual({ turns: 0, costPerTurnMicroUsd: null, costPerOutcomeMicroUsd: null });
     expect(report.nodes).toHaveLength(3);
     for (const stats of [...report.nodes, ...report.edges]) {
       expect(stats).toMatchObject({ turns: 0, costPerTurnMicroUsd: null, costPerOutcomeMicroUsd: null });

@@ -28,10 +28,17 @@ export interface DebugPersona {
   tools: DebugTool[];
 }
 
-export interface DebugEdge {
-  from: DebugPersonaId;
+/**
+ * A persona edge's wire shape, the one declaration of it. The Ask panel's
+ * Debug view reads it with the page's persona ids; the console's Personas tab
+ * (`EdgeDef` in `lib/adminPersonas.ts`) reads it with plain strings, because
+ * its map is handed in and may name a persona this union does not
+ * (KI-2026-11-01-aa).
+ */
+export interface DebugEdge<Id extends string = DebugPersonaId> {
+  from: Id;
   /** Null: the hand-off leaves the graph. */
-  to: DebugPersonaId | null;
+  to: Id | null;
   kind: "switch" | "hand-off";
   via: string;
   /** The caps the edge names, as `cap=value`. Empty: always taken. */
