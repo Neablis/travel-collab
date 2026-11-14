@@ -4,6 +4,9 @@
 //
 // **Each test reads its own far-future year**, for the reason `aiModels.int.test.ts`
 // gives: the report spans every account and other files write at the real `now`.
+// The years start at 2151, clear of `aiModels.int.test.ts`'s (2042 onward, one
+// per test). They used to start at 2051, and once that file passed ten tests
+// the two ranges overlapped, so this file's first window counted its turns.
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { PersonaMapDef } from "@/lib/adminPersonas";
@@ -15,7 +18,7 @@ import { personaReport } from "./personaReport";
 const DAY = 24 * 60 * 60 * 1000;
 const MODEL = "zai/glm-5.3-flash";
 
-let year = 2051;
+let year = 2151;
 function freshNow(): Date {
   year += 1;
   return new Date(`${year}-06-30T12:00:00.000Z`);
