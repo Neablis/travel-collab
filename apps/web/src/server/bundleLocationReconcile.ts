@@ -5,9 +5,11 @@
 // narrow, common case: a stop's coordinates corrected after the fact (the
 // 2026-09-23 geocode audit moved two Thailand stops by 21 and 25 km).
 //
-// This plans the smallest honest repair: for each stop whose `location` in the
-// file differs from the activity's location in the trip, one `UpdateActivity`
-// carrying `location` and nothing else. The importer sends those through
+// This plans the smallest honest repair: for each stop whose `location` or
+// `endLocation` (a leg's destination, M24) in the file differs from the
+// activity's in the trip, one `UpdateActivity` carrying whichever of the two
+// changed and nothing else (KI-2026-09-25-n: it used to compare `location`
+// alone, so a corrected destination read as "no difference"). The importer sends those through
 // `executeTripCommand`, so the correction is new events appended to the
 // existing stream (invariant 1) — history grows, it is never replaced.
 //
@@ -33,13 +35,16 @@ import type { BundleStop, BundleTrip } from "@tc/fixtures";
 import { db } from "./db/client";
 import { readStream } from "./eventStore";
 
-/** One stop whose location the trip should take from the file, with what it replaces. */
+/** One stop whose location or destination the trip should take from the file, with what it replaces. */
 export type PlannedLocationUpdate = {
   /** Where the stop sits, for the run summary: `day 3` or `backlog`. */
   bucket: string;
   title: string;
   from: Location | null;
   to: Location | null;
+  /** The leg's destination, before and after; equal when only `location` changed. */
+  endFrom: Location | null;
+  endTo: Location | null;
   command: UpdateActivity;
 };
 
@@ -69,9 +74,9 @@ function bucketsFor(state: TripState, trip: BundleTrip, looseStops: BundleStop[]
 
 /**
  * Pure half of the plan: pairs the file's stops with `state`'s activities and
- * returns an `UpdateActivity` for each pair whose locations differ. An absent
- * `location` in the file means "no location", so a stop the file stopped
- * locating is cleared rather than silently kept.
+ * returns an `UpdateActivity` for each pair whose `location` or (on a transit
+ * stop) `endLocation` differ. An absent field in the file means "none", so a
+ * stop the file stopped locating is cleared rather than silently kept.
  */
 export function planLocationReconcileFromState(
   state: TripState,
@@ -99,16 +104,31 @@ export function planLocationReconcileFromState(
         continue;
       }
       const to = stop.location ?? null;
+      // A destination is only compared on a stop that is still a leg. Whether
+      // a stop may have one depends on `kind`, which this does not touch: an
+      // `endLocation` sent to a non-transit stop is refused by the decider, and
+      // that refusal would abort the whole import run.
+      const endTo = current.kind === "transit" ? (stop.endLocation ?? null) : current.endLocation;
       // The domain's own field-by-field comparison — the one `UpdateActivity`
       // uses to refuse a no-op — so "differs" here cannot drift from "would be
       // accepted" there, and every Location field the contract grows counts.
-      if (activityStatesEqual(current, { ...current, location: to })) continue;
+      const locationMoved = !activityStatesEqual(current, { ...current, location: to });
+      const endMoved = !activityStatesEqual(current, { ...current, endLocation: endTo });
+      if (!locationMoved && !endMoved) continue;
       plan.updates.push({
         bucket: bucket.label,
         title: stop.title,
         from: current.location,
         to,
-        command: { type: "UpdateActivity", tripId: state.tripId, activityId, location: to },
+        endFrom: current.endLocation,
+        endTo,
+        command: {
+          type: "UpdateActivity",
+          tripId: state.tripId,
+          activityId,
+          ...(locationMoved ? { location: to } : {}),
+          ...(endMoved ? { endLocation: endTo } : {}),
+        },
       });
     }
 

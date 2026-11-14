@@ -1,4 +1,4 @@
-### KI-2026-09-25-n — the content bundle pipeline reads a stop's `location` only, so a leg's `endLocation` is never geocoded and a corrected one never reaches an imported trip
+### KI-2026-09-25-n — the content bundle pipeline reads a stop's `location` only, so a leg's `endLocation` is never geocoded and a corrected one never reaches an imported trip — RESOLVED
 
 - **Severity:** latent. No bundle under `content/` carries an `endLocation` today, so nothing is
   wrong yet. The first bundle with a leg will import with no destination coordinates, and fixing
@@ -27,6 +27,24 @@
     `activityStatesEqual`, and patch whichever changed. A destination only has a coordinate to
     correct: whether it is allowed depends on `kind`, which the reconciler doesn't touch.
   - See `docs/guidelines/content-bundles.md` (ADR-041).
+- **Resolution (2026-11-14):** both halves of the fix shape.
+  - `scripts/geocode-content.py`: a `locations_of()` walk over `LOCATION_FIELDS = ("location",
+    "endLocation")` now feeds `places()`, `stop_countries()`, `--retract` and `--apply`, so a
+    leg's destination is queued, geocoded and written back like any stop's `location`. Proven by
+    `scripts/geocode-test/replay.py`, whose bundle now carries one transit leg with a destination
+    of its own: before the fix the real `--apply` printed `a leg's endLocation is geocoded and
+    written back  WRONG` and the `ok` run queued 5 places, not 6; after it, `all modes behaved as
+    expected`. The harness now reads a mode's reason from a row that has one (the queue is worked
+    in key order, so under `dailycap` only the first place asked records it).
+  - `apps/web/src/server/bundleLocationReconcile.ts`: compares `location` and, on a stop whose
+    `kind` is still `transit`, `endLocation` through `activityStatesEqual`, and patches only the
+    field(s) that changed. A non-transit stop is never sent a destination (the decider would refuse
+    it and abort the import run). `PlannedLocationUpdate` gains `endFrom`/`endTo`. Proven by
+    `bundleLocationReconcile.test.ts`: before the fix an endLocation-only correction planned
+    `expected [] to have a length of 1 but got +0`.
+  - Not done: refusing a destination without coordinates in `content:verify` (the entry's
+    optional "if"), and `import-content-production.ts`'s run summary still prints only
+    `from`/`to`, so an endLocation-only update reads as `A → A` there.
 - **Cross-reference:** KI-2026-09-25-o (merged here on 2026-10-17, moved to `resolved/` as a
   duplicate); KI-2026-09-25-q.
 - **First noted:** 2026-09-25.

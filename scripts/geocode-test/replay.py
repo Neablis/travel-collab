@@ -40,7 +40,15 @@ json.dump({"$schema":"travel-collab/content-bundle/v1",
     "stops":[{"kind":"sight","name":f"S{i}",
               "location":{"name":f"Place {i}","area":"Area","city":"Reykjavík",
                           **({"countryCode": PRESET_CC[i]} if i in PRESET_CC else {})}}
-             for i in range(5)]}]}, open(H/"content/t.json","w"))
+             for i in range(5)]
+           # A leg (M24): its destination is a place of its own, and only ever
+           # appears as an `endLocation` (KI-2026-09-25-n). Both ends are preset
+           # to the code the provider returns, so neither is a countryCode write
+           # and the counts below stay about the five stops above.
+           + [{"kind":"transit","mode":"bus","name":"Bus out",
+               "location":{"name":"Place 0","area":"Area","city":"Reykjavík","countryCode":"IS"},
+               "endLocation":{"name":"Leg end","area":"Harbour","city":"Reykjavík",
+                              "countryCode":"IS"}}]}]}, open(H/"content/t.json","w"))
 
 EXPECTED = {
     "400":      ("failed",    "http 400"),
@@ -76,7 +84,9 @@ for mode in MODES:
     db = sqlite3.connect(CACHE)
     st = dict(db.execute("select status,count(*) from places group by 1"))
     nul = db.execute("select count(*) from places where status='failed' and last_error is null").fetchone()[0]
-    ex = db.execute("select last_error from places limit 1").fetchone()
+    # The reason a row carries, not row 1's: the queue is worked in key order,
+    # so under `dailycap` only the first place asked records why the run stopped.
+    ex = db.execute("select last_error from places order by last_error is null, rowid limit 1").fetchone()
     db.close()
     rows.append((mode, str(st), f"failed+NULL={nul}", f"{str(ex[0] if ex else '')[:38]}{timed_out}"))
     try: os.killpg(os.getpgid(srv.pid), signal.SIGKILL)
@@ -129,6 +139,9 @@ checks = [
     ("...and the conflict is reported with both codes", "has NO, geocoder says IS" in r.stdout),
     ("a matching code is left as it is", stops[4]["location"].get("countryCode") == "IS"),
     ("3 codes written, not 5", "3 countryCode(s)" in r.stdout),
+    ("a leg's endLocation is geocoded and written back",
+     "lat" in stops[5]["endLocation"] and "lng" in stops[5]["endLocation"]),
+    ("...and its location beside it, as any stop's", "lat" in stops[5]["location"]),
     ("a same-named city in another bundle does not inherit the code",
      "countryCode" not in json.load(open(H/"content/u.json"))["playbooks"][0]["stops"][0]["location"]),
 ]

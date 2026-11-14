@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Fill in `location.lat` / `location.lng` — and `location.countryCode` — for every
-stop in `content/**/*.json`, slowly, over as many sessions as it takes.
+stop in `content/**/*.json` (and the same on a travel leg's `endLocation`),
+slowly, over as many sessions as it takes.
 
     python3 scripts/geocode-content.py --status          # what is left, no network
     python3 scripts/geocode-content.py                   # work the queue until done
@@ -151,6 +152,26 @@ def stops_of(bundle: dict) -> Iterator[dict]:
     yield from bundle.get("activities", [])
 
 
+# Every field of a stop that holds a `Location`. A travel leg (M24, `kind:
+# "transit"`) has two: `location` where it starts and `endLocation` where it
+# ends. Reading `location` alone left every leg's destination without
+# coordinates, so the map drew no leg for it (KI-2026-09-25-n).
+LOCATION_FIELDS = ("location", "endLocation")
+
+
+def locations_of(bundle: dict) -> Iterator[dict]:
+    """Every location dict in a bundle, origin and destination alike.
+
+    Yields the dicts themselves, so a write into one lands in the bundle. A
+    field that is absent or not an object is skipped: there is nothing in it to
+    look up or write to."""
+    for stop in stops_of(bundle):
+        for field in LOCATION_FIELDS:
+            loc = stop.get(field)
+            if isinstance(loc, dict):
+                yield loc
+
+
 def places() -> dict[str, Place]:
     """Every distinct place across every bundle, keyed by its normalised query."""
     found: dict[str, Place] = {}
@@ -160,8 +181,7 @@ def places() -> dict[str, Place]:
         except json.JSONDecodeError as exc:
             print(f"  ! {path.name} is not valid JSON ({exc}); skipped", file=sys.stderr)
             continue
-        for stop in stops_of(bundle):
-            loc = stop.get("location") or {}
+        for loc in locations_of(bundle):
             name = (loc.get("name") or "").strip()
             if not name:
                 continue
@@ -1064,8 +1084,7 @@ def stop_countries(db, excluded: set[str]) -> tuple[
         except json.JSONDecodeError:
             continue                     # `places()` already reported it
         scope = str(path.relative_to(CONTENT))
-        for stop in stops_of(bundle):
-            loc = stop.get("location") or {}
+        for loc in locations_of(bundle):
             name = (loc.get("name") or "").strip()
             place = Place(name, (loc.get("area") or "").strip(), (loc.get("city") or "").strip())
             if name and place.city and place.key in own:
@@ -1446,8 +1465,7 @@ def retract(db: sqlite3.Connection, dry_run: bool) -> None:
     for path in bundle_files():
         bundle = json.loads(path.read_text(encoding="utf-8"))
         changed = False
-        for stop in stops_of(bundle):
-            loc = stop.get("location") or {}
+        for loc in locations_of(bundle):
             name = (loc.get("name") or "").strip()
             if not name or "lat" not in loc:
                 continue
@@ -1554,8 +1572,7 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
         bundle = json.loads(path.read_text(encoding="utf-8"))
         scope = str(path.relative_to(CONTENT))
         changed = False
-        for stop in stops_of(bundle):
-            loc = stop.get("location") or {}
+        for loc in locations_of(bundle):
             name = (loc.get("name") or "").strip()
             if not name:
                 continue
@@ -1586,7 +1603,6 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
                     continue
                 else:
                     loc["countryCode"] = code
-                    stop["location"] = loc
                     cc_written += 1
                     changed = True
 
@@ -1607,7 +1623,6 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
             # provided as a pair, so writing one without the other makes the
             # bundle unparseable.
             loc["lat"], loc["lng"] = round(hit[0], 6), round(hit[1], 6)
-            stop["location"] = loc
             written += 1
             changed = True
         if changed:
