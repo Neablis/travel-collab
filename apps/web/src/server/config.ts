@@ -43,9 +43,9 @@ export const serverConfig = {
   // (Upstash with both credentials below, memory without). Resolved, with its
   // fallbacks, by `resolveCacheDriver` in `server/cache/redis.ts`.
   cacheDriver: process.env.CACHE_DRIVER ?? "",
-  // The shared Upstash Redis (ADR-059), REST pair only. Optional. Vercel's
-  // Marketplace integration sets both on Preview and Production, alongside
-  // KV_URL / REDIS_URL / the read-only token, which nothing here reads.
+  // The shared Redis cache (ADR-059), Upstash REST pair only. Optional. On
+  // Coolify both point at serverless-redis-http on the box
+  // (docs/ops/coolify-vps.md).
   kvRestApiUrl: process.env.KV_REST_API_URL ?? "",
   kvRestApiToken: process.env.KV_REST_API_TOKEN ?? "",
   // Direct provider keys (M59 part 4; the Vercel AI Gateway key is gone). Trimmed:
@@ -75,10 +75,10 @@ export const serverConfig = {
   // but a single embed must never hang a request: past this it is fail-open,
   // same as every other provider call on the retrieval path.
   embeddingTimeoutMs: Number(process.env.AI_EMBEDDING_TIMEOUT_MS ?? 30_000),
-  // The shared secret Vercel Cron sends as `Authorization: Bearer` on every
-  // scheduled invocation (`server/cronAuth.ts`). Set it on the Vercel project
-  // (Production AND Preview if the sweep should run there); unset, every cron
-  // route answers 401 — fail closed, never open.
+  // The shared secret each Coolify scheduled task sends as `Authorization:
+  // Bearer` (`server/cronAuth.ts`, docs/ops/coolify-vps.md *Crons*). Set it on
+  // the Coolify application (Preview too if a cron should run there); unset,
+  // every cron route answers 401 — fail closed, never open.
   cronSecret: process.env.CRON_SECRET ?? "",
   // **The tier map: three named slots, each an INPUT** (ADR-043 decision 4,
   // spec §5b). Mitchell, 2026-09-10: *"that cost is not forever, and the model
@@ -94,12 +94,12 @@ export const serverConfig = {
   // none of the three set, all three resolve to exactly the model that answers
   // today, so tiering changes no behaviour until a deployment opts into it.
   // Setting `AI_MODEL` alone still moves everything — a local convenience.
-  // No Vercel environment sets it since 2026-10-05: all three tiers and
+  // No deployed environment sets it since 2026-10-05: all three tiers and
   // `AI_CLASSIFIER_MODEL` are set by name there, so it was never read, and it
   // still named `deepseek/deepseek-v4-flash-0731` long after nothing ran that.
   //
   // Open, and deliberately not decided here (spec §5b): whether this should be
-  // a Vercel Flag rather than three environment variables, which would allow a
+  // a feature flag rather than three environment variables, which would allow a
   // swap without a redeploy during a provider incident. The map is built as one
   // resolved value either way, so whichever source feeds it is this object's
   // implementation and not a change to anything that reads it.
@@ -130,7 +130,7 @@ export const serverConfig = {
  * The key `server/coverProxy.ts` signs cover URLs with (ADR-081 item 3).
  *
  * **Read per call**, as `API_TOKEN_PEPPER` is, so a test can set it. Wherever
- * it is set it is the key, a preview included. Unset outside Vercel's
+ * it is set it is the key, a preview included. Unset outside
  * production, a fixed development key stands in, so local runs and CI need
  * nothing; signatures there can be minted by anyone who reads this file,
  * which buys them only the guarded fetcher. In

@@ -371,7 +371,7 @@ async function renameBehindTheCache(savedDayId: string, name: string): Promise<v
 }
 
 // ADR-063: a stranger's read of a day is cached for a day, on this production
-// build as on Vercel. Unpublishing has to take it out at once, and
+// build as in production. Unpublishing has to take it out at once, and
 // republishing has to put it back, or the cache is a way to see a withdrawn day.
 test("a day a stranger has read leaves the moment it is unpublished, and returns when republished", async ({
   page,

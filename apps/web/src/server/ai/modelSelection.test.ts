@@ -113,7 +113,7 @@ describe("aiLiveMode", () => {
   });
 });
 
-// KI-24: AI_LIVE overriding the ai-live flag on Vercel is a deliberately kept
+// KI-24: AI_LIVE overriding the ai-live flag on a deployment is a deliberately kept
 // escape hatch (see modelSelection.ts's module doc) — this only guards the
 // EVIDENCE trail for it, not the override itself. The bug this closes: the
 // warning used to live at module load, so it fired at most once per cold

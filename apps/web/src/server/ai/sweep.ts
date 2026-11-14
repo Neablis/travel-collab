@@ -1,4 +1,4 @@
-// Server-only: never import from UI code. The Vercel Cron sweep that drains
+// Server-only: never import from UI code. The cron sweep that drains
 // `pending_embeddings` into `day_embeddings` (Part 2 of 5). The route at
 // `app/api/cron/embed-days` is its only caller in production; the backfill
 // script feeds the queue it drains.

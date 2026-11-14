@@ -1737,7 +1737,7 @@ export const aiUsageSteps = pgTable(
 
 // **One row per capability gap** (M57, ADR-085; ADR-084 §2): a task the
 // assistant understood and handed off because no tool does it. It was the
-// `ai.capability_gap` log line alone, which Vercel keeps briefly; a row is
+// `ai.capability_gap` log line alone, which the host's logs keep briefly; a row is
 // what lets "which persona declines what" be a query.
 //
 // `task` is the model's own words for it, through `sanitizeForLog` and capped
@@ -2180,7 +2180,7 @@ export const dayEmbeddings = pgTable(
 );
 
 // The async embed queue for `day_embeddings` (Part 2's embed-on-write and
-// backfill feed it; a Vercel Cron sweep drains it). A row per pending chunk,
+// backfill feed it; a cron sweep drains it). A row per pending chunk,
 // claimed by the sweep — one row per (source, day), so a double-enqueued
 // write is a no-op and a crashed claim is re-claimable on `attempts`.
 export const pendingEmbeddings = pgTable(

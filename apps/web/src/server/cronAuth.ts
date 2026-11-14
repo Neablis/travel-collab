@@ -1,9 +1,9 @@
-// Server-only: never import from UI code. The shared secret check for Vercel
-// Cron routes (Part 2 of 5 introduces the first one, `api/cron/embed-days`).
+// Server-only: never import from UI code. The shared secret check for the
+// cron routes (Part 2 of 5 introduced the first one, `api/cron/embed-days`).
 //
-// Vercel sends `Authorization: Bearer <CRON_SECRET>` on every cron
-// invocation, using the project's `CRON_SECRET` env var — the same value this
-// module reads. No other caller should ever hold it. When the secret is
+// Each Coolify scheduled task sends `Authorization: Bearer <CRON_SECRET>`,
+// using the application's `CRON_SECRET` env var — the same value this module
+// reads (docs/ops/coolify-vps.md, *Crons*). No other caller should ever hold it. When the secret is
 // unset, EVERYTHING is unauthorised (fail closed): an operator who forgot the
 // env var gets 401s in the cron logs, not an open endpoint.
 import { timingSafeEqual } from "node:crypto";

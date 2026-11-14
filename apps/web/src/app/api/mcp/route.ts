@@ -8,8 +8,9 @@ import { oauthChallenge, oauthRefusalResponse } from "@/server/public-api/route"
 import { TOOLS } from "./tools";
 
 // **The MCP connector: `POST /api/mcp`** (ADR-083 §8). Streamable HTTP,
-// stateless: no `Mcp-Session-Id` and no stream to resume, because a Vercel
-// function has no sticky routing to come back to. One SDK handler serves both
+// stateless: no `Mcp-Session-Id` and no stream to resume, because the
+// deployment promises no sticky routing to come back to (a Vercel function had
+// none when this was written). One SDK handler serves both
 // revisions: 2026-07-28, sessionless by design, and 2025-11-25, whose
 // `initialize` handshake the SDK's stateless fallback answers and then
 // forgets. That fallback answers a 2025 client with a one-event SSE stream

@@ -44,7 +44,7 @@ import type { TurnLedger } from "@/server/assistant/ledger";
 /**
  * Split a gateway model id into provider and model.
  *
- * Vercel's AI Gateway addresses models as `provider/model`
+ * Model ids keep the `provider/model` form Vercel's AI Gateway used
  * (`anthropic/claude-haiku-4-5`), and cost is a per-provider question — so
  * leaving the whole string in one attribute would file every model this app
  * can reach under a provider of "unknown". A bare id with no slash keeps the
@@ -135,7 +135,7 @@ export function recordAskMetrics(record: AskAnalyticsRecord, ledger: TurnLedger)
     // `agent` used to separate this endpoint's numbers from the command
     // endpoint's; that endpoint is gone (ADR-033) and the attribute stays, so
     // a dashboard built against it does not break and a second agent has a
-    // dimension to arrive on. `simulated` keeps flag-off traffic (every Vercel
+    // dimension to arrive on. `simulated` keeps flag-off traffic (every deployed
     // environment until `ai-live` is on) out of any cost number computed from
     // these, without needing a second metric name.
     const base: MetricAttributes = {

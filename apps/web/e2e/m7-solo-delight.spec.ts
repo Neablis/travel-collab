@@ -102,7 +102,7 @@ async function openNotebookIndex(page: Page): Promise<void> {
 // `LanguageModel` for a live Next.js process without real infra work
 // (env-gated test routing, an in-server MSW setup, etc.) — out of scope for
 // this task. Mitchell's hard constraint: no e2e test may ever make a real
-// call to the Vercel AI Gateway or any model provider (token cost). So this
+// call to any model provider (token cost). So this
 // spec only asserts the assistant rail OPENS on a page (composer + Ask
 // button); what a turn actually does is covered by
 // apps/web/src/app/api/trips/[tripId]/ask/route.int.test.ts and, on the client

@@ -2312,7 +2312,7 @@ describe("POST /api/trips/:id/ask", () => {
 
     // `ai.ask.outcome` (suggestProposal.ts): written after the store, so the
     // turn's own `ai.ask` record cannot carry it. Read off the console it
-    // goes to, as Vercel does.
+    // goes to, as the deployment's log collector does.
     let logged: { outcome: string; turnId: string; changeCount: number | null; snapshot: string | null }[] = [];
     beforeEach(() => {
       logged = [];
@@ -2600,7 +2600,7 @@ describe("POST /api/trips/:id/ask", () => {
       expect(records[0]!.offeredTools).not.toContain("insert_text");
     });
 
-    // THE test for this task. `ai-live` is off in every Vercel environment, so
+    // THE test for this task. `ai-live` is off in every deployed environment, so
     // this streamed path is the only way a deployed app can author a page at
     // all — and it goes through `simulatedModel`, whose `doStream` used to
     // throw for exactly this work.

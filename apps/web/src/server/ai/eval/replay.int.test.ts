@@ -377,7 +377,7 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
 });
 
 // **The account questions (M45), on the flag-off path.** Not a recording: the
-// simulated model is what every Vercel environment runs, and the five prompts
+// simulated model is what every deployed environment runs, and the five prompts
 // are the live set's own account cases, graded by the same expectations the
 // paid run uses (a-open-trip is a move, not a question, and is graded the
 // same way). So a green run here says the fixture, the cases, the door and

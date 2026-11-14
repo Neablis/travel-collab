@@ -8,7 +8,7 @@
 // never an exception.
 //
 // **Unconfigured means off, not broken.** `RESEND_API_KEY` is set on Preview
-// and Production in the Vercel dashboard (the Resend integration put it there)
+// and Production in Coolify (docs/ops/coolify-vps.md)
 // and nowhere else — a local checkout, `pnpm check` and the Playwright lane all
 // run without it and send nothing. That is also why this talks to Resend's
 // HTTP API with `fetch` rather than through its SDK: one POST is the entire

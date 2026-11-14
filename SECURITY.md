@@ -10,9 +10,8 @@ anyone to pin — the supported version is whatever is currently deployed from
 fictional 5.1.x/4.0.x support table. Project review L1.)
 
 Anything served from the production deployment is in scope. Preview
-deployments are not: they are fenced by Vercel Deployment Protection, carry
-non-production data, and deliberately enable affordances production does not
-have (see below).
+deployments are not: they are public but NOINDEX, carry non-production data,
+and deliberately enable affordances production does not have (see below).
 
 ## Reporting a vulnerability
 
@@ -40,8 +39,8 @@ Documented, deliberate behaviours, so they don't get reported as findings:
   handed out, and they can be revoked.
 - **Environment-gated affordances.** Dev login (`AUTH_DEV_LOGIN`) and the
   demo-data reset (`SEED_DEMO_DATA`) require both an operator opt-in *and* a
-  non-production `VERCEL_ENV`, which is set by the platform and cannot be set
-  by us. If you can reach either on production, that is a real finding.
+  non-production deployment environment (`APP_ENV`), which is set by the
+  deployment and cannot be set by a request. If you can reach either on production, that is a real finding.
 - **CSRF protection is the session cookie's `SameSite=Lax`, and only that.**
   There is no Origin check and no CSRF token on `/api/**` (Auth.js's own token
   guards only its sign-in and sign-out actions). It holds because every
