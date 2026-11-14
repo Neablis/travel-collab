@@ -47,10 +47,18 @@ vi.mock("@/server/savedDays", async (importOriginal) => {
     ...actual,
     readableSavedDay: vi.fn(async (savedDayId: string) => ({
       savedDayId,
+      ownerId: "author-1",
       name: "A day in Kyoto",
       stops: [{}, {}],
     })),
   };
+});
+
+// The same adapter names the day's author for the card (KI-2026-09-08-c) with
+// `publicNamesOf`, one `users` read — stubbed for this file's reason above.
+vi.mock("@/server/playbooks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/playbooks")>();
+  return { ...actual, publicNamesOf: vi.fn(async () => (userId: string) => (userId === "author-1" ? "Alice" : "someone")) };
 });
 
 // `commitProposal` now charges the geocode quota for every lookup it makes
@@ -187,6 +195,18 @@ describe("the write tools collect and commit nothing", () => {
     expect(overflow.error).toContain(String(MAX_PROPOSAL_INSERTS));
     // The refusal is a decision, not a read: the row is never resolved.
     expect(vi.mocked(readableSavedDay)).toHaveBeenCalledTimes(MAX_PROPOSAL_INSERTS);
+  });
+
+  // KI-2026-09-08-c: the card names whose day it is. The author is read with
+  // the row and collected beside it, and rides out on the proposal's insert —
+  // while the model's receipt above stays exactly as it was.
+  it("collects the day's author for the card, and carries it onto the proposal", async () => {
+    const { getInserts, tools } = buildWriteTools();
+    const insert = tools[INSERT_PLAYBOOK_DAY]!.execute as (i: unknown, o: unknown) => Promise<unknown>;
+    expect(await insert({ savedDayId: "day-a" }, { context: { userId: ACTOR } })).not.toHaveProperty("author");
+    expect(getInserts()).toEqual([{ savedDayId: "day-a", name: "A day in Kyoto", stopCount: 2, author: "Alice" }]);
+    const proposal = buildProposal([], detail, { tripId: TRIP_ID, actorId: ACTOR, proposalId: "p1" }, getInserts());
+    expect(proposal!.inserts).toEqual([{ savedDayId: "day-a", name: "A day in Kyoto", author: "Alice" }]);
   });
 
   it("gives each turn its own collection — one turn cannot inherit another's intents", () => {

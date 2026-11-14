@@ -388,8 +388,10 @@ export function buildProposal(
     ],
     commands: honest,
     // `stopCount` is dropped on the way out: it was for the sentence above, and
-    // the apply door reads the row rather than anything on this list.
-    inserts: inserts.map(({ savedDayId, name }) => ({ savedDayId, name })),
+    // the apply door reads the row rather than anything on this list. `author`
+    // rides out for the card's provenance line (KI-2026-09-08-c), and the door
+    // ignores it as it ignores `name`.
+    inserts: inserts.map(({ savedDayId, name, author }) => ({ savedDayId, name, ...(author === undefined ? {} : { author }) })),
     // A dropped citation lands here beside a dropped command, because they are
     // the same kind of fact to the person reading the card: something the
     // assistant asked for that the server would not do on its word alone.
