@@ -40,7 +40,9 @@ import { isDroppedFromPlaybook, stopsForDays } from "@/lib/savedStops";
 // `viewer`), inserting writes one (the caller checks `editor`); this module
 // only ever owns the library rows themselves.
 
-type SavedDayRow = typeof savedDays.$inferSelect;
+// Without `cities_folded`: Postgres generates it from `cities` (KI-2026-10-05-d),
+// so no row this module builds carries it and no write may set it.
+type SavedDayRow = Omit<typeof savedDays.$inferSelect, "citiesFolded">;
 
 /**
  * The one place a stored instant becomes a `SavedDay`'s string. The column is

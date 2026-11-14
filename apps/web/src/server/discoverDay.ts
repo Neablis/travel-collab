@@ -3,6 +3,7 @@ import { TripCover, type ActivityTagDescribed } from "@tc/contracts";
 import { DISCOVER_PREVIEW_STOPS, type DiscoverDay } from "@/lib/playbooks";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { publicNameFor } from "@/lib/displayName";
+import { cityKey } from "@/lib/playbookUrls";
 import { parseSavedDayColumns } from "./savedDayRow";
 
 // A stored library row becomes a Discover card: the read boundary
@@ -109,7 +110,7 @@ export function toDiscoverDay(
     parsed.visibility === "public"
       ? tags.filter((tag): tag is ActivityTagDescribed => pageTagSet.has(tag))
       : [];
-  const wanted = new Set(queryCities);
+  const wanted = new Set(queryCities.map(cityKey));
   return {
     savedDayId: row.id,
     ownerId: row.owner_id,
@@ -123,13 +124,11 @@ export function toDiscoverDay(
     // Derived from the day's OWN cities rather than echoed back from the query
     // string, so a card's chips are always spelled the way the day spells them.
     //
-    // Exact, not case-folded, and deliberately the same comparison the SQL
-    // does: containment (`cities && ARRAY[...]`) is what the GIN index serves
-    // and it is exact, so a case-folded `matchedCities` would claim a match the
-    // row filter did not make. Every city the UI sends came from
-    // `GET /api/cities`, which returns the stored spelling — the two ends agree
-    // because the names travel from the index, not from a keyboard.
-    matchedCities: row.cities.filter((c) => wanted.has(c)),
+    // By `cityKey`, deliberately the same comparison the SQL does: the row
+    // filter overlaps `cities_folded` with folded keys (KI-2026-10-05-d), so an
+    // exact comparison here would deny a match the row filter made — a day
+    // stored as "kyoto", found by "Kyoto", would show no matched city.
+    matchedCities: row.cities.filter((c) => wanted.has(cityKey(c))),
     stopCount: facts.stopCount,
     // What the card states before a reader decides to open it (M23 link 4's
     // gate box). A sequence that does not say how many days it is is the same
