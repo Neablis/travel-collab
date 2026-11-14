@@ -21,6 +21,19 @@ general setup.
 
 ## Where the work is right now
 
+**M60 closed 2026-11-14, gate 11 of 11, with two boxes amended out** (*A personal agent can find
+Caesura, and act for you within what you allow*; decisions, evidence and retro in
+`docs/milestones/M60-personal-agents-act-for-you.md`, mechanisms in ADR-089), by `pnpm milestone
+close M60 --confirm` on part 0 (PR 712, `claude/relaxed-pascal-i6125m`, prose only), which **waits
+on Mitchell's merge**. All code is on `main`: PRs 714 to 717 in `d05a1fd` and PR 718 in `44eac29`
+(2026-11-11). Migration `0075_agent_sessions` is applied (`migrate-production` run 43155805732 on
+`678a90d`, which contains `44eac29`). Four boxes (the walk, Disconnect, Claude's connector, the
+tasks endpoint and a console report) are ticked on Mitchell's word of 2026-11-14 that he saw them
+work on production; PR previews never had working sign-in. **Two boxes are amended out, not
+passed:** the kit validator run on `poppy.json` (KI-2026-11-14-a) and a domain-audience token
+through v1's gates (KI-2026-11-14-b); Mitchell confirms both when he merges. KI-2026-11-01-u is
+resolved by PR 721.
+
 **M61 closed 2026-11-14, gate 9 of 9, with the *[walk]* box waived, not walked** (*Discover ranks
 what's worth borrowing now*; decisions, evidence and retro in
 `docs/milestones/M61-discover-ranks-what-is-worth-borrowing.md`, rule in ADR-090). PR 727 landed
@@ -131,6 +144,9 @@ confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
 **Next action:**
+00. **M60:** Mitchell merges PR 712 (part 0, prose only; all code is merged and `0075` is applied, so
+   no `migrate-production` is due and no lower draft is open) and confirms the two amended-out boxes. Then run the kit
+   validator (KI-2026-11-14-a) and add the v1 domain-audience test (KI-2026-11-14-b).
 0a. **M61:** Mitchell merges PR 722. File a known issue for deploy-before-migrate ordering; the
    unwalked *Discover rank* tab and `first_published_at` back-fill are the retro's leftovers. No
    migration is outstanding.
