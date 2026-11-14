@@ -39,7 +39,9 @@ checks the `countryCode` write-back (M12 link 7): the provider's `"is"` lands as
 `"IS"` on stops that had none, a stop preset to a different code keeps it and is
 reported with its coordinate withheld, a matching preset is not counted as a
 write, and a second `--apply` writes nothing. The fake provider's `ok` response
-already carries `address.country_code`, which is all this needs.
+already carries `address.country_code`, which is all this needs. The bundle
+also carries one travel leg, whose `endLocation` is a place of its own: the
+real `--apply` must geocode and write that destination too (KI-2026-09-25-n).
 
 To add a mode, add a response to `fake_provider.py` and its expectation to
 `EXPECTED` in `replay.py`. A mode without an expectation is not a test.
