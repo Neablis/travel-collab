@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { decodeJwt } from "jose";
 import { OAUTH_ACCESS_PREFIX, OAUTH_CODE_PREFIX, OAUTH_REFRESH_PREFIX } from "@tc/contracts";
-import { db } from "@/server/db/client";
+import { db, type Queryable } from "@/server/db/client";
 import { oauthCodes, oauthTokens } from "@/server/db/schema";
 import { keyedDigest, keyedDigestCandidates } from "@/server/secrets/keyedDigest";
 import { getCache } from "@/server/cache/redis";
@@ -23,6 +23,14 @@ import { signedOutFetchQuota } from "@/server/quota";
 // the checks, and exactly one gets a row back. The other has presented a spent
 // secret, which is reuse, and reuse revokes the grant (OAuth 2.1 §4.1.3), the
 // winner's tokens included.
+//
+// **The spend and the issue are one transaction (KI-2026-11-12-a).** That
+// UPDATE and `issueTokens`'s INSERT commit together or not at all, so an issue
+// that fails (the database drops, a constraint breaks) leaves the code or
+// refresh token unspent, and the client's retry works instead of reading as
+// reuse and revoking the grant. The race above is unchanged: a second UPDATE on
+// the same row waits for the first transaction, then finds the secret spent if
+// it committed, or wins if it rolled back.
 //
 // **No grace window for a rotated refresh token (amendment K).** If the
 // response carrying the new one is lost, the client's next refresh presents the
@@ -70,7 +78,8 @@ const refuse = (error: TokenErrorCode, description: string): TokenOutcome => ({ 
 /** Every digest a presented secret could be stored under (current pepper, then previous). */
 const hashesOf = (secret: string) => keyedDigestCandidates(secret).map((candidate) => candidate.digest);
 
-async function issueTokens(grant: GrantRow, now: Date): Promise<TokenResponse> {
+/** Inside the transaction that spent the code or rotated the refresh token, as `tx`. */
+async function issueTokens(tx: Queryable, grant: GrantRow, now: Date): Promise<TokenResponse> {
   const access = mintSecret(OAUTH_ACCESS_PREFIX);
   const refresh = mintSecret(OAUTH_REFRESH_PREFIX);
   const refreshExpiry = Math.min(now.getTime() + REFRESH_LIFETIME_MS, grant.expiresAt.getTime());
@@ -78,7 +87,7 @@ async function issueTokens(grant: GrantRow, now: Date): Promise<TokenResponse> {
     const { digest, keyVersion } = keyedDigest(secret);
     return { id: randomUUID(), tokenHash: digest, keyVersion, grantId: grant.id, kind, createdAt: now, expiresAt };
   };
-  await db
+  await tx
     .insert(oauthTokens)
     .values([
       row(access, "access", new Date(now.getTime() + ACCESS_LIFETIME_MS)),
@@ -259,16 +268,19 @@ export async function exchangeCode(
   if (code.codeChallenge === "" || !input.codeVerifier || !verifyS256(input.codeVerifier, code.codeChallenge)) {
     return refuse("invalid_grant", "code_verifier does not match the code_challenge");
   }
-  const [spent] = await db
-    .update(oauthCodes)
-    .set({ usedAt: now })
-    .where(and(eq(oauthCodes.id, code.id), isNull(oauthCodes.usedAt)))
-    .returning({ id: oauthCodes.id });
-  if (spent === undefined) {
+  const issued = await db.transaction(async (tx) => {
+    const [spent] = await tx
+      .update(oauthCodes)
+      .set({ usedAt: now })
+      .where(and(eq(oauthCodes.id, code.id), isNull(oauthCodes.usedAt)))
+      .returning({ id: oauthCodes.id });
+    return spent === undefined ? null : issueTokens(tx, checked.grant, now);
+  });
+  if (issued === null) {
     await cutOffGrant(code.grantId, "code-reuse", now);
     return refuse("invalid_grant", "the code was already used, so its grant has been revoked");
   }
-  return { ok: true, body: await issueTokens(checked.grant, now) };
+  return { ok: true, body: issued };
 }
 
 /**
@@ -312,16 +324,19 @@ export async function refresh(
       return refuse("invalid_scope", `scope must name exactly what the grant holds: ${held.join(" ")}`);
     }
   }
-  const [rotated] = await db
-    .update(oauthTokens)
-    .set({ rotatedAt: now })
-    .where(and(eq(oauthTokens.id, token.id), isNull(oauthTokens.rotatedAt)))
-    .returning({ id: oauthTokens.id });
-  if (rotated === undefined) {
+  const issued = await db.transaction(async (tx) => {
+    const [rotated] = await tx
+      .update(oauthTokens)
+      .set({ rotatedAt: now })
+      .where(and(eq(oauthTokens.id, token.id), isNull(oauthTokens.rotatedAt)))
+      .returning({ id: oauthTokens.id });
+    return rotated === undefined ? null : issueTokens(tx, checked.grant, now);
+  });
+  if (issued === null) {
     await cutOffGrant(token.grantId, "refresh-reuse", now);
     return refuse("invalid_grant", "the refresh token was already used, so its grant has been revoked");
   }
-  return { ok: true, body: await issueTokens(checked.grant, now) };
+  return { ok: true, body: issued };
 }
 
 /**

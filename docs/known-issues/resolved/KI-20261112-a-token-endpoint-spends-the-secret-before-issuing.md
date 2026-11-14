@@ -1,4 +1,4 @@
-### KI-2026-11-12-a — the token endpoint spends a code or refresh token before it stores the new pair, so a failed issue followed by a retry revokes the grant
+### KI-2026-11-12-a — the token endpoint spends a code or refresh token before it stores the new pair, so a failed issue followed by a retry revokes the grant — RESOLVED
 
 - **Severity:** correctness (rare: needs a database failure between two statements, then a
   retry). The person behind the grant must consent again; nothing leaks.
@@ -21,3 +21,12 @@
 - **Cross-reference:** KI-2026-11-11-a, ADR-083 decision 4 (Lifetimes: rotation and reuse detection), RFC 9700
   §4.14.2.
 - **First noted:** 2026-11-12, `part-reviewer` on PR 729.
+- **Resolution (2026-11-14):** the fix path above. `exchangeCode` and `refresh` in
+  `apps/web/src/server/oauth/tokens.ts` now run the guarded spend (`used_at` / `rotated_at`) and
+  `issueTokens`'s INSERT in one `db.transaction`, with `issueTokens` taking the `tx`; a spend that
+  returns no row leaves the transaction with nothing written, and `cutOffGrant` runs after it as
+  before. Proven by two tests in `tokens.int.test.ts` ("an issue that fails after the secret is
+  checked"), which queue an already-stored secret into `mintSecret` so the token INSERT fails on
+  `oauth_tokens_hash`, then retry the same code or refresh token. With the spend moved back onto
+  `db`, both fail with `expected 'invalid_grant' to be 'ok'`; with the transaction, both pass and the
+  grant stays live. The parallel-redemption and parallel-rotation race tests pass unchanged.
