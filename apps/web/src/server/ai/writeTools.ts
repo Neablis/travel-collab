@@ -50,7 +50,7 @@ import {
 } from "@/server/ai/geocodeEnrichment";
 import { consumeQuota, geocodeQuota } from "@/server/quota";
 import { tripCountriesOf, tripRegionOf } from "@/server/geocoding/region";
-import { summarizeBatch } from "@/server/ai/planSummary";
+import { describeCommand, summarizeBatch } from "@/server/ai/planSummary";
 import { REF_PARAM_NAMES } from "@/server/assistant/idFields";
 import type { AskDroppedCall } from "@/server/assistant/askAnalytics";
 import type { CollectedInsert, PlaceCache, PlaceCandidate } from "@/server/assistant/deps";
@@ -68,69 +68,11 @@ export { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay"
 // rather than being restated on this side of the wire.
 
 /**
- * The past-tense receipt (`summarizeBatch`) is the command path's contract and
- * is exactly right AFTER a batch applies. A proposal is the same information in
- * a different mood, and the mood is the whole point: "Done — added a day" shown
- * above an Approve button claims the thing the button has not done yet.
- *
- * So this is a second phrasing, not a second source of truth: both read the
- * committed/candidate `BatchableCommand` objects and nothing else, and
- * `summarizeBatch` is still what the user is told after approval
- * (`commitProposal`). The duplication is real and deliberate —
- * `planSummary.ts`'s behaviour is pinned (ADR-022 §4, plan Constraint 1), so
- * the shared `describeCommand(command, detail, mood)` that would collapse the
- * two cannot be written from here. Recorded in docs/known-issues/.
- *
- * The switch is exhaustive over `BatchableCommand["type"]` with no `default`,
- * so a thirteenth command fails to compile until someone words it.
- */
-export function describeProposedChange(command: BatchableCommand, detail: TripDetail): ProposedChange {
-  const activityTitle = (activityId: string): string => detail.activities[activityId]?.title ?? "an activity";
-  const dayLabel = (dayId: string): string => {
-    const index = detail.days.findIndex((d) => d.dayId === dayId);
-    return index === -1 ? "a new day" : `day ${index + 1}`;
-  };
-
-  const text = ((): string => {
-    switch (command.type) {
-      case "AddDay":
-        return "Add a day";
-      case "RemoveDay":
-        return `Remove ${dayLabel(command.dayId)}`;
-      case "SetTripStartDate":
-        return command.startDate === null ? "Clear the start date" : `Set the start date to ${command.startDate}`;
-      case "AddActivity":
-        return `Add “${command.title}” to ${command.dayId ? dayLabel(command.dayId) : "the backlog"}`;
-      case "UpdateActivity":
-        return `Update “${activityTitle(command.activityId)}”`;
-      case "MoveActivity":
-        return `Move “${activityTitle(command.activityId)}” to ${command.toDayId === null ? "the backlog" : dayLabel(command.toDayId)}`;
-      case "RemoveActivity":
-        return `Remove “${activityTitle(command.activityId)}”`;
-      case "DismissConflict":
-        return "Dismiss a conflict";
-      case "SetTripCurrency":
-        return `Set the currency to ${command.currency}`;
-      case "SetTripBudget":
-        return command.budget === null ? "Clear the budget" : "Set the budget";
-      case "SetTripName":
-        return `Rename the trip to “${command.name}”`;
-      case "SetTripDates":
-        return command.startDate !== null && command.endDate !== null
-          ? `Set the trip dates to ${command.startDate} – ${command.endDate}`
-          : "Set the trip dates";
-    }
-  })();
-
-  return { type: command.type, text };
-}
-
-/**
  * An insert, as the user reads it before deciding.
  *
  * `type: "AddDay"` because that is what an insert IS — a new day at the end of
  * the trip — and the field's whole job is letting a client group or icon a
- * change without parsing prose. `describeProposedChange` and `ID_FIELDS` stay
+ * change without parsing prose. `describeCommand` and `ID_FIELDS` stay
  * untouched (ADR-042's consequences): there is no command here to describe,
  * only a row, and the commands are minted at approval.
  *
@@ -435,8 +377,13 @@ export function buildProposal(
   const honest = commands.map(withoutFabricatedCost).map(withDefaultKind);
   return {
     proposalId: opts.proposalId ?? randomUUID(),
+    // The card's line per command: `describeCommand`'s `"proposed"` mood, the
+    // same switch `summarizeBatch` words the post-approval receipt with
+    // (KI-80). Labelled against this propose-time `detail`; the receipt reads
+    // the apply-time one, so a day list reordered in between can label the
+    // same command "day 1" here and "day 2" there.
     changes: [
-      ...honest.map((command) => describeProposedChange(command, detail)),
+      ...honest.map((command): ProposedChange => ({ type: command.type, text: describeCommand(command, detail, "proposed") })),
       ...inserts.map(describeProposedInsert),
     ],
     commands: honest,
