@@ -869,6 +869,22 @@ describe("ActivityEditor — the Booking section", () => {
     expect(section().open).toBe(true);
   });
 
+  // KI-2026-11-03-a: under a finger the card's Booked chip is a label (a
+  // 44px button would cover the card's edit target), so the code is copied
+  // here, from a full-size button, by the same editor-and-owner gate.
+  it("copies the code from a full-size button, and offers none with no code", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const onSave = mountBooking(booked, true);
+    // Its 44px height is measured in a browser, `m44-booking.spec.ts`.
+    fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
+    expect(writeText).toHaveBeenCalledWith("ABC123");
+    expect(await screen.findByText("Code copied")).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Confirmation"), { target: { value: "  " } });
+    expect(screen.queryByRole("button", { name: "Copy code" })).toBeNull();
+  });
+
   it("is absent below editor, and then leaves the booking out of the save so the stored one stands", () => {
     const onSave = mountBooking(booked, false);
     expect(screen.queryByText("Booking")).toBeNull();
