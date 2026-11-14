@@ -169,7 +169,7 @@ function StatCells({ turns, costPerTurnMicroUsd, costPerOutcomeMicroUsd }: TurnS
   );
 }
 
-function PersonaTable({ nodes }: { nodes: PersonaNode[] }) {
+function PersonaTable({ nodes, unknown }: { nodes: PersonaNode[]; unknown: TurnStats }) {
   return (
     <Table aria-label="Personas">
       <THead>
@@ -193,6 +193,16 @@ function PersonaTable({ nodes }: { nodes: PersonaNode[] }) {
             <TD>{node.unusedTools.length === 0 ? "none" : node.unusedTools.join(", ")}</TD>
           </TR>
         ))}
+        {/* Turns that entered no persona on the map, so the column adds up to the header's total (KI-2026-11-01-z). */}
+        {unknown.turns > 0 && (
+          <TR data-testid="persona-unknown">
+            <TD>Unknown</TD>
+            <TD>an unrecorded or retired persona</TD>
+            <StatCells {...unknown} />
+            <TD className={NUM}>n/a</TD>
+            <TD>n/a</TD>
+          </TR>
+        )}
       </TBody>
     </Table>
   );
@@ -250,7 +260,7 @@ export function PersonasTab({ report }: { report: PersonaReport }) {
       <Panel title="Map">
         <div className="flex flex-col gap-3">
           <Graph nodes={report.nodes} edges={report.edges} />
-          <PersonaTable nodes={report.nodes} />
+          <PersonaTable nodes={report.nodes} unknown={report.unknown} />
           <EdgeTable edges={report.edges} label={label} />
           <Text variant="secondary" className="text-xs">
             A turn counts at the persona it entered and in full at every edge it took, so edge figures do not add up to a persona&apos;s. A self-loop is read from the step flags it sets; a hand-off from a declined task or a navigation call.

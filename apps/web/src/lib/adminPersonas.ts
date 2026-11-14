@@ -69,6 +69,8 @@ export interface PersonaReport extends TurnStats {
   outcomeTurns: number;
   switches: number;
   nodes: PersonaNode[];
+  /** Turns whose entry persona is unrecorded or on no node, so `nodes` and this add up to `turns`. */
+  unknown: TurnStats;
   edges: PersonaEdge[];
   recent: RecentTurn[];
 }
