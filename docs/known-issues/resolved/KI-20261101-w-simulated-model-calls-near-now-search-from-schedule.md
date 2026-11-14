@@ -1,4 +1,4 @@
-### KI-2026-11-01-w — the switched-off model calls `find_places_near_now` from Schedule without switching persona first
+### KI-2026-11-01-w — the switched-off model calls `find_places_near_now` from Schedule without switching persona first — RESOLVED
 
 - **Severity:** cleanup. The switched-off deployment still answers; its canned tool calls just do not follow the path a real model takes.
 - **Area:** `apps/web/src/server/ai/simulatedModel.ts` (`askQuestions`, the `FIND_PLACES_NEAR_NOW_TOOL_NAME` branch near line 296).
@@ -6,3 +6,4 @@
 - **Why not fixed here:** M57's close is prose only (nothing under `apps/` or `packages/`). The fix is to emit `switch_persona` to `discover` in the same step, as the playbook-day branch does, then search in the next.
 - **Cross-reference:** ADR-085, `docs/milestones/M57-assistant-personas.md`, KI-20260908-c (the same file's other simulated-model gap).
 - **First noted:** 2026-11-01, M57 part 4 (eval builder's note), recorded at the close.
+- **Resolution (2026-11-14):** reproduced first. Offered Schedule's tools (`switch_persona`, no `find_places_near_now`), "find coffee near here" read `[read_trip, find_free_time]` and never switched, so on a real Schedule turn the near-now search could not be reached at all. `askQuestions` now emits `switch_persona` to `discover` in the reading step for a "near here" ask when the near-now search is not already held (one call also covers a playbook-day ask), and `askTurn` calls `find_places_near_now` once in the next step, through one shared `nearNowCall`. Proven by `simulatedModel.test.ts` ("switches to Discover before the near-now search when it entered as Schedule"): red before the fix with `expected [ 'read_trip', 'find_free_time' ] to deeply equal [ 'read_trip', 'switch_persona', …(1) ]`, and red on the second step (`expected [] to deeply equal [ 'find_places_near_now' ]`) with that step's call disabled.

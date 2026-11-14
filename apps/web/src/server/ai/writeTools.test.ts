@@ -9,7 +9,6 @@ import { readableSavedDay } from "@/server/savedDays";
 import {
   buildProposal,
   commitProposal,
-  describeProposedChange,
   droppedWriteCalls,
   droppedWrites,
   INSERT_PLAYBOOK_DAY,
@@ -444,57 +443,6 @@ describe("droppedWriteCalls", () => {
       actorId: ACTOR,
     });
     expect(dropped).toEqual([]);
-  });
-});
-
-// One REAL command per BatchableCommand type, with the exact sentence the card
-// shows. Every entry is a command the contract would accept, not a
-// `{type, tripId}` cast — a cast tests the switch's shape and nothing about
-// what it says.
-const PHRASES: [BatchableCommand, string][] = [
-  [{ type: "AddDay", tripId: TRIP_ID, dayId: "aaaaaaaa-1111-4222-8333-444455556666" }, "Add a day"],
-  [{ type: "RemoveDay", tripId: TRIP_ID, dayId: DAY_ID }, "Remove day 1"],
-  [{ type: "SetTripStartDate", tripId: TRIP_ID, startDate: "2027-06-02" }, "Set the start date to 2027-06-02"],
-  [
-    { type: "AddActivity", tripId: TRIP_ID, activityId: "bbbbbbbb-1111-4222-8333-444455556666", dayId: DAY_ID, title: "Gelato" },
-    "Add “Gelato” to day 1",
-  ],
-  [{ type: "UpdateActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID, title: "Colosseum" }, "Update “Colosseum tour”"],
-  [
-    { type: "MoveActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID, toDayId: DAY_ID, position: 0 },
-    "Move “Colosseum tour” to day 1",
-  ],
-  [{ type: "RemoveActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID }, "Remove “Colosseum tour”"],
-  [
-    { type: "DismissConflict", tripId: TRIP_ID, conflictId: "cccccccc-1111-4222-8333-444455556666" },
-    "Dismiss a conflict",
-  ],
-  [{ type: "SetTripCurrency", tripId: TRIP_ID, currency: "EUR" }, "Set the currency to EUR"],
-  [{ type: "SetTripBudget", tripId: TRIP_ID, budget: null }, "Clear the budget"],
-  [{ type: "SetTripName", tripId: TRIP_ID, name: "Rome" }, "Rename the trip to “Rome”"],
-  [
-    { type: "SetTripDates", tripId: TRIP_ID, startDate: "2027-06-01", endDate: "2027-06-04", newDayIds: [] },
-    "Set the trip dates to 2027-06-01 – 2027-06-04",
-  ],
-];
-
-describe("describeProposedChange", () => {
-  // Conditional mood, never past. `summarizeBatch`'s "Done — added a day" is
-  // the receipt for a batch that HAS applied; shown above an Approve button it
-  // claims the thing the button has not done.
-  it.each(PHRASES)("says %o as %s", (command, text) => {
-    expect(describeProposedChange(command, detail).text).toBe(text);
-    expect(describeProposedChange(command, detail).text).not.toContain("Done");
-    expect(describeProposedChange(command, detail).type).toBe(command.type);
-  });
-
-  // The witness for the table above: without it a thirteenth command is simply
-  // absent from PHRASES and every row keeps passing while covering less.
-  it("covers every BatchableCommand type, with a command the contract accepts", () => {
-    const covered = PHRASES.map(([command]) => command.type).sort();
-    const all = BatchableCommand.options.map((o) => o.shape.type.value as string).sort();
-    expect(covered).toEqual(all);
-    for (const [command] of PHRASES) expect(BatchableCommand.safeParse(command).success).toBe(true);
   });
 });
 

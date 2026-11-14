@@ -584,6 +584,31 @@ describe("simulatedModel — the ask surface", () => {
     expect(answer).toContain("I searched near Roman Forum: Sant'Eustachio.");
   });
 
+  // KI-2026-11-01-w: a trip turn enters Schedule (M57 part 4), which holds no
+  // place search, so "near here" switches to Discover in the step that reads
+  // and searches in the next, the path a real model takes. Searching from
+  // Schedule fails the eval's `switchesBefore`; never switching never searches.
+  it("switches to Discover before the near-now search when it entered as Schedule", async () => {
+    const question = "find coffee near here";
+    const schedule = { ...askPrompt({ kind: "trip" }, [], { question }), tools: [...askPrompt({ kind: "trip" }).tools, { name: "switch_persona" }] };
+    const first = callsOf(await probe().doGenerate(schedule));
+    expect(first.map((c) => c.toolName)).toEqual(["read_trip", "switch_persona", "find_free_time"]);
+    expect(JSON.parse(first[1]!.input)).toMatchObject({ to: "discover" });
+
+    const switched = { toolName: "switch_persona", value: { switched: true, note: "From your next step you are discover." } };
+    const discover = {
+      ...askPrompt({ kind: "trip" }, [{ toolName: "read_trip", value: TRIP_READOUT }, switched], { question }),
+      tools: [...askPrompt({ kind: "trip" }).tools, { name: "find_places_near_now" }],
+    };
+    const second = callsOf(await probe().doGenerate(discover));
+    expect(second.map((c) => c.toolName)).toEqual(["find_places_near_now"]);
+    expect(JSON.parse(second[0]!.input)).toEqual({ queries: ["coffee"] });
+
+    // Not a playbook ask and not a nearby one: no switch at all.
+    const plain = { ...askPrompt({ kind: "trip" }), tools: [...askPrompt({ kind: "trip" }).tools, { name: "switch_persona" }] };
+    expect(callsOf(await probe().doGenerate(plain)).map((c) => c.toolName)).not.toContain("switch_persona");
+  });
+
   it("answers turn 2 from turn 2's results, never the ones before its question", async () => {
     const priorTurn = askPrompt({ kind: "trip" }, [
       { toolName: "read_trip", value: { ...TRIP_READOUT, name: "STALE" } },

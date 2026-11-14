@@ -3,7 +3,7 @@
 // nothing: the agent loop calls it, gets canned tool calls back, and the rest of
 // /ask proceeds exactly as it would for a real model. That is the point — a
 // shared deployment stays exercisable at zero token cost, and `ai-live` is off
-// in EVERY Vercel environment today, so this file is what the deployed
+// in EVERY Coolify environment today, so this file is what the deployed
 // assistant actually is.
 //
 // It has one surface, because /ask is the one AI route (ADR-033). Everything
@@ -278,11 +278,18 @@ const WAKING_HOURS = { after: "08:00", before: "22:00" };
  */
 function askQuestions(scope: AskScope, options: CallOptionsLike): ToolCall[] {
   const calls = [call("read_trip", {})];
-  // A trip turn enters Schedule, which holds no library search (M57 part 4): a
-  // model asked for a playbook day says it needs Discover, in the same step as
-  // its first read, so the step after holds the search.
-  if (asksForAPlaybookDay(latestUserText(options)) && offered(options, SWITCH_PERSONA_TOOL_NAME)) {
-    calls.push(call(SWITCH_PERSONA_TOOL_NAME, { to: "discover", why: "they asked for a playbook day" }));
+  const question = latestUserText(options);
+  // A trip turn enters Schedule, which holds no library search and no place
+  // search (M57 part 4): a model asked for a playbook day, or for what is near
+  // it, says it needs Discover in the same step as its first read, so the step
+  // after holds the search. One switch a turn, so one call covers both asks.
+  // The near-now ask switches only when the search is not already here: a
+  // turn that entered holding it searches in this step, below.
+  const playbookDay = asksForAPlaybookDay(question);
+  const needsDiscover = playbookDay || (NEARBY.test(question) && !offered(options, FIND_PLACES_NEAR_NOW_TOOL_NAME));
+  if (needsDiscover && offered(options, SWITCH_PERSONA_TOOL_NAME)) {
+    const why = playbookDay ? "they asked for a playbook day" : "they asked what is near them";
+    calls.push(call(SWITCH_PERSONA_TOOL_NAME, { to: "discover", why }));
   }
   if (scope.kind === "day") calls.push(call("read_day", { days: scope.dayIndex + 1 }));
   // Only when it was handed over: a viewer's turn holds `read_trip` and
@@ -294,11 +301,22 @@ function askQuestions(scope: AskScope, options: CallOptionsLike): ToolCall[] {
   if (offered(options, READ_CHAT_TOOL_NAME)) calls.push(call(READ_CHAT_TOOL_NAME, {}));
   // An under-way trip (M52 decision 13): "near here" is the plan's here, which
   // only the near-now search knows, and it is offered only then.
-  const question = latestUserText(options);
-  if (offered(options, FIND_PLACES_NEAR_NOW_TOOL_NAME) && NEARBY.test(question)) {
-    calls.push(call(FIND_PLACES_NEAR_NOW_TOOL_NAME, { queries: [question.replace(new RegExp(NEARBY, "gi"), "").replace(FIND_WORDS, "").trim() || "places"] }));
-  }
+  const near = nearNowCall(question, options);
+  if (near !== null) calls.push(near);
   return calls;
+}
+
+/**
+ * The near-now search for a "near here" ask, or null when the ask is not one or
+ * the step does not hold the tool. Called from the reading step (a turn that
+ * entered holding it) and from the step after a switch to Discover (one that
+ * did not, KI-2026-11-01-w), so the query is derived in one place.
+ */
+function nearNowCall(question: string, options: CallOptionsLike): ToolCall | null {
+  if (!offered(options, FIND_PLACES_NEAR_NOW_TOOL_NAME) || !NEARBY.test(question)) return null;
+  return call(FIND_PLACES_NEAR_NOW_TOOL_NAME, {
+    queries: [question.replace(new RegExp(NEARBY, "gi"), "").replace(FIND_WORDS, "").trim() || "places"],
+  });
 }
 
 const NEARBY = /\b(?:near (?:here|us|me|by)|nearby|around (?:here|us)|close by)\b/i;
@@ -526,7 +544,7 @@ function canPropose(options: CallOptionsLike): boolean {
 // they mean "find me a ready-made day", and nothing that overlaps
 // `CHANGE_VERBS`' ordinary "add a coffee stop".
 //
-// It matters that this branch exists at all: `ai-live` is off in every Vercel
+// It matters that this branch exists at all: `ai-live` is off in every Coolify
 // environment, so without it ADR-042's whole flow is unreachable anywhere
 // Mitchell can click it.
 const PLAYBOOK_PROMPTS = /\bplaybook|\blibrary\b|\bsaved day|\bready-made\b|\bsomeone else's day\b/i;
@@ -684,7 +702,7 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
  * judgement that decides whether this model proposes.
  *
  * Reusing that predicate is the point, not a shortcut: the switched-off
- * deployment is the one every Vercel environment runs, so a classifier that
+ * deployment is the one every Coolify environment runs, so a classifier that
  * said "question" for a turn this model then wants to propose on would hand
  * itself a tool set it cannot use, and the proposal card would stop appearing
  * on the only path anyone deploys. The end-to-end cover for that is
@@ -728,7 +746,7 @@ function asksToWrite(text: string): boolean {
 //      was really a `plan` turn.
 //   2. **`plan` was unreachable by its own name.** `CHANGE_VERBS` deliberately
 //      excludes the word, on the sound ground that *"What's the plan for day
-//      2"* is a question — so on every Vercel environment, where `ai-live` is
+//      2"* is a question — so on every Coolify environment, where `ai-live` is
 //      off and this IS the classifier, *"plan me a six day trip"* classified as
 //      a question and was offered no write tools. That is M9's headline flow
 //      and KI-12's gate box, dark on the only path anyone can click.
@@ -824,7 +842,7 @@ const SIMULATED_PAGE_NOTICE =
  * A page-scoped turn: compose, then say so.
  *
  * **This is the branch with the least slack in the file.** `ai-live` is off in
- * every Vercel environment, so a deployed app that cannot reach here cannot
+ * every Coolify environment, so a deployed app that cannot reach here cannot
  * author a Notebook page at all (ADR-033's consequences). It used to be reached
  * through `generateText` on the command endpoint, which is why `doStream`
  * carried a loud throw for it; that throw is gone because the command path is,
@@ -1025,6 +1043,13 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   }
   const proposed = results.some(isQueued);
   const question = latestUserText(options);
+  // The step after a switch to Discover holds the near-now search the reading
+  // step could not call (KI-2026-11-01-w). Asked once: a turn that already
+  // searched answers from what came back.
+  if (!results.some((result) => result.toolName === FIND_PLACES_NEAR_NOW_TOOL_NAME)) {
+    const near = nearNowCall(question, options);
+    if (near !== null) return { content: [near], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
   // The library branch is checked BEFORE the sample-stops one: "add a day from
   // the playbook library" satisfies `asksForAChange` too, and the more specific
   // reading of the same sentence is the right one.
