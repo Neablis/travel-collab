@@ -4,7 +4,7 @@
 > Coolify-managed VPS (`docs/ops/coolify-vps.md`): crons are Coolify scheduled
 > tasks (`/api/cron/embed-days` 04:00 UTC, `/api/cron/tier-rollup` 04:30 UTC,
 > `/api/cron/discover-rank` hourly), and previews are built by Coolify on the
-> box. `apps/web/vercel.json` and `.github/workflows/vercel-preview.yml` no
+> box, only for a PR carrying the `preview` label (`.github/workflows/coolify-preview.yml`). `apps/web/vercel.json` and `.github/workflows/vercel-preview.yml` no
 > longer exist, so every reference to them below (including the repo-evidence
 > list at the end) describes the tree as it stood then. The Vercel sections
 > below are the cost analysis as written on 2026-10-25 and are kept for the
