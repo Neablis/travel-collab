@@ -158,7 +158,10 @@ describe("TripProvider — a suggester's edits are a draft", () => {
     expect(leaving()).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "send" }));
     await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("0"));
-    expect(leaving()).toBe(false);
+    // Waited for, not read once (KI-2026-11-02-a): the count shows "0" a
+    // render before React's passive-effect flush removes the guard, 1 to 34ms
+    // later in a trace, and under CI load that flush can lose the race.
+    await waitFor(() => expect(leaving()).toBe(false));
   });
 
   // Review of #311, finding 3.3 (W66, which revises W36): an edit made while a
