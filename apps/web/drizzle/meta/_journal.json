@@ -540,6 +540,13 @@
       "when": 1794436318291,
       "tag": "0076_saved_day_ranks",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1794668019920,
+      "tag": "0077_saved_day_cities_folded",
+      "breakpoints": true
     }
   ]
 }

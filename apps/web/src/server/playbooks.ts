@@ -20,7 +20,7 @@ import {
   type TagFilter,
 } from "@/lib/playbooks";
 import { countryName } from "@/lib/place";
-import { countrySlug, slugify } from "@/lib/playbookUrls";
+import { cityKey, countrySlug, slugify } from "@/lib/playbookUrls";
 import { publicNameFor } from "@/lib/displayName";
 import { db, type Queryable } from "./db/client";
 import { users } from "./db/schema";
@@ -37,11 +37,12 @@ import { parseSavedDayColumns } from "./savedDayRow";
 // **This is the containment query link 1's column and GIN index were shipped
 // for.** `server/cities.ts` answers the other half — *"which city NAMES begin
 // with these letters"*, a prefix scan no array index can serve. This one asks
-// *"which DAYS contain any of these cities"*, which is `cities && ARRAY[...]`
-// and is exactly what `saved_days_cities` indexes. The two look interchangeable
+// *"which DAYS contain any of these cities"*, which is `cities_folded &&
+// ARRAY[...]` over each city's key (`foldedCities`, KI-2026-10-05-d) and is
+// exactly what `saved_days_cities_folded` indexes. The two look interchangeable
 // and are not; each names the other so a later reader does not merge them.
 //
-// **Read off `saved_days.cities`, never `saved_days.stops`.** `stops` is jsonb
+// **Read off `saved_days.cities` (and its fold), never `saved_days.stops`.** `stops` is jsonb
 // because a saved day is a value that is never queried into (ADR-029); every
 // predicate below is on a real column, and the only thing done with `stops` is
 // to parse it whole and derive the card's facts in application code — which is
@@ -281,7 +282,7 @@ function matchPredicate(query: DiscoverQuery): SQL {
   // the scalar `Kyoto` and Postgres refuses it ("malformed array literal").
   // `sql.param` binds the whole array as a single `text[]` parameter, which is
   // what the containment operator and the GIN index need.
-  const cities = sql`${sql.param(query.cities)}::text[]`;
+  const cities = foldedCities(query.cities);
   const countries = sql`${sql.param(query.countries ?? [])}::text[]`;
   // **The season predicate is gone** (M26 link 2, SPEC §33.2): it filtered on
   // the month a day was run and nobody used it. `SEASON_MONTHS` and
@@ -300,7 +301,7 @@ function matchPredicate(query: DiscoverQuery): SQL {
     and (${query.publishedOnly === true} = false or d.visibility = ${SavedDayVisibility.enum.public})
     and (
       (cardinality(${cities}) = 0 and cardinality(${countries}) = 0)
-      or d.cities && ${cities}
+      or d.cities_folded && ${cities}
       or d.countries && ${countries}
     )
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
@@ -397,7 +398,7 @@ function keeps(query: Pick<DiscoverQuery, "budget" | "tag">, day: DiscoverDay): 
  *
  * What the number means, stated because the row's shape invites a wrong reading:
  * **"days in these results that also touch this city"**, NOT "days tapping this
- * chip would add". City matching is containment (`d.cities && ARRAY[...]`), so
+ * chip would add". City matching is containment (`d.cities_folded && ARRAY[...]`), so
  * adding a city WIDENS the match — tapping a chip can only ever return at least
  * this many days, never fewer. `DiscoverScreen` labels the row "Also in these
  * results" for that reason.
@@ -414,20 +415,27 @@ function keeps(query: Pick<DiscoverQuery, "budget" | "tag">, day: DiscoverDay): 
  * endpoint.
  */
 function siblingCities(days: DiscoverDay[], queryCities: string[]): CityMatch[] {
-  const asked = new Set(queryCities);
-  const counts = new Map<string, number>();
+  // By `cityKey`, the rule the SQL matched on (KI-2026-10-05-d): "Osaka" and
+  // "osaka" are one chip, and no chip is a spelling of a city already asked
+  // for. The chip is spelled the way the first day to carry it spells it —
+  // `days` is in ranked order, so that is stable for a given result.
+  const asked = new Set(queryCities.map(cityKey));
+  const counts = new Map<string, { city: string; days: number }>();
   for (const day of days) {
-    // `new Set` so a day is counted once per city even if `cities` ever grew a
-    // duplicate — `unnest` + `count(*)` had the same exposure and the column is
-    // written distinct, but a chip that counted one day twice would be the same
-    // class of lie this function was just rewritten to stop telling.
-    for (const city of new Set(day.cities)) {
-      if (asked.has(city)) continue;
-      counts.set(city, (counts.get(city) ?? 0) + 1);
+    // A `Set` of keys so a day is counted once per city even if it carries two
+    // spellings of one — a chip that counted one day twice would be the same
+    // class of lie this function was rewritten to stop telling.
+    const seen = new Set<string>();
+    for (const city of day.cities) {
+      const key = cityKey(city);
+      if (asked.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      const chip = counts.get(key);
+      if (chip === undefined) counts.set(key, { city, days: 1 });
+      else chip.days += 1;
     }
   }
-  return [...counts.entries()]
-    .map(([city, dayCount]) => ({ city, days: dayCount }))
+  return [...counts.values()]
     // UTF-16 code-unit order on the tiebreak, not `localeCompare`: this
     // replaced an `order by days desc, city asc` whose collation came from the
     // database, so pinning it to something that does not vary with a locale
@@ -498,15 +506,31 @@ export async function sitemapDays(): Promise<SitemapDay[]> {
 }
 
 /**
+ * The asked-for cities as the keys `saved_days.cities_folded` holds — one
+ * `text[]` parameter, for `matchPredicate`'s reason (KI-2026-10-05-d).
+ *
+ * **Folded, and matched against the folded column, never against `cities`.**
+ * Exact overlap on `cities` never found a day stored as "kyoto" for a search
+ * for "Kyoto", nor "Sao Paulo" for "São Paulo". `lower()` over `unnest(cities)`
+ * would have matched them and given up the GIN index; the folded column keeps
+ * it (`saved_days_cities_folded`). `cityKey` is the column's own rule.
+ */
+function foldedCities(cities: readonly string[]): SQL {
+  return sql`${sql.param([...new Set(cities.map(cityKey))])}::text[]`;
+}
+
+/**
  * How many of the asked-for places a day touches — cities plus countries,
  * `orderBy`'s first key. One spelling for the select below and for
  * `rankKeys`, which cannot name the select's alias.
  */
 function matchedCount(query: Pick<DiscoverQuery, "cities" | "countries">): SQL {
-  const cities = sql`${sql.param(query.cities)}::text[]`;
+  const cities = foldedCities(query.cities);
   const countries = sql`${sql.param(query.countries ?? [])}::text[]`;
+  // `intersect` is a set operation, so two spellings of one city — on the day
+  // or in the query — are one key and count once.
   return sql`(cardinality(array(
-        select unnest(d.cities) intersect select unnest(${cities})
+        select unnest(d.cities_folded) intersect select unnest(${cities})
       )) + cardinality(array(
         select unnest(d.countries) intersect select unnest(${countries})
       )))`;
