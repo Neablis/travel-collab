@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET as resourceMetadata } from "@/app/.well-known/oauth-protected-resource/[[...path]]/route";
 import { GET as poppy } from "@/app/.well-known/poppy.json/route";
+import { GET as poppy04 } from "@/app/.well-known/poppy-0.4.json/route";
 import { GET as serverMetadata } from "@/app/.well-known/oauth-authorization-server/[[...path]]/route";
 
 // The two discovery routes, as a client reaches them. The Host-header case is
@@ -49,8 +50,22 @@ describe("/.well-known/poppy.json", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.protocol_version).toBe("1.0");
-    expect(body.supported_versions).toEqual(["0.4"]);
+    expect(body.supported_versions).toEqual({ "0.4": `${PREVIEW}/.well-known/poppy-0.4.json` });
     expect(body.organization.domain).toBe(PREVIEW.replace("https://", ""));
+  });
+});
+
+describe("/.well-known/poppy-0.4.json", () => {
+  it("serves the 0.4 document for the configured origin, never the request's Host", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_BRANCH_URL", PREVIEW.replace("https://", ""));
+    const res = poppy04(forged("/.well-known/poppy-0.4.json"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.protocol_version).toBe("0.4");
+    expect(body).not.toHaveProperty("supported_versions");
+    expect(body.organization.domain).toBe(PREVIEW.replace("https://", ""));
+    expect(body.auth.issuer).toBe(PREVIEW);
   });
 });
 

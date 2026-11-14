@@ -25,13 +25,24 @@ outside MCP dispatch with `audience`).
 
 ## Decision
 
-1. **Poppy 1.0, pinned, with 0.4 still served.** `protocol_version: "1.0"`, `supported_versions: ["0.4"]`. The spec is re-read
-   before part 1 merges; a later version is a candidate, not a reopened gate.
+1. **Poppy 1.0, pinned, with 0.4 still served.** `protocol_version: "1.0"`,
+   `supported_versions: {"0.4": "/.well-known/poppy-0.4.json"}` (served as an
+   absolute URL on the deployment origin). The spec is re-read before part 1
+   merges; a later version is a candidate, not a reopened gate.
 
    > **Amended 2026-11-14.** This decision said "Draft 0.4, pinned", `protocol_version: "0.4"`, no
    > `supported_versions`. Poppy 1.0 published 2026-11-14, and Mitchell decided to move to it
    > while keeping 0.4 served, because the Muse connector speaks only 0.3/0.4 and a clean break
    > would cut it off. See the Amendment below.
+   >
+   > **Amended 2026-11-14 (supported_versions shape).** This decision first
+   > recorded `supported_versions: ["0.4"]`, a list. Poppy 1.0 §3.4 defines it
+   > as a map from version to that version's document URL, and the official
+   > 1.0 kit validator's `discovery.schema` fails a list
+   > (`/supported_versions must be an object, not an array`). The 0.4
+   > document is now served at `/.well-known/poppy-0.4.json` — the same body
+   > pinned at 0.4, with no `supported_versions` of its own — and the 1.0
+   > document links it.
 2. **`poppy.json` lists two APIs and the website.** `apis`: the MCP server (`/api/mcp`, type
    `mcp`) and the OpenAPI description (`/api/v1/openapi`, type `openapi`). `web: {}` with no
    `browser_session_endpoint`: agents browse the public site as signed-out visitors. **No
@@ -229,3 +240,15 @@ The wide grant is keyed to the codebase's existing Personal Agent marker, `priva
 client authentication, not to a Poppy-specific flag: any CIMD client that authenticates that way
 and names no resource gets a covers-all grant, bounded by the scopes it was allowed. A non-Poppy
 connector allowed for MCP-only could therefore mint domain tokens with those same scopes.
+
+**`supported_versions` is a map, not a list (2026-11-14).** The 1.0 PR shipped
+`supported_versions: ["0.4"]`; the official 1.0 kit validator's first run
+against production failed `discovery.schema` on exactly that
+(`/supported_versions must be an object, not an array`) and skipped every
+check downstream of discovery. §3.4 defines the field as a map from version
+to that version's document URL, and `discovery.supported-versions` fetches
+each linked document: it must answer 200 without a redirect on the same host,
+serve that `protocol_version`, and carry no `supported_versions` of its own.
+The 0.4 document is served at `/.well-known/poppy-0.4.json`, built by the
+same builder as the 1.0 document so domain and issuer always match
+(`discovery.versions-same-company`).
