@@ -20,3 +20,23 @@
   can wait for the migration. If it can, strip such keys at the schema now and do the upgrade
   soon. Move this entry to `resolved/` when `pnpm audit` no longer lists the advisory.
 - **First noted:** 2026-10-18, PR 481.
+- **Finding (2026-11-14): defence in depth, the upgrade can wait.** The fix direction's first
+  question has an answer: no stored `PageDoc` carries an own `__proto__` attribute key to the
+  editor. `apps/web/src/server/pages.test.ts` sends one through the real write path: the BFF
+  route's `readBody(CreatePageInput)`, the command's re-parse, `checkPageDocForWrite` and
+  `serializePageDoc`, up to the stored JSON.
+  - Every strict position the editor mounts refuses it with a 400: a node, a node's `attrs`
+    (heading), a mark, and a widget's `attrs`.
+  - The two open records, mark `attrs` and widget `params`, are `z.record`. It assigns each key
+    onto a fresh object, so `__proto__` sets that object's prototype instead of becoming a key,
+    and serialising drops it. The stored document has no own `__proto__` anywhere.
+  - It survives only inside a node type this build does not know, kept byte-identical by
+    ADR-038 decision 3. Read back, that node is `{ type: "unknown", raw }`, with no `attrs` for
+    ProseMirror to read, and `inspectStoredPageDoc` opens the page read-only. ProseMirror also
+    builds a node's attrs only from the names its extension declares, and none is `__proto__`.
+  - Nothing was stripped, because nothing reaches `mergeAttributes`. Stripping inside an unknown
+    node's `raw` would also break decision 3's byte-identical promise, and that schema lives in
+    `packages/contracts/src`.
+  - Seen red: a temporary line in `checkPageDocForWrite` that planted an own `__proto__` on a
+    widget's params failed the test (`expected [ '$.content.0.attrs.params' ] to deeply equal
+    []`). `pnpm audit` still lists the advisory on this date, so the entry stays open.
