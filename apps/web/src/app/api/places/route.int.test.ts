@@ -89,9 +89,15 @@ async function publish(savedDayId: string): Promise<void> {
 
 /** `world`: ask for the world as New trip's Where page does (`world=1`); Discover never does. */
 async function search(q: string, world = false): Promise<{ status: number; places: PlaceMatch[] }> {
+  const { status, places } = await searchBody(q, world);
+  return { status, places };
+}
+
+/** `search`, with the whole body: `worldLimited` as well as the places. */
+async function searchBody(q: string, world = false): Promise<{ status: number; places: PlaceMatch[]; worldLimited?: boolean }> {
   const res = await GET(new Request(`http://test/api/places?q=${encodeURIComponent(q)}${world ? "&world=1" : ""}`));
-  const body = (await res.json().catch(() => ({}))) as { places?: PlaceMatch[] };
-  return { status: res.status, places: body.places ?? [] };
+  const body = (await res.json().catch(() => ({}))) as { places?: PlaceMatch[]; worldLimited?: boolean };
+  return { status: res.status, places: body.places ?? [], ...(body.worldLimited !== undefined && { worldLimited: body.worldLimited }) };
 }
 
 /** How many published days the index says touch country `code`, 0 when it is absent. */
@@ -198,10 +204,71 @@ describe("GET /api/places", () => {
 
     const city = `Limitcity${RUN}`;
     await publish(await saveDayAt([{ city, countryCode: "PT" }]));
-    const refused = await search(city, true);
+    const refused = await searchBody(city, true);
     expect(refused.status).toBe(200);
     expect(refused.places).toEqual([{ kind: "city", city, days: 1, hasPlaybooks: true }]);
+    // KI-2026-10-30-b: the refusal is said, so the Where page does not word
+    // it as "no such place".
+    expect(refused.worldLimited).toBe(true);
     expect(autocomplete).toHaveBeenCalledTimes(1);
+  });
+
+  // KI-2026-10-30-b: a world that was asked and answered with nothing new is
+  // not limited; one whose vendor failed is, like a refusal.
+  it("says the world was not answered when the vendor fails, and not when it answers with nothing", async () => {
+    currentUserId = `places-world-limited-${RUN}`;
+    autocomplete.mockImplementationOnce(async () => []);
+    expect(await searchBody(`Emptytown${RUN}`, true)).toEqual({ status: 200, places: [] });
+
+    autocomplete.mockImplementationOnce(async () => {
+      throw new Error("vendor down");
+    });
+    expect(await searchBody(`Failtown${RUN}`, true)).toEqual({ status: 200, places: [], worldLimited: true });
+  });
+
+  // KI-2026-10-30-c: the vendor matches "New York" by a word inside its name,
+  // which the library's prefix index does not, so the library's row is not in
+  // the list to claim it. The world row's name is looked up exactly, and the
+  // place comes back as the library's, labelled, however it was typed.
+  it("offers a library place the vendor matched mid-name as the library's, labelled", async () => {
+    const word = `Yorkmid${RUN}`;
+    const city = `New ${word}`;
+    await publish(await saveDayAt([{ city, countryCode: "US" }]));
+    const vendor = async () => [
+      { id: `osm:relation:${word}`, name: city, detail: "New York, United States", countryCode: "US", lat: 40.7, lng: -74 },
+      { id: `osm:relation:${word}-uk`, name: word, detail: "England, United Kingdom", countryCode: "GB", lat: 53.9, lng: -1.1 },
+    ];
+    autocomplete.mockImplementationOnce(vendor);
+
+    const { places } = await search(word, true);
+    expect(places).toEqual([
+      { kind: "city", city, days: 1, hasPlaybooks: true },
+      {
+        kind: "world",
+        id: `osm:relation:${word}-uk`,
+        name: word,
+        detail: "England, United Kingdom",
+        countryCode: "GB",
+        lat: 53.9,
+        lng: -1.1,
+        hasPlaybooks: false,
+      },
+    ]);
+  });
+
+  // The same for a country, matched by name and code as `notInLibrary` does:
+  // `guinea` is not a prefix of "Papua New Guinea", which the vendor matches.
+  it("offers a library country the vendor matched mid-name as the library's, labelled", async () => {
+    await publish(await saveDayAt([{ city: `Port Moresby ${RUN}`, countryCode: "PG" }]));
+    forgetCountrySearches();
+    autocomplete.mockImplementationOnce(async () => [
+      { id: "osm:relation:png", name: "Papua New Guinea", detail: "Oceania", countryCode: "PG", lat: -6.3, lng: 143.9 },
+    ]);
+
+    const { places } = await search(`Guinea${RUN}`, true);
+    expect(places).toEqual([
+      { kind: "country", countryCode: "PG", name: "Papua New Guinea", days: expect.any(Number), hasPlaybooks: true },
+    ]);
   });
 
   // A library Paris must not hide every other Paris (PR 639's review). The

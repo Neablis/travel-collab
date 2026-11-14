@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { SavedDayVisibility } from "@tc/contracts";
-import { WorldPlaceMatch, type PlaceMatch } from "@/lib/cities";
+import { WorldPlaceMatch, type PlaceMatch, type PlaceSearchResponse } from "@/lib/cities";
 import { countryName } from "@/lib/place";
 import { searchCities } from "./cities";
 import { db } from "./db/client";
@@ -134,9 +134,10 @@ function labelOf(place: LibraryMatch): string {
  *      `siblingCities` in `playbooks.ts` records why.
  *
  * Given `world` (a signed-in reader, `worldSearchFor`), the vendor's places
- * follow the library's in the vendor's order, in the room the library leaves.
+ * follow the library's in the vendor's order, in the room the library leaves,
+ * and `worldLimited` says when the world was asked and gave no answer.
  */
-export async function searchPlaces(q: string, world: WorldSearch | null = null): Promise<PlaceMatch[]> {
+export async function searchPlaces(q: string, world: WorldSearch | null = null): Promise<PlaceSearchResponse> {
   const needle = q.toLowerCase();
   const [cities, countries] = await Promise.all([searchCities(q), publishedCountriesMemoised()]);
 
@@ -162,8 +163,10 @@ export async function searchPlaces(q: string, world: WorldSearch | null = null):
     })
     .slice(0, SEARCH_LIMIT);
   // A full list has no room for the world, so it is not asked, or charged.
-  if (world === null || library.length >= SEARCH_LIMIT) return library;
-  return [...library, ...(await worldPlaces(q, library, world))].slice(0, SEARCH_LIMIT);
+  if (world === null || library.length >= SEARCH_LIMIT) return { places: library };
+  const found = await worldPlaces(q, library, world);
+  if (found === null) return { places: library, worldLimited: true };
+  return { places: [...library, ...found].slice(0, SEARCH_LIMIT) };
 }
 
 // The world half of place search (M56 D3, ADR-084 §7), for a signed-in reader
@@ -205,10 +208,17 @@ export function worldSearchFor(readerId: string): WorldSearch | null {
 
 /**
  * Vendor places for `q`, less any the library already offers
- * (`notInLibrary`). Empty when the vendor fails or the quota refuses, so the
- * library still answers.
+ * (`notInLibrary`), and with any the library holds under exactly that name
+ * offered as the library's (`heldByLibrary`). Empty for a query too short or
+ * too long to send.
+ *
+ * `null` when the world was asked and gave nothing to serve, so the library
+ * still answers and the caller can say why the world is missing
+ * (KI-2026-10-30-b). `readThrough` answers `null` exactly then: the quota
+ * refused, the key is in a back-off, or the call failed or timed out, each
+ * with no earlier answer held. A held answer served stale is an answer.
  */
-async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearch): Promise<WorldPlaceMatch[]> {
+async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearch): Promise<PlaceMatch[] | null> {
   const query = q.trim().replace(/\s+/g, " ");
   if (query.length < WORLD_MIN_QUERY || query.length > WORLD_MAX_QUERY) return [];
   const cached = await readThrough({
@@ -238,7 +248,67 @@ async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearc
     console.warn(`[places] world search: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   });
-  return notInLibrary(cached?.value ?? [], library);
+  if (cached === null) return null;
+  const rest = notInLibrary(cached.value, library);
+  const { unclaimed, claimers } = claim(rest, await heldByLibrary(rest, library));
+  return [...claimers, ...unclaimed];
+}
+
+/**
+ * The library's own places among `world` rows that `library` does not already
+ * hold, looked up by the rows' exact names (KI-2026-10-30-c).
+ *
+ * `library` is the prefix index's answer, and the vendor also matches a word
+ * inside a name: `york` finds the vendor's "New York" and not the library's.
+ * Without this the library's New York passes as an unlabelled world row, and
+ * picking it commits a world id for a place the library holds, while typing
+ * `new york` gives the library's row: one place in two shapes.
+ *
+ * A city is looked up with `cities && ARRAY[...]`, the containment the GIN
+ * index on `saved_days.cities` serves, so it stays cheap per keystroke. Exact
+ * and case-sensitive like that index (KI-2026-10-05-d is the folding). A
+ * country is matched by name AND code from the memoised aggregate, the
+ * `notInLibrary` rule. Counted, and filtered, as `searchCities` and
+ * `publishedCountries` count: published, live, unmoderated days.
+ *
+ * A failed lookup leaves the world rows as they are, so the library's answer
+ * is never taken down by it.
+ */
+async function heldByLibrary(world: WorldPlaceMatch[], library: LibraryMatch[]): Promise<LibraryMatch[]> {
+  const offered = new Set(library.map((p) => labelOf(p).toLowerCase()));
+  const names = [...new Set(world.map((p) => p.name))].filter((name) => !offered.has(name.toLowerCase()));
+  if (names.length === 0) return [];
+  try {
+    const wanted = sql`${sql.param(names)}::text[]`;
+    const [rows, countries] = await Promise.all([
+      db.execute<{ city: string; days: number }>(sql`
+        select city, count(*)::int as days
+        from ${savedDays}, unnest(${savedDays.cities}) as city
+        where ${savedDays.visibility} = ${SavedDayVisibility.enum.public}
+          and ${savedDays.deletedAt} is null
+          and ${savedDays.moderatedAt} is null
+          and ${savedDays.cities} && ${wanted}
+          and city = any(${wanted})
+        group by city
+      `),
+      publishedCountriesMemoised(),
+    ]);
+    const cities = [...rows.rows].map((row): LibraryMatch => {
+      const days = Number(row.days);
+      return { kind: "city", city: String(row.city), days, hasPlaybooks: days > 0 };
+    });
+    const named = new Set(world.map((p) => `${p.name.toLowerCase()}|${p.countryCode ?? ""}`));
+    const held = countries.flatMap(({ countryCode, days }): LibraryMatch[] => {
+      const name = countryName(countryCode) ?? countryCode;
+      return named.has(`${name.toLowerCase()}|${countryCode}`) && !offered.has(name.toLowerCase())
+        ? [{ kind: "country", countryCode, name, days, hasPlaybooks: days > 0 }]
+        : [];
+    });
+    return [...held, ...cities];
+  } catch (error: unknown) {
+    console.warn(`[places] library lookup of world names: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  }
 }
 
 /**
@@ -259,11 +329,29 @@ async function worldPlaces(q: string, library: LibraryMatch[], world: WorldSearc
  * library country's name and code (Luxembourg, Singapore, Monaco) spends the
  * country's claim when ranked first, so the country itself then passes as a
  * world row beside the library's. A library place the vendor matched
- * mid-name is not in `library` at all (KI-2026-10-30-c).
+ * mid-name is not in `library` at all; `heldByLibrary` finds it afterwards
+ * and it claims its row by this same rule (KI-2026-10-30-c).
  */
 function notInLibrary(world: WorldPlaceMatch[], library: LibraryMatch[]): WorldPlaceMatch[] {
+  return claim(world, library).unclaimed;
+}
+
+/**
+ * `notInLibrary`'s rule, also answering which of `places` claimed a row, in
+ * the order of the rows they claimed: the vendor's.
+ */
+function claim(world: WorldPlaceMatch[], places: LibraryMatch[]): { unclaimed: WorldPlaceMatch[]; claimers: LibraryMatch[] } {
   const keyOf = (name: string, countryCode?: string) => `${name.toLowerCase()}|${countryCode ?? ""}`;
-  const unclaimed = new Set(library.map((p) => (p.kind === "country" ? keyOf(p.name, p.countryCode) : keyOf(p.city))));
-  // `delete` answers whether the key was there, and spends it: the claim is used once.
-  return world.filter((p) => !unclaimed.delete(keyOf(p.name, p.countryCode)) && !unclaimed.delete(keyOf(p.name)));
+  const open = new Map(places.map((p) => [p.kind === "country" ? keyOf(p.name, p.countryCode) : keyOf(p.city), p]));
+  const claimers: LibraryMatch[] = [];
+  // Taking a key spends it: each place claims one row.
+  const take = (key: string): boolean => {
+    const place = open.get(key);
+    if (place === undefined) return false;
+    open.delete(key);
+    claimers.push(place);
+    return true;
+  };
+  const unclaimed = world.filter((p) => !take(keyOf(p.name, p.countryCode)) && !take(keyOf(p.name)));
+  return { unclaimed, claimers };
 }

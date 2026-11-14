@@ -15,7 +15,7 @@ const library = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/apiClient", async (orig) => ({
   ...(await orig<typeof import("@/lib/apiClient")>()),
-  searchPlaces: library.places,
+  searchPlacesWithWorld: library.places,
   searchPlaybooks: library.search,
   insertSavedDay: library.insert,
 }));
@@ -39,7 +39,7 @@ const PLACES: PlaceMatch[] = [
 beforeEach(() => {
   library.places.mockImplementation(async (q: string) => ({
     ok: true,
-    value: PLACES.filter((p) => (p.kind === "city" ? p.city : p.name).toLowerCase().startsWith(q.toLowerCase())),
+    value: { places: PLACES.filter((p) => (p.kind === "city" ? p.city : p.name).toLowerCase().startsWith(q.toLowerCase())) },
   }));
   library.search.mockResolvedValue(discover([]));
   library.insert.mockResolvedValue({ ok: true, value: {} as CommandOutcome });
@@ -182,10 +182,32 @@ describe("NewTripWizard — the pages", () => {
     renderWizard();
     await user.type(screen.getByLabelText("Where are you going?"), "Po");
     expect(await screen.findByRole("button", { name: "Porto, Porto, Portugal" })).not.toBeNull();
-    expect(library.places).toHaveBeenLastCalledWith("Po", { world: true });
+    expect(library.places).toHaveBeenLastCalledWith("Po");
     await user.clear(screen.getByLabelText("Where are you going?"));
     await user.type(screen.getByLabelText("Where are you going?"), "Lis");
     expect(await screen.findByRole("button", { name: "Lisbon, has Playbooks" })).not.toBeNull();
+  });
+
+  // KI-2026-10-30-b: a refused or failed world is not "no such place". The
+  // library's places are still offered, and the page says the world is out.
+  it("says only places with Playbooks were searched when the world was not answered", async () => {
+    library.places.mockImplementation(async (q: string) => ({
+      ok: true,
+      value: {
+        places: PLACES.filter((p) => p.kind === "city" && p.city.toLowerCase().startsWith(q.toLowerCase())),
+        worldLimited: true,
+      },
+    }));
+    renderWizard();
+    await user.type(screen.getByLabelText("Where are you going?"), "Porto");
+    expect(
+      await screen.findByText("Only places with Playbooks can be searched right now, and none matches “Porto”."),
+    ).not.toBeNull();
+    expect(screen.queryByText(/^No place matches/)).toBeNull();
+    await user.clear(screen.getByLabelText("Where are you going?"));
+    await user.type(screen.getByLabelText("Where are you going?"), "Lis");
+    expect(await screen.findByRole("button", { name: "Lisbon, has Playbooks" })).not.toBeNull();
+    expect(screen.getByText("Only places with Playbooks right now.")).not.toBeNull();
   });
 
   // A picked result's list unmounts with the button that had focus, which

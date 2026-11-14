@@ -36,7 +36,7 @@ function stubs(tripId: string) {
   const createTrip = vi.fn(async (input: { name: string; tripId?: string }) =>
     ok({ tripId: input.tripId ?? tripId }),
   );
-  const dispatch = vi.fn(async () => ok({} as CommandOutcome));
+  const dispatch = vi.fn(async (_command: BoardCommand) => ok({} as CommandOutcome));
   return { createTrip, dispatch, newTripId: () => tripId };
 }
 
@@ -126,8 +126,83 @@ describe("createTripWithSetup", () => {
       newTripId,
     });
     // A length with no arrival is not a dated trip, and a trip created moments
-    // ago already has no dates — so there is nothing to clear either.
-    expect(dispatch).not.toHaveBeenCalled();
+    // ago already has no dates — so there is nothing to clear either. (The
+    // length still lands, as empty days: the next test.)
+    expect(dispatch.mock.calls.map(([command]) => command.type)).not.toContain("SetTripDates");
+  });
+
+  // KI-2026-10-30-m: "Not yet" and "A week" made a trip with no days at all.
+  // The length is the answer's, laid out as empty days with no dates.
+  it("lays out an undated trip's length as empty days", async () => {
+    const { createTrip, dispatch, newTripId } = stubs("trip-undated-length");
+    const result = await createTripWithSetup({
+      setup: { ...SETUP, arrive: "" },
+      applySetup: true,
+      latch: null,
+      createTrip,
+      dispatch,
+      newTripId,
+      newDayId: countingDayId(),
+    });
+
+    expect(dispatch.mock.calls.map(([command]) => command)).toEqual(
+      ["day-1", "day-2", "day-3", "day-4", "day-5", "day-6", "day-7"].map((dayId) => ({
+        type: "AddDay",
+        tripId: "trip-undated-length",
+        dayId,
+      })),
+    );
+    expect(result.ok && result.dayCount).toBe(7);
+  });
+
+  // The latch (KI-2026-09-08-a): an AddDay is not a no-op the domain refuses,
+  // so a retry that re-sent the days that landed would make the trip longer.
+  it("does not append an undated trip's days twice when a later command failed", async () => {
+    const { createTrip, dispatch, newTripId } = stubs("trip-undated-retry");
+    const setup: TripSetup = { ...SETUP, arrive: "", days: 3, budget: { amountMinor: 50000, currency: "USD" } };
+    dispatch.mockImplementation(async (command: BoardCommand) =>
+      command.type === "SetTripBudget" ? fail("budget down") : ok({} as CommandOutcome),
+    );
+    const first = await createTripWithSetup({
+      setup,
+      applySetup: true,
+      latch: null,
+      createTrip,
+      dispatch,
+      newTripId,
+      newDayId: countingDayId(),
+    });
+    expect(first.ok).toBe(false);
+
+    dispatch.mockClear();
+    dispatch.mockImplementation(async () => ok({} as CommandOutcome));
+    const second = await createTripWithSetup({
+      setup,
+      applySetup: true,
+      latch: first.latch,
+      createTrip,
+      dispatch,
+      newTripId,
+    });
+    expect(second.ok && second.dayCount).toBe(3);
+    expect(dispatch.mock.calls.map(([command]) => command.type)).toEqual(["SetTripBudget"]);
+  });
+
+  // The chosen Playbook days fill part of the length, as on a dated trip.
+  it("lays out only the days an undated trip's chosen Playbook days do not fill", async () => {
+    const { createTrip, dispatch, newTripId } = stubs("trip-undated-fit");
+    const result = await createTripWithSetup({
+      setup: { ...SETUP, arrive: "", days: 5, savedDays: [{ savedDayId: "alfama", dayCount: 3 }] },
+      applySetup: true,
+      latch: null,
+      createTrip,
+      dispatch,
+      insertDay: vi.fn(async () => ok({} as CommandOutcome)),
+      newTripId,
+      newDayId: countingDayId(),
+    });
+    expect(dispatch.mock.calls.map(([command]) => command.type)).toEqual(["AddDay", "AddDay"]);
+    expect(result.ok && result.dayCount).toBe(5);
   });
 
   // Regression (CodeRabbit, PR #32): this used to fire every dates/budget/
@@ -339,7 +414,7 @@ describe("createTripWithSetup", () => {
   it("sends the pace and tags as one SetTripStyle, and none when there are neither", async () => {
     const { createTrip, dispatch, newTripId } = stubs("trip-style");
     await createTripWithSetup({
-      setup: { ...SETUP, arrive: "", pace: "packed", tags: ["nightlife", "drinks"] },
+      setup: { ...SETUP, arrive: "", days: null, pace: "packed", tags: ["nightlife", "drinks"] },
       applySetup: true,
       latch: null,
       createTrip,
@@ -355,7 +430,7 @@ describe("createTripWithSetup", () => {
 
     const plain = stubs("trip-plain");
     await createTripWithSetup({
-      setup: { ...SETUP, arrive: "", pace: null, tags: [] },
+      setup: { ...SETUP, arrive: "", days: null, pace: null, tags: [] },
       applySetup: true,
       latch: null,
       createTrip: plain.createTrip,
@@ -413,7 +488,7 @@ describe("createTripWithSetup", () => {
       // server's echo is what leaves the retry with nothing when the response
       // is the thing that went missing.
       const createTrip = vi.fn(async () => ok({ tripId: "server-said-something-else" }));
-      const dispatch = vi.fn(async () => ok({} as CommandOutcome));
+      const dispatch = vi.fn(async (_command: BoardCommand) => ok({} as CommandOutcome));
       const result = await createTripWithSetup({
         setup: SETUP,
         applySetup: false,
@@ -436,7 +511,7 @@ describe("createTripWithSetup", () => {
           code: "trip-already-exists",
         },
       }));
-      const dispatch = vi.fn(async () => ok({} as CommandOutcome));
+      const dispatch = vi.fn(async (_command: BoardCommand) => ok({} as CommandOutcome));
 
       const result = await createTripWithSetup({
         setup: SETUP,
@@ -460,7 +535,7 @@ describe("createTripWithSetup", () => {
         ok: false,
         error: { status: 500, message: "server exploded" },
       }));
-      const dispatch = vi.fn(async () => ok({} as CommandOutcome));
+      const dispatch = vi.fn(async (_command: BoardCommand) => ok({} as CommandOutcome));
 
       const result = await createTripWithSetup({
         setup: SETUP,

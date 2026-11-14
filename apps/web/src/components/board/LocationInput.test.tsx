@@ -53,6 +53,38 @@ describe("LocationInput", () => {
     );
   });
 
+  // KI-2026-10-30-p: `/api/geocode` names a place by its own name as well as
+  // its whole address. The stop is titled "Cochon", not the address, and the
+  // row says which Cochon on its second line.
+  it("titles the picked stop by the place's own name, with its address on the row's second line", async () => {
+    const address = "Cochon, 930, Tchoupitoulas Street, Warehouse District, New Orleans, Orleans Parish, Louisiana, 70130, USA";
+    server.use(
+      http.get("/api/geocode", () =>
+        HttpResponse.json({
+          results: [{ lat: 29.94, lng: -90.07, canonicalName: address, name: "Cochon", countryCode: "US", city: "New Orleans" }],
+        }),
+      ),
+    );
+    const onChange = vi.fn();
+    render(<LocationInput value={null} onChange={onChange} />);
+    await user.type(screen.getByPlaceholderText(/place/i), "Cochon");
+    await user.click(screen.getByRole("button", { name: /search/i }));
+    const option = await screen.findByRole("option", { name: /Cochon/ });
+    // The title, then the address: no country line under an address that ends with it.
+    expect(option.textContent).toBe(`Cochon${address}`);
+    await user.click(option);
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith({
+        name: "Cochon",
+        lat: 29.94,
+        lng: -90.07,
+        countryCode: "US",
+        city: "New Orleans",
+        area: undefined,
+      }),
+    );
+  });
+
   // The geocoder is a third party (LocationIQ, behind our own /api/geocode),
   // and no test may reach it — so what a test CAN pin is what a person sees
   // when it is down. A 5xx is the case worth naming: `fetch` resolves, and

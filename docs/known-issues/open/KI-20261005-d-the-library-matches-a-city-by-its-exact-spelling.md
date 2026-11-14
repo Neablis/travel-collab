@@ -37,3 +37,11 @@
   It also searches private scopes (*Yours*, *Saved*) that the city pages do not cover, and its
   sibling chips and match count would count two spellings of one city as two cities. The
   folded column described above is still the fix for Discover.
+- **Re-verified 2026-11-14 (overnight KI sweep): the Discover half still reproduces, and is left
+  open because its fix is a migration.** A published day stored with `cities: ['kyototest…']`
+  (lowercase) is found by `discoverDays({ cities: ['kyototest…'] })` and not by
+  `discoverDays({ cities: ['Kyototest…'] })`: `AssertionError: other case: expected [] to include
+  '409b7c22-…'` (a throwaway int test, not committed). The sweep's brief forbids a new Drizzle
+  migration, and the folded column above is one; the no-migration alternatives are the ones this
+  entry already rules out (`lower()` over `unnest`, which gives up the GIN index, or widening by
+  an uncached read of every day's cities per search, which also misses *Yours* and *Saved*).

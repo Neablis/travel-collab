@@ -20,3 +20,13 @@
 - **Cross-reference:** M56 part 11 (PR 649) and its review, finding 2; `ownNameOf` in
   `apps/web/src/server/geocoding/locationiq.ts` is the one rule for what a `display_name` names.
 - **First noted:** 2026-10-30, review of PR 649.
+- **Re-scoped 2026-11-14 (overnight KI sweep): the `LocationInput` half is fixed; enrichment's is
+  open.** `LocationInput` now stores `r.name ?? r.canonicalName` as the stop's name and labels each
+  result row with it, with the whole address as the row's second line (the country when the
+  vendor named nothing but the address). Proven in `LocationInput.test.tsx` (*titles the picked
+  stop by the place's own name…*), which failed before the change (the row read the address,
+  then `US`) and fails with the title rule put back to `r.canonicalName`: `expected 'Cochon, 930,
+  Tchoupitoulas Street, Wa…' to be 'CochonCochon, 930, Tchoupitoulas Stre…'`. **Still open:** `geocodeEnrichment.ts`
+  (`resolveOne`) replaces the model's name with `match.canonicalName` for a stop the assistant
+  adds without a `placeRef`; whether to keep the model's name or take the vendor's `name` is the
+  decision named above, with its own tests in `geocodeEnrichment.test.ts`.

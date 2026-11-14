@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import Link from "next/link";
 import { Check, Lock } from "lucide-react";
-import { insertSavedDay, postTurnOutcome, searchPlaces, searchPlaybooks, type ApiResult, type BoardCommand, type CommandOutcome } from "@/lib/apiClient";
+import { insertSavedDay, postTurnOutcome, searchPlacesWithWorld, searchPlaybooks, type ApiResult, type BoardCommand, type CommandOutcome } from "@/lib/apiClient";
 import type { PlaceMatch } from "@/lib/cities";
 import { displayNameFor, firstNameOf } from "@/lib/displayName";
 import { TAG_LABEL } from "@/lib/activityTags";
@@ -951,8 +951,11 @@ const DEBOUNCE_MS = 250;
 type SearchState =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "results"; q: string; places: NewTripPlace[] }
-  | { kind: "empty" }
+  // `limited`: the world was asked and not answered (KI-2026-10-30-b), so
+  // only the library's places were searched and an empty list is not "no
+  // such place".
+  | { kind: "results"; q: string; places: NewTripPlace[]; limited: boolean }
+  | { kind: "empty"; limited: boolean }
   | { kind: "failed" };
 
 /**
@@ -987,14 +990,15 @@ function WhereSearch({
       return;
     }
     setState({ kind: "loading" });
-    const result = await searchPlaces(q, { world: true });
+    const result = await searchPlacesWithWorld(q);
     if (mine !== generation.current) return;
     if (!result.ok) {
       setState({ kind: "failed" });
       return;
     }
-    const places = result.value.map(placeOf);
-    setState(places.length === 0 ? { kind: "empty" } : { kind: "results", q, places });
+    const places = result.value.places.map(placeOf);
+    const limited = result.value.worldLimited === true;
+    setState(places.length === 0 ? { kind: "empty", limited } : { kind: "results", q, places, limited });
   }, []);
 
   useEffect(() => {
@@ -1034,7 +1038,16 @@ function WhereSearch({
       <div className="flex items-center gap-2">
         <div aria-live="polite">
           {state.kind === "loading" && <Text variant="muted">Searching places…</Text>}
-          {state.kind === "empty" && <Text variant="muted">{`No place matches “${text}”.`}</Text>}
+          {state.kind === "empty" && (
+            <Text variant="muted">
+              {state.limited
+                ? `Only places with Playbooks can be searched right now, and none matches “${text}”.`
+                : `No place matches “${text}”.`}
+            </Text>
+          )}
+          {state.kind === "results" && state.limited && (
+            <Text variant="muted">Only places with Playbooks right now.</Text>
+          )}
           {state.kind === "failed" && <Text variant="muted">Place search is unavailable.</Text>}
           {state.kind === "results" && (
             <span className="sr-only">{state.places.length === 1 ? "1 place" : `${state.places.length} places`}</span>

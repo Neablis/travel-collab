@@ -63,13 +63,13 @@ afterEach(() => {
 describe("searchPlaces countries memo", () => {
   it("runs the countries aggregate once for two searches inside the window", async () => {
     const first = await searchPlaces("Ja");
-    expect(first).toContainEqual({ kind: "country", countryCode: "JP", name: "Japan", days: 3, hasPlaybooks: true });
+    expect(first.places).toContainEqual({ kind: "country", countryCode: "JP", name: "Japan", days: 3, hasPlaybooks: true });
     expect(countryRuns()).toBe(1);
 
     // A different query, so the city half re-runs — but the countries half
     // must not: one aggregate run total across both searches.
     const second = await searchPlaces("Jap");
-    expect(second).toContainEqual({ kind: "country", countryCode: "JP", name: "Japan", days: 3, hasPlaybooks: true });
+    expect(second.places).toContainEqual({ kind: "country", countryCode: "JP", name: "Japan", days: 3, hasPlaybooks: true });
     expect(countryRuns()).toBe(1);
     expect(mockExecute).toHaveBeenCalledTimes(3);
   });
@@ -98,12 +98,12 @@ describe("searchPlaces countries memo", () => {
   });
 
   it("hands each caller its own country rows", async () => {
-    const first = await searchPlaces("Ja");
+    const first = (await searchPlaces("Ja")).places;
     const country = first.find((p) => p.kind === "country");
     expect(country).toBeDefined();
     (country as { days: number }).days = 999;
 
     const second = await searchPlaces("Ja");
-    expect(second).toContainEqual({ kind: "country", countryCode: "JP", name: "Japan", days: 3, hasPlaybooks: true });
+    expect(second.places).toContainEqual({ kind: "country", countryCode: "JP", name: "Japan", days: 3, hasPlaybooks: true });
   });
 });
