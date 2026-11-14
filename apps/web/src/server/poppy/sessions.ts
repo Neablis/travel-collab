@@ -122,7 +122,7 @@ function versionServed(header: string | null): boolean {
   const match = header === null ? null : /^(\d+)\.(\d+)$/.exec(header);
   if (match === null) return false;
   const version = `${Number(match[1])}.${Number(match[2])}`;
-  return version === POPPY_PROTOCOL_VERSION || POPPY_SUPPORTED_VERSIONS.includes(version);
+  return version === POPPY_PROTOCOL_VERSION || Object.hasOwn(POPPY_SUPPORTED_VERSIONS, version);
 }
 
 /**

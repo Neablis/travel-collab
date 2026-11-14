@@ -28,14 +28,55 @@ import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
  * version the client asked for defines.
  */
 export const POPPY_PROTOCOL_VERSION = "1.0";
-export const POPPY_SUPPORTED_VERSIONS: readonly string[] = ["0.4"];
+
+/**
+ * The older versions still served, as Poppy 1.0 §3.4 defines them: a map from
+ * version to that version's document, as a path on this deployment.
+ * `poppyDocument()` prepends the configured origin, so the served value is an
+ * absolute HTTPS URL on the host that served poppy.json — a list is not
+ * enough: the official 1.0 kit validator's `discovery.schema` fails
+ * `/supported_versions must be an object, not an array`, and
+ * `discovery.supported-versions` then fetches each linked document and
+ * requires it to serve that protocol_version with no `supported_versions`
+ * of its own. The values are paths, not full URLs, so a preview names
+ * itself (the origin comes from configuration, never the request).
+ */
+export const POPPY_SUPPORTED_VERSIONS: Readonly<Record<string, string>> = {
+  "0.4": "/.well-known/poppy-0.4.json",
+};
 
 /** The `poppy.json` body for this deployment's origin. */
 export function poppyDocument() {
+  return buildPoppyDocument(POPPY_PROTOCOL_VERSION);
+}
+
+/**
+ * The 0.4 document `supported_versions` links to: the same body, pinned at
+ * 0.4, with no `supported_versions` of its own (§3.4: a linked document is
+ * exactly one version's document). Same domain and issuer as the 1.0
+ * document, so `discovery.versions-same-company` holds.
+ */
+export function poppyDocument04() {
+  return buildPoppyDocument("0.4");
+}
+
+/** One body for both versions; only the pinned document lists the others. */
+function buildPoppyDocument(protocolVersion: string) {
   const origin = deploymentOrigin();
   return {
-    protocol_version: POPPY_PROTOCOL_VERSION,
-    supported_versions: [...POPPY_SUPPORTED_VERSIONS],
+    protocol_version: protocolVersion,
+    // §3.4: the pinned document maps each older version to its document URL.
+    // A linked document carries none — it is exactly one version's document.
+    ...(protocolVersion === POPPY_PROTOCOL_VERSION
+      ? {
+          supported_versions: Object.fromEntries(
+            Object.entries(POPPY_SUPPORTED_VERSIONS).map(([version, path]) => [
+              version,
+              `${origin}${path}`,
+            ]),
+          ),
+        }
+      : {}),
     organization: { name: "Caesura", domain: new URL(origin).host },
     auth: {
       // Optional in 1.0 with one authorization server, and when present it MUST
