@@ -180,34 +180,12 @@ Open follow-ups from M52: KI-2026-10-24-a to -o (`docs/known-issues/open/`). Out
 PR 491 (dependabot) is red, and GitHub reports 5 dependabot vulnerabilities on `main` (2 high,
 3 moderate). The order is M58 (scoped 2026-11-04, building) → M53 (minted 2026-10-25 from an SEO audit, not scoped), with M48 parked.
 
-**M51 closed 2026-10-22, gate 11 of 11**, on Mitchell's ruling at the close: his walk at 390, 1440
-and 3440 works, and the parts are merged (PRs 506–511, 513, 514, 516; part 0 PR 505 merged early;
-follow-up tweaks PR 518). Three things left the gate as known issues: the landing's signup →
-new-trip path (KI-2026-10-22-a), re-proving the gate's red evidence after the test-pruning pass
-(KI-2026-10-22-b), and checking the sea's links against production (KI-2026-10-20-c). Closed with
-`--no-spend`. Evidence and retro are in `docs/milestones/M51-the-front-door-tells-the-story.md`.
-
-**M50 closed 2026-10-19, gate 11 of 11** (part 0 PR 493). Parts are PRs 494-501 and 503 (part 9,
-from Mitchell's walk), migrations `0060` and `0061`, both applied in production; ADR-079. Five
-boxes are ticked on Mitchell's walk of the landing page (his ruling, option a). Evidence, retro
-and spend are in `docs/milestones/M50-strangers-find-a-day.md`.
-
 **M48 is parked, not closed** (2026-10-19, Mitchell): gate 4 of 11, its open boxes wait on
 flag-on plan turns, which M50's launch should bring. When it resumes, its no-traffic work comes
 first: (1) ~~record the example count per plan turn in the M31 ledger~~ — built 2026-10-23
 (`ai_usage.plan_examples`, migration 0066, `ai-usage` query 12); (2) paste the baseline (the `ai-usage` skill over plan turns before 2026-10-18);
 (3) capture PR 470's red text for the playbook-filter box. `RAG_PLAN_RETRIEVAL=1` stays on in
 production. Decisions 1 and 11 and both offline checks' pasted numbers are Mitchell's.
-
-**M47 closed 2026-10-18, gate 7 of 7**, on Mitchell's production test-card walk (ticked on his
-word). Parts are PRs 474, 476, 477 and 475, migrations `0055` to `0057`; part 0 PR 473. Evidence,
-retro and spend are in `docs/milestones/M47-the-business-over-time.md`.
-
-**M46 closed 2026-10-17, gate 10 of 10** (part 0 PR 472, after PR 432 merged early). The last box,
-the two-person walk, is ticked on Mitchell's confirmation that day. Evidence, retro and the
-`list_sessions` spend block (closed with `--no-spend`: the transcripts were gone) are in
-`docs/milestones/M46-a-trip-has-a-conversation.md`. Parts 1 to 6 and the walk fixes are PRs 433,
-435, 436 and 438-447, migrations `0048` to `0052`.
 
 **Built off the milestone order, by Mitchell's approval (2026-10-17).** Three things were moved
 up ahead of the row order, and each was his call. This is his waiver, recorded here once, of
@@ -225,12 +203,9 @@ up ahead of the row order, and each was his call. This is his waiver, recorded h
 
 Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 
-**M45 closed 2026-10-13, gate 12 of 12** (part 0 PR 420); evidence and retro in
-`docs/milestones/M45-the-assistant-beyond-one-trip.md`. Accepted gap: KI-2026-10-13-a.
-
 Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 ✓ → M44 → M58 → M53`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
-narrative is in `docs/retros/2026-10-16-status-archive.md` and each milestone's own file.
+narrative is in `docs/retros/2026-10-16-status-archive.md`, `docs/retros/2026-11-14-status-archive.md` and each milestone's own file.
 
 ## Live rules that the code cannot enforce
 
@@ -375,3 +350,4 @@ carries the next step.
 | The closed M12, M13 and M26-link-4b `DONE` sections, moved 2026-09-25 | `docs/retros/2026-09-25-status-archive.md` |
 | The M11-gate retired list, the pre-M14 *Next action* history, *Landed in the last week* (2026-08-28 to 2026-09-11), and this header's cut history, moved 2026-09-30 | `docs/retros/2026-09-30-status-archive.md` |
 | The M45 close-out, the closed-milestone narrative from M42 back to M14 (lines 61-232 as of `14cda86`), and the stale second *Next action*, moved 2026-10-17 | `docs/retros/2026-10-16-status-archive.md` |
+| The M45, M46, M47, M50 and M51 close-outs, moved 2026-11-14 to bring this file back under its surface budget's headroom | `docs/retros/2026-11-14-status-archive.md` |
