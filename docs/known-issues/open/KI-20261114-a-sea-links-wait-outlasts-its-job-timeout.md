@@ -1,0 +1,11 @@
+### KI-2026-11-14 — `sea-links` is cancelled at its 25 min limit before checking any link, and checks links the moment the wait ends, when they can still answer 502/503
+- **Severity:** reliability — not a required check (`ci-ok` is unaffected), but a red or cancelled `sea-links` on a ready PR says nothing about the links.
+- **Area:** `.github/workflows/preview-link-check.yml` (the `Wait for the preview to be of the head` step, `timeout-minutes`), `scripts/check-preview-links.mjs`
+- **Symptom / What happens:**
+  - **The wait can outlast the job.** The loop is `for _ in $(seq 1 90)` (line 58): each pass is a `curl --max-time 10` (line 59) plus `sleep 10` (line 61), so up to 90 x 20 s = 30 min when the preview answers nothing. The job has `timeout-minutes: 25` (line 34). The comment above it says "up to 15 min of waiting" (line 31) and the warning text says "in 15 minutes" (line 63); only a preview that fails fast (curl returns at once) takes 15 min.
+  - **Observed:** cancelled with "exceeded the maximum execution time of 25m0s" without requesting a single link on PR 722 @ 5f32735 (check run 131100232709) and on PR 727 @ f04c8c3. The "did not report version ... sea links not checked" warning (a warning, by design) never got to run.
+  - **Links can 502/503 right after the wait passes.** PR 732 @ d16c8b1: 10 hrefs answered 502/503 at 08:07 UTC, just after the wait reported the head version. The script requests every href immediately, with no warm-up and no retry on 5xx.
+  - **Stale count:** `scripts/check-preview-links.mjs` comments (lines 12 and 46) say 148 hrefs; `landingSea.generated.json` has 186.
+- **Why not fixed here:** filed from a triage, with no workflow change in this PR. Intended fix: make the wait fit under the limit (fewer polls or shorter sleeps, or raise `timeout-minutes` above 30 plus the link run), and add a short warm-up and a retry on 5xx in the script before failing an href. Fix the 15-minute comment and the 148 count in the same change.
+- **Cross-reference:** M51 ("The links stay real"); `docs/guidelines/environments-and-deploys.md` (previews).
+- **First noted:** 2026-11-14, from a 2026-11-12 triage of PR 722, PR 727 and PR 732.
