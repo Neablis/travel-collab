@@ -1,6 +1,7 @@
 // **`GET /api/poppy/tasks`** (Poppy 9, ADR-089 decision 11), against a real
 // database: a Session header that is sent is verified before anything is
 // answered, and the body is the same for every Session, so it is marked cacheable.
+import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { createMemoryClient } from "@/server/cache/memory";
@@ -28,7 +29,7 @@ const { GET } = await import("./route");
 
 const PATH = "/api/poppy/tasks";
 
-async function tasksRequest(over: { session?: Record<string, unknown>; header?: boolean; agent?: TestAgent; allowed?: boolean } = {}) {
+async function tasksRequest(over: { session?: Record<string, unknown>; header?: boolean; agent?: TestAgent; allowed?: boolean; token?: string } = {}) {
   const agent = over.agent ?? (await makeTestAgent({ issuer: oauthIssuer() }));
   const cache = createRedisCache(createMemoryClient());
   if (over.allowed === true) {
@@ -43,7 +44,10 @@ async function tasksRequest(over: { session?: Record<string, unknown>; header?: 
     // An address of its own, so no other suite shares this one's signed-out fetch share.
     "x-forwarded-for": `203.0.113.${1 + Math.floor(Math.random() * 250)}`,
   };
-  if (over.header !== false) headers["poppy-session"] = await agent.session({ htu: `${deploymentOrigin()}${PATH}`, ...over.session });
+  if (over.header !== false) {
+    headers["poppy-session"] = await agent.session({ htu: `${deploymentOrigin()}${PATH}`, ...(over.token === undefined ? {} : { accessToken: over.token }), ...over.session });
+  }
+  if (over.token !== undefined) headers.authorization = `Bearer ${over.token}`;
   return new Request(`http://localhost${PATH}`, { headers });
 }
 
@@ -59,6 +63,13 @@ describe("GET /api/poppy/tasks", () => {
     const res = await GET(await tasksRequest({ session: { aud: "https://other.test" } }));
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid_session" });
+  });
+
+  // The route reads no credential, so the gate is the only place a token never issued is refused (Poppy 1.0 §7).
+  it("answers an access token never issued here 401 invalid_token, never the tasks", async () => {
+    const res = await GET(await tasksRequest({ allowed: true, token: `validator${randomUUID().replaceAll("-", "")}` }));
+    expect(res.status).toBe(401);
+    expect(res.headers.get("www-authenticate")).toMatch(/error="invalid_token"/);
   });
 
   it("refuses a Session that has ended as session_ended, like every other route", async () => {

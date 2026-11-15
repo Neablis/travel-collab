@@ -4,7 +4,8 @@ import { buildServer, reportMcpError } from "@/server/mcp/server";
 import { runInMcpDispatch } from "@/server/oauth/dispatchContext";
 import { poppyGate } from "@/server/poppy/sessions";
 import { resolveActor } from "@/server/public-api/actor";
-import { oauthChallenge, oauthRefusalResponse } from "@/server/public-api/route";
+import { oauthChallenge } from "@/server/oauth/metadata";
+import { oauthRefusalResponse } from "@/server/public-api/route";
 import { TOOLS } from "./tools";
 
 // **The MCP connector: `POST /api/mcp`** (ADR-083 §8). Streamable HTTP,
@@ -29,7 +30,7 @@ export async function POST(request: Request): Promise<Response> {
   // without the header never enters it.
   let session: Exclude<Awaited<ReturnType<typeof poppyGate>>, { refused: Response }>;
   try {
-    const gate = await poppyGate(request);
+    const gate = await poppyGate(request, {}, "mcp");
     if ("refused" in gate) return gate.refused;
     session = gate;
   } catch (error) {

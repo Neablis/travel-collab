@@ -42,7 +42,7 @@ vi.mock("@/server/public-api/actor", async (importOriginal) => {
 let poppyDeps: import("@/server/poppy/sessionHeader").SessionDeps = {};
 vi.mock("@/server/poppy/sessions", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/poppy/sessions")>();
-  return { ...actual, poppyGate: (request: Request) => actual.poppyGate(request, poppyDeps) };
+  return { ...actual, poppyGate: (request: Request, _deps?: object, at?: "mcp" | "v1") => actual.poppyGate(request, poppyDeps, at) };
 });
 
 // A tool whose own code throws after v1 answered (KI-2026-10-28-b): `whoami`'s
@@ -415,5 +415,13 @@ describe("POST /api/mcp with Poppy-Session", () => {
     const res = await withSession({ authorization: `Bearer ${token}` }, { accessToken: token });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid_session", error_description: expect.stringContaining("issued to another client") });
+  });
+
+  // Poppy 1.0 §7 (the kit's `token.invented`): a token never issued is the token's fault, and is refreshed, not a Session to stop.
+  it("answers an access token never issued here 401 invalid_token, pointing at its own metadata", async () => {
+    const token = `validator${randomUUID().replaceAll("-", "")}`;
+    const res = await withSession({ authorization: `Bearer ${token}` }, { accessToken: token });
+    expect(res.status).toBe(401);
+    expect(res.headers.get("WWW-Authenticate")).toBe(`Bearer resource_metadata="${METADATA}", error="invalid_token"`);
   });
 });

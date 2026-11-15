@@ -4,6 +4,7 @@ import { db } from "@/server/db/client";
 import { agentSessions } from "@/server/db/schema";
 import { clientIp } from "@/server/og/limit";
 import { clientIsBlocked, storedClientRowId } from "@/server/oauth/clients";
+import { oauthChallenge } from "@/server/oauth/metadata";
 import { bearerToken } from "@/server/bearerToken";
 import { agentSessionOpenQuota, consumeQuota, type QuotaDecision } from "@/server/quota";
 import { poppyError } from "./errors";
@@ -144,6 +145,18 @@ export function limitedResponse(decision: Extract<QuotaDecision, { allowed: fals
 }
 
 /**
+ * The 401 for an access token this deployment does not know (RFC 6750 §3.1),
+ * in the envelope `/api/v1/*` and `/api/mcp` answer in, with the challenge that
+ * sends the client to refresh; `at` names whose protected-resource document.
+ */
+export function unknownTokenResponse(at: "mcp" | "v1"): Response {
+  return Response.json(
+    { error: { code: "unauthenticated", message: "This token is not valid." } },
+    { status: 401, headers: oauthChallenge(true, at) },
+  );
+}
+
+/**
  * What `route()` and `/api/mcp` ask first of a request that carries
  * `Poppy-Session`: `refused`, the 400 to answer with, or `open`, to call once
  * the actor has accepted the request's credential. A request without the header
@@ -156,10 +169,17 @@ export function limitedResponse(decision: Extract<QuotaDecision, { allowed: fals
  * `sid` its sender chose, and record an account from a token nobody had checked.
  * `open(accountId)` takes the accepted token's account, `null` for none. `claims` is
  * who the verified Session is, or `null` when the request carried none.
+ *
+ * An access token issued nowhere here, beside a Session that otherwise verified,
+ * is refused by the gate itself as 401 `invalid_token` (Poppy 1.0 §7): never
+ * left to a route, since `/api/poppy/tasks` and `/api/poppy/feedback` read no
+ * credential and would serve it as signed out. `at` names the protected-resource
+ * document its challenge points to.
  */
 export async function poppyGate(
   request: Request,
   deps: SessionDeps = {},
+  at: "mcp" | "v1" = "v1",
 ): Promise<
   { refused: Response } | { claims: SessionClaims | null; open: (accountId: string | null, opts?: { recordStranger?: boolean }) => Promise<Response | null> }
 > {
@@ -174,7 +194,10 @@ export async function poppyGate(
     unknownClientOk: deps.unknownClientOk === true && token === undefined,
   });
   // A spent fetch share is capacity, not a bad Session: `invalid_session` is terminal to an agent.
-  if (!verified.ok) return { refused: verified.limited === undefined ? poppyError("invalid_session", verified.reason) : limitedResponse(verified.limited, "agents looked up") };
+  if (!verified.ok && verified.limited !== undefined) return { refused: limitedResponse(verified.limited, "agents looked up") };
+  // Nor is a token never issued here: 401 `invalid_token` sends the agent to refresh.
+  if (!verified.ok && verified.unknownToken === true) return { refused: unknownTokenResponse(at) };
+  if (!verified.ok) return { refused: poppyError("invalid_session", verified.reason) };
   // The operator's kill switch (ADR-089 decision 3). Poppy 7 answers a refused
   // `client_id` as `invalid_session`, and a Session that verified is the first
   // moment it is known whose it is.

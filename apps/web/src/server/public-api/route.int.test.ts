@@ -670,6 +670,27 @@ describe("a request that carries Poppy-Session", () => {
     expect(await res.json()).toMatchObject({ error: "invalid_session", error_description: expect.stringContaining("issued to another client") });
   });
 
+  // Poppy 1.0 §7 and RFC 6750 §3.1 (the kit's `token.invented`, which failed on production
+  // as a 400 invalid_session): a token never issued is refreshed, not a Session to stop sending.
+  describe("with an access token never issued here", () => {
+    const invalidToken = (res: Response) => {
+      expect(res.status).toBe(401);
+      expect(res.headers.get("www-authenticate")).toMatch(/^Bearer resource_metadata="[^"]+", error="invalid_token"$/);
+    };
+
+    it("answers the validator's own shape, an unprefixed token on a signed-out read, 401 invalid_token", async () => {
+      const { request } = await agentRequest({ path: "/api/v1/discover/playbooks", token: `validator${randomUUID().replaceAll("-", "")}` });
+      const res = await DISCOVER(request, NO_PARAMS);
+      invalidToken(res);
+      expect((await res.json()).error.code).toBe("unauthenticated");
+    });
+
+    it("answers an unknown tco_ token 401 invalid_token", async () => {
+      const { request } = await agentRequest({ token: `tco_${randomUUID().replaceAll("-", "")}` });
+      invalidToken(await LIST_TRIPS(request, NO_PARAMS));
+    });
+  });
+
   it("answers a failure of its own as the envelope's server-error, never a bare 500", async () => {
     const { request } = await agentRequest();
     poppyDeps = { ...poppyDeps, cache: { get: async () => { throw new Error("boom"); }, set: async () => undefined } as never };

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createMemoryClient } from "@/server/cache/memory";
 import { createRedisCache } from "@/server/cache/redis";
 import { makeTestAgent, type SessionOver } from "./testAgent";
-import { verifySessionHeader, type SessionDeps } from "./sessionHeader";
+import { verifySessionHeader, type SessionDeps, type TokenIssue } from "./sessionHeader";
 
 // Poppy 5.2 and 5.3. Each refusal is a way a copied, replayed or misaddressed
 // Session JWT could be believed: a key that was never delegated, a JWT meant
@@ -17,7 +17,7 @@ const nowSeconds = NOW.getTime() / 1000;
 async function setup() {
   const agent = await makeTestAgent({ issuer: ISSUER, now: NOW });
   const loadKeys = vi.fn<NonNullable<SessionDeps["loadKeys"]>>(async () => ({ ok: true, keys: agent.jwks.keys }));
-  const tokenClientId = vi.fn<(token: string) => Promise<string | null>>(async () => agent.clientId);
+  const tokenIssue = vi.fn<(token: string) => Promise<TokenIssue>>(async () => ({ clientId: agent.clientId }));
   const cache = createRedisCache(createMemoryClient());
   /** Verify `over` as a request for `url`; `token` is the bearer the request carries. */
   const verify = async (over: Partial<SessionOver> = {}, opts: { token?: string; method?: string; url?: string; now?: Date } = {}) => {
@@ -27,9 +27,9 @@ async function setup() {
       method: opts.method ?? "GET",
       headers: { "poppy-session": jwt },
     });
-    return verifySessionHeader(request, opts.token, { now: opts.now ?? NOW, issuer: ISSUER, origin: ORIGIN, cache, loadKeys, tokenClientId });
+    return verifySessionHeader(request, opts.token, { now: opts.now ?? NOW, issuer: ISSUER, origin: ORIGIN, cache, loadKeys, tokenIssue });
   };
-  return { agent, verify, loadKeys, tokenClientId };
+  return { agent, verify, loadKeys, tokenIssue };
 }
 
 const refused = (reason: string) => ({ ok: false, reason: expect.stringContaining(reason) });
@@ -176,12 +176,28 @@ describe("verifySessionHeader", () => {
       expect(await verify({ accessToken: "tco_abc" })).toMatchObject(refused("ath"));
     });
 
-    it("refuses a token issued to another client_id than iss, or to none", async () => {
-      const { verify, tokenClientId } = await setup();
-      tokenClientId.mockResolvedValueOnce("https://other.test/agent.json");
+    it("refuses a token issued to another client_id than iss, or to none (a tc_ token), as invalid_session", async () => {
+      const { verify, tokenIssue } = await setup();
+      tokenIssue.mockResolvedValueOnce({ clientId: "https://other.test/agent.json" });
       expect(await verify({ accessToken: "tco_abc" }, { token: "tco_abc" })).toMatchObject(refused("client"));
-      tokenClientId.mockResolvedValueOnce(null);
-      expect(await verify({ accessToken: "tco_abc" }, { token: "tco_abc" })).toMatchObject(refused("client"));
+      tokenIssue.mockResolvedValueOnce("no-client");
+      expect(await verify({ accessToken: "tc_abc" }, { token: "tc_abc" })).toMatchObject(refused("client"));
+    });
+
+    // Poppy 1.0 §7: a token never issued is the token's fault, not the Session's, and is answered 401 invalid_token.
+    it("marks a token issued nowhere as unknownToken, not as a Session fault", async () => {
+      const { verify, tokenIssue } = await setup();
+      tokenIssue.mockResolvedValueOnce("never-issued");
+      const outcome = await verify({ accessToken: "validator123" }, { token: "validator123" });
+      expect(outcome).toMatchObject({ ok: false, unknownToken: true });
+    });
+
+    it("checks ath before asking whose the token is, so an unknown token with a bad ath is still invalid_session", async () => {
+      const { verify, tokenIssue } = await setup();
+      tokenIssue.mockResolvedValue("never-issued");
+      const outcome = await verify({ accessToken: "validator-other" }, { token: "validator123" });
+      expect(outcome).toMatchObject(refused("ath"));
+      expect(outcome).not.toHaveProperty("unknownToken");
     });
   });
 
