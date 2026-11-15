@@ -18,6 +18,14 @@
 - **Fix path:** decide whether a red `migration-pending` should block the production deploy (or
   hold it until `migrate-production` is dispatched), or whether migrating on merge is acceptable
   for additive migrations. Record the decision in an ADR amendment and enforce it by mechanism.
+- **Fix (PR 760, pending verification):** decided 2026-11-15, ADR-091. Production migrates
+  before every deploy: `.github/workflows/deploy-production.yml` runs on every push to `main`,
+  applies migrations, checks with `db:state`, and only then deploys through Coolify's API.
+  Coolify's Auto Deploy is off on `caesura-web`. **Stays open until proven:** the first
+  `deploy-production` run on `main` after PR 760 merges, with Auto Deploy off, shows the
+  migrate, `db:state` and deploy steps green, `/api/health` reports the merge commit, and
+  Coolify started no deployment of its own for that push. That run's URL is the proof line,
+  and the entry then moves to `resolved/`.
 - **Cross-reference:** KI-2026-09-05-k (resolved; built the `migration-pending` detector), PR 752,
   KI-2026-11-14-a (the validator run that found it).
 - **First noted:** 2026-11-15, the test agent's Allow on production returned 500.
