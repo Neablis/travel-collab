@@ -42,6 +42,6 @@
   (after `migrate-production` run 43737004995 applied `0078`, KI-2026-11-15-b), and the re-run
   without `--probe-session` gave Foundation 56 passed, 0 failed, 1 inconclusive, 1 warning, 7
   skipped; Interfaces 11 passed, 0 failed, 54 skipped. Left over, none of them in `poppy.json`:
-  `assertion.jti-reuse` warns because production's cache is off or down (KI-2026-11-15-a);
-  `token.invented` is inconclusive (fixed in PR 757, re-run after it deploys); `assertion.ps384` and
+  `assertion.jti-reuse` warns because production's cache was unreachable (KI-2026-11-15-a, since fixed and resolved);
+  `token.invented` was inconclusive (fixed in PR 757; passes on production since); `assertion.ps384` and
   `session.delegation-ps384` skip because the test agent has no RSA key (optional follow-up).

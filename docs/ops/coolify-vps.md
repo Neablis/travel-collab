@@ -20,7 +20,11 @@ manager, not here.
 - The application is `caesura-web`, built from the repo's `Dockerfile`. Its
   private neighbours, as Coolify services on the same network: Redis with
   serverless-redis-http (the cache) and Plausible (analytics). Neither is
-  published to the internet.
+  published to the internet: `caesura-redis-http` has no domain (Coolify generates an sslip.io
+  one on create; remove it). It must have *consistent container name* on, because
+  `KV_REST_API_URL` names it by its bare resource ID; with it off the container gets a
+  timestamp suffix, the name does not resolve, and the cache fails open silently
+  (KI-2026-11-15-a).
 - DNS is a Cloudflare zone since 2026-11-09 (Vercel DNS stopped taking writes when the
   account was blocked). The domain is a Vercel-resold registration, so its nameservers are
   set in Vercel's domain dashboard. The apex, `www`, `staging.`, `coolify.`, `plausible.` and
