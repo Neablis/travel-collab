@@ -25,7 +25,16 @@ name: coolify-preview
 #     label stays the one record of which PR has the preview. Agents: `gh api -X POST
 #     repos/Neablis/travel-collab/actions/workflows/coolify-preview.yml/dispatches
 #     -f ref=main -f inputs[pr]=<n>`.
+#   - The same Run workflow with `remove` ticked removes the PR's preview and takes
+#     its label off. Agents: add `-F inputs[remove]=true`.
 # Opening a PR, marking it ready and pushing to it build nothing on their own.
+#
+# Use Run workflow, not the label, when a label event starts no run:
+#   - A label added or removed by an agent through the Claude GitHub App starts
+#     no workflow run (seen 2026-11-15 on PR 755).
+#   - A PR with a merge conflict gets no `pull_request` runs at all, so its label
+#     changes do nothing until the conflict is resolved (also PR 755, 2026-11-15).
+#     Run workflow works on it either way.
 #
 # Needs the `COOLIFY_API_TOKEN` repository secret (a Coolify API token with
 # `write`, `deploy` and `delete`) and the `COOLIFY_APP_UUID` repository variable
@@ -37,9 +46,14 @@ on:
   workflow_dispatch:
     inputs:
       pr:
-        description: Pull request number to build a preview of
+        description: Pull request number to build a preview of (or to remove the preview of)
         required: true
         type: number
+      remove:
+        description: Remove this PR's preview and take its label off, instead of building it
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -73,7 +87,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number || inputs.pr }}
-      ACTION: ${{ github.event.action || 'dispatch' }}
+      ACTION: ${{ github.event.action || (inputs.remove && 'dispatch-remove' || 'dispatch') }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -95,6 +109,11 @@ jobs:
           case "$ACTION" in
             unlabeled|closed)
               node scripts/coolify-preview.mjs remove "$PR" | tee -a "$GITHUB_STEP_SUMMARY" ;;
+            dispatch-remove)
+              node scripts/coolify-preview.mjs remove "$PR" | tee -a "$GITHUB_STEP_SUMMARY"
+              # The label is the record of which PR has the preview, so it comes off too.
+              # A 404 means the PR did not carry it.
+              gh api -X DELETE "repos/$REPO/issues/$PR/labels/preview" > /dev/null 2>&1 || true ;;
             *)
               # A dispatch knows only the number; read the head and URL from the PR.
               pr_json=$(gh api "repos/${{ github.repository }}/pulls/$PR")

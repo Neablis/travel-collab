@@ -166,7 +166,8 @@ while it carries the `preview` label.** The preview lives at
 `.github/workflows/coolify-preview.yml` opens it through Coolify's API when the
 label is added, rebuilds it on each push while the label stays on, and removes
 it when the label comes off or the PR closes. Actions → *coolify-preview* → Run
-workflow builds one PR's head the same way and puts the label on it. Setup, the
+workflow builds one PR's head the same way and puts the label on it, and with
+*remove* ticked it removes the PR's preview and takes the label off. Setup, the
 Preview-scope variables and the database rule are in `docs/ops/coolify-vps.md`.
 
 **One preview at a time.** Labelling a PR (or dispatching the workflow for one)
@@ -186,6 +187,17 @@ Coolify's own *Preview Deployments* switch is off on `caesura-web`, and the
 label is the only way in. **Label the PR you will walk, not every PR in a
 stack, and take the label off when the walk is done.** Labelling it takes the
 preview away from whichever PR had it.
+
+**When the label does nothing, run the workflow (2026-11-15).** Two cases start
+no `coolify-preview` run, both seen on PR 755:
+- **An agent's label change.** A label added or removed through the Claude
+  GitHub App starts no workflow run. Agents open and remove previews with Run
+  workflow instead (`gh api -X POST
+  repos/Neablis/travel-collab/actions/workflows/coolify-preview.yml/dispatches
+  -f ref=main -f inputs[pr]=<n>`, adding `-F inputs[remove]=true` to remove).
+- **A PR with a merge conflict.** GitHub gives such a PR no `pull_request` runs
+  at all, so neither the label nor a push does anything until the conflict is
+  resolved. Run workflow works on it either way.
 
 - **Concurrent builds are set to 1** on the box (a `next build` needs about 4 GB),
   so builds queue one after another. Each preview that is up keeps a
