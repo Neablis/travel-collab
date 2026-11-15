@@ -30,7 +30,7 @@ on Mitchell's merge**. All code is on `main`: PRs 714 to 717 in `d05a1fd` and PR
 `678a90d`, which contains `44eac29`). Four boxes (the walk, Disconnect, Claude's connector, the
 tasks endpoint and a console report) are ticked on Mitchell's word of 2026-11-14 that he saw them
 work on production; PR previews never had working sign-in. **Two boxes are amended out, not
-passed:** the kit validator run on `poppy.json` (KI-2026-11-14-a) and a domain-audience token
+passed:** the kit validator run on `poppy.json` (KI-2026-11-14-a, since run 2026-11-15 and resolved) and a domain-audience token
 through v1's gates (KI-2026-11-14-b); Mitchell confirms both when he merges. KI-2026-11-01-u is
 resolved by PR 721.
 
@@ -145,8 +145,9 @@ confirmed fixed"*). Evidence, retro and spend are in
 
 **Next action:**
 00. **M60:** Mitchell merges PR 712 (part 0, prose only; all code is merged and `0075` is applied, so
-   no `migrate-production` is due and no lower draft is open) and confirms the two amended-out boxes. Then run the kit
-   validator (KI-2026-11-14-a) and add the v1 domain-audience test (KI-2026-11-14-b).
+   no `migrate-production` is due and no lower draft is open) and confirms the two amended-out boxes. The kit validator ran 2026-11-15
+   and was re-run after an Allow (KI-2026-11-14-a resolved; its leftovers are KI-2026-11-15-a and
+   KI-2026-11-15-b). Add the v1 domain-audience test (KI-2026-11-14-b).
 0a. **M61:** Mitchell merges PR 722. File a known issue for deploy-before-migrate ordering; the
    unwalked *Discover rank* tab and `first_published_at` back-fill are the retro's leftovers. No
    migration is outstanding.

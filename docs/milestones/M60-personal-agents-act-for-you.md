@@ -191,7 +191,7 @@ reopened; ADR-089 carries the mechanism.
       against the preview, with the run's output recorded here.~~
       **Amended OUT of the gate at the close, 2026-11-14; not passed, not run, no output
       recorded.** It carries forward as KI-2026-11-14-a
-      (`docs/known-issues/open/KI-20261114-a-poppy-json-not-run-through-the-kit-validator.md`),
+      (`docs/known-issues/resolved/KI-20261114-a-poppy-json-not-run-through-the-kit-validator.md`),
       whose fix path is to run both commands against https://caesura.today and record the output.
       The close session's brief directed this deferral; a gate definition changes only by
       Mitchell's decision (`docs/milestones/README.md`), so he confirms it when he merges part 0.
@@ -202,6 +202,64 @@ reopened; ADR-089 carries the mechanism.
       never the request's Host"). That is not the kit validator's verdict. PR 733 added
       `auth.issuer` to the document after the run was planned, and the kit's 0.4 validator is the
       check of record (ADR-089 D13).
+      **Deferred run done, 2026-11-15** (after the close; the box stays amended out, and
+      KI-2026-11-14-a is resolved by it). Kit: the `personal-agent-protocol` plugin's
+      `implement-personal-agent-protocol` validator for Poppy 1.0 (cache `85b41ff27e8f`). Test
+      identity `client_id` `https://neablis.github.io/poppy-test-agent/agent.json` (GitHub Pages,
+      off production, D13). Run against production, not a preview, by Mitchell's decision of
+      2026-11-15, since preview sign-in never worked (see the retro).
+      - `check --file` on the live `poppy.json` saved 2026-11-15: **7 passed, 0 failed, 7 skipped**
+        (the skipped are network-only). The 0.4 document (`/.well-known/poppy-0.4.json`) under
+        `--file` fails only `discovery.protocol-version`, as expected: this validator checks 1.0,
+        and 0.4 is reached through the 1.0 document's `supported_versions`, which passed.
+      - `check https://caesura.today --milestone foundation`, no probe:
+        `1. Foundation 26 passed, 0 failed, 8 warnings (8 inconclusive), 31 skipped`. Every
+        `discovery.*` and `metadata.*` check that applies passed (`discovery.protocol-version`:
+        "protocol_version 1.0"; `discovery.supported-versions`: "0.4"; `metadata.issuer-chosen`:
+        "One authorization server, https://caesura.today"); `session.*` skipped with no probe URL.
+      - `check https://caesura.today --milestone interfaces --probe
+        https://caesura.today/api/v1/discover/playbooks --probe-session`:
+        `1. Foundation 50 passed, 1 failed, 9 warnings (9 inconclusive), 5 skipped` and
+        `2. Interfaces 11 passed, 0 failed, 0 warnings, 54 skipped`. `session.start`, `.continue`,
+        `.new-key`, `.new-session` and every Session-rejection check passed, as did
+        `openapi.*`, `mcp.*`, `tasks.response` and `feedback.*`.
+      - **The one failure is not a defect.** `✗ session.missing ... Got: 401 Unauthorized,
+        Expected: 400 {"error": "invalid_session"}`. It fails only because `--probe-session` was
+        passed: spec 1.0 §5.3 says a resource "MUST reject a request without the Session header
+        when handling it depends on Session claims", and `/api/v1/discover/playbooks` also serves
+        M22 API-token clients, so a header-less request takes the API-token path and gets 401
+        `Bearer scope="library:read"`, not Session handling. Re-run without `--probe-session`
+        (`--only session.missing --only session.start`): `session.start` passed,
+        `session.missing` skipped.
+      - **The 9 inconclusive share one cause** (`assertion.ps384`, `.signature`, `.expired`,
+        `.lifetime`, `.claims`, `.aud-array`, `.aud-endpoint`, `.jti-reuse`; `token.invented`):
+        production has no `oauth_clients` row for the test agent, so the token endpoint answers
+        `{"error":"invalid_client","error_description":"no such client"}` before reading the
+        assertion, and v1 answers the invented token `invalid_session` ("iss is not a usable
+        client"). That is by design (ADR-089: "A client with no stored row is never fetched
+        for, except on a `signedOut` route").
+      - **Re-run after the Allow, 2026-11-15.** Mitchell clicked Allow once for the test agent at
+        `/oauth/authorize` on production. It answered 500 until `migrate-production` run
+        43737004995 applied `0078` (see KI-2026-11-15-b). Then `check https://caesura.today
+        --milestone interfaces --probe https://caesura.today/api/v1/discover/playbooks`, without
+        `--probe-session`: `1. Foundation 56 passed, 0 failed, 2 warnings (1 inconclusive), 7
+        skipped` and `2. Interfaces 11 passed, 0 failed, 0 warnings, 54 skipped`.
+        `assertion.signature`, `.expired`, `.lifetime`, `.claims`, `.aud-array` and
+        `.aud-endpoint` now pass. Three leftovers:
+        - `assertion.jti-reuse` (a warning; the guides' SHOULD): the replayed assertion got
+          `{"error":"invalid_grant","error_description":"unknown refresh token"}`, so it was
+          accepted. The check exists (`apps/web/src/server/oauth/clientAssertion.ts`,
+          `cache.setIfAbsent`) and fails open when the cache is off or unreachable (ADR-089), so
+          production's cache is off or down. KI-2026-11-15-a.
+        - `token.invented` (inconclusive): a never-issued access token gets 400
+          `invalid_session` ("the access token was issued to another client than iss",
+          `apps/web/src/server/poppy/sessionHeader.ts`) instead of 401 `invalid_token`. Fixed in
+          PR 757 (the Session gate answers 401 `invalid_token` for a token in neither token
+          table); re-run `--only token.invented` after it deploys.
+        - `assertion.ps384` and `session.delegation-ps384` skipped: "The test Personal Agent has
+          no RSA key." Optional follow-up: `keygen --force`, re-host the test agent, Allow again.
+      - The 54 skipped interfaces checks are interfaces Caesura does not offer (D2: no agent
+        conversations, no `browser_session_endpoint`, no `skill_index`).
 - [x] **The metadata agrees with itself**: the bare protected-resource document names
       `https://caesura.today`, the issuer's `protected_resources` lists it, and `/api/mcp`'s
       document still names `/api/mcp`.
@@ -302,7 +360,8 @@ reopened; ADR-089 carries the mechanism.
 - [x] A retro is appended at gate close (2026-11-14, below).
 
 **Gate status, 2026-11-14 (closed).** 11 of 11 boxes ticked, with two more amended out at the close
-and carried as known issues (the kit validator run, KI-2026-11-14-a; a domain-audience token through
+and carried as known issues (the kit validator run, KI-2026-11-14-a, since run on 2026-11-15 and
+resolved, see that box; a domain-audience token through
 v1's gates, KI-2026-11-14-b). Four boxes (the connector, the tasks endpoint and console report,
 Disconnect, the walk) rest on Mitchell's word on 2026-11-14 that he saw them work on production, with
 the tests noted under each; the rest are CI evidence on PR 718's head. Coolify PR previews were on from
@@ -378,9 +437,14 @@ is why nothing was walked there.
 
 ### Leftovers
 
-- **`poppy.json` through the kit validator** (`check --file` and `--milestone foundation`): not run,
-  box amended out of the gate. KI-2026-11-14-a
-  (`docs/known-issues/open/KI-20261114-a-poppy-json-not-run-through-the-kit-validator.md`).
+- **`poppy.json` through the kit validator** (`check --file` and `--milestone foundation`): not run
+  at the close, box amended out of the gate. **Run 2026-11-15 against production, 0 failed, and
+  re-run after an Allow for the test agent** (output under the amended-out box); KI-2026-11-14-a
+  is resolved
+  (`docs/known-issues/resolved/KI-20261114-a-poppy-json-not-run-through-the-kit-validator.md`).
+  Left from the re-run: `assertion.jti-reuse` warns because production's cache is off or down
+  (KI-2026-11-15-a); `token.invented` is inconclusive (fixed in PR 757, re-run after it deploys); the two PS384
+  checks skip because the test agent has no RSA key (optional).
 - **A domain-audience token through v1's scope, 402 and trip gates:** no test; box amended out of
   the gate. KI-2026-11-14-b
   (`docs/known-issues/open/KI-20261114-b-no-test-sends-a-domain-audience-token-through-v1s-gates.md`).
