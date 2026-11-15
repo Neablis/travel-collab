@@ -31,7 +31,7 @@ on Mitchell's merge**. All code is on `main`: PRs 714 to 717 in `d05a1fd` and PR
 tasks endpoint and a console report) are ticked on Mitchell's word of 2026-11-14 that he saw them
 work on production; PR previews never had working sign-in. **Two boxes are amended out, not
 passed:** the kit validator run on `poppy.json` (KI-2026-11-14-a, since run 2026-11-15 and resolved) and a domain-audience token
-through v1's gates (KI-2026-11-14-b); Mitchell confirms both when he merges. KI-2026-11-01-u is
+through v1's gates (KI-2026-11-14-b, since tested 2026-11-15 and resolved); Mitchell confirms both when he merges. KI-2026-11-01-u is
 resolved by PR 721.
 
 **M61 closed 2026-11-14, gate 9 of 9, with the *[walk]* box waived, not walked** (*Discover ranks
@@ -147,7 +147,7 @@ confirmed fixed"*). Evidence, retro and spend are in
 00. **M60:** Mitchell merges PR 712 (part 0, prose only; all code is merged and `0075` is applied, so
    no `migrate-production` is due and no lower draft is open) and confirms the two amended-out boxes. The kit validator ran 2026-11-15
    and was re-run after an Allow (KI-2026-11-14-a resolved; its leftovers are KI-2026-11-15-a, since resolved, and
-   KI-2026-11-15-b). Add the v1 domain-audience test (KI-2026-11-14-b).
+   KI-2026-11-15-b). The v1 domain-audience test is in (KI-2026-11-14-b resolved).
 0a. **M61:** Mitchell merges PR 722. File a known issue for deploy-before-migrate ordering; the
    unwalked *Discover rank* tab and `first_published_at` back-fill are the retro's leftovers. No
    migration is outstanding.

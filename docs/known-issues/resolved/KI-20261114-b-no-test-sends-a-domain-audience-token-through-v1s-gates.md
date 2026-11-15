@@ -1,4 +1,4 @@
-### KI-2026-11-14-b — no test sends a domain-audience Poppy token through v1's scope, 402 and trip gates
+### KI-2026-11-14-b — no test sends a domain-audience Poppy token through v1's scope, 402 and trip gates — RESOLVED
 
 - **Severity:** reliability (test gap; no known defect). The v1 gates are shared code, so they very
   likely work for an OAuth token, but that is an inference.
@@ -24,3 +24,15 @@
   box's replacement note in M60's file and move this entry to `resolved/`.
 - **Cross-reference:** M60 exit gate (amended out at the close); ADR-089; KI-2026-11-14-a.
 - **First noted:** 2026-11-14, M60 gate close.
+- **Resolution (2026-11-15):** the fix path above. `oauthActor.int.test.ts` gains "a
+  domain-audience tco_ token on v1": a token made for `oauthIssuer()`, sent to v1 with no MCP
+  dispatch, is 403 `insufficient-scope` (with the `insufficient_scope` challenge) on
+  `/v1/account` without `account:read`; 402 `not-entitled` once the owner's plan is revoked, and
+  200 again once it is reissued; and reaches its owner's trip (200) while a stranger's trip is 403
+  `forbidden`, as for a `tc_` token. No defect: all three gates already held. The gap was real:
+  with all three gates disabled for domain-audience tokens only, `oauthActor`, `route`,
+  `mcp/route`, `verifyAccess`, `mcp/flow` and `poppy/sessions` stayed green (108 of 108). Each case
+  was then seen red alone: skipping the scope check for an OAuth actor outside a dispatch in
+  `route()` gave `expected 200 to be 403`; skipping `accountCan` for a domain audience in
+  `verifyAccess.ts` gave `expected 200 to be 402`; ignoring `tripAccessFor`'s denial for that
+  actor gave `expected 500 to be 403`.
