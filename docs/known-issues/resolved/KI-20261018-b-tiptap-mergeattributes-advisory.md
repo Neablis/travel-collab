@@ -1,4 +1,4 @@
-### KI-2026-10-18-b — `@tiptap/core` 2.x carries GHSA-cp6q-959q-f8rh, and the only fix is tiptap 3
+### KI-2026-10-18-b — `@tiptap/core` 2.x carries GHSA-cp6q-959q-f8rh, and the only fix is tiptap 3 — RESOLVED
 
 - **Severity:** moderate (the advisory's own rating). Security, in the notebook editor.
 - **Area:** `apps/web` → `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm` (all `^2.27.x`),
@@ -40,3 +40,24 @@
   - Seen red: a temporary line in `checkPageDocForWrite` that planted an own `__proto__` on a
     widget's params failed the test (`expected [ '$.content.0.attrs.params' ] to deeply equal
     []`). `pnpm audit` still lists the advisory on this date, so the entry stays open.
+- **Resolved (2026-11-14): upgraded to TipTap 3.34.0.** `@tiptap/pm`, `@tiptap/react` and
+  `@tiptap/starter-kit` went from `^2.27.3` to `^3.34.0` (`@tiptap/core` 3.34.0 comes in as
+  `@tiptap/react`'s peer), and the lockfile passed the supply-chain policy. Two code changes:
+  `setContent(doc, false)` became `setContent(doc, { emitUpdate: false })` (three in
+  `PageScreen.tsx`, one in `PageEditor.tsx`). TipTap 3 defaults `emitUpdate` to true, so the old
+  boolean would have set off a save every time a page re-synced. And `extensions.ts` now turns off
+  the four extensions StarterKit 3 added (`link`, `underline`, `trailingNode`, `listKeymap`), so
+  the stored `PageDoc` and the editing behaviour stay as they were. Before, `pnpm audit` listed
+  *"Tiptap: mergeAttributes() turns an own __proto__ key into inherited executable DOM
+  attributes"* for `@tiptap/core` (23 paths). After, it lists nothing under `@tiptap`.
+  `extensions.test.ts` is the regression test. It checks that the mark set is exactly
+  bold/code/italic/strike. It also opens a document that ends in a horizontal rule, sends one
+  transaction, and checks that `toStoredPageDoc(getJSON())` gives back the stored document byte
+  for byte. Seen red twice. With `trailingNode` on, it received the document plus
+  `{"type":"paragraph","content":[]}`. With `link` on, it got `expected [ 'bold', 'code',
+  'italic', …(2) ] to deeply equal [ 'bold', 'code', 'italic', 'strike' ]`. Proven by web
+  `tsc --noEmit`, 51 unit files under `src/components/pages` plus `src/server/pages.test.ts`
+  (585 tests), and `test:e2e:ci-like` run one spec at a time on the 12 specs that drive the
+  editor DOM (m10-simulated-ai, m11-demo-phone, m11-invites, m14-mobile-notebook,
+  m14-notebook-widgets, m14-saved-notebooks, m30-notebooks-and-links, m39-phone-overview,
+  m58-poll, m58-public-notebook, m7-solo-delight, notebook-reset). All 91 tests passed.

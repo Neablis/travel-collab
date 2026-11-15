@@ -239,7 +239,7 @@ export function PageEditor({ detail, context, user = null, globals = null, value
     // typing, is the same clobbering one pause further on. `KI-2026-09-22-d`
     // is where the conflict notice this wants is recorded.
     if (editable) return;
-    editor.commands.setContent(value as unknown as JSONContent, false);
+    editor.commands.setContent(value as unknown as JSONContent, { emitUpdate: false });
     // `emitUpdate: false` means `onUpdate` above never sees this document.
     setNeedsKey(needsKeyOf(value));
   }, [editor, editable, value]);
@@ -251,7 +251,8 @@ export function PageEditor({ detail, context, user = null, globals = null, value
    * same nodes: the letter's bare `p`s and `h2`s, moving as a widget's
    * paragraph went from nothing to its full height (49px → 557px).
    *
-   * The cause is in `@tiptap/react` 2.x, not in our widgets. A node view
+   * The cause is in `@tiptap/react` (2.x, and still in 3.x, where the gate is
+   * `isEditorContentInitialized`), not in our widgets. A node view
    * created before the editor's `create` event — which `Editor` emits from a
    * `setTimeout(0)` after building the view — renders its React component from
    * a `queueMicrotask`, as a state update to `EditorContent`'s portals, so it

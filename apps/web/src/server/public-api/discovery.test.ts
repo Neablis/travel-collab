@@ -8,12 +8,24 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API_SCOPES } from "@tc/contracts";
 import { GET as index } from "../../app/api/v1/route";
 import { GET as catalog } from "../../app/.well-known/api-catalog/route";
 import { GET as poppy } from "../../app/.well-known/poppy.json/route";
+import { GET as securityTxt } from "../../app/.well-known/security.txt/route";
 import { GET as llms } from "../../app/llms.txt/route";
+
+// The configured origin these documents link against. Stubbed, not read from
+// the request: the routes must name the deployment's public origin even when
+// the request arrives on the container's bind address (see the bind-address
+// test below).
+beforeEach(() => {
+  vi.stubEnv("PUBLIC_ORIGIN", "https://example.test");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../app");
 
@@ -49,7 +61,9 @@ describe("API discovery", () => {
   });
 
   it("/.well-known/api-catalog is an RFC 9727 linkset: service-desc the document, service-doc the reference", async () => {
-    const response = catalog(new Request("https://example.test/.well-known/api-catalog"));
+    // The request arrives on the container's bind address, as it does in
+    // production: the links must still name the configured origin, never it.
+    const response = catalog(new Request("http://0.0.0.0:3000/.well-known/api-catalog"));
     expect(response.headers.get("content-type")).toMatch(/^application\/linkset\+json/);
     const body = (await response.json()) as {
       linkset: { anchor: string; "service-desc": { href: string }[]; "service-doc": { href: string }[] }[];
@@ -75,10 +89,20 @@ describe("/.well-known/poppy.json", () => {
   });
 });
 
+describe("/.well-known/security.txt", () => {
+  it("names its Canonical on the configured origin, not the bind address", async () => {
+    const response = securityTxt(new Request("http://0.0.0.0:3000/.well-known/security.txt"));
+    expect(response.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    const text = await response.text();
+    expect(text).toContain("Canonical: https://example.test/.well-known/security.txt");
+    expect(text).not.toContain("0.0.0.0");
+  });
+});
+
 describe("/llms.txt", () => {
-  /** The served document for a request on `example.test`, and its body. */
+  /** The served document for a request on the container's bind address, and its body. */
   const read = async () => {
-    const response = llms(new Request("https://example.test/llms.txt"));
+    const response = llms(new Request("http://0.0.0.0:3000/llms.txt"));
     return { response, text: await response.text() };
   };
   /** Every markdown link target in the document. */
@@ -93,7 +117,7 @@ describe("/llms.txt", () => {
     expect(summary).toMatch(/^> \S/);
   });
 
-  it("links the catalog, the OpenAPI document and the token path absolutely, on the request's origin", async () => {
+  it("links the catalog, the OpenAPI document and the token path absolutely, on the configured origin", async () => {
     const targets = links((await read()).text);
     for (const href of [
       "https://example.test/.well-known/api-catalog",
@@ -125,7 +149,7 @@ describe("/llms.txt", () => {
   });
 
   // M55: an agent handed the host learns there is a connector, and where.
-  it("names the MCP connector at the request's own /api/mcp", async () => {
+  it("names the MCP connector at the configured origin's /api/mcp", async () => {
     expect((await read()).text).toContain("- [MCP connector](https://example.test/api/mcp): ");
   });
 

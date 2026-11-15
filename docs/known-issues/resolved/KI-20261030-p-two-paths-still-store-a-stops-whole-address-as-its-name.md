@@ -1,4 +1,4 @@
-### KI-2026-10-30-p — Two paths still store a stop's whole address as its name
+### KI-2026-10-30-p — Two paths still store a stop's whole address as its name — RESOLVED
 
 - **Severity:** cosmetic (no wrong place or coordinate: the stop's title is its address, the
   defect Mitchell reported on the assistant's place cards).
@@ -30,3 +30,18 @@
   (`resolveOne`) replaces the model's name with `match.canonicalName` for a stop the assistant
   adds without a `placeRef`; whether to keep the model's name or take the vendor's `name` is the
   decision named above, with its own tests in `geocodeEnrichment.test.ts`.
+- **Resolution (2026-11-14):** both halves are done. `LocationInput` was fixed earlier on
+  2026-11-14 (above). The enrichment half had already been fixed on 2026-11-03, by KI-2026-09-20-a's
+  resolution (48beed4), so the re-scope note above was out of date. `resolveOne` stores the
+  asked-for `name`, and the per-command map restores each command's approved `name` over the
+  shared match. No code changed here. Proven with a temporary test on current `main`: a match
+  whose `canonicalName` is "Cochon, 930, Tchoupitoulas Street, … USA" stores `"Cochon"` when
+  asked for "Cochon" and `"Cochon restaurant"` when asked for "Cochon restaurant", never the address.
+  With 48beed4's two lines put back (`name: match.canonicalName` in `resolveOne`, and no
+  `name: approved.name` in the map), the temporary test fails (`expected 'Cochon, 930,
+  Tchoupitoulas Street, Wa…' not to be 'Cochon, 930, Tchoupitoulas Street, Wa…'`), and so do
+  five existing tests in `geocodeEnrichment.test.ts`, starting with *fills in coordinates when the
+  model supplied none…*. Those five are the regression cover, so no test was added. The other
+  choice, taking the vendor's short `name` in place of the approved name, was not made. It
+  would reverse KI-2026-09-20-a's "an accepted match keeps the approved name", and the whole
+  address is no longer stored without it.

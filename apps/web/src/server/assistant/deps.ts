@@ -62,6 +62,8 @@ export interface CollectedInsert {
   savedDayId: string;
   name: string;
   stopCount: number;
+  /** The day's author by their public name, for the card's provenance line (KI-2026-09-08-c). */
+  author?: string;
 }
 
 /**
@@ -321,7 +323,13 @@ export interface PlaybookLibrary {
  * that re-stated it would be the third copy ADR-042 Decision 2 forbids.
  */
 export interface SavedDayLibrary {
-  readable(savedDayId: string, readerId: string): Promise<SavedDay | null>;
+  /**
+   * The row, plus `author` — its owner as the public library names them — so
+   * the approval card can say whose day it is (KI-2026-09-08-c). Optional
+   * because it is for the card alone: a double that leaves it out still
+   * resolves the day.
+   */
+  readable(savedDayId: string, readerId: string): Promise<(SavedDay & { author?: string }) | null>;
 }
 
 /**

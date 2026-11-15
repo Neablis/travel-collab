@@ -1,4 +1,4 @@
-### KI-2026-10-05-d — the library matches a city by its exact spelling, so "kyoto" never finds "Kyoto"
+### KI-2026-10-05-d — the library matches a city by its exact spelling, so "kyoto" never finds "Kyoto" — RESOLVED
 
 - **Severity:** minor (a day that should be offered is not; nothing wrong is shown).
 - **Area:** `apps/web/src/server/nearbyStops.ts` (`nearbyStopsFor`, `d.cities && …`) and
@@ -45,3 +45,23 @@
   migration, and the folded column above is one; the no-migration alternatives are the ones this
   entry already rules out (`lower()` over `unnest`, which gives up the GIN index, or widening by
   an uncached read of every day's cities per search, which also misses *Yours* and *Saved*).
+- **Resolution (2026-11-14): the folded column, generated rather than written.** Migration 0077
+  adds `saved_days.cities_folded text[] GENERATED ALWAYS AS (public.tc_city_keys(cities)) STORED`
+  with its own GIN index (`saved_days_cities_folded`). Generated, so it has no writer to forget:
+  `cities` is set by the save path, the importer, the backfill and dozens of tests, and the same
+  `ADD COLUMN` filled every existing row. `tc_city_key` is `slugify` step for step in SQL (the rule
+  `placeFor` merges city pages by), falling back to the city itself when its slug is empty
+  ("東京"), so an unsluggable city keeps its old exact match rather than none. `cityKey` in
+  `lib/playbookUrls.ts` is the same rule in TS. `lower` runs under the ICU root collation (Unicode's
+  default case mapping, which is `toLowerCase`'s), never the database locale. `playbooks.ts`'s
+  `matchPredicate` and `matchedCount` overlap `cities_folded` with keys folded by `cityKey`.
+  `siblingCities` and the card's `matchedCities` compare by key too, so two spellings of one city
+  are one chip and one matched city. Proven in `playbooks.cityFold.int.test.ts`: before the change,
+  a day stored as `kyototest…` failed with `other case: expected [] to include …`, `Sao Paulo …`
+  with `accented: expected [] to include …`, and a day carrying two spellings outranked one carrying
+  one. All three pass after. `cityKey.int.test.ts` holds `tc_city_key` equal to `cityKey` over
+  every content-bundle city and every BMP character. A first draft that lowered after NFKD under
+  `COLLATE "C"` differed on 504 code points (U+1D2C `ᴬ` and other modifier and letterlike capitals).
+  `app/api/playbooks/route.int.test.ts` pinned the exact match as a decision because it was what
+  the GIN index served. It now asserts the folded match. The nearby-stops path (`spellingsOf`) is
+  unchanged. Production needs migration 0077 dispatched (`migrate-production`).

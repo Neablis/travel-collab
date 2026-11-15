@@ -17,7 +17,19 @@ import { RepeatNodeExtension } from "./RepeatNodeExtension";
 // registered on purpose: page content is stored ProseMirror JSON, so
 // unregistering this extension would silently DROP existing macro nodes on the
 // next save. The authoring vocabulary returns in M14.
-export const PAGE_EDITOR_EXTENSIONS: Extensions = [StarterKit, MacroNodeExtension, RepeatNodeExtension];
+//
+// **StarterKit is pinned to its 2.x vocabulary.** TipTap 3's StarterKit grew
+// four extensions it did not have in 2.x (KI-2026-10-18-b took the upgrade):
+// `link` (which autolinks a typed URL into a stored `href` mark), `underline`,
+// `trailingNode` (which appends an empty paragraph to every document it opens,
+// so opening a page would change it) and `listKeymap`. Each one changes what a
+// page stores or how typing in it behaves, and the upgrade was a security fix,
+// not a feature. Turning one on is a product decision of its own.
+export const PAGE_EDITOR_EXTENSIONS: Extensions = [
+  StarterKit.configure({ link: false, underline: false, trailingNode: false, listKeymap: false }),
+  MacroNodeExtension,
+  RepeatNodeExtension,
+];
 
 // Every node type the editor can mount AT A CONTENT POSITION, derived from the
 // extension set above rather than listed (AGENTS.md invariant 5, and the drift

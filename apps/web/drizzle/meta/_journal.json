@@ -540,6 +540,20 @@
       "when": 1794436318291,
       "tag": "0076_saved_day_ranks",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1794668019920,
+      "tag": "0077_saved_day_cities_folded",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1794681202667,
+      "tag": "0078_poppy_one_sign_in_per_resource",
+      "breakpoints": true
     }
   ]
 }
