@@ -35,8 +35,9 @@ description: Review policy for one milestone part in travel-collab — a part-re
    when every part is done, CI is green on the top part's head after it is retargeted to `main`
    and marked ready (`close-a-milestone` step 1), and the top's own findings are worked. Say so in
    the top PR's body and part 0's tracker, and tell Mitchell then.
-   **Mitchell's walk is on the PR's Coolify preview**, which Coolify builds on its own for every
-   PR: `https://<pr number>.preview.caesura.today` (public, NOINDEX). The top PR's body's
+   **Mitchell's walk is on the PR's Coolify preview**, which exists only while the PR carries the
+   `preview` label (`coolify-preview.yml`; add it to the PR being walked, not to every part):
+   `https://<pr number>.preview.caesura.today` (public, NOINDEX). The top PR's body's
    "Ready to merge" section carries that **URL**; confirm `GET /api/health` on it answers
    before you write it down. If the build failed, read it in Coolify's deployment log and fix
    the cause; a push rebuilds it.

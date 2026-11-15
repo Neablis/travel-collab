@@ -145,7 +145,25 @@ visitor whose address was lost: visitors log their own address.
 
 ## Previews
 
-A pull request gets a preview from Coolify. Its build, with `APP_ENV=preview`
+**On demand only, since 2026-11-14.** On `caesura-web` → Configuration →
+*Preview Deployments*, the switch is **off**, so the GitHub App builds no
+preview on its own (it still tears one down when its PR closes). A PR gets a
+preview only through `.github/workflows/coolify-preview.yml`, when it carries
+the `preview` label (`docs/guidelines/environments-and-deploys.md`, *Which pushes
+build a preview*, has the why: KI-2026-11-14-d). Only one PR has a preview at a
+time: labelling a PR removes the preview, and the label, of any other. The
+workflow calls Coolify's
+API (`POST`/`DELETE /api/v1/applications/{uuid}/previews`, Coolify 4.4.0 or
+later) and needs, on the GitHub repository:
+
+- **`COOLIFY_API_TOKEN`**, an Actions secret: a Coolify API token (Keys &
+  Tokens → API tokens) with `write`, `deploy` and `delete`. Not `root`.
+- **`COOLIFY_APP_UUID`**, an Actions variable: the `caesura-web` application's
+  uuid (in its URL in the dashboard).
+
+Without either, the workflow warns and passes and no preview is built.
+
+The labelled pull request's preview is built by Coolify. Its build, with `APP_ENV=preview`
 and `PREVIEW_DB_IS_DISPOSABLE=true`, migrates and imports `content/` into the
 one shared preview Neon branch, without `--prune`
 (`apps/web/scripts/lib/build-steps.mjs`). With the second variable missing the

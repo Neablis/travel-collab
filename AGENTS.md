@@ -163,9 +163,10 @@ What each tool does, why it exists and what it measured:
 - **Subagents** (`.claude/agents/`): `phase-implementer`, `part-reviewer`,
   `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again —
   `phase-verifier` drives the PR's Coolify preview, so the browser walk needs no
-  local infra. Coolify builds a preview of every PR at
-  `https://<pr number>.preview.caesura.today`, public and NOINDEX
-  (`environments-and-deploys.md`, *Which pushes build a preview*).
+  local infra. A PR carrying the `preview` label gets a preview at
+  `https://<pr number>.preview.caesura.today`, public and NOINDEX; nothing else
+  builds one, and only one PR has a preview at a time — labelling a PR replaces
+  the previous preview (`environments-and-deploys.md`, *Which pushes build a preview*).
 - **Skills** (`.claude/skills/`): `github-rest`, `minimal-check-subset`,
   `ci-triage`, `worktree-hygiene`, `write-a-test`, `ai-usage`, and
   `build-a-milestone` with its sub-skills `plan-a-milestone`, `build-a-part`,

@@ -11,9 +11,13 @@ name: preview-link-check
 # to answer its health route rather than being told when it is built. Previews
 # are public and NOINDEX (`X-Robots-Tag`), so no secret is involved. Not a required check:
 # `ci-ok` stays the only one.
+#
+# Only a PR carrying the `preview` label has a preview (`coolify-preview.yml`,
+# since 2026-11-14), so only such a PR is checked: waiting 15 minutes on every
+# other ready PR for a preview that will never come would only spend minutes.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -24,9 +28,15 @@ permissions:
 
 jobs:
   sea-links:
-    # A draft is a stack part nobody is walking yet; Coolify still builds it, but
-    # the check waits for the ready PR.
-    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    # A draft is a stack part nobody is walking yet: the check waits for the
+    # ready PR, even if the draft was labelled for a preview.
+    # `labeled` runs only for the `preview` label itself; every other event only
+    # while the PR carries it.
+    if: >-
+      ${{ !github.event.pull_request.draft &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          contains(github.event.pull_request.labels.*.name, 'preview') &&
+          (github.event.action != 'labeled' || github.event.label.name == 'preview') }}
     runs-on: ubuntu-latest
     # Room for the preview's build (up to 15 min of waiting) plus a preview that
     # answers nothing: the script's per-request timeout is sized to finish
