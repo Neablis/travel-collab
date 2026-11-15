@@ -146,8 +146,8 @@ confirmed fixed"*). Evidence, retro and spend are in
 **Next action:**
 00. **M60:** Mitchell merges PR 712 (part 0, prose only; all code is merged and `0075` is applied, so
    no `migrate-production` is due and no lower draft is open) and confirms the two amended-out boxes. The kit validator ran 2026-11-15
-   (KI-2026-11-14-a resolved; one Allow for its test agent on production, then a re-run, makes its
-   nine inconclusive checks conclusive). Add the v1 domain-audience test (KI-2026-11-14-b).
+   and was re-run after an Allow (KI-2026-11-14-a resolved; its leftovers are KI-2026-11-15-a and
+   KI-2026-11-15-b). Add the v1 domain-audience test (KI-2026-11-14-b).
 0a. **M61:** Mitchell merges PR 722. File a known issue for deploy-before-migrate ordering; the
    unwalked *Discover rank* tab and `first_published_at` back-fill are the retro's leftovers. No
    migration is outstanding.

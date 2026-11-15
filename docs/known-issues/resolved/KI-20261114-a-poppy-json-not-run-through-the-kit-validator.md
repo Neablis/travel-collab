@@ -37,6 +37,11 @@
   that also serves M22 API-token clients (spec 1.0 §5.3); re-run without it, `session.start`
   passed and `session.missing` skipped. The output, and why each non-pass is not a defect, is
   under the amended-out box in `docs/milestones/M60-personal-agents-act-for-you.md`.
-  **Follow-up, not a defect:** the nine inconclusive checks (`assertion.*`, `token.invented`) need
-  an `oauth_clients` row for the test agent, which one Allow at `/oauth/authorize` on production
-  creates; that step is Mitchell's, then a re-run.
+  The nine inconclusive checks (`assertion.*`, `token.invented`) needed an `oauth_clients` row
+  for the test agent; Mitchell clicked Allow at `/oauth/authorize` on production the same day
+  (after `migrate-production` run 43737004995 applied `0078`, KI-2026-11-15-b), and the re-run
+  without `--probe-session` gave Foundation 56 passed, 0 failed, 1 inconclusive, 1 warning, 7
+  skipped; Interfaces 11 passed, 0 failed, 54 skipped. Left over, none of them in `poppy.json`:
+  `assertion.jti-reuse` warns because production's cache is off or down (KI-2026-11-15-a);
+  `token.invented` is inconclusive (fix in progress, separate PR); `assertion.ps384` and
+  `session.delegation-ps384` skip because the test agent has no RSA key (optional follow-up).

@@ -237,8 +237,26 @@ reopened; ADR-089 carries the mechanism.
         `{"error":"invalid_client","error_description":"no such client"}` before reading the
         assertion, and v1 answers the invented token `invalid_session` ("iss is not a usable
         client"). That is by design (ADR-089: "A client with no stored row is never fetched
-        for, except on a `signedOut` route"). **Still open:** they become conclusive after
-        Mitchell clicks Allow once for the test agent at `/oauth/authorize` on production and the two commands are re-run.
+        for, except on a `signedOut` route").
+      - **Re-run after the Allow, 2026-11-15.** Mitchell clicked Allow once for the test agent at
+        `/oauth/authorize` on production. It answered 500 until `migrate-production` run
+        43737004995 applied `0078` (see KI-2026-11-15-b). Then `check https://caesura.today
+        --milestone interfaces --probe https://caesura.today/api/v1/discover/playbooks`, without
+        `--probe-session`: `1. Foundation 56 passed, 0 failed, 2 warnings (1 inconclusive), 7
+        skipped` and `2. Interfaces 11 passed, 0 failed, 0 warnings, 54 skipped`.
+        `assertion.signature`, `.expired`, `.lifetime`, `.claims`, `.aud-array` and
+        `.aud-endpoint` now pass. Three leftovers:
+        - `assertion.jti-reuse` (a warning; the guides' SHOULD): the replayed assertion got
+          `{"error":"invalid_grant","error_description":"unknown refresh token"}`, so it was
+          accepted. The check exists (`apps/web/src/server/oauth/clientAssertion.ts`,
+          `cache.setIfAbsent`) and fails open when the cache is off or unreachable (ADR-089), so
+          production's cache is off or down. KI-2026-11-15-a.
+        - `token.invented` (inconclusive): a never-issued access token gets 400
+          `invalid_session` ("the access token was issued to another client than iss",
+          `apps/web/src/server/poppy/sessionHeader.ts`) instead of 401 `invalid_token`. Fix in
+          progress, separate PR.
+        - `assertion.ps384` and `session.delegation-ps384` skipped: "The test Personal Agent has
+          no RSA key." Optional follow-up: `keygen --force`, re-host the test agent, Allow again.
       - The 54 skipped interfaces checks are interfaces Caesura does not offer (D2: no agent
         conversations, no `browser_session_endpoint`, no `skill_index`).
 - [x] **The metadata agrees with itself**: the bare protected-resource document names
@@ -419,11 +437,13 @@ is why nothing was walked there.
 ### Leftovers
 
 - **`poppy.json` through the kit validator** (`check --file` and `--milestone foundation`): not run
-  at the close, box amended out of the gate. **Run 2026-11-15 against production, no defect
-  found** (output under the amended-out box); KI-2026-11-14-a is resolved
+  at the close, box amended out of the gate. **Run 2026-11-15 against production, 0 failed, and
+  re-run after an Allow for the test agent** (output under the amended-out box); KI-2026-11-14-a
+  is resolved
   (`docs/known-issues/resolved/KI-20261114-a-poppy-json-not-run-through-the-kit-validator.md`).
-  Still open: the nine client-assertion checks are inconclusive until Mitchell clicks Allow once
-  for the validator's test agent on production and the run is repeated.
+  Left from the re-run: `assertion.jti-reuse` warns because production's cache is off or down
+  (KI-2026-11-15-a); `token.invented` is inconclusive (fix in progress, separate PR); the two PS384
+  checks skip because the test agent has no RSA key (optional).
 - **A domain-audience token through v1's scope, 402 and trip gates:** no test; box amended out of
   the gate. KI-2026-11-14-b
   (`docs/known-issues/open/KI-20261114-b-no-test-sends-a-domain-audience-token-through-v1s-gates.md`).
