@@ -150,7 +150,9 @@ visitor whose address was lost: visitors log their own address.
 preview on its own (it still tears one down when its PR closes). A PR gets a
 preview only through `.github/workflows/coolify-preview.yml`, when it carries
 the `preview` label (`docs/guidelines/environments-and-deploys.md`, *Which pushes
-build a preview*, has the why: KI-2026-11-14-d). The workflow calls Coolify's
+build a preview*, has the why: KI-2026-11-14-d). Only one PR has a preview at a
+time: labelling a PR removes the preview, and the label, of any other. The
+workflow calls Coolify's
 API (`POST`/`DELETE /api/v1/applications/{uuid}/previews`, Coolify 4.4.0 or
 later) and needs, on the GitHub repository:
 
@@ -161,7 +163,7 @@ later) and needs, on the GitHub repository:
 
 Without either, the workflow warns and passes and no preview is built.
 
-A labelled pull request's preview is built by Coolify. Its build, with `APP_ENV=preview`
+The labelled pull request's preview is built by Coolify. Its build, with `APP_ENV=preview`
 and `PREVIEW_DB_IS_DISPOSABLE=true`, migrates and imports `content/` into the
 one shared preview Neon branch, without `--prune`
 (`apps/web/scripts/lib/build-steps.mjs`). With the second variable missing the

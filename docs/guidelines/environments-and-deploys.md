@@ -166,8 +166,15 @@ while it carries the `preview` label.** The preview lives at
 `.github/workflows/coolify-preview.yml` opens it through Coolify's API when the
 label is added, rebuilds it on each push while the label stays on, and removes
 it when the label comes off or the PR closes. Actions → *coolify-preview* → Run
-workflow builds one PR's head once, without a label. Setup, the Preview-scope
-variables and the database rule are in `docs/ops/coolify-vps.md`.
+workflow builds one PR's head the same way and puts the label on it. Setup, the
+Preview-scope variables and the database rule are in `docs/ops/coolify-vps.md`.
+
+**One preview at a time.** Labelling a PR (or dispatching the workflow for one)
+first removes the preview of every other open PR that carries the label and
+takes the label off them, then builds the new one. Two previews up at once
+crashed the server, so a new label replaces the old preview rather than adding
+a second. Labels added together are handled one after another, and the last
+one wins.
 
 **Why a label again (2026-11-14).** Before M59 the same label gated Vercel
 previews because Vercel billed preview compute. M59 dropped it on the grounds
@@ -177,11 +184,12 @@ fifteen open PRs' previews plus ten production builds ran the 8 GB box out of
 memory and took caesura.today down for over an hour (KI-2026-11-14-d). So
 Coolify's own *Preview Deployments* switch is off on `caesura-web`, and the
 label is the only way in. **Label the PR you will walk, not every PR in a
-stack, and take the label off when the walk is done.**
+stack, and take the label off when the walk is done.** Labelling it takes the
+preview away from whichever PR had it.
 
 - **Concurrent builds are set to 1** on the box (a `next build` needs about 4 GB),
-  so labelled PRs pushed together build one after another. Each preview that
-  is up keeps a container running, which is what the label limits.
+  so builds queue one after another. Each preview that is up keeps a
+  container running, which is why only one is kept.
 - Once a preview answers, `.github/workflows/preview-link-check.yml` requests
   every link the landing sea draws on it, and its `sea-links` job fails naming
   each one that does not answer 200. It runs on ready PRs that carry the
