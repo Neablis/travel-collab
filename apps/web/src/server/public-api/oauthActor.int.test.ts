@@ -140,3 +140,53 @@ describe("a tco_ token's audience", () => {
     expect((await inDispatch(() => account(access))).status).toBe(200);
   });
 });
+
+// **A Personal Agent's token meets every gate `route()` applies** (M60, KI-2026-11-14-b):
+// the cases above for an MCP dispatch, sent as a direct v1 call with a token made
+// for the domain. The gates are shared code, and this is what stops a branch on
+// the audience from quietly skipping one of them.
+describe("a domain-audience tco_ token on v1", () => {
+  const forDomain = (owner: string, scopes: Parameters<typeof connect>[1]) => connect(owner, scopes, new Date(), oauthIssuer());
+
+  it("holds its grant's scopes and no others", async () => {
+    const owner = await entitled();
+    const { access } = await forDomain(owner, ["trips:read"]);
+    const refused = await account(access);
+    expect(refused.status).toBe(403);
+    expect((await refused.json()).error).toEqual(expect.objectContaining({ code: "insufficient-scope", details: { required: "account:read" } }));
+    expect(refused.headers.get("WWW-Authenticate")).toBe('Bearer error="insufficient_scope", scope="account:read"');
+  });
+
+  it("answers 402 while the owner's plan has lapsed, and 200 once they re-subscribe", async () => {
+    const owner = await entitled();
+    const { access } = await forDomain(owner, ["account:read"]);
+    expect((await account(access)).status).toBe(200);
+
+    const [plan] = await allGrantsFor(owner);
+    expect(await revokeGrant(plan!.id, "dev-operator")).toBe(true);
+    const lapsed = await account(access);
+    expect(lapsed.status).toBe(402);
+    expect((await lapsed.json()).error.code).toBe("not-entitled");
+
+    await entitle(owner);
+    expect((await account(access)).status).toBe(200);
+  });
+
+  // 403 and not 404, as for a `tc_` token: `tripAccessFor` answers `forbidden` to a
+  // stranger and to an under-privileged member alike.
+  it("reaches its owner's trip and is refused one its owner is not on", async () => {
+    const owner = await entitled();
+    const stranger = await entitled();
+    const mine = randomUUID();
+    const theirs = randomUUID();
+    expect((await executeTripCommand({ type: "CreateTrip", tripId: mine, name: "Kyoto" }, owner)).ok).toBe(true);
+    expect((await executeTripCommand({ type: "CreateTrip", tripId: theirs, name: "Lisbon" }, stranger)).ok).toBe(true);
+    const { access } = await forDomain(owner, ["trips:read"]);
+    const trip = (tripId: string) => GET_TRIP(bearer(access), { params: Promise.resolve({ tripId }) });
+
+    expect((await trip(mine)).status).toBe(200);
+    const refused = await trip(theirs);
+    expect(refused.status).toBe(403);
+    expect((await refused.json()).error.code).toBe("forbidden");
+  });
+});

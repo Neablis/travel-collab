@@ -309,7 +309,7 @@ reopened; ADR-089 carries the mechanism.
       `/api/mcp`-audience token is still refused outside MCP.~~
       **Amended OUT of the gate at the close, 2026-11-14; not passed.** It carries forward as
       KI-2026-11-14-b
-      (`docs/known-issues/open/KI-20261114-b-no-test-sends-a-domain-audience-token-through-v1s-gates.md`),
+      (`docs/known-issues/resolved/KI-20261114-b-no-test-sends-a-domain-audience-token-through-v1s-gates.md`),
       a test gap. The audience clauses are tested:
       `apps/web/src/server/public-api/oauthActor.int.test.ts` ("is accepted on v1 when the grant was
       made for the domain, and refused inside an MCP dispatch"; "is refused on v1 when the grant was
@@ -319,6 +319,12 @@ reopened; ADR-089 carries the mechanism.
       through them on v1. The code path is shared, but that is an inference, not an assertion. Fix
       path: an integration test in that area. The close session's brief directed this deferral;
       Mitchell confirms it when he merges part 0.
+      **Tested since, 2026-11-15; KI-2026-11-14-b is resolved.** `oauthActor.int.test.ts`, "a
+      domain-audience tco_ token on v1": a token made for the domain, on v1 outside any dispatch, is
+      403 `insufficient-scope` without the scope, 402 on a lapsed plan (200 again on re-subscribing),
+      and 403 `forbidden` on a trip its owner is not on (200 on the owner's own). Each case was seen
+      failing with its gate weakened for domain-audience tokens only. The box stays amended out: the
+      gate closed on 2026-11-14 and only Mitchell changes it.
 - [x] **Signed out reaches only the public reads** (D5), and nothing that writes.
       CI run 42738117635 on 4254305 (PR 718's head, which holds the whole milestone; 9 of 9 jobs success, `ci-ok` included): `apps/web/src/server/public-api/route.int.test.ts` (cases: "reaches a route that
       declares signedOut and no other"; "is still 401 without a Session header, and with a
@@ -449,9 +455,9 @@ is why nothing was walked there.
   both fixes** (`check https://caesura.today --milestone foundation --probe
   https://caesura.today/api/v1/discover/playbooks`, production at `a5cc89e`): Foundation 58
   passed, 0 failed, 0 warnings, 7 skipped.
-- **A domain-audience token through v1's scope, 402 and trip gates:** no test; box amended out of
-  the gate. KI-2026-11-14-b
-  (`docs/known-issues/open/KI-20261114-b-no-test-sends-a-domain-audience-token-through-v1s-gates.md`).
+- **A domain-audience token through v1's scope, 402 and trip gates:** no test at the close; box
+  amended out of the gate. Tested 2026-11-15 and resolved: KI-2026-11-14-b
+  (`docs/known-issues/resolved/KI-20261114-b-no-test-sends-a-domain-audience-token-through-v1s-gates.md`).
   Both deferrals came in the close session's brief; **Mitchell confirms them when he merges part 0**
   (a gate changes only by his decision).
 - **The agent-with-assertion refresh after Disconnect** has no test (stated under that box); it is
