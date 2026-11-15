@@ -250,12 +250,13 @@ reopened; ADR-089 carries the mechanism.
           `{"error":"invalid_grant","error_description":"unknown refresh token"}`, so it was
           accepted. The check exists (`apps/web/src/server/oauth/clientAssertion.ts`,
           `cache.setIfAbsent`) and fails open when the cache is off or unreachable (ADR-089), so
-          production's cache is off or down. KI-2026-11-15-a.
+          production's cache was unreachable. KI-2026-11-15-a, fixed 2026-11-15 (the
+          shim's container name) and resolved; the check now passes.
         - `token.invented` (inconclusive): a never-issued access token gets 400
           `invalid_session` ("the access token was issued to another client than iss",
           `apps/web/src/server/poppy/sessionHeader.ts`) instead of 401 `invalid_token`. Fixed in
           PR 757 (the Session gate answers 401 `invalid_token` for a token in neither token
-          table); re-run `--only token.invented` after it deploys.
+          table); passes on production since.
         - `assertion.ps384` and `session.delegation-ps384` skipped: "The test Personal Agent has
           no RSA key." Optional follow-up: `keygen --force`, re-host the test agent, Allow again.
       - The 54 skipped interfaces checks are interfaces Caesura does not offer (D2: no agent
@@ -442,9 +443,12 @@ is why nothing was walked there.
   re-run after an Allow for the test agent** (output under the amended-out box); KI-2026-11-14-a
   is resolved
   (`docs/known-issues/resolved/KI-20261114-a-poppy-json-not-run-through-the-kit-validator.md`).
-  Left from the re-run: `assertion.jti-reuse` warns because production's cache is off or down
-  (KI-2026-11-15-a); `token.invented` is inconclusive (fixed in PR 757, re-run after it deploys); the two PS384
-  checks skip because the test agent has no RSA key (optional).
+  Left from the re-run: `assertion.jti-reuse` warned because production's cache was unreachable
+  (KI-2026-11-15-a, since fixed and resolved); `token.invented` was inconclusive (fixed in PR 757; passes on production since); the two PS384
+  checks skip because the test agent has no RSA key (optional). **Third run, 2026-11-15, after
+  both fixes** (`check https://caesura.today --milestone foundation --probe
+  https://caesura.today/api/v1/discover/playbooks`, production at `a5cc89e`): Foundation 58
+  passed, 0 failed, 0 warnings, 7 skipped.
 - **A domain-audience token through v1's scope, 402 and trip gates:** no test; box amended out of
   the gate. KI-2026-11-14-b
   (`docs/known-issues/open/KI-20261114-b-no-test-sends-a-domain-audience-token-through-v1s-gates.md`).
