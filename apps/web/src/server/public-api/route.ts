@@ -7,10 +7,10 @@ import {
 } from "@tc/contracts";
 import { touchLastUsed } from "@/server/api-tokens";
 import { touchGrantLastUsed } from "@/server/oauth/grants";
-import { oauthIssuer } from "@/server/oauth/metadata";
+import { oauthChallenge } from "@/server/oauth/metadata";
 import { inMcpDispatch } from "@/server/oauth/dispatchContext";
 import { poppyError } from "@/server/poppy/errors";
-import { poppyGate } from "@/server/poppy/sessions";
+import { poppyGate, unknownTokenResponse } from "@/server/poppy/sessions";
 import type { AccessRefusal } from "@/server/oauth/verifyAccess";
 import { PublicApiError } from "./commands";
 import { TOO_LARGE, readCapped } from "@/server/readBody";
@@ -490,7 +490,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     // read them by that shape (ADR-089). A throw is infrastructure, as below.
     let session: Exclude<Awaited<ReturnType<typeof poppyGate>>, { refused: Response }>;
     try {
-      const gate = await poppyGate(request, { unknownClientOk: def.signedOut === true });
+      const gate = await poppyGate(request, { unknownClientOk: def.signedOut === true }, inMcpDispatch() ? "mcp" : "v1");
       if ("refused" in gate) return gate.refused;
       session = gate;
     } catch (error) {
@@ -922,21 +922,6 @@ async function declareCollection(
   return { items, nextCursor };
 }
 
-/**
- * The challenge on every refusal of an OAuth credential (ADR-083 §7): RFC 9728's
- * `resource_metadata` tells the client where to start the flow again, and
- * `error="invalid_token"` (RFC 6750 §3.1) is what makes it refresh or re-consent
- * rather than give up. It names the document of the endpoint refusing: a
- * Personal Agent told `/api/mcp`'s would ask for that resource at refresh, and be refused
- * as `invalid_target`, though nothing was wrong with its sign-in.
- */
-export function oauthChallenge(invalidToken: boolean, at: "mcp" | "v1" = "mcp"): Record<string, string> {
-  const metadata = `${oauthIssuer()}/.well-known/oauth-protected-resource${at === "mcp" ? "/api/mcp" : ""}`;
-  return {
-    "WWW-Authenticate": `Bearer resource_metadata="${metadata}"${invalidToken ? ', error="invalid_token"' : ""}`,
-  };
-}
-
 /** The 401 or 402 an OAuth credential's refusal answers, with the challenge that sends the client back into the flow. */
 export function oauthRefusalResponse(refusal: AccessRefusal, at: "mcp" | "v1" = "mcp"): Response {
   switch (refusal.reason) {
@@ -966,7 +951,7 @@ export function oauthRefusalResponse(refusal: AccessRefusal, at: "mcp" | "v1" = 
       });
     case "unknown":
     default:
-      return fail("unauthenticated", "This token is not valid.", 401, { headers: oauthChallenge(true, at) });
+      return unknownTokenResponse(at);
   }
 }
 

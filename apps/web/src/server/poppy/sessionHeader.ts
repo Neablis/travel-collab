@@ -9,6 +9,7 @@ import { oauthClients, oauthGrants, oauthTokens } from "@/server/db/schema";
 import { clientIsBlocked, fetchClientKeys, resolveClient, storedClientRowId, type ClientDeps, type FetchLimited } from "@/server/oauth/clients";
 import { oauthIssuer } from "@/server/oauth/metadata";
 import { signedOutFetchQuota, unknownAgentFetchQuota } from "@/server/quota";
+import { verifyToken } from "@/server/api-tokens";
 import { keyedDigestCandidates } from "@/server/secrets/keyedDigest";
 
 // **The `Poppy-Session` header, verified** (Poppy 5.2 and 5.3, ADR-089 decision
@@ -19,7 +20,10 @@ import { keyedDigestCandidates } from "@/server/secrets/keyedDigest";
 // Every refusal is one `invalid_session`, and the reason is for the log and the
 // developer: it names the check, never a key. **A JWT never grants account
 // access** (5.3): this answers who the agent and Session are, and the access
-// token is still the actor's to verify.
+// token is still the actor's to verify. The one refusal that is not about the
+// Session is `unknownToken`: a token this deployment never issued, which the
+// caller answers as `401 invalid_token` so the agent refreshes (Poppy 1.0 §7,
+// RFC 6750 §3.1), where `invalid_session` would tell it to stop.
 
 export interface SessionClaims {
   clientId: string;
@@ -28,8 +32,20 @@ export interface SessionClaims {
   agentId: string | null;
 }
 
-/** `limited` marks a refusal that is capacity, not a fault in the Session: the caller answers it as 429 with Retry-After. */
-export type SessionOutcome = { ok: true; claims: SessionClaims } | { ok: false; reason: string; limited?: FetchLimited };
+/**
+ * `limited` marks a refusal that is capacity, not a fault in the Session: the caller answers it as 429 with Retry-After.
+ * `unknownToken` marks a Session that verified beside an access token issued nowhere here: the caller answers 401 invalid_token.
+ */
+export type SessionOutcome =
+  | { ok: true; claims: SessionClaims }
+  | { ok: false; reason: string; limited?: FetchLimited; unknownToken?: true };
+
+/**
+ * Whom an access token was issued to: an OAuth client, by its protocol `client_id`;
+ * `"no-client"` for a `tc_` API token, which is issued to an account and no client;
+ * `"never-issued"` for a token in neither table.
+ */
+export type TokenIssue = { clientId: string } | "no-client" | "never-issued";
 
 type KeysOutcome = { ok: true; keys: JWK[] } | { ok: false; reason: string; limited?: FetchLimited };
 
@@ -51,8 +67,8 @@ export interface SessionDeps {
    * nothing a signed-out caller does not have. Off by default, so every other route refuses it.
    */
   unknownClientOk?: boolean;
-  /** The protocol `client_id` an access token was issued to; its grant's client by default. */
-  tokenClientId?: (token: string) => Promise<string | null>;
+  /** Whom an access token was issued to; `tokenIssue` by default. */
+  tokenIssue?: (token: string) => Promise<TokenIssue>;
 }
 
 const ACCEPTANCE_WINDOW_SECONDS = 60;
@@ -200,9 +216,10 @@ export async function verifySessionHeader(
     if (payload.ath !== undefined) return no("ath is set but the request carries no access token");
   } else {
     if (payload.ath !== accessTokenHash(accessToken)) return no("ath is not the access token's hash");
-    if (((await (deps.tokenClientId ?? issuedTo)(accessToken)) ?? null) !== clientId) {
-      return no("the access token was issued to another client than iss");
-    }
+    const issue = await (deps.tokenIssue ?? ((token: string) => tokenIssue(token, now)))(accessToken);
+    // Last, so only a Session that verified in every other way gets the 401 that sends its agent to refresh.
+    if (issue === "never-issued") return { ok: false, reason: "the access token was never issued here", unknownToken: true };
+    if (issue === "no-client" || issue.clientId !== clientId) return no("the access token was issued to another client than iss");
   }
   return { ok: true, claims: { clientId, sid: payload.sid, userId: payload.sub, agentId: payload.agent_id ?? null } };
 }
@@ -217,7 +234,18 @@ function sameEndpoint(htu: string, origin: string, pathname: string): boolean {
   }
 }
 
-const issuedTo = async (token: string) => (await tokenHolder(token))?.clientId ?? null;
+/**
+ * Whom `token` was issued to (`TokenIssue`), whatever its state: an expired or
+ * revoked token was still issued, and keeps the refusal it had. A `tc_` token
+ * is looked up as `verifyToken` looks it up, its legacy rows included, and is
+ * known unless that answers `unknown`.
+ */
+export async function tokenIssue(token: string, now: Date = new Date()): Promise<TokenIssue> {
+  const holder = await tokenHolder(token);
+  if (holder !== null) return { clientId: holder.clientId };
+  const apiToken = await verifyToken(token, now);
+  return apiToken.ok || apiToken.refusal.reason !== "unknown" ? "no-client" : "never-issued";
+}
 
 /** A Personal Agent's keys, by its document and `jwks_uri`; a client that is not one has none. */
 async function keysOf(clientId: string, deps: SessionDeps): Promise<KeysOutcome> {

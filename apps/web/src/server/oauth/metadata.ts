@@ -75,3 +75,18 @@ export function authorizationServerMetadata() {
     protected_resources: [issuer, mcpResource()],
   };
 }
+
+/**
+ * The challenge on every refusal of an OAuth credential (ADR-083 §7): RFC 9728's
+ * `resource_metadata` tells the client where to start the flow again, and
+ * `error="invalid_token"` (RFC 6750 §3.1) is what makes it refresh or re-consent
+ * rather than give up. It names the document of the endpoint refusing: a
+ * Personal Agent told `/api/mcp`'s would ask for that resource at refresh, and be refused
+ * as `invalid_target`, though nothing was wrong with its sign-in.
+ */
+export function oauthChallenge(invalidToken: boolean, at: "mcp" | "v1" = "mcp"): Record<string, string> {
+  const metadata = `${oauthIssuer()}/.well-known/oauth-protected-resource${at === "mcp" ? "/api/mcp" : ""}`;
+  return {
+    "WWW-Authenticate": `Bearer resource_metadata="${metadata}"${invalidToken ? ', error="invalid_token"' : ""}`,
+  };
+}

@@ -11,6 +11,7 @@ import { db } from "@/server/db/client";
 import { agentFeedback, agentSessions, oauthClientBlocks, oauthClients } from "@/server/db/schema";
 import { agentsSeen } from "@/server/poppy/agentsSeen";
 import { recentReports, sweepFeedback } from "@/server/poppy/feedback";
+import { resolveClient, storeClient } from "@/server/oauth/clients";
 import { oauthIssuer } from "@/server/oauth/metadata";
 import { makeTestAgent, publicResolve, type TestAgent } from "@/server/poppy/testAgent";
 
@@ -29,7 +30,7 @@ const PATH = "/api/poppy/feedback";
 
 afterEach(() => vi.unstubAllEnvs());
 
-async function report(agent: TestAgent, body: unknown, over: { signed?: boolean; raw?: string; ip?: string; sid?: string } = {}) {
+async function report(agent: TestAgent, body: unknown, over: { signed?: boolean; raw?: string; ip?: string; sid?: string; token?: string } = {}) {
   const cache = createRedisCache(createMemoryClient());
   poppyDeps = { cache, clientDeps: { fetch: agent.fetch, resolve: publicResolve, cache } };
   const headers: Record<string, string> = {
@@ -37,7 +38,10 @@ async function report(agent: TestAgent, body: unknown, over: { signed?: boolean;
     "poppy-version": "0.4",
     "x-forwarded-for": over.ip ?? `203.0.113.${1 + Math.floor(Math.random() * 250)}`,
   };
-  if (over.signed !== false) headers["poppy-session"] = await agent.session({ htu: `${deploymentOrigin()}${PATH}`, htm: "POST", sid: over.sid });
+  if (over.signed !== false) {
+    headers["poppy-session"] = await agent.session({ htu: `${deploymentOrigin()}${PATH}`, htm: "POST", sid: over.sid, ...(over.token === undefined ? {} : { accessToken: over.token }) });
+  }
+  if (over.token !== undefined) headers.authorization = `Bearer ${over.token}`;
   return POST(new Request(`http://localhost${PATH}`, { method: "POST", headers, body: over.raw ?? JSON.stringify(body) }));
 }
 
@@ -85,6 +89,20 @@ describe("POST /api/poppy/feedback", () => {
     const res = await report(agent, { task: "x", description: "y" }, { signed: false });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid_session" });
+    expect(await stored(agent)).toHaveLength(0);
+  });
+
+  // The route reads no credential, so the gate is the only place a token never issued is refused (Poppy 1.0 §7).
+  it("answers an access token never issued here 401 invalid_token, and stores nothing", async () => {
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    // Someone has allowed it: a Session that carries a token must name a stored client, or it is refused before the token is asked about.
+    const cache = createRedisCache(createMemoryClient());
+    const resolved = await resolveClient(agent.clientId, { fetch: agent.fetch, resolve: publicResolve, cache, userId: "feedback-owner" });
+    if (!resolved.ok) throw new Error("agent did not resolve");
+    await storeClient(resolved.client, new Date());
+    const res = await report(agent, { task: "t", description: "d" }, { token: `validator${randomUUID().replaceAll("-", "")}` });
+    expect(res.status).toBe(401);
+    expect(res.headers.get("www-authenticate")).toMatch(/error="invalid_token"/);
     expect(await stored(agent)).toHaveLength(0);
   });
 
