@@ -1,6 +1,6 @@
 # ADR-089: Personal agents reach Caesura through Poppy, on top of our own OAuth server
 
-**Status:** **Accepted — 2026-11-09.** Mitchell answered M60's decisions 1–14 in session, all as
+**Status:** **Accepted — 2026-11-09; amended 2026-11-14 (see the Amendment).** Mitchell answered M60's decisions 1–14 in session, all as
 recommended (*"go with your recommendations. D4 - Premium + free like you suggested, D3 -
 Recommended, D14 - Next in queue"*).
 **Deciders:** Mitchell (product); Claude — drafted
@@ -8,7 +8,7 @@ Recommended, D14 - Next in queue"*).
 (§3, `token_endpoint_auth_method: none`) gains a second method, and its bare
 protected-resource document changes what it names (decision 7).
 Related: M60 (`docs/milestones/M60-personal-agents-act-for-you.md`), M55, M22
-(`docs/guidelines/using-the-api.md`), the Personal Agent Protocol spec, draft 0.4
+(`docs/guidelines/using-the-api.md`), the Personal Agent Protocol spec, 1.0
 (`github.com/personal-agent-protocol/personal-agent-protocol` at `a2f16ec`,
 `skills/implement-personal-agent-protocol/reference/spec.md`).
 
@@ -25,8 +25,24 @@ outside MCP dispatch with `audience`).
 
 ## Decision
 
-1. **Draft 0.4, pinned.** `protocol_version: "0.4"`, no `supported_versions`. The spec is re-read
-   before part 1 merges; a later version is a candidate, not a reopened gate.
+1. **Poppy 1.0, pinned, with 0.4 still served.** `protocol_version: "1.0"`,
+   `supported_versions: {"0.4": "/.well-known/poppy-0.4.json"}` (served as an
+   absolute URL on the deployment origin). The spec is re-read before part 1
+   merges; a later version is a candidate, not a reopened gate.
+
+   > **Amended 2026-11-14.** This decision said "Draft 0.4, pinned", `protocol_version: "0.4"`, no
+   > `supported_versions`. Poppy 1.0 published 2026-11-14, and Mitchell decided to move to it
+   > while keeping 0.4 served, because the Muse connector speaks only 0.3/0.4 and a clean break
+   > would cut it off. See the Amendment below.
+   >
+   > **Amended 2026-11-14 (supported_versions shape).** This decision first
+   > recorded `supported_versions: ["0.4"]`, a list. Poppy 1.0 §3.4 defines it
+   > as a map from version to that version's document URL, and the official
+   > 1.0 kit validator's `discovery.schema` fails a list
+   > (`/supported_versions must be an object, not an array`). The 0.4
+   > document is now served at `/.well-known/poppy-0.4.json` — the same body
+   > pinned at 0.4, with no `supported_versions` of its own — and the 1.0
+   > document links it.
 2. **`poppy.json` lists two APIs and the website.** `apis`: the MCP server (`/api/mcp`, type
    `mcp`) and the OpenAPI description (`/api/v1/openapi`, type `openapi`). `web: {}` with no
    `browser_session_endpoint`: agents browse the public site as signed-out visitors. **No
@@ -65,6 +81,14 @@ outside MCP dispatch with `audience`).
    (`audience`), and a domain-audience token is refused inside it. A Personal Agent
    that names no `resource` gets a domain-audience token; every other client that names none keeps
    `/api/mcp`, since nothing guarantees an older connector sends one.
+
+   > **Amended 2026-11-14.** A Personal Agent that names no `resource` now covers every resource
+   > (Poppy 1.0 §4.5), not just the domain: its grant defaults to the domain and carries
+   > `covers_all_resources`, its code binds to no resource, and each later token request names one
+   > audience — domain or `/api/mcp` — or none for the default. Each access token carries its own
+   > audience, so a domain token and an MCP token from one sign-in each work at its own endpoint
+   > only. Any client that names a resource, and every non-Personal-Agent client, stays
+   > single-resource. See the Amendment below.
 7. **The bare protected-resource document names the domain.**
    `/.well-known/oauth-protected-resource` answers `resource: https://caesura.today` with our
    issuer; `/.well-known/oauth-protected-resource/api/mcp` keeps answering the MCP resource; the
@@ -186,3 +210,45 @@ outside MCP dispatch with `audience`).
 - One migration (`agent_sessions`, `oauth_client_blocks`, `agent_feedback`) and one dependency
   (`jose`).
 - The spec is a draft; when it moves, the ADR is amended, not silently drifted from.
+
+## Amendment (2026-11-14) — Poppy 1.0, and one sign-in for every resource
+
+Poppy 1.0 published 2026-11-14 ("0.4 with the fixes implementers needed"). Mitchell decided to
+move to it and to run the official 1.0 kit validator against the preview, keeping 0.4 served
+because the Muse connector speaks only 0.3/0.4.
+
+Two gaps closed, both found by reading the 1.0 spec against the 0.4 implementation:
+
+- **Version gate.** `versionServed` accepted only the pinned version. It now accepts the pinned
+  1.0 and every version in `supported_versions` (0.4), and `poppy.json` declares both.
+- **One sign-in per resource (Poppy 1.0 §4.5).** A grant bound to exactly one resource meant a
+  Personal Agent that signed in for the domain could never get an MCP token: the walkthrough's
+  step 4 failed on it (the MCP call 401'd after a successful sign-in). The grant now carries
+  `covers_all_resources` for a Personal Agent that named no resource, the code's `resource` is
+  nullable (null binds to none), and each access token carries its own audience (migration 0078;
+  existing access tokens backfilled from their grant). The validator's
+  `mcp.other-resource-rejected` expectation is preserved: token acceptance still enforces one
+  audience per token, and a grant that names a resource still refuses the other.
+
+One deliberate boundary, kept from the original decision: the authorize request carries no
+version, so per-version grant semantics are not implementable at grant creation. The 1.0 resource
+semantics apply to every Personal Agent sign-in. A 0.4 agent that never names a resource behaves
+as before — it always receives the default audience — but the grant it holds is wider: it covers
+every resource, so a token request that named one would succeed where it was refused.
+
+The wide grant is keyed to the codebase's existing Personal Agent marker, `private_key_jwt`
+client authentication, not to a Poppy-specific flag: any CIMD client that authenticates that way
+and names no resource gets a covers-all grant, bounded by the scopes it was allowed. A non-Poppy
+connector allowed for MCP-only could therefore mint domain tokens with those same scopes.
+
+**`supported_versions` is a map, not a list (2026-11-14).** The 1.0 PR shipped
+`supported_versions: ["0.4"]`; the official 1.0 kit validator's first run
+against production failed `discovery.schema` on exactly that
+(`/supported_versions must be an object, not an array`) and skipped every
+check downstream of discovery. §3.4 defines the field as a map from version
+to that version's document URL, and `discovery.supported-versions` fetches
+each linked document: it must answer 200 without a redirect on the same host,
+serve that `protocol_version`, and carry no `supported_versions` of its own.
+The 0.4 document is served at `/.well-known/poppy-0.4.json`, built by the
+same builder as the 1.0 document so domain and issuer always match
+(`discovery.versions-same-company`).

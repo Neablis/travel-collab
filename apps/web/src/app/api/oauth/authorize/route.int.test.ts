@@ -2,12 +2,17 @@
 // on this origin, and the `api.tokens` entitlement) and amendment A: every
 // answer that goes back to the client carries `iss`, Allow and Deny alike.
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
+import { db } from "@/server/db/client";
+import { oauthCodes } from "@/server/db/schema";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { registerClient, resolveClient } from "@/server/oauth/clients";
 import { listGrants } from "@/server/oauth/grants";
 import { mcpResource, oauthIssuer } from "@/server/oauth/metadata";
+import { makeTestAgent } from "@/server/poppy/testAgent";
+import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { upsertUser } from "@/server/users";
 
 let currentUserId: string | null = null;
@@ -149,5 +154,50 @@ describe("POST /api/oauth/authorize", () => {
     const res = await decide({ params, decision: "allow", scopes: ["trips:read"] });
     expect(res.status).toBe(400);
     expect(await res.json()).not.toHaveProperty("redirectTo");
+  });
+
+  // Poppy 1.0 §4.5: a Personal Agent that names no resource gets one sign-in
+  // for every resource — the grant defaults to the domain and covers both, and
+  // the code binds to none.
+  it("leaves a Personal Agent that named no resource with a grant for every resource and an unbound code", async () => {
+    currentUserId = await account(true);
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    const redirectUri = String(agent.document.redirect_uris && (agent.document.redirect_uris as string[])[0]);
+    vi.mocked(resolveClient).mockResolvedValue({
+      ok: true,
+      client: {
+        id: null,
+        clientId: agent.clientId,
+        kind: "cimd",
+        clientName: "Test Agent",
+        redirectUris: [redirectUri],
+        cimdHost: new URL(agent.clientId).host,
+        authMethod: "private_key_jwt",
+        jwksUri: agent.document.jwks_uri as string,
+        logoUri: null,
+      },
+    });
+    try {
+      const params = {
+        client_id: agent.clientId,
+        redirect_uri: redirectUri,
+        response_type: "code",
+        code_challenge: CHALLENGE,
+        code_challenge_method: "S256",
+        state: "s-1",
+        scope: "trips:read",
+      };
+      const res = await decide({ params, decision: "allow", scopes: ["trips:read"], clientName: "Test Agent" });
+      expect(res.status).toBe(200);
+      const target = new URL((await res.json()).redirectTo);
+      expect(target.searchParams.get("code")).toMatch(/^tcc_/);
+      const [grant] = await listGrants(currentUserId);
+      expect(grant).toEqual(expect.objectContaining({ resource: oauthIssuer(), coversAllResources: true }));
+      const { digest } = keyedDigest(target.searchParams.get("code")!);
+      const [code] = await db.select().from(oauthCodes).where(eq(oauthCodes.codeHash, digest));
+      expect(code!.resource).toBeNull();
+    } finally {
+      vi.mocked(resolveClient).mockReset();
+    }
   });
 });

@@ -97,6 +97,8 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   // One change, so a card (ADR-067 decision 5); a request to plan puts its
   // several on the board instead, which `m40-big-change.spec.ts` walks.
   await expect(card).toContainText("Add “Sample: coffee stop” to day 1");
+  // A stop nobody looked up is said to be the assistant's own (KI-2026-09-08-c).
+  await expect(card).toContainText("The assistant's suggestion: “Sample: coffee stop” is not a saved day or a place it looked up.");
   // The prose above it does not claim an edit either.
   const log = page.getByRole("log", { name: "Conversation" });
   await expect(log).toContainText("Nothing is applied yet");
@@ -275,6 +277,10 @@ test("a playbook day the assistant found reaches the board once it is approved",
   // Named by the row the server read, and counted from it — the card is not
   // repeating anything the model wrote.
   await expect(card).toContainText(`Add “${dayName}” from the library (2 stops) as a new day`);
+  // …and whose day it is, unlike a made-up stop (KI-2026-09-08-c). The name
+  // itself is the unit test's: another spec may change alice's display name.
+  await expect(card).toContainText(`From the library: “${dayName}”, a saved day by `);
+  await expect(card).not.toContainText("The assistant's suggestion");
   await expect(card).toContainText("Ready when you are");
   // Nothing has moved while the card sits there. ADR-042's insert commits at
   // the apply door and nowhere else.

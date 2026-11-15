@@ -26,6 +26,18 @@ export interface AuthorizeRequest {
   state: string | null;
   codeChallenge: string;
   resource: string;
+  /**
+   * The resource the request named, or null when it named none: the code binds
+   * to this, and the grant it mints covers every resource only when a Personal
+   * Agent named none (Poppy 1.0 §4.5).
+   */
+  namedResource: string | null;
+  /**
+   * Poppy 1.0 §4.5: a Personal Agent that names no resource covers every
+   * resource. Any other client, and a Personal Agent that names one, stays
+   * bound to `resource`.
+   */
+  coversAllResources: boolean;
   marking: ConsentMarking;
 }
 
@@ -136,11 +148,17 @@ export async function parseAuthorizeRequest(raw: AuthorizeParams, deps: ClientDe
   // connector asks for the MCP endpoint, a Personal Agent for the domain (Poppy
   // 3.2). A Personal Agent that names none is the latter; every other client keeps
   // `/api/mcp`, since an older connector sends none and a domain token would be
-  // refused by the very endpoint it connected for.
-  const resource = param("resource") ?? (client.authMethod === "private_key_jwt" ? oauthIssuer() : mcpResource());
+  // refused by the very endpoint it connected for. Poppy 1.0 §4.5: that
+  // Personal Agent covers every resource, not just its default — the grant it
+  // mints is for the domain and for `/api/mcp` alike, and each later token
+  // request names one audience or none for the default. A client that names a
+  // resource, Personal Agent or not, stays bound to it.
+  const namedResource = param("resource") ?? null;
+  const resource = namedResource ?? (client.authMethod === "private_key_jwt" ? oauthIssuer() : mcpResource());
   if (!isAudience(resource)) return back("invalid_target", `the resources here are ${oauthIssuer()} and ${mcpResource()}`);
+  const coversAllResources = client.authMethod === "private_key_jwt" && namedResource === null;
 
   return {
-    request: { client, redirectUri, scopes, state, codeChallenge, resource, marking },
+    request: { client, redirectUri, scopes, state, codeChallenge, resource, namedResource, coversAllResources, marking },
   };
 }

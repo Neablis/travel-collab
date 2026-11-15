@@ -298,13 +298,14 @@ describe("poppyGate", () => {
     expect(await res.json()).toMatchObject({ error: "invalid_session" });
   });
 
-  it("answers version_unsupported for a missing Poppy-Version or an incompatible one, and takes 0.4", async () => {
+  it("answers version_unsupported for a missing Poppy-Version or an incompatible one, and takes 1.0 and 0.4", async () => {
     const { deps, request } = await agentGate();
     for (const version of [null, "0.3", "1.4", "0.4.1", "four"]) {
       const res = (await through(await request({}, { "poppy-version": version }), deps))!;
       expect(res.status, String(version)).toBe(400);
       expect(await res.json()).toEqual({ error: "version_unsupported" });
     }
+    expect(await through(await request({}, { "poppy-version": "1.0" }), deps)).toBeNull();
     expect(await through(await request({}, { "poppy-version": "0.4" }), deps)).toBeNull();
   });
 

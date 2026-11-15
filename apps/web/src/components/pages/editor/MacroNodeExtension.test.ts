@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Editor } from "@tiptap/react";
+import { Editor, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { MacroNodeExtension } from "./MacroNodeExtension";
 
@@ -79,7 +79,7 @@ describe("MacroNodeExtension", () => {
       },
     });
 
-    const [hidden, shown] = editor.getJSON().content?.[0]?.content ?? [];
+    const [hidden, shown]: JSONContent[] = editor.getJSON().content?.[0]?.content ?? [];
     expect(hidden?.attrs).toEqual({ name: "cost.trip", params: {}, hideWhenPublic: true });
     // Saved as JSON, an unset flag is no key at all.
     expect(JSON.stringify(shown?.attrs)).not.toContain("hideWhenPublic");

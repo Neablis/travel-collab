@@ -35,6 +35,22 @@ export function slugify(text: string): string {
     .replace(/-+$/, "");
 }
 
+/**
+ * The key Discover matches a city by (KI-2026-10-05-d): its slug, so "Kyoto"
+ * and "kyoto", "São Paulo" and "Sao Paulo" are one city, as the city pages
+ * already merge them; or the city itself when it has no slug ("東京"), which
+ * keeps it findable by its exact spelling rather than by nothing. A slug never
+ * equals such a fallback: it always holds an ASCII letter or digit, and the
+ * fallback holds none once folded.
+ *
+ * `saved_days.cities_folded` is this rule in SQL (`tc_city_key`, migration
+ * 0077); `cityKey.int.test.ts` holds the two equal.
+ */
+export function cityKey(city: string): string {
+  const slug = slugify(city);
+  return slug === "" ? city : slug;
+}
+
 /** A day's route segment: `<slug>-<uuid>`, or the bare uuid when its name has no slug. */
 export function daySegment(day: { savedDayId: string; name: string }): string {
   const slug = slugify(day.name);

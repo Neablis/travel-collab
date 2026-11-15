@@ -17,6 +17,10 @@ import { registerClient, resolveClient, storeClient, type OAuthClient } from "./
 import { createGrant, grantOf, issueCode, mintSecret } from "./grants";
 import { mcpResource, oauthIssuer } from "./metadata";
 import { exchangeCode, refresh, revokeSecret, type TokenOutcome } from "./tokens";
+import { verifyAccessToken } from "./verifyAccess";
+import { issueGrant } from "@/server/entitlements/grants";
+import { livePlanVersion } from "@/server/entitlements/planVersions";
+import { upsertUser } from "@/server/users";
 
 // The real `storedClientRowId`, behind a gate the race tests close.
 const race = vi.hoisted(() => ({ gate: null as { wait: () => Promise<void> } | null }));
@@ -166,6 +170,115 @@ describe("exchanging a code", () => {
     expect(errorOf(await exchange())).toBe("ok");
     expect(errorOf(await exchange())).toBe("invalid_grant");
     expect(await grantOf(grant.id)).toEqual(expect.objectContaining({ revokedReason: "code-reuse" }));
+  });
+});
+
+describe("one sign-in for every resource (Poppy 1.0 §4.5)", () => {
+  /**
+   * A Personal Agent's sign-in that named no resource, as the authorize
+   * decision leaves it: the grant defaults to the domain and covers every
+   * resource, and the code binds to none. `codeResource` names the resource
+   * a code was issued for, when the test wants one bound.
+   */
+  async function agentConsentedUnbound(codeResource: string | null = null) {
+    const agent = await makeTestAgent({ issuer: oauthIssuer() });
+    const ownerId = `dev-${randomUUID()}`;
+    // `verifyAccessToken` answers the audience only for an entitled owner, so
+    // the owner holds premium the way `verifyAccess.int.test.ts` grants it.
+    await upsertUser({ id: ownerId, email: `${ownerId}@example.test`, name: null, image: null });
+    const plan = livePlanVersion("premium");
+    await issueGrant({
+      userId: ownerId,
+      planId: plan.planId,
+      planVersion: plan.version,
+      source: "admin",
+      grantedBy: "dev-operator",
+      reason: "Poppy 1.0 §4.5 fixture.",
+      expiresAt: null,
+    });
+    const deps = { fetch: agent.fetch, resolve: publicResolve, userId: ownerId, cache: createRedisCache(createMemoryClient()) };
+    const resolved = await resolveClient(agent.clientId, deps);
+    if (!resolved.ok) throw new Error(`agent did not resolve: ${JSON.stringify(resolved)}`);
+    const now = new Date();
+    const grant = await createGrant({
+      ownerId,
+      client: resolved.client,
+      redirectUri: String(agent.document.redirect_uris && (agent.document.redirect_uris as string[])[0]),
+      scopes: ["trips:read"],
+      resource: oauthIssuer(),
+      coversAllResources: true,
+      now,
+    });
+    const redirectUri = grant.redirectUri;
+    const code = async () =>
+      issueCode({ grantId: grant.id, codeChallenge: CHALLENGE, redirectUri, resource: codeResource, now });
+    const signed = async () => ({ clientAssertion: await agent.assertion(), clientAssertionType: ASSERTION_TYPE });
+    const exchange = async (over: Partial<Parameters<typeof exchangeCode>[0]> = {}) =>
+      exchangeCode(
+        { code: await code(), codeVerifier: VERIFIER, redirectUri, clientId: agent.clientId, ...(await signed()), ...over },
+        new Date(),
+        deps,
+      );
+    const refreshAs = async (refreshToken: string, over: Partial<Parameters<typeof refresh>[0]> = {}) =>
+      refresh({ refreshToken, clientId: agent.clientId, ...(await signed()), ...over }, new Date(), deps);
+    return { agent, deps, grant, signed, code, exchange, refreshAs, redirectUri };
+  }
+
+  const audienceOf = async (accessToken: string) => {
+    const verified = await verifyAccessToken(accessToken);
+    if (!verified.ok) throw new Error(`expected a live token, got ${verified.refusal.reason}`);
+    return verified.access.audience;
+  };
+
+  it("exchanges with no resource for a domain token, and with the MCP resource for an MCP token", async () => {
+    const { exchange } = await agentConsentedUnbound();
+    const domain = tokensOf(await exchange());
+    expect(await audienceOf(domain.access_token)).toBe("domain");
+    const mcp = tokensOf(await exchange({ resource: mcpResource() }));
+    expect(await audienceOf(mcp.access_token)).toBe("mcp");
+  });
+
+  it("still refuses a resource that is not this server's", async () => {
+    const { exchange } = await agentConsentedUnbound();
+    expect(errorOf(await exchange({ resource: "https://other.example/api/mcp" }))).toBe("invalid_target");
+  });
+
+  it("binds a code issued for a named resource to it, even on a grant that covers every resource", async () => {
+    const { agent, deps, redirectUri, code, signed } = await agentConsentedUnbound(mcpResource());
+    const secret = await code();
+    const exchangeSecret = async (resource?: string) =>
+      exchangeCode(
+        {
+          code: secret,
+          codeVerifier: VERIFIER,
+          redirectUri,
+          clientId: agent.clientId,
+          ...(await signed()),
+          ...(resource === undefined ? {} : { resource }),
+        },
+        new Date(),
+        deps,
+      );
+    expect(errorOf(await exchangeSecret(oauthIssuer()))).toBe("invalid_target");
+    // With no resource the exchange falls back to the grant's default, the
+    // domain, which the MCP-named code refuses too.
+    expect(errorOf(await exchangeSecret())).toBe("invalid_target");
+    // The refusals spent nothing: the same code exchanges for MCP.
+    expect(errorOf(await exchangeSecret(mcpResource()))).toBe("ok");
+  });
+
+  it("refreshes into either audience: none for the default, the MCP resource for MCP", async () => {
+    const { exchange, refreshAs } = await agentConsentedUnbound();
+    const { refresh_token } = tokensOf(await exchange());
+    const mcp = tokensOf(await refreshAs(refresh_token, { resource: mcpResource() }));
+    expect(await audienceOf(mcp.access_token)).toBe("mcp");
+    const domain = tokensOf(await refreshAs(mcp.refresh_token));
+    expect(await audienceOf(domain.access_token)).toBe("domain");
+  });
+
+  it("still refuses the other audience on a grant made for one resource", async () => {
+    const { exchange, signed } = await agentConsented();
+    expect(errorOf(await exchange({ ...(await signed()), resource: oauthIssuer() }))).toBe("invalid_target");
   });
 });
 

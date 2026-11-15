@@ -25,7 +25,9 @@
   (`POST /api/v1/applications/{uuid}/previews`, Coolify ≥ 4.4.0) when the label is added,
   rebuilds it on each push while labelled, and removes it (`DELETE …/previews/{pr}`) when the
   label comes off or the PR closes; `preview-link-check` runs only on labelled PRs. Agents and
-  skills label only the PR being walked and unlabel it after.
+  skills label only the PR being walked and unlabel it after. One preview at a time: two up
+  at once still crashed the box, so labelling a PR first removes every other labelled PR's
+  preview and takes their label off.
 - **Still to do, on the box (Mitchell), before this closes:**
   1. Switch *Preview Deployments* **off** on `caesura-web`.
   2. Create a Coolify API token with `write`, `deploy` and `delete`, and save it as the
@@ -33,12 +35,14 @@
      `COOLIFY_APP_UUID` Actions variable.
   3. Label one open PR `preview` and confirm its preview builds, then unlabel it and confirm
      the preview is removed.
+  4. Label two PRs one after the other and confirm the first's preview is removed and its
+     label taken off.
 - **Not done, worth deciding:** swap on the box (a few GB would turn the next exhaustion into
   slowness rather than an outage); a memory limit on preview containers; the planned move to
   a larger, cheaper box (`docs/plans/2026-11-09-move-vps-to-ovhcloud.md`). And a batch of
   merges still starts one production build each, queued one at a time.
 - **Tripwire:** caesura.today or the Coolify dashboard stops answering while Hetzner says the
-  server is running; or more than two or three preview containers up at once.
+  server is running; or more than one preview container up at once.
 - **Cross-reference:** `docs/guidelines/environments-and-deploys.md` (*Which pushes build a
   preview*), `docs/ops/coolify-vps.md` (*Previews*), M59 part 5 (`8f0517d`).
 - **First noted:** 2026-11-14, reported by Mitchell ("I think caesura.today is down after those

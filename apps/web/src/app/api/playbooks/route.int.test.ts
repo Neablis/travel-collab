@@ -178,19 +178,21 @@ describe("GET /api/playbooks", () => {
     expect(day!.cities).toEqual([kyoto, uji]);
   });
 
-  // Containment is EXACT, and this pins it as a decision rather than an
-  // oversight: `cities && ARRAY[...]` is what the GIN index serves and it does
-  // not case-fold. Every city name the UI sends came back from
-  // `GET /api/cities`, so the two ends agree because the names travel from the
-  // index rather than from a keyboard.
-  it("matches a city exactly, so a card's chips keep the day's own spelling", async () => {
+  // Containment matches a city's KEY, not its spelling (KI-2026-10-05-d). This
+  // test used to pin an exact match as a decision, taken because exact overlap
+  // on `cities` was what the GIN index served. `cities_folded` is indexed the
+  // same way, so the case- and accent-folded match costs the index nothing, and
+  // a day spelled "kyoto" is found by "Kyoto". The card still says which of its
+  // cities matched in the day's OWN spelling, never the query's.
+  it("matches a city in any case, and a card's chips keep the day's own spelling", async () => {
     const stem = city("Kyo");
     const name = `Cased ${RUN}`;
     await publish(await saveDay(name, [{ city: stem }]));
 
     currentUserId = READER;
     const { body } = await discover(`city=${stem.toUpperCase()}`);
-    expect(names(body)).not.toContain(name);
+    expect(names(body)).toContain(name);
+    expect(body.days.find((d) => d.name === name)?.matchedCities).toEqual([stem]);
     const exact = await discover(`city=${stem}`);
     expect(names(exact.body)).toContain(name);
   });

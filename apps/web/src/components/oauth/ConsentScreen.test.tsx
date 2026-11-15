@@ -21,6 +21,29 @@ const props = (over: Partial<ConsentScreenProps> = {}): ConsentScreenProps => ({
 
 afterEach(() => vi.unstubAllGlobals());
 
+/**
+ * A probe `Image` whose fate is decided when its `src` is set, as a browser
+ * decides it on fetch: a CSP refusal or an extension block fires `onerror`,
+ * a fetchable logo fires `onload`. jsdom's own `Image` never fires either,
+ * so a test that needs the probe to settle uses this.
+ */
+function stubImage(outcome: "load" | "error") {
+  class ProbeImage {
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    srcValue = "";
+    set src(value: string) {
+      this.srcValue = value;
+      if (outcome === "load") this.onload?.();
+      else this.onerror?.();
+    }
+    get src() {
+      return this.srcValue;
+    }
+  }
+  vi.stubGlobal("Image", ProbeImage);
+}
+
 describe("ConsentScreen", () => {
   it("shows a name as the app's own unverified claim, and the redirect host large", () => {
     render(<ConsentScreen {...props()} />);
@@ -50,10 +73,38 @@ describe("ConsentScreen", () => {
   // Poppy 4.1: a Personal Agent is named by its own document, and its domain is
   // the part of that name that is proven (it holds the keys the document lists).
   it("names a Personal Agent with its domain and logo, and still marks the name unverified", () => {
+    stubImage("load");
     render(<ConsentScreen {...props({ clientName: "Muse", cimdHost: "meta.ai", personalAgent: { logoUri: "https://meta.ai/logo.png" } })} />);
     expect(screen.getByRole("heading", { level: 1, name: "Muse (meta.ai) wants to act for you on Caesura" })).toBeTruthy();
     expect(screen.getByRole("presentation").getAttribute("src")).toBe("https://meta.ai/logo.png");
     expect(screen.getByText("Unverified")).toBeTruthy();
+  });
+
+  // A logo the CSP refuses (or an extension blocks) never reaches the page:
+  // the consent card shows no broken image, only the name.
+  it("leaves out a Personal Agent logo that does not load", () => {
+    stubImage("error");
+    render(<ConsentScreen {...props({ clientName: "Muse", cimdHost: "meta.ai", personalAgent: { logoUri: "https://meta.ai/logo.png" } })} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Muse (meta.ai) wants to act for you on Caesura" })).toBeTruthy();
+    expect(screen.queryByRole("presentation")).toBeNull();
+  });
+
+  // Consent for a different agent reuses the component (same route, new
+  // props), so a logo that failed for one agent must not hide the next one's.
+  it("shows a later logo after an earlier one failed to render", () => {
+    stubImage("load");
+    const { rerender } = render(
+      <ConsentScreen {...props({ clientName: "Muse", cimdHost: "meta.ai", personalAgent: { logoUri: "https://meta.ai/logo.png" } })} />,
+    );
+    const first = screen.getByRole("presentation");
+    expect(first.getAttribute("src")).toBe("https://meta.ai/logo.png");
+    // The rendered fetch fails after the probe loaded: the logo is left out.
+    fireEvent.error(first);
+    expect(screen.queryByRole("presentation")).toBeNull();
+    rerender(
+      <ConsentScreen {...props({ clientName: "Other", cimdHost: "other.example", personalAgent: { logoUri: "https://other.example/logo.png" } })} />,
+    );
+    expect(screen.getByRole("presentation").getAttribute("src")).toBe("https://other.example/logo.png");
   });
 
   it("shows no logo for an app that is not a Personal Agent, however its document asks", () => {

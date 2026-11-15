@@ -39,8 +39,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "2.6.0";
-export const API_FINGERPRINT = "61fee4aadd8282672df05c4a7277a12194e151613eef5c69283f5c8e6da4e198";
+export const API_VERSION = "2.7.0";
+export const API_FINGERPRINT = "20d0ba9562c6f338eed3a1f97d9642569d116e17fc8a604f147fd2973ef5d87c";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -329,6 +329,10 @@ export function withoutTupleItems(node: unknown, at = "#"): unknown {
 export interface OpenApiDocument {
   openapi: string;
   info: { title: string; version: string; description: string };
+  // The base every path is relative to. Relative, so one document serves
+  // production and previews; without it an agent reads /v1/discover/playbooks
+  // off the paths and gets a 404, because the routes live under /api.
+  servers: { url: string }[];
   paths: Record<string, Record<string, unknown>>;
   components: { securitySchemes: Record<string, unknown>; schemas: Record<string, unknown> };
   security: { bearerAuth: string[] }[];
@@ -495,6 +499,7 @@ export function buildOpenApi(
         ...API_SCOPES.map((scope) => `- \`${scope}\` — ${SCOPE_CATALOGUE[scope].description}`),
       ].join("\n"),
     },
+    servers: [{ url: "/api" }],
     paths,
     components: {
       securitySchemes: {

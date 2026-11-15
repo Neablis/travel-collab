@@ -395,8 +395,6 @@ here two days later.
 - **The major upgrades Dependabot is told to skip (2026-10-18, PR 481).** `dependabot.yml`
   ignores majors because each is a migration. PR 481 took every in-range bump and left these. Do
   each on its own branch, with its upgrade notes read:
-  - `@tiptap/*` 2 → 3: also the only fix for GHSA-cp6q-959q-f8rh (KI-2026-10-18-b). The notebook
-    editor, 23 files.
   - `eslint-config-next` 15 → 16 (matching `next` 16): it should drop the `braces` advisory
     pulled in through `fast-glob` → `micromatch`, which has no patched release.
   - `zod` 3 → 4 (contracts and every consumer), `typescript` 5 → 7, `eslint` 9 → 10, `vitest` /

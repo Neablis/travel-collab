@@ -798,7 +798,7 @@ export function PageScreen({
     const inspected = inspectStoredPageDoc(fresh.value.content);
     setStored(inspected);
     setPage(fresh.value);
-    editorRef.current?.commands.setContent(fresh.value.content as never, false);
+    editorRef.current?.commands.setContent(fresh.value.content as never, { emitUpdate: false });
     latestDocRef.current = null;
     // As on load: a draft only ever meets an editable page.
     if (inspected.status === "mountable") setOfferedDraft({ ...mine, refused: true });
@@ -827,7 +827,7 @@ export function PageScreen({
     setOfferedDraft(null);
     setStored(inspectStoredPageDoc(draft.doc));
     setPage((prev) => (prev === null ? prev : { ...prev, content: draft.doc }));
-    editorRef.current?.commands.setContent(draft.doc as never, false);
+    editorRef.current?.commands.setContent(draft.doc as never, { emitUpdate: false });
     latestDocRef.current = draft.doc;
     session.change(draft.doc);
     void session.flush();
@@ -881,7 +881,7 @@ export function PageScreen({
     latestDocRef.current = null;
     setStored(inspectStoredPageDoc(next.content));
     setPage(next);
-    editorRef.current?.commands.setContent(next.content as never, false);
+    editorRef.current?.commands.setContent(next.content as never, { emitUpdate: false });
   };
   const handleReset = (result: ResetPageResult) => {
     adoptPage(result.page);

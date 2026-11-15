@@ -83,6 +83,61 @@ describe("ProposalCard", () => {
     ).toEqual({ title: "Move it 30 minutes later", detail: "No activity named “Nope”." });
   });
 
+  // KI-2026-09-08-c: a guess and a sourced answer used to look the same on
+  // this card. A library day names the saved day and who wrote it; a stop the
+  // model made up says it is the assistant's suggestion.
+  describe("where each change came from", () => {
+    const LIBRARY_DAY: AssistantProposal = {
+      proposalId: "p2",
+      changes: [{ type: "AddDay", text: "Add “Temples on foot” from the library (2 stops) as a new day" }],
+      commands: [],
+      inserts: [{ savedDayId: THEIRS, name: "Temples on foot", author: "Alice" }],
+      skipped: [],
+    };
+
+    it("names a library day and its author, and calls it no suggestion", () => {
+      renderCard({ state: state({ proposal: LIBRARY_DAY }) });
+      expect(card().textContent).toContain("From the library: “Temples on foot”, a saved day by Alice.");
+      expect(card().textContent).not.toContain("The assistant's suggestion");
+    });
+
+    it("still names a library day drafted before its author was carried", () => {
+      renderCard({ state: state({ proposal: { ...LIBRARY_DAY, inserts: [{ savedDayId: THEIRS, name: "Temples on foot" }] } }) });
+      expect(card().textContent).toContain("From the library: “Temples on foot”, a saved day.");
+    });
+
+    it("marks stops the assistant made up as its suggestion, by title", () => {
+      renderCard();
+      expect(card().textContent).toContain(
+        "The assistant's suggestion: “Sample: coffee stop” and “Sample: evening stroll” are not saved days or places it looked up.",
+      );
+      expect(card().textContent).not.toContain("From the library");
+    });
+
+    it("does not mark a stop at a place its search found, or a change to a stop already there", () => {
+      const grounded: AssistantProposal = {
+        ...PROPOSAL,
+        changes: [
+          { type: "AddActivity", text: "Add “Fuglen” to day 2" },
+          { type: "UpdateActivity", text: "Move “Museum” to 10:00" },
+        ],
+        commands: [
+          {
+            type: "AddActivity",
+            tripId: TRIP_ID,
+            activityId: UUID,
+            dayId: UUID,
+            title: "Fuglen",
+            location: { name: "Fuglen Tokyo", lat: 35.66, lng: 139.69, precision: "venue" },
+          },
+          { type: "UpdateActivity", tripId: TRIP_ID, activityId: UUID, timeWindow: { start: "10:00", end: "11:00" } },
+        ],
+      };
+      renderCard({ state: state({ proposal: grounded }) });
+      expect(card().textContent).not.toContain("The assistant's suggestion");
+    });
+  });
+
   it("shows two identical changes as two", () => {
     const words = proposalWords({
       ...PROPOSAL,

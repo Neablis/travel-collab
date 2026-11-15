@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { SCOPE_CATALOGUE, type ApiScope } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
@@ -72,7 +72,25 @@ export function ConsentScreen({
   entitled,
   params,
 }: ConsentScreenProps) {
-  // A logo that does not load is left out rather than shown broken.
+  const logoUri = personalAgent?.logoUri ?? null;
+  // A logo is shown only once a probe has loaded it. The CSP's `img-src`
+  // may refuse the agent's origin, and the old onError-only guard attached
+  // after hydration, so a fast refusal showed a broken image before React
+  // could hide it. Absence is the default — only the probe's `onload`
+  // reveals the logo — so a logo that does not load is left out rather than
+  // shown broken, whatever refuses it.
+  const [logoLoaded, setLogoLoaded] = useState(false);
+  useEffect(() => {
+    setLogoLoaded(false);
+    setLogoFailed(false);
+    if (logoUri === null) return;
+    const probe = new Image();
+    probe.onload = () => setLogoLoaded(true);
+    probe.src = logoUri;
+    return () => {
+      probe.onload = null;
+    };
+  }, [logoUri]);
   const [logoFailed, setLogoFailed] = useState(false);
   const [chosen, setChosen] = useState<ApiScope[]>(() => scopes.filter(isRead));
   const sectionId = useId();
@@ -112,10 +130,10 @@ export function ConsentScreen({
     <PageContainer width="measure" as="main" className="py-10">
       <Card className="flex flex-col gap-5 p-6">
         <div className="flex flex-col gap-2">
-          {personalAgent?.logoUri && !logoFailed ? (
+          {logoUri !== null && logoLoaded && !logoFailed ? (
             // eslint-disable-next-line @next/next/no-img-element -- an agent's own https logo, which next/image would proxy through our optimizer
             <img
-              src={personalAgent.logoUri}
+              src={logoUri}
               alt=""
               className="size-12 rounded-md"
               onError={() => setLogoFailed(true)}
