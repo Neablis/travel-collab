@@ -26,7 +26,7 @@
 //   node scripts/coolify-preview.mjs remove <pr>
 
 /** Throws with Coolify's own message, so a red job names what Coolify refused. */
-async function failed(res, what) {
+export async function failed(res, what) {
   const body = await res.text().catch(() => "");
   let message = body.slice(0, 500);
   try {

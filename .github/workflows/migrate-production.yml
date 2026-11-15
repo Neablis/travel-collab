@@ -1,23 +1,24 @@
 name: migrate-production
 
-# Production migrations are applied by explicitly dispatching this workflow —
-# never automatically on a push to `main`, and never by hand from a laptop.
+# BREAK-GLASS. Production migrations are applied by `deploy-production.yml` on
+# every push to `main`, before it deploys (ADR-091, 2026-11-15). This manual
+# dispatch stays for the cases that one does not cover: re-applying after a
+# failed `deploy-production` run was fixed outside the repo, or migrating
+# without deploying. It runs the same `db:migrate` against the same secret.
 #
-# ADR-004's rule is that migrations run "via drizzle-kit as an explicit
-# CI/deploy step — never implicitly at cold start". That still holds: this is
-# more explicit than the old post-merge job, not less. The environments
-# guideline's other rule — migrations are applied by *automation*, never by
-# `drizzle-kit migrate` run by hand against a remote database — also still
-# holds, because the trigger is manual but the execution is not: the connection
-# string stays a repo secret and never lands in a shell that also has a
-# `.env.local` in scope. Manual trigger, automated execution.
+# History, because the reasoning is still sound where it applies: from
+# 2026-08-27 this dispatch was the ONLY way production migrated (ADR-004's
+# "explicit CI/deploy step", with a human as the trigger), to stop a full CI
+# re-run of `main` gating it (~456 billed min/month; see
+# `docs/guidelines/ci-cost-and-capacity.md`). Its cost was that a merged
+# migration sat pending until someone remembered, and PR 752's 0078 sat for
+# ~20 hours while OAuth Allow answered 500 (KI-2026-11-15-b). ADR-091 keeps the
+# execution in automation and takes the human out of the trigger.
 #
-# Why it moved out of `ci.yml`: gating this job on a full CI re-run of `main`
-# cost ~456 billed minutes a month (23% of the total) to re-test a tree the
-# pull-request run had already tested. Mitchell's call, 2026-08-27 — see
-# `docs/guidelines/ci-cost-and-capacity.md`. The trade is that nothing now
-# applies a migration for you; a merged migration sits pending until someone
-# dispatches this.
+# It shares the `production` concurrency group with `deploy-production`, so it
+# never overlaps a migration there. GitHub keeps one PENDING run per group: a
+# dispatch made while a deploy is waiting replaces that deploy. If you dispatch
+# this during a burst of merges, re-run deploy-production afterwards.
 on:
   workflow_dispatch:
     inputs:
@@ -30,8 +31,9 @@ permissions:
   contents: read
 
 # Never let two production migrations overlap, and never cancel one mid-apply.
+# The group is shared with deploy-production.yml, which also migrates.
 concurrency:
-  group: migrate-production
+  group: production
   cancel-in-progress: false
 
 jobs:

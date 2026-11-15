@@ -74,11 +74,12 @@ Not run, and why:
 
 ## Migrations
 
-<!-- Merging does NOT apply a migration. Production migrations are dispatched by
-     hand (ADR-004, for CI cost): `gh workflow run migrate-production.yml -f
-     confirm=migrate`, from main. Between merge and dispatch the code is live
-     and the column is not, so anything reading it 500s — this line is the
-     handover, and "none" is the usual and correct answer.
+<!-- Merging APPLIES a migration: deploy-production.yml migrates on the push to
+     main and only then deploys (ADR-091). So the code running NOW serves
+     against the new schema for a build's length: a migration must work with
+     it. Add in one PR; drop, rename or tighten in two (stop using it, deploy,
+     then remove). docs/guidelines/environments-and-deploys.md, "Migrations run
+     before the code that needs them". "none" is the usual answer.
 
      `pnpm lint` runs scripts/check-migration-journal.mjs, which refuses a
      migration whose `when` is not newer than main's newest. If it fired, do NOT
@@ -88,8 +89,8 @@ Not run, and why:
      older one is skipped in silence with `migrate` still printing success.
      KI-2026-09-05-k. -->
 
-- [ ] No Drizzle migration in this PR — nothing to dispatch
-- [ ] Adds the migration(s) named below, and **`migrate-production` must be dispatched after merge**
+- [ ] No Drizzle migration in this PR
+- [ ] Adds the migration(s) named below, each one safe against the code running in production now (expand only, or the second half of a two-step)
 
 Migrations added: <!-- e.g. 0019_saved_day_pinned — or "none" -->
 
@@ -103,7 +104,7 @@ Migrations added: <!-- e.g. 0019_saved_day_pinned — or "none" -->
 - [ ] Contracts changelog entry if any schema changed, consumers updated here too
 - [ ] No invariant weakened (a blocker is a finding to report, not a rule to bend)
 - [ ] Docs updated — ADR / milestone file / guidelines — if behavior or interfaces changed
-- [ ] Any Drizzle migration is named in the Migrations section above, and the dispatch handed to Mitchell
+- [ ] Any Drizzle migration is named in the Migrations section above and is backward-compatible with the running code
 - [ ] Conventional commits, one logical change each
 
 ## Known issues

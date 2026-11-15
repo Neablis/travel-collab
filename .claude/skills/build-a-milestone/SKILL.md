@@ -65,7 +65,8 @@ one sub-skill per stage and hands every hands-on step to a subagent.
   one tier and note it, never retry in a loop.
 - **Merges are Mitchell's** unless he says otherwise: the top part's PR, then part 0. After the
   top merges, close each lower draft PR with one line naming the merge commit.
-  `migrate-production` is always his.
+  Production migrations apply themselves: `deploy-production` migrates on the merge, before it
+  deploys (ADR-091). A red `deploy-production` run after a merge is his to see, so say so.
 - Never run the live eval (`pnpm --filter web eval`) without asking him first.
 - Never poll with `sleep`. Wait by ending the turn: subagent reports and your check-ins wake the
   session.

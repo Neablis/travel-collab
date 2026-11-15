@@ -313,8 +313,8 @@ production-shaped data, and Drizzle's migrator runs in one transaction,
 so `CREATE INDEX CONCURRENTLY` is unavailable (see the comment in
 `apps/web/drizzle/0058_perf_indexes.sql`) — dispatch off-peak and treat
 the migration as a production event, not a drive-by. Merging a migration
-does not apply it; production migrations are dispatched via
-`gh workflow run migrate-production.yml -f confirm=migrate` from `main`.
+applies it within minutes: `deploy-production` migrates on every push to
+`main`, before it deploys (ADR-091), so merge it off-peak.
 
 ### 3.9 Board first paint: duplicate guests query, unbounded history (small + medium, code)
 

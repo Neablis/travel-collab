@@ -118,7 +118,7 @@ run, then `--confirm`), the STATUS update, and the plan's deletion (`docs/plans/
 is marked ready before its CI is relied on.
 
 **Mitchell merges the top part's PR** ("Create a merge commit"), which lands the whole milestone in
-one merge, dispatches `migrate-production` once if any part added a migration, then merges part 0.
+one merge (`deploy-production` applies any migration before it deploys, ADR-091), then merges part 0.
 The orchestrator then closes each lower part's draft PR with one line naming the merge commit:
 its commits are on `main` through the top.
 
@@ -191,7 +191,7 @@ the gate close refuses without it. The block carries the cost broken down by mod
 ## Standing rules
 
 - **Merges are Mitchell's** unless he says otherwise, and there are two: the top part's PR, then
-  part 0. Nothing in the build waits on one. `migrate-production` is always his.
+  part 0. Nothing in the build waits on one. Migrations apply on the merge (`deploy-production`, ADR-091).
 - **Never run the live eval without asking him first.** `pnpm --filter web eval` costs money. The
   grader's own tests are free.
 - **Speak to Mitchell on a finding, a failure, a merge or a question.**

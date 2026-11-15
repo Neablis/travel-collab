@@ -12,8 +12,8 @@ name: ci
 # "looks wasteful".
 on:
   # Pull requests only. A push to `main` used to re-run all of this to gate an
-  # automatic production migration; that migration is now dispatched
-  # explicitly (`.github/workflows/migrate-production.yml`), so re-testing the
+  # automatic production migration; that migration is now applied by
+  # `.github/workflows/deploy-production.yml` (ADR-091), so re-testing the
   # merge result bought nothing the pull-request run — which runs against
   # `refs/pull/N/merge`, i.e. the same tree that lands — had not already
   # proven. It cost ~456 billed minutes a month, 23% of the total.
@@ -37,8 +37,8 @@ on:
 
 # Supersede an in-flight run when a newer commit lands on the same PR. Safe to
 # make unconditional now that this workflow only ever runs on pull requests —
-# nothing here touches production. The one job that does
-# (`migrate-production.yml`) sets `cancel-in-progress: false` for exactly the
+# nothing here touches production. The ones that do (`deploy-production.yml`,
+# `migrate-production.yml`) set `cancel-in-progress: false` for exactly the
 # reason this sets it true: cancelling a migration mid-apply is unrecoverable.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

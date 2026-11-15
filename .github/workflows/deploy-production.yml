@@ -1,0 +1,120 @@
+name: deploy-production
+
+# THE ONLY WAY `main` REACHES PRODUCTION (ADR-091, Mitchell, 2026-11-15): apply
+# pending migrations, then deploy. Coolify's Auto Deploy is OFF on
+# `caesura-web`, so a push to `main` builds nothing on its own; this workflow
+# replaces it.
+#
+# Why: production used to deploy on merge (Coolify's own webhook) while
+# migrations waited for a human to dispatch `migrate-production`. PR 752's
+# migration 0078 sat unapplied for about 20 hours and every OAuth Allow
+# answered 500 (KI-2026-11-15-b). `migration-pending` went red and stopped
+# nothing. Mitchell: "I forget to run migrations." So the order is now
+# mechanical: migrate, check, deploy — and a failed migration deploys nothing.
+#
+# What this asks of every migration: it must work with the code that is
+# ALREADY running, because it is applied minutes before the new code serves
+# (expand/contract; `docs/guidelines/environments-and-deploys.md`, *Migrations
+# run before the code that needs them*).
+#
+# Ordering. One group with `migrate-production`, never cancelled: a migration
+# must not be killed mid-apply, and two migrators must not overlap. GitHub keeps
+# one running and ONE pending run per group; a newer pending run replaces an
+# older one before it starts. That is safe here: the newer run migrates
+# everything the older would have, and deploys a newer `main`. One way it is
+# not: a manual `migrate-production` dispatched while a deploy is pending
+# replaces that deploy. Re-run this workflow by hand afterwards.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Checkout + install (~1 min) + migrate (seconds) + a Coolify build (one
+    # `next build` at a time on the box, so it can queue behind a preview).
+    # The wait below gives up at 30 min; this is the runaway cap above it, and
+    # it cannot fire mid-migration, which is done in the first two minutes.
+    timeout-minutes: 45
+    steps:
+      - name: Refuse any ref but main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Production deploys only from main, not ${GITHUB_REF}."
+          exit 1
+
+      # No token in `.git/config`: nothing here needs git auth, and
+      # `pnpm install` runs third-party code (zizmor `artipacked`).
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+
+      # Shape before database. A journal with a duplicate idx or an orphan .sql
+      # is not something to apply. `--ref HEAD`: on main the baseline is this
+      # commit, so only the shape rules run.
+      - name: Journal shape
+        run: node scripts/check-migration-journal.mjs --ref HEAD
+
+      # Always run, rather than first asking whether anything is pending: the
+      # question costs the same install and one SELECT that drizzle-kit's own
+      # no-op costs, and a second code path is a second thing to be wrong.
+      - name: Apply pending migrations
+        run: pnpm --filter web db:migrate
+        env:
+          # The UNPOOLED/direct string: DDL does not go through PgBouncer.
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+      # drizzle-kit prints success even when it skipped an entry older than the
+      # newest applied one (environments-and-deploys.md). This is the check that
+      # does not trust it: exit 1 if anything in this tree is still missing.
+      - name: Is production at this tree?
+        run: pnpm --filter web db:state
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+      # Coolify builds the head of `main`, not this commit. If main has moved,
+      # a newer run is queued behind this one: it will migrate the newer tree
+      # and then deploy it. Deploying now would serve that newer code before its
+      # migration, which is the bug this workflow exists to end.
+      - name: Is this still the head of main?
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          head=$(gh api "repos/$REPO/commits/main" --jq .sha)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "main is at ${head:0:7}, past this run's ${GITHUB_SHA:0:7}: migrated, and the newer run deploys." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Deploy caesura-web and wait for it
+        if: steps.head.outputs.current == 'true'
+        shell: bash
+        env:
+          COOLIFY_URL: https://coolify.caesura.today
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}
+        run: node scripts/coolify-deploy.mjs | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # A report, not a gate: a push that lands during the build can make the
+      # live commit newer than this one, which is fine.
+      - name: What production serves now
+        if: steps.head.outputs.current == 'true'
+        run: |
+          live=$(curl -fsS --max-time 20 https://caesura.today/api/health | jq -r .version || echo unknown)
+          echo "caesura.today serves ${live}; this run deployed main at ${GITHUB_SHA}." | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$live" != "$GITHUB_SHA" ]; then
+            echo "::warning::caesura.today reports version ${live}, not ${GITHUB_SHA}."
+          fi

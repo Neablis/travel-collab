@@ -346,6 +346,41 @@ test("PROD MIGRATIONS says all applied when the last run contains the newest", (
   assert.match(stdout, /PROD MIGRATIONS: all 2 applied — last migrate-production run \w{7} 2026-09-25 contains 0001_second/);
 });
 
+test("PROD MIGRATIONS counts a deploy-production run newer than the last manual migrate-production run", () => {
+  // ADR-091: deploy-production applies migrations on every push to main, so
+  // the last manual dispatch is no longer the newest evidence. Asking only
+  // migrate-production would call every migration since the last dispatch NOT
+  // applied — the stale "dispatch it" line the digest exists to stop.
+  const dir = makeFixture();
+  const git = (...args) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  git("init", "-q");
+  git("config", "user.email", "t@t");
+  git("config", "user.name", "t");
+  const shas = [];
+  const entries = [];
+  for (const tag of ["0000_first", "0001_second"]) {
+    entries.push({ idx: entries.length, tag });
+    mkdirSync(join(dir, "apps/web/drizzle/meta"), { recursive: true });
+    writeFileSync(join(dir, `apps/web/drizzle/${tag}.sql`), "select 1;\n");
+    writeFileSync(join(dir, "apps/web/drizzle/meta/_journal.json"), JSON.stringify({ entries }));
+    git("add", "-A");
+    git("commit", "-q", "-m", tag);
+    shas.push(git("rev-parse", "HEAD"));
+  }
+  const manual = JSON.stringify([{ headSha: shas[0], createdAt: "2026-11-10T07:00:00Z" }]);
+  const deploy = JSON.stringify([{ headSha: shas[1], createdAt: "2026-11-15T07:00:00Z" }]);
+  const bin = makeBin({
+    gh: `#!/bin/sh\ncase "$4" in migrate-production.yml) echo '${manual}';; deploy-production.yml) echo '${deploy}';; *) echo '[]';; esac\n`,
+  });
+  const { status, stdout } = runDigest([dir], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  assert.equal(status, 0);
+  assert.match(stdout, /PROD MIGRATIONS: all 2 applied — last deploy-production run \w{7} 2026-11-15 contains 0001_second/);
+});
+
 test("PROD MIGRATIONS says unverified, never NOT applied, when the last run's head is not fetched", () => {
   // KI-2026-10-18-c: `merge-base --is-ancestor` against a commit this clone
   // does not have fails, and that failure used to read as "not an ancestor",

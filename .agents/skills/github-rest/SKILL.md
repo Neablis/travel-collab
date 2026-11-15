@@ -73,7 +73,7 @@ gh api -X POST $R/actions/runs/<run-id>/rerun
 gh api -X DELETE $R/git/refs/heads/<branch>
 ```
 
-Not yours: merging (Mitchell merges, `AGENTS.md`), `migrate-production` (his dispatch), and
+Not yours: merging (Mitchell merges, `AGENTS.md`), `migrate-production` (his break-glass dispatch; `deploy-production` migrates on every push to `main`, ADR-091), and
 `ccr/auto_merge`. A body or title still may not carry a model id: `pr-tool-guard.mjs` checks
 the MCP tools and `draft-pr-guard.mjs` checks `gh pr create|edit`, so on `gh api` the rule is
 yours to keep by hand. A comment ends with whatever attribution lines the session's own

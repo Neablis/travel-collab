@@ -440,8 +440,9 @@ workflow instead, in up to three steps from `main`. Previews import
 automatically on every build (without `--prune`; see
 `environments-and-deploys.md`); production never does:
 
-1. **`migrate-production`** — `confirm: migrate`. Only when a migration is
-   pending; `source_bundle` (0018) is one.
+1. **Migrations apply themselves**: `deploy-production` runs them on every push
+   to `main`, before it deploys (ADR-091). `migrate-production` (`confirm: migrate`)
+   is the break-glass if that run is red.
 2. **`import-content-production`** — `confirm: import`, `dry_run` **on** first.
    Re-dispatch with it off once the plan looks right.
 3. **`backfill-countries-production`** — `confirm: backfill`. Only after a

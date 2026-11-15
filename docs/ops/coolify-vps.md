@@ -120,9 +120,30 @@ database. There is no Upstash Vector, and no index to move.
 
 ## Deploy
 
-`main` deploys to production. Production's build never migrates (ADR-004): the
-schema changes by dispatching `migrate-production`, and `build-migrate.mjs`
-prints `skipped (APP_ENV=production)`.
+`main` deploys to production through `.github/workflows/deploy-production.yml`,
+on every push (ADR-091): it applies pending migrations, checks production has
+them all, then deploys `caesura-web` through Coolify's API and waits for the
+deployment to finish. A failed migration deploys nothing. Production's build
+never migrates: `build-migrate.mjs` prints `skipped (APP_ENV=production)`.
+
+**Required setting: Auto Deploy is OFF on `caesura-web`** (Configuration →
+Advanced). With it on, Coolify's GitHub webhook deploys the push before the
+workflow has migrated it, which is how PR 752's code served for 20 hours
+without migration 0078 (KI-2026-11-15-b). Check it after any change to the
+application's Git source.
+
+What the workflow needs: the `COOLIFY_API_TOKEN` repository secret with `deploy`
+(to queue it) and `read` (to follow it to finished), alongside the `write` and
+`delete` previews use; the `COOLIFY_APP_UUID` variable; `PRODUCTION_DATABASE_URL`.
+The call is `POST /api/v1/deploy?uuid=<app>&force=false` (`GET` answers "use
+POST" on v4.7.5), then `GET /api/v1/deployments/<deployment uuid>` until its
+`status` is `finished`, `failed` or `cancelled-by-user`
+(`scripts/coolify-deploy.mjs`).
+
+By hand: Actions → *deploy-production* → Run workflow on `main` (migrates, then
+deploys the head). The dashboard's Redeploy and redeploying an older deployment
+(*Rollback*, below) still work and skip the migration step, which is fine: the
+schema only moves forward, and every migration works with the code deployed before it (ADR-091).
 
 ### Traefik labels are hand-edited (2026-11-09)
 
@@ -244,7 +265,10 @@ the Vercel project is kept (to be **paused, not deleted**), so it can serve agai
 only rollback is the first one below.
 
 - **The new deploy is bad, the box is fine:** Coolify → `caesura-web` → Deployments
-  → redeploy the previous one. Minutes.
+  → redeploy the previous one. Minutes. The schema stays where it is: migrations
+  are forward-only, and expand/contract (ADR-091) is what keeps older code working
+  against it. The next push to `main` deploys its head again through
+  `deploy-production`.
 - **The box is bad:** un-pause the Vercel project, then repoint the apex and
   `www` A records in the Cloudflare zone back to Vercel (`76.76.21.21`, or the
   values Vercel's domain page gives). The preview and staging hosts can stay

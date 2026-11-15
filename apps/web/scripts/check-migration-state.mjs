@@ -1,14 +1,12 @@
 // Says whether the database at DATABASE_URL has actually had this tree's
 // migrations applied — the detector KI-2026-09-05-k was filed for.
 //
-// WHY THIS EXISTS. Production deploys on merge; production migrations are
-// applied only when someone dispatches `.github/workflows/migrate-production.yml`
-// (ADR-004, decided 2026-08-27 for CI cost — deliberate, and not the problem).
-// The problem was that between those two moments NOTHING said so. Code reading
-// a column the migration adds 500s, and users find out first. This script is
-// what `.github/workflows/migration-pending.yml` runs on every push to `main`
-// that touches `apps/web/drizzle/**`, and it is what a human runs (via the same
-// workflow's `workflow_dispatch`) to answer "is production actually at 0018?".
+// WHY THIS EXISTS. It was built when production deployed on merge and
+// migrations waited for a human dispatch, and nothing said the two had come
+// apart. Since ADR-091 `.github/workflows/deploy-production.yml` migrates and
+// then runs this, before it deploys: a red here deploys nothing. A human runs
+// it through `migration-pending.yml`'s `workflow_dispatch` to answer "is
+// production actually at 0018?" without applying anything.
 //
 // It is read-only. It issues one SELECT and applies nothing, so it is safe to
 // point at production and safe to run while a migration is in flight.
