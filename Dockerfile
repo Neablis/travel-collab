@@ -6,7 +6,7 @@
 # Three stages. `build` is the only one with the toolchain: it migrates the
 # preview database when, and only when, `apps/web/scripts/build-migrate.mjs`
 # says so (APP_ENV=preview and PREVIEW_DB_IS_DISPOSABLE=true; production is
-# migrated by dispatching migrate-production, never here, ADR-004), copies the
+# migrated by deploy-production.yml before it deploys, never here, ADR-091), copies the
 # map worker, and runs `next build`. `runtime` is the standalone server and
 # nothing else.
 

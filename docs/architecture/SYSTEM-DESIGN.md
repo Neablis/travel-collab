@@ -329,8 +329,10 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 
 ## 9. Delivery rules that bite
 
-- **Production migrations are a manual dispatch** of `migrate-production.yml` from `main`. Merging applies
-  nothing. Preview builds migrate automatically, and only against a database flagged disposable.
+- **Production migrates before it deploys**: `deploy-production.yml` runs on every push to `main`, applies
+  pending migrations, and only then deploys; Coolify's Auto Deploy is off. So every migration must work with the
+  code already running (expand/contract, ADR-091). Preview builds migrate automatically, and only against a
+  database flagged disposable.
 - **Previews never share production's database** (they did until 2026-09-06).
 - **CI is skipped for drafts**, and a prose-only branch runs only `ci-ok`. The budget is 2,000 Actions minutes a
   month.
@@ -360,7 +362,8 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 4. **Idempotency keys, billing events and revoked rows are never swept.** PK-only growth, accepted for now.
 5. **Per-request entitlement resolution** and **client-fetched pages** each add a round trip that a cache or
    server rendering would remove.
-6. **Manual production migration.** A merged migration can sit unapplied.
+6. **Expand/contract is a review rule, not a wall** (ADR-091). A migration that breaks the running code breaks
+   production for a build's length, and nothing checks for one mechanically.
 
 ## 11. Decisions worth knowing, and where they are argued
 
@@ -387,6 +390,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 | Plan examples come from pgvector in our own Postgres: hybrid HNSW and full-text search with RRF, embedded on write by a daily sweep, privacy decided in the query | Upstash Vector (a second store with its own lifecycle); Postgres RLS (no precedent here) | 075 |
 | A Claude connector is our own OAuth server in front of a stateless MCP route whose tools call v1's own handlers; every API secret is HMAC-SHA256; registration is open | a hosted identity provider (a vendor and a second user directory); JWT access tokens (cannot be revoked early); a Claude-only redirect allowlist; scrypt (37ms a request for no gain on 256-bit secrets) | 083 |
 | Money is integer minor units, one currency per trip | floats (break bit-identical rebuild); live FX (a projection cannot call an API) | 008 |
+| Production migrates on every push to `main`, then deploys; Coolify Auto Deploy is off; migrations are expand/contract | a human dispatch (forgotten: `0078` sat 20 h behind live code); holding the deploy until someone dispatches (still a step to forget); migrating at container start | 004, 091 |
 
 **ADR status that is easy to misread**
 

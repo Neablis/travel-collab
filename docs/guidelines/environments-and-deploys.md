@@ -80,26 +80,46 @@ Rules (ADR-004 + M1 retro):
   the half of it that automation can enforce.
 - Migrations are applied by automation only (see below), never `drizzle-kit migrate`
   run by hand against a remote database.
-- Production migrations: **explicitly dispatched**, never automatic. Run the
-  `migrate-production` workflow (`.github/workflows/migrate-production.yml`)
-  from `main` — Actions → migrate-production → Run workflow, or
-  `gh workflow run migrate-production.yml -f confirm=migrate`. It refuses any
-  ref other than `refs/heads/main` and requires `migrate` typed into the confirm
-  field. It uses the `PRODUCTION_DATABASE_URL` repo secret (the UNPOOLED/direct
-  connection string — DDL should not run through PgBouncer).
-  **A merged migration stays pending until someone dispatches this.** It used to
-  ride along on a push to `main`; that gating cost 23% of the repo's monthly CI
-  minutes, so it was traded for an explicit step (2026-08-27 — see
-  `ci-cost-and-capacity.md`). The rule above still holds: the *trigger* is
-  manual, the *execution* is still automation, and the connection string never
-  reaches a laptop shell.
+- Production migrations: **applied automatically, before every deploy**
+  (ADR-091, 2026-11-15). `.github/workflows/deploy-production.yml` runs on
+  every push to `main`: journal shape, `db:migrate` against the
+  `PRODUCTION_DATABASE_URL` repo secret (the UNPOOLED/direct connection string —
+  DDL should not run through PgBouncer), `db:state` to confirm production has
+  every migration in the tree, and only then a Coolify deploy of `caesura-web`,
+  which it waits on. **A failed migration deploys nothing.** Coolify's Auto
+  Deploy is off on `caesura-web` (`docs/ops/coolify-vps.md`, *Deploy*), so this
+  workflow is the only way `main` reaches production.
+  From 2026-08-27 to 2026-11-15 the trigger was a human dispatch while Coolify
+  deployed on push; a merged migration sat pending until someone remembered,
+  and `0078` sat for about 20 hours behind live code (KI-2026-11-15-b).
+  `migrate-production.yml` is still there as a break-glass manual dispatch from
+  `main` (`gh workflow run migrate-production.yml -f confirm=migrate`). The
+  execution is automation either way, and the connection string never reaches
+  a laptop shell.
 
-  **What tells you a migration is pending** (all three added by KI-2026-09-05-k;
+  **Migrations run before the code that needs them, so every migration must
+  work with the code already running.** The old code serves against the new
+  schema for the length of a build, and indefinitely if that build fails. So
+  migrations are **expand/contract**:
+
+  - **Expand, one PR:** add a table, an index, a nullable column or one with a
+    default. The running code ignores what it does not know about.
+  - **Contract, two PRs:** to drop or rename a column or table, add `NOT NULL`
+    to a column the running code does not write, or narrow a type, first merge
+    a PR that stops the code using it, let it deploy, and only then merge the
+    migration that removes it. A rename is add, backfill, switch reads and
+    writes, then drop.
+
+  Nothing checks this mechanically: whether a `DROP` is safe depends on what
+  the running code reads. The PR template's Migrations section asks it.
+
+  **What tells you a migration is pending** (the last three added by KI-2026-09-05-k;
   before them, the PR body was the only control and nothing checked it):
 
   | | |
   |---|---|
-  | `.github/workflows/migration-pending.yml` | Every push to `main` touching `apps/web/drizzle/**` asks production whether it has them, and fails if not. `workflow_dispatch` runs the same read-only check by hand — that is how you answer "is production actually at 0018?" without applying anything. |
+  | `.github/workflows/deploy-production.yml` | Runs the check below after migrating, on every push to `main`, and deploys nothing if production is still behind. A red run is the alarm. |
+  | `.github/workflows/migration-pending.yml` | `workflow_dispatch` only: the same read-only check by hand — how you answer "is production actually at 0018?" without applying anything. Its push trigger was removed by ADR-091, because it raced deploy-production's migration. |
   | `pnpm --filter web db:state` | The same check locally against any `DATABASE_URL`. Exit 0 applied, 1 pending, 2 could-not-tell. |
   | `pnpm lint` → `scripts/check-migration-journal.mjs` | Refuses a migration whose `when` is not newer than `origin/main`'s newest, before it can merge. |
 
@@ -113,7 +133,7 @@ Rules (ADR-004 + M1 retro):
   cause of the 500 was unrelated (`lookup_keys` sent as a scalar), and every
   minute spent on the wrong theory was available to be spent on the right one.
 
-  So: **the database answers this question, and the three rows above ask it.**
+  So: **the database answers this question, and the rows above ask it.**
   `pnpm --filter web db:state` is one command, works against any
   `DATABASE_URL`, and exits 1 when something is genuinely pending. Ask it before
   you tell anyone a migration is outstanding. Prose in this repository records
@@ -160,7 +180,7 @@ Rules (ADR-004 + M1 retro):
 
 ## Which pushes build a preview
 
-**Coolify builds `main` to production on every push. A PR gets a preview only
+**`deploy-production` builds `main` to production on every push, after migrating. A PR gets a preview only
 while it carries the `preview` label.** The preview lives at
 `https://<pr number>.preview.caesura.today` (a wildcard A record on the VPS).
 `.github/workflows/coolify-preview.yml` opens it through Coolify's API when the

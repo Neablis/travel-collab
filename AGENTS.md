@@ -298,12 +298,14 @@ point: they describe the change, not the ceremony around it.
 - Docs updated when behavior or interfaces changed (ADR for irreversible
   decisions, changelog for contracts).
 - **If the change adds a Drizzle migration, say so in the PR template's
-  Migrations section.** Merging does not apply it: production migrations are
-  dispatched via `gh workflow run migrate-production.yml -f confirm=migrate`,
-  from `main`. `pnpm lint` fails a migration not newer than `origin/main`'s
-  newest (`scripts/check-migration-journal.mjs`, KI-2026-09-05-k), and
-  `migration-pending.yml` asks production on every push to `main` touching
-  `apps/web/drizzle/**`. `docs/guidelines/environments-and-deploys.md`.
+  Migrations section, and it must work with the code already running.**
+  Merging applies it: `deploy-production.yml` migrates on every push to `main`
+  and only then deploys (ADR-091), so the old code serves against the new
+  schema for a build's length. Expand in one PR; drop, rename or tighten in two
+  (stop using it, deploy, then remove). `pnpm lint` fails a migration not newer
+  than `origin/main`'s newest (`scripts/check-migration-journal.mjs`,
+  KI-2026-09-05-k). `docs/guidelines/environments-and-deploys.md`, *Migrations
+  run before the code that needs them*.
 - The PR uses `.github/PULL_REQUEST_TEMPLATE.md`, its **Verification actually
   performed** section filled in honestly, including the tier and why. A skipped
   step goes on the "Not run, and why" line — four consecutive M10 phases

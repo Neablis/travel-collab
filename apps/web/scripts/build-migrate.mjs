@@ -1,10 +1,9 @@
 // Runs drizzle migrations, then imports `content/`, during the build —
 // PREVIEW ONLY, and only against a database the operator has explicitly marked
 // disposable.
-// Production is migrated by explicitly dispatching
-// .github/workflows/migrate-production.yml (per ADR-004's "explicit
-// CI/deploy step" rule — a dispatch is more explicit than the post-merge job
-// this replaced, not less).
+// Production is migrated by .github/workflows/deploy-production.yml, as an
+// explicit CI step before it deploys (ADR-004's "never implicitly at cold
+// start", ADR-091's "before the code that needs it"), never by a build.
 //
 // **Why there are two conditions and not one.** For six weeks the only check
 // here was `VERCEL_ENV === "preview"`, which asks where the BUILD is running

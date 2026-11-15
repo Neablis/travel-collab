@@ -13,8 +13,8 @@ are the job ids; the PR's check list shows them as `static / typecheck`,
 `test / e2e (1/2)`, `(2/2)`. Around them: `changes` decides whether the PR is
 prose-only (then all seven skip), and `ci-ok` is the one required check — it
 is red whenever any of the seven is, so triage the job it names, not it. It runs on pull requests only — pushes to `main` no longer
-trigger CI, and production migrations are a separate, manually dispatched
-workflow (`migrate-production.yml`). Triage only the jobs that failed; don't
+trigger CI, and production migrations run in `deploy-production.yml`, before each
+deploy (ADR-091). Triage only the jobs that failed; don't
 fetch the rest.
 
 **Before triaging, check the PR isn't a draft.** Every job is gated on

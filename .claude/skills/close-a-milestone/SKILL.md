@@ -51,7 +51,7 @@ call.
      anything worth keeping to an ADR, the milestone file or a known issue.
 6. **Push, then mark part 0 ready** before relying on its CI: a draft runs nothing.
 7. **Merges.** Mitchell merges the top part's PR ("Create a merge commit"), which lands every
-   part, then part 0. If any part added a migration, remind him to dispatch `migrate-production`
-   once; re-read the workflow runs before calling it outstanding. Then close each lower part's
+   part, then part 0. If any part added a migration, `deploy-production` applies it on the merge,
+   before it deploys (ADR-091): read that run, and report it if it is red. Then close each lower part's
    draft PR with one line naming the top's merge commit. Then `rm "$(git rev-parse --absolute-git-dir)/tc-orchestrator"`, which lifts the
    no-code guard `build-a-milestone` set.

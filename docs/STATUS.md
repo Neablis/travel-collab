@@ -214,9 +214,9 @@ Three standing facts, kept here because each is instruction rather than history 
 nothing in CI will tell you when one is broken. The narrative each came from is in
 `docs/retros/2026-09-11-status-archive.md`.
 
-- **Merging does not apply a migration.**
-  `gh workflow run migrate-production.yml -f confirm=migrate`, from `main`, is the only thing
-  that applies one. Whether production is current is **computed, not written here**: `pnpm
+- **Merging applies a migration, before the deploy** (ADR-091, 2026-11-15).
+  `deploy-production` migrates on every push to `main` and deploys nothing if that fails;
+  `migrate-production` is the break-glass. Whether production is current is **computed, not written here**: `pnpm
   state`'s `PROD MIGRATIONS` line, or the row count of `drizzle.__drizzle_migrations` on the
   production branch against `apps/web/drizzle/meta/_journal.json`. *(This entry said
   "Production is at `0020`" for two weeks after `0021`-`0031` shipped; the one before it said

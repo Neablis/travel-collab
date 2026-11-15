@@ -214,12 +214,12 @@ Four details that are easy to get wrong and were each got wrong once:
   seven prose files ran `static-and-unit` and `integration-e2e` in full. This
   is also why `AGENTS.md`'s Tier 1 is defined on the branch, not the commit.
 
-- **`ci.yml` cancels unconditionally; `migrate-production.yml` never does.**
+- **`ci.yml` cancels unconditionally; the production workflows never do.**
   `ci.yml` only runs on pull requests now, and nothing there touches production,
-  so superseding an in-flight run is always safe. The production migration
-  workflow sets `cancel-in-progress: false` and a `concurrency` group of its own
-  for exactly the opposite reason: cancelling a migration mid-apply is
-  unrecoverable, and two overlapping ones are worse.
+  so superseding an in-flight run is always safe. `migrate-production.yml` and
+  `deploy-production.yml` share the `production` group with
+  `cancel-in-progress: false` for exactly the opposite reason: cancelling a
+  migration mid-apply is unrecoverable, and two overlapping ones are worse.
 - **`paths-ignore` lists `*.md`, not `**/*.md`.** `**/*.md` would also match
   `.design-sync/**`, and that tree is a **real build input**:
   `packages/fixtures/src/japan/upstreamDrift.test.ts:33` and
@@ -289,7 +289,29 @@ next quarter:
   means rebuilding those jobs around `docker-compose.yml`. Separately, `claude/*`
   branches push at 00:59–04:54 UTC, so a laptop runner queues while asleep.
 
+## Every push to `main` now runs `deploy-production` (2026-11-15)
+
+ADR-091 reverses the section below for production migrations. `main` gets one
+workflow run per push again, `deploy-production.yml`: checkout and install
+(~1 min), `db:migrate` and `db:state` (seconds), then a wait on Coolify's build
+of `caesura-web`, which is a `next build` on the VPS, one at a time, and can
+queue behind a preview. Expect **a few minutes of runner time per merge**, most
+of it waiting; nothing re-runs a test suite. The repo is public, so these minutes
+are not billed; what it costs is that the `production` concurrency group is held
+for the length of a build, so a burst of merges queues (GitHub keeps the newest
+pending run, which deploys all of them).
+
+It does **not** bring back the 456 minutes/month below: those were three test
+jobs gating the migration. The gate now is the PR's own CI plus `db:state`
+after migrating. `migration-pending.yml` lost its push trigger in the same
+change (deploy-production runs its check), so the net is one job per push to
+`main` instead of one per push touching `apps/web/drizzle/**`.
+
 ## The last gate: migrations are now explicit
+
+> **Superseded for production on 2026-11-15 by ADR-091** (section above). The
+> manual `migrate-production` dispatch is now a break-glass, not the only way.
+> Kept as the record of why `ci.yml` still does not run on `main`.
 
 Mitchell's call, 2026-08-27. `main` no longer runs CI at all, and
 `migrate-production` moved out of `ci.yml` into its own

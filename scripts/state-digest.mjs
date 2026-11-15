@@ -249,13 +249,14 @@ function readPullRequests(root, { skip }) {
  * Mitchell as an outstanding operator task. A sentence about production is
  * true on the day it is written and never again, so the digest derives it:
  * a migration is applied when the commit that ADDED its file is an ancestor of
- * the last successful migrate-production run's head.
+ * the last successful deploy-production or migrate-production run's head.
  *
  * Without `gh` it cannot know, and says so with the exact check to make —
  * "unverified" is the honest answer, and STATUS prose is not a substitute.
  */
 const MIGRATIONS_DIR = "apps/web/drizzle";
 const PENDING_MAX = 5;
+const MIGRATING_WORKFLOWS = ["migrate-production", "deploy-production"];
 
 const JOURNAL = `${MIGRATIONS_DIR}/meta/_journal.json`;
 const MAIN_REF = "origin/main";
@@ -312,24 +313,31 @@ function readProductionMigrations(root, { skip }) {
   const base = { total: entries.length, newest, ref, branchAdds };
   if (skip) return { ...base, unverified: "--no-gh" };
 
-  const out = run(
-    "gh",
-    [
-      "run", "list", "--workflow", "migrate-production.yml", "--status", "success",
-      "--limit", "1", "--json", "headSha,createdAt",
-    ],
-    { cwd: root, timeout: GH_TIMEOUT_MS },
-  );
-  if (out === null) return { ...base, unverified: "gh unavailable" };
-  let last;
-  try {
-    last = JSON.parse(out)[0];
-  } catch {
-    return { ...base, unverified: "gh returned unparseable JSON" };
+  // Two workflows apply production migrations since ADR-091: deploy-production
+  // on every push to main (migrate, then deploy), and migrate-production by
+  // hand. The newer successful run of either is the one to ask. A
+  // deploy-production run whose deploy failed after its migrate succeeded is
+  // not a success, so it is not counted: that errs towards "pending", never
+  // towards "applied".
+  let last = null;
+  for (const workflow of MIGRATING_WORKFLOWS) {
+    const out = run(
+      "gh",
+      ["run", "list", "--workflow", `${workflow}.yml`, "--status", "success", "--limit", "1", "--json", "headSha,createdAt"],
+      { cwd: root, timeout: GH_TIMEOUT_MS },
+    );
+    if (out === null) return { ...base, unverified: "gh unavailable" };
+    let found;
+    try {
+      found = JSON.parse(out)[0];
+    } catch {
+      return { ...base, unverified: "gh returned unparseable JSON" };
+    }
+    if (found?.headSha && (!last || String(found.createdAt) > String(last.createdAt))) last = { ...found, workflow };
   }
   if (!last?.headSha) return { ...base, lastRun: null, pending: entries.slice(-PENDING_MAX).map((e) => e.tag) };
 
-  const lastRun = { sha: String(last.headSha), date: String(last.createdAt ?? "").slice(0, 10) };
+  const lastRun = { sha: String(last.headSha), date: String(last.createdAt ?? "").slice(0, 10), workflow: last.workflow };
   // `merge-base --is-ancestor` against a commit this clone does not have
   // fails, and `run` cannot tell that failure from "not an ancestor" — so an
   // unfetched head once read as "5+ NOT applied" for a run that had applied
@@ -462,18 +470,18 @@ function render(d) {
     if (p.unverified) {
       out.push(
         `PROD MIGRATIONS: unverified (${p.unverified}) — newest is ${p.newest.tag}, added in ` +
-          `${short(p.newest.sha)}; it is applied iff the last successful migrate-production run's head contains that commit. STATUS prose is not evidence.${cite}`,
+          `${short(p.newest.sha)}; it is applied iff the last successful deploy-production or migrate-production run's head contains that commit. STATUS prose is not evidence.${cite}`,
       );
     } else if (!p.lastRun) {
-      out.push(`PROD MIGRATIONS: no successful migrate-production run found — dispatch it from main.${cite}`);
+      out.push(`PROD MIGRATIONS: no successful deploy-production or migrate-production run found — see deploy-production's last run.${cite}`);
     } else if (p.pending.length === 0) {
       out.push(
-        `PROD MIGRATIONS: all ${p.total} applied — last migrate-production run ${short(p.lastRun.sha)} ${p.lastRun.date} contains ${p.newest.tag}${cite}`,
+        `PROD MIGRATIONS: all ${p.total} applied — last ${p.lastRun.workflow} run ${short(p.lastRun.sha)} ${p.lastRun.date} contains ${p.newest.tag}${cite}`,
       );
     } else {
       out.push(
         `PROD MIGRATIONS: ${p.pending.length}${p.pending.length === PENDING_MAX ? "+" : ""} NOT applied (${p.pending.join(", ")}) — ` +
-          `last run ${short(p.lastRun.sha)} ${p.lastRun.date}; dispatch migrate-production from main.${cite}`,
+          `last ${p.lastRun.workflow} run ${short(p.lastRun.sha)} ${p.lastRun.date}; deploy-production applies them on the push that merges them, so it is still running or red — read its run.${cite}`,
       );
     }
     if (p.branchAdds.length > 0) {

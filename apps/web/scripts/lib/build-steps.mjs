@@ -23,7 +23,7 @@ export function buildSteps(environment) {
         "\n" +
         "To fix: point the Preview scope's DATABASE_URL at a preview branch, then set\n" +
         "PREVIEW_DB_IS_DISPOSABLE=true on the Preview scope ONLY. Never set it on\n" +
-        "Production — production is migrated by dispatching migrate-production.",
+        "Production — production is migrated by deploy-production, before it deploys.",
     };
   }
   return {

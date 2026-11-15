@@ -50,3 +50,14 @@ Supporting decisions:
 - Rejected B: hermetic multi-machine dev wasn't a requirement; revisit only
   if development regularly spans machines/devcontainers.
 - Rejected C: machine-state pollution and version drift vs Neon.
+
+## Amendment — 2026-11-15: production migrates before every deploy (ADR-091)
+
+*Migrations run via drizzle-kit as an explicit CI/deploy step* still holds. From 2026-08-27
+to 2026-11-15 that step was a manual dispatch of `migrate-production.yml`, while the host
+deployed `main` on its own; PR 752's migration `0078` then sat unapplied for about 20 hours
+behind live code (KI-2026-11-15-b). Since ADR-091, `.github/workflows/deploy-production.yml`
+applies pending migrations on every push to `main` and only then deploys, with the host's
+auto-deploy off. So every migration must now be backward-compatible with the code already
+running (expand/contract), as ADR-091 and the environments guideline state; review
+enforces it, not a wall.
