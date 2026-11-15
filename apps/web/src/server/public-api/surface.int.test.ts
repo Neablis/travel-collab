@@ -265,7 +265,7 @@ describe("the planning writes, through v1 only", () => {
 });
 
 describe("the scopes actually separate", () => {
-  // The eighth scope, and the gap writing the list in plain language found: a
+  // The sharing scope, and the gap writing the list in plain language found: a
   // token minted to sync an itinerary must not be able to hand a stranger
   // editor rights.
   it("will not let trips:write create a share link", async () => {

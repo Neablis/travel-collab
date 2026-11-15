@@ -99,6 +99,15 @@ interface BaseDef {
   /** The single scope a token must hold. A session holds every scope. */
   readonly scope: ApiScope;
   /**
+   * A second scope that also satisfies this endpoint — the narrow `current:*`
+   * twin of a `trips:*` scope (`current:read` for `trips:read`,
+   * `current:write` for `trips:write`). The current-trip question stays in the
+   * handler, via `tripNow`; this only opens the wrapper's gate. A refusal
+   * still names `scope`, and `details.required` stays that one string, so the
+   * wire shape never depends on which of the two the caller holds.
+   */
+  readonly orScope?: ApiScope;
+  /**
    * Answers a Personal Agent's Session that carries no access token (Poppy 5.4,
    * ADR-089 decision 5), and only that: a request with no `Poppy-Session`, or
    * with a credential that fails, is refused as ever. The scope is not asked of
@@ -353,6 +362,7 @@ export interface DeclaredHandler {
   [DECLARED]: {
     readonly method: HttpMethod;
     readonly scope: ApiScope;
+    readonly orScope?: ApiScope;
     readonly trip?: TripSource;
     readonly role?: TripRole;
     readonly kind: "resource" | "collection";
@@ -579,7 +589,11 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     // ---- scope -----------------------------------------------------------
     // **Names the scope it wanted.** That leaks nothing a caller does not
     // already know about its own token, and it saves a support round trip.
-    if (actor.via !== "signed-out" && !actorHasScope(actor, def.scope)) {
+    // With `orScope`, either scope satisfies the endpoint; a refusal still
+    // names the primary one, so `details.required` stays one string.
+    const holdsScope =
+      actorHasScope(actor, def.scope) || (def.orScope !== undefined && actorHasScope(actor, def.orScope));
+    if (actor.via !== "signed-out" && !holdsScope) {
       return fail(
         "insufficient-scope",
         `This token does not hold the "${def.scope}" scope.`,
@@ -745,6 +759,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     [DECLARED]: {
       method,
       scope: def.scope,
+      orScope: def.orScope,
       trip: def.trip,
       role: def.role,
       kind: isCollection(def) ? ("collection" as const) : ("resource" as const),

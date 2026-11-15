@@ -67,6 +67,9 @@ export function savedDayCollection(
   return {
     summary,
     scope: "library:read",
+    // `current:read` carries the library wholesale: a token that may read the
+    // current trips may also read the saved days and Playbooks.
+    orScope: "current:read",
     ...(options.filterable === true ? { query: VisibilityFilter } : {}),
     collection: {
       item,

@@ -229,7 +229,7 @@ Every handler is produced by `route({ METHOD: { scope, trip, role, query, body, 
    never falls back to the cookie. A token minted before migration 0069 is refused as revoked with
    `storage-changed` (`api-tokens/legacyScrypt.ts`, until KI-2026-10-27-e deletes it).
 2. **Rate limit** (tokens only): 1000/hour per token, Postgres counters; store down → 503, fail closed.
-3. **Scope**: nine scopes, a set, not a rank. A session holds all.
+3. **Scope**: eleven scopes, a set, not a rank. A session holds all.
 4. **Shape**: query and body parsed by declared Zod schemas.
 5. **Trip confinement, then membership**: always those two gates in that order.
 6. **Idempotency** (opt-in per POST, ADR-051): key reserved per user before the handler runs; replay returns the

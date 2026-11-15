@@ -5,6 +5,7 @@ import { executePageCommand } from "@/server/pageCommands";
 import { randomUUID } from "node:crypto";
 import { PublicApiError } from "@/server/public-api/commands";
 import { decodeKeyedCursor, keyedCursor, route } from "@/server/public-api/route";
+import { requireCurrentTrip } from "@/server/public-api/current";
 
 // **Textbook single-resource CRUD already**, which is why the Notebook was the
 // easiest thing in the inventory to publish: the read is a projection and the
@@ -17,6 +18,7 @@ export const { GET, POST } = route({
   GET: {
     summary: "List the Notebook pages on a trip",
     scope: "notebook:read",
+    orScope: "current:read",
     trip: "path",
     role: "viewer",
     // **Paged on the key the rows are ordered by, ascending.** This cursor was
@@ -28,7 +30,8 @@ export const { GET, POST } = route({
       item: PageSummary,
       cursorOf: (page: z.infer<typeof PageSummary>) => keyedCursor(page.createdAt, page.id),
     },
-    handle: async ({ params, page }) => {
+    handle: async ({ actor, params, trip, page }) => {
+      requireCurrentTrip(actor, trip!, "notebook:read", "current:read", Date.now());
       const all = await listPages(params["tripId"]!);
       // `listPages` answers with the whole notebook — a trip's pages are tens,
       // not thousands — so the page is taken here rather than pushed into a

@@ -4,6 +4,7 @@ import { MAX_PAGE_BODY_BYTES, getPage } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { PublicApiError } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
+import { requireCurrentTrip } from "@/server/public-api/current";
 
 /** A page that is not this trip's is not found, never someone else's to read. */
 async function ofThisTrip(pageId: string, tripId: string) {
@@ -24,10 +25,14 @@ export const { GET, PATCH, DELETE } = route({
   GET: {
     summary: "Get one Notebook page on a trip",
     scope: "notebook:read",
+    orScope: "current:read",
     trip: "path",
     role: "viewer",
     response: Page,
-    handle: ({ params }) => ofThisTrip(params["pageId"]!, params["tripId"]!),
+    handle: ({ actor, params, trip }) => {
+      requireCurrentTrip(actor, trip!, "notebook:read", "current:read", Date.now());
+      return ofThisTrip(params["pageId"]!, params["tripId"]!);
+    },
   },
   PATCH: {
     summary: "Edit a Notebook page on a trip",

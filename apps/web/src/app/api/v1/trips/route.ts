@@ -4,7 +4,8 @@ import { TripDetail, TripMember, TripSummary } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { withEffectiveMembersByTrip } from "@/server/access/members";
 import { listTripSummariesPage } from "@/server/projections";
-import { activeTripsPage, tripKeyOf } from "@/server/public-api/activeTrips";
+import { activeTripsPage, currentTripsPage, tripKeyOf } from "@/server/public-api/activeTrips";
+import { actorIsCurrentOnly } from "@/server/public-api/current";
 import { orThrow, runCreation, tripDatesCommand } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
 
@@ -32,11 +33,12 @@ export const { GET, POST } = route({
   GET: {
     summary: "List the trips you own or are a member of",
     scope: "trips:read",
+    orScope: "current:read",
     query: z.object({
       active: z
         .enum(["true", "false"])
         .optional()
-        .describe("`true` lists only the trips under way today, by each trip's own zone. An undated trip is never under way. A page may be short, or empty, and still give a cursor to the next one: the scan stops after a fixed number of rows. Keep paging until the cursor is null."),
+        .describe("`true` lists only the trips under way today, by each trip's own zone. An undated trip is never under way. A page may be short, or empty, and still give a cursor to the next one: the scan stops after a fixed number of rows. Keep paging until the cursor is null. A token holding only `current:read` always lists the current trips — under way now or starting soon — with or without this."),
     }),
     collection: {
       item: PublicTripSummary,
@@ -46,6 +48,13 @@ export const { GET, POST } = route({
       cursorOf: (trip: PublicTripSummary) => tripKeyOf(trip),
     },
     handle: async ({ actor, page, query }) => {
+      // A current:-only credential sees only the current trips, whatever it
+      // asked for: the filter is forced server-side, and `?active=` cannot
+      // widen it back to the whole list.
+      if (actorIsCurrentOnly(actor, "trips:read", "current:read")) {
+        const current = await currentTripsPage(actor.userId, page, Date.now());
+        return { ...current, items: await withEffectiveMembersByTrip(db, current.items) };
+      }
       if ((query as { active?: "true" | "false" }).active === "true") {
         const active = await activeTripsPage(actor.userId, page, Date.now());
         return { ...active, items: await withEffectiveMembersByTrip(db, active.items) };
