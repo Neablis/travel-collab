@@ -69,6 +69,7 @@ describe("readPlaybookList", () => {
       length: "any",
       rating: "any",
       tag: "any",
+      visibility: "all",
       after: null,
     };
 

@@ -9,6 +9,7 @@ import {
   DiscoverSort,
   RatingFloor,
   TagFilter,
+  YoursVisibility,
 } from "@/lib/playbooks";
 import { discoverFor } from "@/server/playbooks";
 
@@ -71,6 +72,8 @@ export async function GET(request: Request) {
       rating: RatingFloor.catch("any").parse(params.get("rating")),
       // Ticketed and Lodging are no value of it (ADR-070 §2, §4), so they ask nothing.
       tag: TagFilter.catch("any").parse(params.get("tag")),
+      // *Yours*' public / private question; under any other scope the query ignores it.
+      visibility: YoursVisibility.catch("all").parse(params.get("visibility")),
       // The last card of the page before; one that names no row is page one (`discoverPage`).
       after: params.get("after"),
     },

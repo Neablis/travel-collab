@@ -18,6 +18,7 @@ import {
   type PublicAuthor,
   type RatingFloor,
   type TagFilter,
+  type YoursVisibility,
 } from "@/lib/playbooks";
 import { countryName } from "@/lib/place";
 import { cityKey, countrySlug, slugify } from "@/lib/playbookUrls";
@@ -110,6 +111,13 @@ export type DiscoverQuery = {
    * migration.
    */
   tag?: TagFilter;
+  /**
+   * *Yours* narrowed to the days you have published, or the ones you have not
+   * (`YoursVisibility`). A question about *Yours* only: under any other scope
+   * it asks nothing (`visibilityPredicate`). Optional, and absent is `all`,
+   * because only Discover's own route offers it.
+   */
+  visibility?: YoursVisibility;
   /**
    * Narrow to one person's days — what a public profile is.
    *
@@ -307,7 +315,23 @@ function matchPredicate(query: DiscoverQuery): SQL {
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
     ${lengthPredicate(query.length)}
     ${ratingPredicate(query.rating ?? "any")}
+    ${visibilityPredicate(query.scope, query.visibility ?? "all")}
   `;
+}
+
+/**
+ * *Yours*' public / private question, as SQL — before the candidate window,
+ * like the length band, so the sibling chips and the page are one set.
+ *
+ * **Under *Yours* only.** `scopePredicate` already holds every day of yours,
+ * published or not, there; under *Everyone* or *Saved* the question would
+ * narrow to a sliver of your own days that nobody asked for, so it asks
+ * nothing, whatever a hand-edited URL says. A reader with no account is never
+ * on *Yours* (`discoverFor`), so this cannot open a private day to them.
+ */
+function visibilityPredicate(scope: DiscoverScope, visibility: YoursVisibility): SQL {
+  if (scope !== "yours" || visibility === "all") return sql``;
+  return sql` and d.visibility = ${SavedDayVisibility.enum[visibility]}`;
 }
 
 /**
@@ -663,7 +687,7 @@ export async function discoverDays(query: DiscoverQuery, after: string | null = 
 /** What a Discover request asks for, before the reader is known. */
 export type DiscoverInput = Pick<
   DiscoverQuery,
-  "cities" | "countries" | "scope" | "sort" | "budget" | "length" | "rating" | "tag"
+  "cities" | "countries" | "scope" | "sort" | "budget" | "length" | "rating" | "tag" | "visibility"
 > & {
   /** The page's cursor: the last card of the page before, or absent for page one. */
   after?: string | null;

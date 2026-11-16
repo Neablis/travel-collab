@@ -8,7 +8,9 @@ import {
   RATING_FLOOR_LABELS,
   RATING_FLOORS,
   RatingFloor,
+  YoursVisibility,
   type BudgetBand,
+  type DiscoverScope,
   type TagFilter,
 } from "@/lib/playbooks";
 
@@ -31,12 +33,18 @@ import {
 // A filter id that spelled a plan id or an entitlement is the trap
 // `planVersions.fourthPlan.test.ts` exists to catch.
 
-export type DiscoverFilterId = "rating" | "budget" | "length" | "tag";
+export type DiscoverFilterId = "visibility" | "rating" | "budget" | "length" | "tag";
 
 export type FilterOption = { value: string; label: string };
 
 /** Just the question half of Discover's state — no scope, no sort, no cities. */
-export type FilterState = { rating: RatingFloor; budget: BudgetBand; length: LengthBand; tag: TagFilter };
+export type FilterState = {
+  visibility: YoursVisibility;
+  rating: RatingFloor;
+  budget: BudgetBand;
+  length: LengthBand;
+  tag: TagFilter;
+};
 
 // The picker's categories in its order, Food first, less the one a
 // description never names.
@@ -48,6 +56,12 @@ export type FilterContext = {
    * priced. Budget cannot be offered at all in that case — see below.
    */
   budgetCurrency: string | null;
+  /**
+   * The tab the list is on. Not a filter itself (a place is a tab), but what
+   * a question can mean depends on it: public or private is a question about
+   * *Yours* only.
+   */
+  scope: DiscoverScope;
 };
 
 export type FilterDef = {
@@ -62,7 +76,34 @@ export type FilterDef = {
   apply: (state: FilterState, value: string) => FilterState;
 };
 
+/** What *Yours*' public / private question reads, in the menu and on its chip. */
+const VISIBILITY_LABELS: Record<YoursVisibility, string> = { all: "All", public: "Public", private: "Private" };
+
 export const FILTER_DEFS: readonly FilterDef[] = [
+  {
+    // *Yours* narrowed to the days you have published, or the ones you have
+    // not (Mitchell, 2026-11-16: "There should be a filter when on yours tab
+    // to filter on public/private/all"). A question and not a tab: *Yours* is
+    // still the place, and this narrows it, so it counts toward the badge and
+    // *Clear filters* drops it.
+    //
+    // **Offered on *Yours* only**, which is the one place both kinds of day
+    // are listed. Under *Everyone* every day but yours is public, and under
+    // *Saved* every day is someone else's you took, so the question has no
+    // honest answer there; `null` keeps it off every control, and
+    // `DiscoverScreen` clears it from state when the tab changes (the
+    // server ignores it there too). First in the menu, because on *Yours* it
+    // is the question most likely asked.
+    id: "visibility",
+    label: "Visibility",
+    none: "all",
+    options: ({ scope }) =>
+      scope === "yours"
+        ? YoursVisibility.options.map((value) => ({ value, label: VISIBILITY_LABELS[value] }))
+        : null,
+    value: (state) => state.visibility,
+    apply: (state, value) => ({ ...state, visibility: value as YoursVisibility }),
+  },
   {
     // §35.5's order — Rating, Budget, Length — and the design's `FILTER_DEFS`.
     // It waited for M12 (link 5) because until `saved_days.rating` existed it

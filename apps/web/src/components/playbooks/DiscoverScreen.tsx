@@ -110,7 +110,13 @@ type Filters = DiscoverUrlState & { budget: BudgetBand };
 const NO_FILTERS: Filters = { ...DISCOVER_URL_DEFAULTS, budget: "any" };
 
 /** The question half of the state — what `discoverFilters` counts and clears. */
-const questionsOf = (f: Filters): FilterState => ({ rating: f.rating, budget: f.budget, length: f.length, tag: f.tag });
+const questionsOf = (f: Filters): FilterState => ({
+  visibility: f.visibility,
+  rating: f.rating,
+  budget: f.budget,
+  length: f.length,
+  tag: f.tag,
+});
 
 /**
  * §35.5's chip: 32px, a full pill, 13px/600, and a trailing caret. Idle is a
@@ -225,15 +231,18 @@ function PageTurn({
  * (`matchCountExact` false, see `DiscoverResponse`) carries a `+` rather than
  * being stated as a total.
  */
-function resultsSentence(data: DiscoverResponse): string {
+function resultsSentence(data: DiscoverResponse, scope: DiscoverScope): string {
   const shown = data.days.length;
   // A server one deploy behind sends no count; say what the page holds, as
   // this sentence did before KI-2026-09-23-h, rather than failing the read.
   const count = data.matchCount ?? shown;
   const exact = data.matchCount === undefined || data.matchCountExact !== false;
   const total = `${count}${exact ? "" : "+"}`;
-  const noun = count === 1 && exact ? "day" : "days";
-  return shown < count ? `${shown} of ${total} shared ${noun}` : `${total} shared ${noun}`;
+  // *Yours* holds your private days as well as the ones you shared, so it
+  // counts days, not shared ones: "3 shared days" over the Private filter
+  // would say the opposite of the list under it.
+  const noun = `${scope === "yours" ? "" : "shared "}${count === 1 && exact ? "day" : "days"}`;
+  return shown < count ? `${shown} of ${total} ${noun}` : `${total} ${noun}`;
 }
 
 // `initial` comes from the URL (`parseDiscoverUrl`) — a profile's "Knows" chip
@@ -264,7 +273,7 @@ export function DiscoverScreen({
       }),
     [],
   );
-  const { cities, countries, sort, rating, budget, length, tag, after } = filters;
+  const { cities, countries, sort, visibility, rating, budget, length, tag, after } = filters;
   // **A reader with no account reads Everyone, whatever the URL says**
   // (ADR-061). *Yours* and *Saved* mean nothing without an account, so their
   // tabs are not drawn — and a pasted `?scope=saved` must not tell a stranger
@@ -305,17 +314,18 @@ export function DiscoverScreen({
   // Which search an answer is for, carried on the answer: while a new search
   // loads, or after it fails, the answer on screen is the last search's, and
   // its `nextCursor` is no next page of this one.
-  const searchKey = JSON.stringify([cities, countries, scope, sort, budget, length, rating, tag, after]);
-  const narrowed = cities.length > 0 || countries.length > 0 || activeFilterCount({ rating, budget, length, tag }) > 0;
+  const searchKey = JSON.stringify([cities, countries, scope, sort, visibility, budget, length, rating, tag, after]);
+  const narrowed =
+    cities.length > 0 || countries.length > 0 || activeFilterCount({ visibility, rating, budget, length, tag }) > 0;
   const [seed] = useState<{ key: string; askedFor: AskedFor }>({ key: searchKey, askedFor: { scope, sort, narrowed } });
   const read = useCallback(async (): Promise<ApiResult<Answer>> => {
-    const result = await searchPlaybooks({ cities, countries, scope, sort, budget, length, rating, tag, after });
+    const result = await searchPlaybooks({ cities, countries, scope, sort, visibility, budget, length, rating, tag, after });
     return result.ok
       ? { ok: true, value: { ...result.value, forSearch: searchKey, askedFor: { scope, sort, narrowed } } }
       : result;
-  }, [cities, countries, scope, sort, budget, length, rating, tag, after, searchKey, narrowed]);
+  }, [cities, countries, scope, sort, visibility, budget, length, rating, tag, after, searchKey, narrowed]);
   // The search as a query string, for the pager's links: the search, then where in it.
-  const search = { cities, countries, scope, sort, length, rating, tag };
+  const search = { cities, countries, scope, sort, length, rating, tag, visibility };
   // The budget band is not in the URL (`discoverUrl.ts`), so a page link would
   // read a different list: with a band on, paging is a change of state.
   const pagesByLink = budget === "any";
@@ -335,7 +345,7 @@ export function DiscoverScreen({
       return;
     }
     const query = discoverQueryString({
-      ...{ cities, countries, scope, sort, length, rating, tag },
+      ...{ cities, countries, scope, sort, length, rating, tag, visibility },
       // A cursor read under a band the URL cannot carry would reload as a page of another list.
       after: pagesByLink ? after : null,
     });
@@ -344,7 +354,7 @@ export function DiscoverScreen({
     // and Next takes a write with it for its own and does not sync it, so
     // its router kept the old URL (`LensRouter.setView`, KI-2026-10-19-a).
     window.history.replaceState(null, "", url);
-  }, [cities, countries, scope, sort, length, rating, tag, after, pagesByLink]);
+  }, [cities, countries, scope, sort, length, rating, tag, visibility, after, pagesByLink]);
   // The conflict signal is the DAY LIST plus each day's adds — the two things a
   // reader is looking at that somebody else can move. Deliberately not the
   // whole payload: sibling chip counts shift constantly and a banner that fired
@@ -378,12 +388,12 @@ export function DiscoverScreen({
 
   // Each filter's own options, resolved once against the current context. A
   // `null` means the filter cannot honestly be offered — Budget with no shared
-  // currency — and it then appears nowhere: not as a chip, not in *More
-  // filters*, and not in the count.
+  // currency, or public / private off *Yours* — and it then appears nowhere:
+  // not as a chip, not in *More filters*, and not in the count.
   const filterOptions = useMemo(() => {
-    const ctx = { budgetCurrency: feed.data?.budgetCurrency ?? null };
+    const ctx = { budgetCurrency: feed.data?.budgetCurrency ?? null, scope };
     return new Map(FILTER_DEFS.map((def) => [def.id, def.options(ctx)] as const));
-  }, [feed.data?.budgetCurrency]);
+  }, [feed.data?.budgetCurrency, scope]);
 
   const offerable = useCallback(
     (def: FilterDef): readonly FilterOption[] | null => filterOptions.get(def.id) ?? null,
@@ -418,7 +428,7 @@ export function DiscoverScreen({
     });
   }, [filterOptions, setFilters]);
 
-  const questions: FilterState = { rating, budget, length, tag };
+  const questions: FilterState = { visibility, rating, budget, length, tag };
   const activeCount = activeFilterCount(questions);
 
   const setQuestion = (def: FilterDef, value: string) =>
@@ -482,7 +492,12 @@ export function DiscoverScreen({
       {!signedOut && (
         <UnderlineTabs
           value={scope}
-          onValueChange={(value) => set("scope", value)}
+          // Leaving *Yours* drops its public / private question in the same
+          // change, rather than one search later from the effect that clears
+          // what a tab cannot offer, so the tab change is one read, not two.
+          onValueChange={(value) =>
+            setFilters((prev) => ({ ...prev, scope: value, visibility: value === "yours" ? prev.visibility : "all" }))
+          }
           options={SCOPES}
           idPrefix="discover-scope"
           aria-label="Whose days"
@@ -767,7 +782,7 @@ export function DiscoverScreen({
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-2 border-t border-hairline pt-2">
         {feed.data !== null && (
           <Text as="span" className="text-sm text-ink" data-testid="discover-results-line">
-            {resultsSentence(feed.data)}
+            {resultsSentence(feed.data, feed.data.askedFor.scope)}
           </Text>
         )}
         <div className="hidden md:contents">
@@ -961,7 +976,10 @@ export function DiscoverScreen({
       {/* The search this screen reads, so its assistant reads the same list:
           the tab, the sort, every filter and the page. */}
       <PlaybookAssistant
-        page={{ kind: "discover", search: { cities, countries, scope, sort, budget, length, rating, tag, after } }}
+        page={{
+          kind: "discover",
+          search: { cities, countries, scope, sort, visibility, budget, length, rating, tag, after },
+        }}
         contextLine="Discover"
       />
     </div>

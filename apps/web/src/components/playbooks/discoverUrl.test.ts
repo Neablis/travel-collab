@@ -20,6 +20,7 @@ describe("Discover's state as a URL", () => {
       length: "two-three" as const,
       rating: "4.5" as const,
       tag: "nightlife" as const,
+      visibility: "private" as const,
       after: "0b0c3e5e-8f8a-4c39-9f64-2d1f1c1b9a77",
     };
     expect(fromQuery(discoverQueryString(state))).toEqual(state);
@@ -68,6 +69,14 @@ describe("Discover's state as a URL", () => {
     expect(fromQuery("tag=ticketed").tag).toBe("any");
     expect(fromQuery("tag=lodging").tag).toBe("any");
     expect(fromQuery("tag=beach").tag).toBe("beach");
+  });
+
+  // Yours' public / private question rides the URL, so a reload or a back
+  // link lands on the same half of Yours; a value it does not know asks nothing.
+  it("reads the public / private question, and nothing from a value it does not know", () => {
+    expect(fromQuery("scope=yours&visibility=private").visibility).toBe("private");
+    expect(fromQuery("scope=yours&visibility=secret").visibility).toBe("all");
+    expect(discoverQueryString({ ...DISCOVER_URL_DEFAULTS, visibility: "all" })).toBe("");
   });
 
   // The route trims and dedupes; the page seeds the server's first search from

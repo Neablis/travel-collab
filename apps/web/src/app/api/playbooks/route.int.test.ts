@@ -381,6 +381,23 @@ describe("GET /api/playbooks", () => {
     expect(names((await discover(`city=${only}&scope=everyone`)).body)).not.toContain(name);
   });
 
+  // Yours' public / private question, through the route's own parse: a value
+  // it knows narrows Yours, and one it does not asks nothing rather than 400ing.
+  it("narrows Yours to public or private on ?visibility=, and falls back on a value it does not know", async () => {
+    const only = city("vis");
+    const kept = `Kept ${RUN}`;
+    const shared = `Shared ${RUN}`;
+    await saveDay(kept, [{ city: only }]);
+    await publish(await saveDay(shared, [{ city: only }]));
+
+    const yours = (visibility: string) => discover(`city=${only}&scope=yours&visibility=${visibility}`);
+    expect(names((await yours("private")).body)).toEqual([kept]);
+    expect(names((await yours("public")).body)).toEqual([shared]);
+    const unknown = await yours("secret");
+    expect(unknown.status).toBe(200);
+    expect(names(unknown.body).sort()).toEqual([kept, shared].sort());
+  });
+
   // "Saved" is the adds ledger, and it is not a grant: an author who withdraws
   // a day takes it out of the results of everyone who took it, too.
   it("lists days you have taken, and drops one whose author unpublished it", async () => {

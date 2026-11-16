@@ -86,6 +86,7 @@ import {
   type DiscoverSort,
   type RatingFloor,
   type TagFilter,
+  type YoursVisibility,
 } from "@/lib/playbooks";
 import {
   AdminReportActionResponse,
@@ -1553,6 +1554,8 @@ export type DiscoverSearch = {
   rating?: RatingFloor;
   /** One tag the days' descriptions name (M42 D10); `"any"` is sent as nothing. */
   tag?: TagFilter;
+  /** *Yours* narrowed to public or private days; `"all"` is sent as nothing. */
+  visibility?: YoursVisibility;
   /** The last card of the page before, for the page after it; null or absent for page one. */
   after?: string | null;
 };
@@ -1574,6 +1577,7 @@ export async function searchPlaybooks(query: DiscoverSearch): Promise<ApiResult<
   if (query.length) params.set("length", query.length);
   if (query.rating && query.rating !== "any") params.set("rating", query.rating);
   if (query.tag && query.tag !== "any") params.set("tag", query.tag);
+  if (query.visibility && query.visibility !== "all") params.set("visibility", query.visibility);
   if (query.after) params.set("after", query.after);
   try {
     const res = await fetch(apiUrl(`/api/playbooks?${params.toString()}`));
