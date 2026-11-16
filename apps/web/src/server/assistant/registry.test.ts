@@ -79,7 +79,7 @@ const TURN_DEPS = {
   trips: newAccountTrips("registry-reader", async () => []),
   paletteCommands: newPaletteCommandBuffer(),
   uiOutcome: newUiOutcomeBuffer(["nowhere"], async () => ({ refused: "No trip here." })),
-  playbookPage: newPlaybookPageReads({ kind: "discover", search: { cities: [], countries: [], scope: "everyone", sort: "most-added", budget: "any", length: "any", rating: "any", tag: "any", after: null } }, { day: async () => null, list: async () => [] }),
+  playbookPage: newPlaybookPageReads({ kind: "discover", search: { cities: [], countries: [], scope: "everyone", sort: "most-added", budget: "any", length: "any", rating: "any", tag: "any", visibility: "all", after: null } }, { day: async () => null, list: async () => [] }),
   playbookProposal: newPlaybookProposalBuffer(),
   chatLog: { recent: async () => [] },
   now: { phase: "planning" as const, dayIndex: null, local: { date: "2026-01-01", time: "00:00", timeZone: "UTC" }, current: null, next: null, passed: null, city: null },

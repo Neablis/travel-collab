@@ -48,6 +48,7 @@ import {
   LengthBand,
   RatingFloor,
   TagFilter,
+  YoursVisibility,
   normalizeCities,
 } from "@/lib/playbooks";
 import { hasAtLeast } from "@/server/accessPolicy";
@@ -145,6 +146,7 @@ const DiscoverSearchSchema = z.object({
   length: LengthBand.default("any"),
   rating: RatingFloor.default("any"),
   tag: TagFilter.default("any"),
+  visibility: YoursVisibility.default("all"),
   after: z.string().min(1).max(200).nullable().default(null),
 });
 export type PlaybookDiscoverSearch = z.infer<typeof DiscoverSearchSchema>;

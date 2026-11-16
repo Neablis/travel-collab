@@ -10,8 +10,9 @@ import {
   type FilterState,
 } from "./discoverFilters";
 
-const NONE: FilterState = { rating: "any", budget: "any", length: "any", tag: "any" };
-const USD = { budgetCurrency: "USD" };
+const NONE: FilterState = { visibility: "all", rating: "any", budget: "any", length: "any", tag: "any" };
+// On *Yours*, the one tab where every filter is offered.
+const USD = { budgetCurrency: "USD", scope: "yours" } as const;
 
 const def = (id: string) => FILTER_DEFS.find((d) => d.id === id)!;
 
@@ -21,8 +22,9 @@ describe("SPEC §33.2's rule, as a data structure", () => {
   // one belongs here.
   it("holds the questions, and neither the place nor the ordering", () => {
     const ids = FILTER_DEFS.map((d) => d.id);
-    // §35.5's three, in its order: Rating, Budget, Length; then M42's tag.
-    expect(ids).toEqual(["rating", "budget", "length", "tag"]);
+    // *Yours*' public / private first, then §35.5's three in its order:
+    // Rating, Budget, Length; then M42's tag.
+    expect(ids).toEqual(["visibility", "rating", "budget", "length", "tag"]);
     expect(ids).not.toContain("scope");
     expect(ids).not.toContain("sort");
   });
@@ -31,12 +33,18 @@ describe("SPEC §33.2's rule, as a data structure", () => {
     expect(activeFilterCount(NONE)).toBe(0);
     expect(activeFilterCount({ ...NONE, budget: "under200" })).toBe(1);
     expect(activeFilterCount({ ...NONE, budget: "under200", length: "one" })).toBe(2);
-    expect(activeFilterCount({ rating: "4", budget: "under200", length: "one", tag: "beach" })).toBe(4);
+    expect(
+      activeFilterCount({ visibility: "private", rating: "4", budget: "under200", length: "one", tag: "beach" }),
+    ).toBe(5);
   });
 
   it("clears every question and invents none", () => {
-    expect(clearedFilters({ rating: "4.5", budget: "over1000", length: "seven-plus", tag: "beach" })).toEqual(NONE);
-    expect(activeFilterCount(clearedFilters({ rating: "3", budget: "over1000", length: "one", tag: "any" }))).toBe(0);
+    expect(
+      clearedFilters({ visibility: "public", rating: "4.5", budget: "over1000", length: "seven-plus", tag: "beach" }),
+    ).toEqual(NONE);
+    expect(
+      activeFilterCount(clearedFilters({ visibility: "all", rating: "3", budget: "over1000", length: "one", tag: "any" })),
+    ).toBe(0);
   });
 });
 
@@ -84,7 +92,7 @@ describe("what a filter can honestly offer", () => {
   // USD — and `null` means the filter appears nowhere at all, not that it
   // appears empty.
   it("offers no budget bands when the results share no currency", () => {
-    expect(def("budget").options({ budgetCurrency: null })).toBeNull();
+    expect(def("budget").options({ ...USD, budgetCurrency: null })).toBeNull();
     expect(def("budget").options(USD)).not.toBeNull();
   });
 
@@ -105,9 +113,10 @@ describe("what a filter can honestly offer", () => {
   // floor admits. Offered with or without a shared currency — nothing about a
   // rating depends on money, and Budget's `null` must not leak onto it.
   it("offers the rating floors, whatever the currency", () => {
-    const labels = (ctx: { budgetCurrency: string | null }) => def("rating").options(ctx)?.map((o) => o.label);
-    expect(labels(USD)).toEqual(["Any rating", "3+ stars", "4+ stars", "4.5+ stars"]);
-    expect(labels({ budgetCurrency: null })).toEqual(labels(USD));
+    const labels = (budgetCurrency: string | null) =>
+      def("rating").options({ ...USD, budgetCurrency })?.map((o) => o.label);
+    expect(labels("USD")).toEqual(["Any rating", "3+ stars", "4+ stars", "4.5+ stars"]);
+    expect(labels(null)).toEqual(labels("USD"));
     expect(chipLabel(def("rating"), { ...NONE, rating: "4" }, def("rating").options(USD)!)).toBe("4+ stars");
   });
 
@@ -138,5 +147,30 @@ describe("what a filter can honestly offer", () => {
       expect(isFilterSet(d, NONE)).toBe(false);
       expect(isFilterSet(d, d.apply(NONE, d.options(USD)![1]!.value))).toBe(true);
     }
+  });
+});
+
+// Mitchell, 2026-11-16: "There should be a filter when on yours tab to filter
+// on public/private/all". A question about *Yours*, so it is offered there and
+// nowhere else, and it counts and clears like any other question.
+describe("Yours' public / private question", () => {
+  it("is offered on Yours, as All, Public and Private", () => {
+    const options = def("visibility").options(USD)!;
+    expect(options.map((o) => o.value)).toEqual(["all", "public", "private"]);
+    expect(options.map((o) => o.label)).toEqual(["All", "Public", "Private"]);
+    expect(chipLabel(def("visibility"), { ...NONE, visibility: "private" }, options)).toBe("Private");
+  });
+
+  // Under Everyone every day but yours is public, and under Saved every day is
+  // someone's you took: the question has no honest answer there, so `null`
+  // keeps it off every control and the screen clears it from state.
+  it.each(["everyone", "saved"] as const)("is not offered on %s", (scope) => {
+    expect(def("visibility").options({ ...USD, scope })).toBeNull();
+  });
+
+  it("asks nothing at All, and something at Public or Private", () => {
+    expect(rowFilters(NONE).map((d) => d.id)).toEqual([]);
+    expect(rowFilters({ ...NONE, visibility: "public" }).map((d) => d.id)).toEqual(["visibility"]);
+    expect(filtersLabel({ ...NONE, visibility: "private" })).toBe("Filters · 1");
   });
 });

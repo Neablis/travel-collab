@@ -426,6 +426,7 @@ describe("searchPlaybooks puts its filters on the wire", () => {
       budget: "under200",
       length: "two-three",
       rating: "4.5",
+      visibility: "private",
     });
     expect(result.ok).toBe(true);
     expect(seen).not.toBeNull();
@@ -436,6 +437,7 @@ describe("searchPlaybooks puts its filters on the wire", () => {
     expect(seen!.searchParams.get("budget")).toBe("under200");
     expect(seen!.searchParams.get("length")).toBe("two-three");
     expect(seen!.searchParams.get("rating")).toBe("4.5");
+    expect(seen!.searchParams.get("visibility")).toBe("private");
     // **No `season`.** M26 link 2 cut it (SPEC §33.2) — it filtered on the
     // month a day was run and nobody used it. Asserted as absent rather than
     // merely deleted from the call above, so a `season` that crept back into
@@ -463,8 +465,9 @@ describe("searchPlaybooks puts its filters on the wire", () => {
       }),
     );
 
-    await searchPlaybooks({ cities: ["Kyoto"], rating: "any" });
+    await searchPlaybooks({ cities: ["Kyoto"], rating: "any", visibility: "all" });
     expect(seen!.searchParams.has("rating")).toBe(false);
+    expect(seen!.searchParams.has("visibility")).toBe(false);
     expect(seen!.searchParams.has("length")).toBe(false);
     expect(seen!.searchParams.has("budget")).toBe(false);
     expect(seen!.searchParams.has("season")).toBe(false);

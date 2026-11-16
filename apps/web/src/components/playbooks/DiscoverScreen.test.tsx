@@ -601,6 +601,43 @@ describe("Discover", () => {
     );
   });
 
+  // Mitchell, 2026-11-16: "There should be a filter when on yours tab to
+  // filter on public/private/all". A question, so it lives in the Filters menu
+  // with the others, and only on Yours, the one tab that lists both kinds.
+  it("offers Yours a public / private filter, sends it, and drops it with the tab", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(at({ scope: "yours" }));
+    await screen.findByTestId("discover-results");
+
+    await user.click(screen.getByTestId("filter-more"));
+    expect(screen.getByTestId("filter-more-visibility-all").getAttribute("aria-pressed")).toBe("true");
+    await user.click(screen.getByTestId("filter-more-visibility-private"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: "yours", visibility: "private" }),
+      ),
+    );
+    await user.keyboard("{Escape}");
+    expect(chipText(screen.getByTestId("filter-chip-visibility"))).toBe("Private");
+    expect(chipText(screen.getByTestId("filter-more"))).toBe("Filters · 1");
+    expect(new URLSearchParams(window.location.search).get("visibility")).toBe("private");
+    // Yours holds private days too, so it counts days, not shared ones.
+    await waitFor(() => expect(screen.getByTestId("discover-results-line").textContent).toBe("1 day"));
+
+    // Everyone has no private half to ask about: the question goes with the tab.
+    await user.click(screen.getByRole("tab", { name: "Everyone" }));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: "everyone", visibility: "all" }),
+      ),
+    );
+    expect(screen.queryByTestId("filter-chip-visibility")).toBeNull();
+    expect(new URLSearchParams(window.location.search).get("visibility")).toBeNull();
+    await user.click(screen.getByTestId("filter-more"));
+    expect(screen.queryByTestId("filter-more-visibility-all")).toBeNull();
+    expect(screen.getByTestId("filter-more-rating-any")).toBeTruthy();
+  });
+
   // §33.2: the sentence states the COUNT only. It used to end ", most added
   // first" — beside a live Sort control that both duplicated it and could
   // contradict it.

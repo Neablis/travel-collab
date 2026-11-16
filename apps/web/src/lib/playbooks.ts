@@ -52,6 +52,21 @@ export const DiscoverScope = z.enum(["everyone", "yours", "saved"]);
 export type DiscoverScope = z.infer<typeof DiscoverScope>;
 
 /**
+ * *Yours*, narrowed to the days you have published or the ones you have not
+ * (Mitchell, 2026-11-16: *"there's no way to filter on private vs public
+ * notebooks. There should be a filter when on yours tab to filter on
+ * public/private/all"*).
+ *
+ * **A question about *Yours* only.** Under *Everyone* every day but your own is
+ * public, and under *Saved* every day is someone's you took, so "private"
+ * there would mean a sliver nobody asked for. The server ignores it under any
+ * other scope (`visibilityPredicate`), and Discover offers it on *Yours* alone.
+ * `all` asks nothing.
+ */
+export const YoursVisibility = z.enum(["all", "public", "private"]);
+export type YoursVisibility = z.infer<typeof YoursVisibility>;
+
+/**
  * The season a day belongs to — Discover's coarse "when is this good for"
  * filter, replacing the month dropdown that stood here.
  *

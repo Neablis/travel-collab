@@ -1,5 +1,13 @@
 import { z } from "zod";
-import { DiscoverScope, DiscoverSort, LengthBand, normalizeCities, RatingFloor, TagFilter } from "@/lib/playbooks";
+import {
+  DiscoverScope,
+  DiscoverSort,
+  LengthBand,
+  normalizeCities,
+  RatingFloor,
+  TagFilter,
+  YoursVisibility,
+} from "@/lib/playbooks";
 
 // Discover's state as a URL, both directions, in one place — so the page that
 // READS `?rating=4` and the screen that WRITES it cannot spell it two ways.
@@ -24,6 +32,8 @@ export type DiscoverUrlState = {
   length: LengthBand;
   rating: RatingFloor;
   tag: TagFilter;
+  /** *Yours* narrowed to public or private days (`YoursVisibility`); only *Yours* offers it. */
+  visibility: YoursVisibility;
   /**
    * Where this page starts: the last card id of the page before, or null for
    * page one. A link carries it, so a crawler reaches page two (M42 part 5).
@@ -69,6 +79,7 @@ const FIELDS: { [K in keyof DiscoverUrlState]: Field<DiscoverUrlState[K]> } = {
   rating: one("rating", RatingFloor, "any"),
   // Ticketed and Lodging are no value of it (ADR-070 §2, §4), so they read as no filter.
   tag: one("tag", TagFilter, "any"),
+  visibility: one("visibility", YoursVisibility, "all"),
   // Last, so a page link reads as the search and then where in it.
   after: {
     param: "after",
