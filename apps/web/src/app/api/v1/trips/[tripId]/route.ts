@@ -8,6 +8,7 @@ import {
   type CommandInput,
 } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
+import { requireCurrentTrip } from "@/server/public-api/current";
 
 // **Pilot endpoint 2 of 2** (M22 Phase 2) — a single resource on one trip, so it
 // is the one that exercises both gates: the token's trip confinement, then the
@@ -25,12 +26,16 @@ export const { GET, PATCH, DELETE } = route({
   GET: {
     summary: "Get a trip with its days, stops, members and conflicts",
     scope: "trips:read",
+    orScope: "current:read",
     trip: "path",
     role: "viewer",
     response: TripDetail,
     // Non-null because `trip: "path"` is declared: the wrapper refuses the
     // request before reaching a handler whose trip it could not load.
-    handle: ({ trip }) => trip!,
+    handle: ({ actor, trip }) => {
+      requireCurrentTrip(actor, trip!, "trips:read", "current:read", Date.now());
+      return trip!;
+    },
   },
   // **A PATCH is a PATCH** (Decision 14). Name, dates, currency and budget in
   // any combination — five commands behind one resource, and the caller never

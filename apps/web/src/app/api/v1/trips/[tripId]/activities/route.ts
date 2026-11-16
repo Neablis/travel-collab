@@ -9,6 +9,7 @@ import {
 } from "@tc/contracts";
 import { orThrow, refuseUnparseable, runCommand, type CommandInput } from "@/server/public-api/commands";
 import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveContextOf, resolveStopPlaces } from "@/server/public-api/locations";
+import { requireCurrentTrip } from "@/server/public-api/current";
 import { route } from "@/server/public-api/route";
 
 // Adding a stop. The body is `AddActivity` minus the two fields the server owns:
@@ -27,12 +28,14 @@ export const { POST } = route({
   POST: {
     summary: "Add a stop to a trip, on a day or in the unscheduled backlog (geocodes its location if needed)",
     scope: "trips:write",
+    orScope: "current:write",
     trip: "path",
     role: "editor",
     body: AddStopBody,
     response: TripDetail,
     responseHeaders: { [GEOCODE_OUTCOME_HEADER]: GEOCODE_OUTCOME_DOC, [GEOCODE_OUTCOME_END_HEADER]: GEOCODE_OUTCOME_END_DOC },
     handle: async ({ actor, params, body, trip, responseHeaders }) => {
+      requireCurrentTrip(actor, trip!, "trips:write", "current:write", Date.now());
       const command = {
         ...(body as Record<string, unknown>),
         type: "AddActivity",

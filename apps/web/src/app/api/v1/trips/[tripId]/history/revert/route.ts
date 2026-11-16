@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TripDetail } from "@tc/contracts";
 import { orThrow, runCommand } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
+import { requireCurrentTrip } from "@/server/public-api/current";
 
 // "Revert to here". Takes the revision in the body rather than the path because
 // it is an instruction, not a sub-resource — `POST /history/42` would read as
@@ -10,18 +11,21 @@ export const { POST } = route({
   POST: {
     summary: "Return a trip to how it stood at a past revision, recorded as a new change",
     scope: "trips:write",
+    orScope: "current:write",
     trip: "path",
     role: "editor",
     status: 200,
     body: z.object({ toSeq: z.number().int().positive() }),
     response: TripDetail,
-    handle: async ({ actor, params, body }) =>
-      orThrow(
+    handle: async ({ actor, params, body, trip }) => {
+      requireCurrentTrip(actor, trip!, "trips:write", "current:write", Date.now());
+      return orThrow(
         await runCommand(actor, {
           type: "RevertToState",
           tripId: params["tripId"]!,
           toSeq: (body as { toSeq: number }).toSeq,
         }),
-      ),
+      );
+    },
   },
 });

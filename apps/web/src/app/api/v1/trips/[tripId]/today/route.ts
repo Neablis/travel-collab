@@ -3,6 +3,7 @@ import { ActivityView } from "@tc/contracts";
 import { isKnownZone, type TripPhase } from "@tc/pages";
 import { turnNowOf } from "@/server/assistant/context";
 import { route } from "@/server/public-api/route";
+import { requireCurrentTrip } from "@/server/public-api/current";
 import { buildTripGlobals } from "@/server/tripGlobals";
 
 // Where a trip is today (M52 decision 21): the phase, today's day and its
@@ -30,6 +31,7 @@ export const { GET } = route({
   GET: {
     summary: "Get where a trip is today: its phase, today's stops, and the stop under way and the next one",
     scope: "trips:read",
+    orScope: "current:read",
     trip: "path",
     role: "viewer",
     query: z.object({
@@ -40,8 +42,9 @@ export const { GET } = route({
         .describe("Your IANA zone, for a day whose stops have no place yet. Read for this answer only, never stored."),
     }),
     response: TripToday,
-    handle: ({ trip, query }) => {
+    handle: ({ actor, trip, query }) => {
       const detail = trip!;
+      requireCurrentTrip(actor, detail, "trips:read", "current:read", Date.now());
       const asker = (query as { timeZone?: string }).timeZone ?? null;
       const now = turnNowOf(detail, buildTripGlobals(detail), Date.now(), asker);
       const day = now.dayIndex === null ? undefined : detail.days[now.dayIndex];

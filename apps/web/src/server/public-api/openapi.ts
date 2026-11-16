@@ -39,8 +39,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "2.7.0";
-export const API_FINGERPRINT = "20d0ba9562c6f338eed3a1f97d9642569d116e17fc8a604f147fd2973ef5d87c";
+export const API_VERSION = "2.9.0";
+export const API_FINGERPRINT = "5bc07aed06d3ae1b2e088889240f2ae69d457da7db599958bd44e64129d38c4e";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -430,13 +430,23 @@ export function buildOpenApi(
           : schemaOf((def as { response: z.ZodTypeAny }).response);
 
       const status = def.status ?? (method === "POST" ? 201 : 200);
+      // An endpoint with a second scope says so in both places a reader looks:
+      // the sentence, and the security requirements, which OpenAPI reads as OR.
+      const scopeLine =
+        declared.orScope === undefined
+          ? `Requires the \`${declared.scope}\` scope`
+          : `Requires the \`${declared.scope}\` scope, or \`${declared.orScope}\``;
+      const scopeSecurity =
+        declared.orScope === undefined
+          ? [{ bearerAuth: [declared.scope] }]
+          : [{ bearerAuth: [declared.scope] }, { bearerAuth: [declared.orScope] }];
       paths[url] ??= {};
       paths[url]![method.toLowerCase()] = {
         summary: def.summary,
         description: [
           def.signedOut === true
-            ? `Requires the \`${declared.scope}\` scope when called with a token; a Personal Agent's Poppy Session alone, with no token, may also read it.`
-            : `Requires the \`${declared.scope}\` scope.`,
+            ? `${scopeLine} when called with a token; a Personal Agent's Poppy Session alone, with no token, may also read it.`
+            : `${scopeLine}.`,
           declared.role === undefined
             ? undefined
             : declared.trip === "path"
@@ -448,7 +458,7 @@ export function buildOpenApi(
           .join(" "),
         // `{}` is OpenAPI's "no credential": a route that answers a signed-out Personal Agent
         // Session says so, or an agent reading this never makes the read.
-        security: def.signedOut === true ? [{}, { bearerAuth: [declared.scope] }] : [{ bearerAuth: [declared.scope] }],
+        security: def.signedOut === true ? [{}, ...scopeSecurity] : scopeSecurity,
         ...(parameters.length === 0 ? {} : { parameters }),
         ...(def.body === undefined
           ? {}

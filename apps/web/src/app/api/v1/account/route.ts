@@ -20,6 +20,8 @@ export const { GET } = route({
   GET: {
     summary: "Show who this token acts as: your user id, plan and entitlements",
     scope: "account:read",
+    // `current:read` carries the account wholesale: it is not trip-scoped.
+    orScope: "current:read",
     response: AccountView,
     handle: async ({ actor }) => {
       const plan = await accountPlanView(actor.userId);

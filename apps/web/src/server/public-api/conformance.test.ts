@@ -75,6 +75,16 @@ const UNDER_V1 = (full: string) => path.relative(V1, full).split(path.sep).join(
 
 const RELATIVE = (full: string) => path.relative(path.resolve(HERE, "../.."), full).split(path.sep).join("/");
 
+// The `current:*` twin of a scope, by its read/write kind: `current:read`
+// for a `:read` scope, `current:write` for a `:write` one. A scope with
+// neither kind has no twin, so any `orScope` on it is a mismatch.
+function currentTwinOf(scope: string): string | null {
+  const kind = scope.split(":").at(-1);
+  if (kind === "read") return "current:read";
+  if (kind === "write") return "current:write";
+  return null;
+}
+
 describe("every v1 route declares itself through route()", () => {
   // If this finds nothing, the sweep below is vacuous and every other test in
   // this file passes by inspecting an empty list. Phase 2 ships two pilots.
@@ -101,7 +111,7 @@ describe("every v1 route declares itself through route()", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("declares a scope from the contracts vocabulary on every method", async () => {
+  it("declares its scopes from the contracts vocabulary on every method", async () => {
     const offenders: string[] = [];
     for (const file of routeModules()) {
       const mod: Record<string, unknown> = await import(file);
@@ -111,6 +121,17 @@ describe("every v1 route declares itself through route()", () => {
         if (declared === undefined) continue;
         if (!ApiScope.safeParse(declared.scope).success) {
           offenders.push(`${RELATIVE(file)} ${method} declares scope "${String(declared.scope)}"`);
+        }
+        // The second scope an endpoint accepts is the narrow `current:*`
+        // twin of its primary scope — `current:read` for a `:read` scope,
+        // `current:write` for a `:write` one. A typo there would silently
+        // narrow the endpoint to its primary scope, and a twin of the wrong
+        // kind would let a write-only token read, or a read-only token write
+        // (ADR-045 rule 4: scopes imply nothing).
+        if (declared.orScope !== undefined && declared.orScope !== currentTwinOf(declared.scope)) {
+          offenders.push(
+            `${RELATIVE(file)} ${method} pairs orScope "${String(declared.orScope)}" with scope "${String(declared.scope)}"`,
+          );
         }
       }
     }

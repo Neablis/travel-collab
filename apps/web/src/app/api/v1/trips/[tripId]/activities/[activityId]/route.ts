@@ -9,6 +9,7 @@ import {
 } from "@tc/contracts";
 import { orThrow, refuseUnparseable, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
 import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveContextOf, resolveStopPlaces } from "@/server/public-api/locations";
+import { requireCurrentTrip } from "@/server/public-api/current";
 import { route } from "@/server/public-api/route";
 
 // **The endpoint Decision 14 is about.**
@@ -42,12 +43,14 @@ export const { PATCH, DELETE } = route({
   PATCH: {
     summary: "Edit a stop's details, or move it to another day, position or the backlog",
     scope: "trips:write",
+    orScope: "current:write",
     trip: "path",
     role: "editor",
     body: PatchStopBody,
     response: TripDetail,
     responseHeaders: { [GEOCODE_OUTCOME_HEADER]: GEOCODE_OUTCOME_DOC, [GEOCODE_OUTCOME_END_HEADER]: GEOCODE_OUTCOME_END_DOC },
     handle: async ({ actor, params, body, trip, responseHeaders }) => {
+      requireCurrentTrip(actor, trip!, "trips:write", "current:write", Date.now());
       const { dayId, position, ...fields } = body as {
         dayId?: string | null;
         position?: number;
@@ -99,16 +102,19 @@ export const { PATCH, DELETE } = route({
   DELETE: {
     summary: "Remove a stop from a trip",
     scope: "trips:write",
+    orScope: "current:write",
     trip: "path",
     role: "editor",
     response: TripDetail,
-    handle: async ({ actor, params }) =>
-      orThrow(
+    handle: async ({ actor, params, trip }) => {
+      requireCurrentTrip(actor, trip!, "trips:write", "current:write", Date.now());
+      return orThrow(
         await runCommand(actor, {
           type: "RemoveActivity",
           tripId: params["tripId"]!,
           activityId: params["activityId"]!,
         }),
-      ),
+      );
+    },
   },
 });

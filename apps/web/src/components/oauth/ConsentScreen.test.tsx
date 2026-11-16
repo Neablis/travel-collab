@@ -125,8 +125,8 @@ describe("ConsentScreen", () => {
         .getAllByRole("checkbox")
         .map((box) => (box as HTMLInputElement).checked);
     const all = (section: string, checked: boolean) => ticks(section).every((on) => on === checked);
-    expect(ticks("Read").length).toBe(5);
-    expect(ticks("Write").length).toBe(4);
+    expect(ticks("Read").length).toBe(6);
+    expect(ticks("Write").length).toBe(5);
     expect(all("Read", true), "every Read box ticked").toBe(true);
     expect(all("Write", false), "no Write box ticked").toBe(true);
 

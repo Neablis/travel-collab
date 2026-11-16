@@ -47,11 +47,15 @@ const CODE = (() => {
 })();
 
 describe("ApiScope", () => {
-  it("names the nine scopes, including the one plain language found", () => {
+  it("names the eleven scopes, including the one plain language found", () => {
     // `sharing:write` is the eighth. The seven-scope draft let `trips:write`
     // create an invite — an ordinary table write against a trip — so a token
     // minted to sync an itinerary could have handed a stranger editor rights.
     // `places:read` is the ninth (2026-09-30): the tripless place search.
+    // `current:read` and `current:write` are the tenth and eleventh
+    // (2026-11-15): the narrow pair for the trip under way now or starting
+    // within three days, so an agent that only needs the current trip cannot
+    // also read every planned and past one.
     expect(API_SCOPES).toEqual([
       "trips:read",
       "trips:write",
@@ -62,6 +66,8 @@ describe("ApiScope", () => {
       "sharing:write",
       "account:read",
       "places:read",
+      "current:read",
+      "current:write",
     ]);
   });
 
@@ -156,7 +162,8 @@ describe("SCOPE_HINTS", () => {
 
   it("calls publishing to Discover irreversible, and a read-only scope none", () => {
     expect(SCOPE_HINTS["library:write"].changes).toBe("irreversible");
-    for (const scope of ["trips:read", "notebook:read", "library:read", "account:read", "places:read"] as const) {
+    expect(SCOPE_HINTS["current:write"].changes).toBe("irreversible");
+    for (const scope of ["trips:read", "notebook:read", "library:read", "account:read", "places:read", "current:read"] as const) {
       expect(SCOPE_HINTS[scope].changes, scope).toBe("none");
     }
   });

@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Caesura API",
-    "version": "2.7.0",
-    "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings, or an OAuth access token.\nThe endpoints marked with an empty security requirement are public reads, which a Personal Agent\nmay also call signed out, with a `Poppy-Session` header and no token, including one nobody has\nallowed. Past its per-address share of lookups the answer is 429 with `Retry-After`, not a refused Session.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links. Reading or listing any of your trips needs this scope; without it, your trips stay hidden, though public Discover playbooks can still be browsed.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert. Creating or changing a trip needs this scope; without it, trips can only be read.\n- `notebook:read` — Read the Notebook pages on a trip. Opening a Notebook page needs this scope; without it, trip tasks still work but Notebook content stays hidden.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip. Writing a Notebook page needs this scope; without it, Notebook pages can only be read.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks. Reading your saved days or your Playbooks needs this scope; without it, trip tasks still work, and only published Playbooks can be browsed.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover. Changing the library needs this scope; without it, saved days and Playbooks can only be read.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links. Inviting someone or sharing a trip needs this scope; without it, trips can be managed but not shared.\n- `account:read` — See who you are and what plan you hold. Checking your account or plan needs this scope; without it, trip and library tasks still work.\n- `places:read` — Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day. Finding a place by name needs this scope; without it, stops can still be added with coordinates, but not found by name."
+    "version": "2.9.0",
+    "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings, or an OAuth access token.\nThe endpoints marked with an empty security requirement are public reads, which a Personal Agent\nmay also call signed out, with a `Poppy-Session` header and no token, including one nobody has\nallowed. Past its per-address share of lookups the answer is 429 with `Retry-After`, not a refused Session.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links. Reading or listing any of your trips needs this scope; without it, your trips stay hidden, though public Discover playbooks can still be browsed.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert. Creating or changing a trip needs this scope; without it, trips can only be read.\n- `notebook:read` — Read the Notebook pages on a trip. Opening a Notebook page needs this scope; without it, trip tasks still work but Notebook content stays hidden.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip. Writing a Notebook page needs this scope; without it, Notebook pages can only be read.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks. Reading your saved days or your Playbooks needs this scope; without it, trip tasks still work, and only published Playbooks can be browsed.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover. Changing the library needs this scope; without it, saved days and Playbooks can only be read.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links. Inviting someone or sharing a trip needs this scope; without it, trips can be managed but not shared.\n- `account:read` — See who you are and what plan you hold. Checking your account or plan needs this scope; without it, trip and library tasks still work.\n- `places:read` — Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day. Finding a place by name needs this scope; without it, stops can still be added with coordinates, but not found by name.\n- `current:read` — See the trips under way now or starting within three days, with their days and stops, costs, history and share links, and the Notebook pages on those trips, plus your saved-days library, Playbooks and account. Reading a current trip needs this scope or trips:read; without either, your trips stay hidden, though public Discover playbooks can still be browsed.\n- `current:write` — Change the days and stops of the trips under way now or starting within three days, and undo, redo or revert those changes. Changing a current trip needs this scope or trips:write; without either, current trips can only be read."
   },
   "servers": [
     {
@@ -14,11 +14,16 @@
     "/v1/account": {
       "get": {
         "summary": "Show who this token acts as: your user id, plan and entitlements",
-        "description": "Requires the `account:read` scope.",
+        "description": "Requires the `account:read` scope, or `current:read`.",
         "security": [
           {
             "bearerAuth": [
               "account:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -153,12 +158,17 @@
     "/v1/discover/playbooks": {
       "get": {
         "summary": "Discover published Playbooks from everyone — filter by place, length and rating, ranked as the app ranks them",
-        "description": "Requires the `library:read` scope when called with a token; a Personal Agent's Poppy Session alone, with no token, may also read it.",
+        "description": "Requires the `library:read` scope, or `current:read` when called with a token; a Personal Agent's Poppy Session alone, with no token, may also read it.",
         "security": [
           {},
           {
             "bearerAuth": [
               "library:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -2029,11 +2039,16 @@
     "/v1/library": {
       "get": {
         "summary": "List the days you have saved to your library, newest first",
-        "description": "Requires the `library:read` scope.",
+        "description": "Requires the `library:read` scope, or `current:read`.",
         "security": [
           {
             "bearerAuth": [
               "library:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -3276,11 +3291,16 @@
     "/v1/playbooks/{playbookId}/cover": {
       "get": {
         "summary": "Get a playbook's cover image, or null when it has none",
-        "description": "Requires the `library:read` scope.",
+        "description": "Requires the `library:read` scope, or `current:read`.",
         "security": [
           {
             "bearerAuth": [
               "library:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -8862,11 +8882,16 @@
     "/v1/playbooks": {
       "get": {
         "summary": "List the Playbooks you have kept, newest first",
-        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
+        "description": "Requires the `library:read` scope, or `current:read`. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
               "library:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -10740,11 +10765,16 @@
     "/v1/trips/{tripId}/activities/{activityId}": {
       "patch": {
         "summary": "Edit a stop's details, or move it to another day, position or the backlog",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:write"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:write"
             ]
           }
         ],
@@ -12053,11 +12083,16 @@
       },
       "delete": {
         "summary": "Remove a stop from a trip",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:write"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:write"
             ]
           }
         ],
@@ -12855,11 +12890,16 @@
     "/v1/trips/{tripId}/activities": {
       "post": {
         "summary": "Add a stop to a trip, on a day or in the unscheduled backlog (geocodes its location if needed)",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:write"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:write"
             ]
           }
         ],
@@ -15764,11 +15804,16 @@
     "/v1/trips/{tripId}/days/{dayId}": {
       "delete": {
         "summary": "Remove a day from a trip; its stops move to the unscheduled backlog",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:write"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:write"
             ]
           }
         ],
@@ -16566,11 +16611,16 @@
     "/v1/trips/{tripId}/days": {
       "post": {
         "summary": "Add an empty day to the end of a trip",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:write"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:write"
             ]
           }
         ],
@@ -19564,11 +19614,16 @@
     "/v1/trips/{tripId}/history/{seq}": {
       "get": {
         "summary": "Get a trip as it stood at a past revision, without changing it",
-        "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
+        "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -20366,11 +20421,16 @@
     "/v1/trips/{tripId}/history/redo": {
       "post": {
         "summary": "Redo the change most recently undone on a trip",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:write"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:write"
             ]
           }
         ],
@@ -21160,11 +21220,16 @@
     "/v1/trips/{tripId}/history/revert": {
       "post": {
         "summary": "Return a trip to how it stood at a past revision, recorded as a new change",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:write"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:write"
             ]
           }
         ],
@@ -21975,11 +22040,16 @@
     "/v1/trips/{tripId}/history": {
       "get": {
         "summary": "List a trip's change history, newest first, and whether undo or redo is possible",
-        "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
+        "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -22257,11 +22327,16 @@
     "/v1/trips/{tripId}/history/undo": {
       "post": {
         "summary": "Undo the most recent change to a trip",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:write"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:write"
             ]
           }
         ],
@@ -23557,11 +23632,16 @@
     "/v1/trips/{tripId}/pages/{pageId}": {
       "get": {
         "summary": "Get one Notebook page on a trip",
-        "description": "Requires the `notebook:read` scope. Requires at least the `viewer` role on the trip.",
+        "description": "Requires the `notebook:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "notebook:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -24308,11 +24388,16 @@
     "/v1/trips/{tripId}/pages": {
       "get": {
         "summary": "List the Notebook pages on a trip",
-        "description": "Requires the `notebook:read` scope. Requires at least the `viewer` role on the trip.",
+        "description": "Requires the `notebook:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "notebook:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -25748,11 +25833,16 @@
     "/v1/trips/{tripId}": {
       "get": {
         "summary": "Get a trip with its days, stops, members and conflicts",
-        "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
+        "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -28261,11 +28351,16 @@
     "/v1/trips/{tripId}/shares": {
       "get": {
         "summary": "List the read-only share links created for a trip",
-        "description": "Requires the `trips:read` scope. Requires at least the `owner` role on the trip.",
+        "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `owner` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -28449,11 +28544,16 @@
     "/v1/trips/{tripId}/today": {
       "get": {
         "summary": "Get where a trip is today: its phase, today's stops, and the stop under way and the next one",
-        "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
+        "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
         "security": [
           {
             "bearerAuth": [
               "trips:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -30893,11 +30993,16 @@
     "/v1/trips": {
       "get": {
         "summary": "List the trips you own or are a member of",
-        "description": "Requires the `trips:read` scope.",
+        "description": "Requires the `trips:read` scope, or `current:read`.",
         "security": [
           {
             "bearerAuth": [
               "trips:read"
+            ]
+          },
+          {
+            "bearerAuth": [
+              "current:read"
             ]
           }
         ],
@@ -30932,7 +31037,7 @@
                 "true",
                 "false"
               ],
-              "description": "`true` lists only the trips under way today, by each trip's own zone. An undated trip is never under way. A page may be short, or empty, and still give a cursor to the next one: the scan stops after a fixed number of rows. Keep paging until the cursor is null."
+              "description": "`true` lists only the trips under way today, by each trip's own zone. An undated trip is never under way. A page may be short, or empty, and still give a cursor to the next one: the scan stops after a fixed number of rows. Keep paging until the cursor is null. A token holding only `current:read` always lists the current trips — under way now or starting soon — with or without this."
             }
           }
         ],

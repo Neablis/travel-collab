@@ -28,7 +28,7 @@ import { Location } from "./activity.ts";
 /**
  * What an API token may do. A capability, never a resource and never a route.
  *
- * **Eight, deliberately not per-endpoint and not per-table** (Decision 4,
+ * **Eleven, deliberately not per-endpoint and not per-table** (Decision 4,
  * confirmed by Mitchell 2026-09-16). Coarser — a single `read` and `write` —
  * makes one token do everything and stops the scope system meaning anything.
  * Finer, per resource, is roughly sixteen strings most callers would never set
@@ -65,6 +65,8 @@ export const ApiScope = z.enum([
   "sharing:write",
   "account:read",
   "places:read",
+  "current:read",
+  "current:write",
 ]);
 export type ApiScope = z.infer<typeof ApiScope>;
 
@@ -147,6 +149,23 @@ export const SCOPE_CATALOGUE: Readonly<Record<ApiScope, ApiScopeDescription>> = 
     description:
       "Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day. Finding a place by name needs this scope; without it, stops can still be added with coordinates, but not found by name.",
   },
+  // **The narrow pair** (Mitchell, 2026-11-15): an agent that only needs the
+  // trip a person is on should not also read every planned and past trip. A
+  // current trip is one under way now or starting within three days
+  // (`SOON_DAYS = 3`); anything else stays hidden from these scopes.
+  // `current:read` also carries the read-only scopes that are not trip-scoped
+  // (`library:read`, `account:read`) and the Notebook on a current trip — but
+  // never `places:read`, whose every lookup spends the shared geocoding budget.
+  "current:read": {
+    title: "Read current trips",
+    description:
+      "See the trips under way now or starting within three days, with their days and stops, costs, history and share links, and the Notebook pages on those trips, plus your saved-days library, Playbooks and account. Reading a current trip needs this scope or trips:read; without either, your trips stay hidden, though public Discover playbooks can still be browsed.",
+  },
+  "current:write": {
+    title: "Change current trips",
+    description:
+      "Change the days and stops of the trips under way now or starting within three days, and undo, redo or revert those changes. Changing a current trip needs this scope or trips:write; without either, current trips can only be read.",
+  },
 });
 
 /** How much a scope can change, as the Personal Agent Protocol words it (spec 4.7). */
@@ -176,6 +195,8 @@ export const SCOPE_HINTS: Readonly<Record<ApiScope, ScopeHint>> = Object.freeze(
   "sharing:write": { changes: "irreversible", personal_data: true },
   "account:read": { changes: "none", personal_data: true },
   "places:read": { changes: "none", personal_data: false },
+  "current:read": { changes: "none", personal_data: true },
+  "current:write": { changes: "irreversible", personal_data: true },
 });
 
 /**

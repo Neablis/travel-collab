@@ -220,6 +220,8 @@ A token holds a set of scopes and nothing is implied by anything else —
 | `sharing:write` | Invites (create, revoke) and share links (create, revoke). No v1 endpoint removes a member |
 | `account:read` | Who you are and what plan you hold |
 | `places:read` | Search real places by name outside any trip (`GET /v1/geocode`). **The one read that spends money**: every search counts against your daily geocoding allowance and a budget shared by every account, and one token may make at most 100 a day |
+| `current:read` | See the trips under way now or starting within three days, with their days and stops, costs, history and share links, and the Notebook pages on those trips — plus your saved-days library, Playbooks and account. A current trip is one whose phase is `underway` or `soon` |
+| `current:write` | Change the days and stops of the trips under way now or starting within three days; undo, redo and revert. No trip creation, no sharing, no Notebook or library writes |
 
 **Inviting someone is `sharing:write`, not `trips:write`**, even though an invite
 is a write against a trip. Letting another person into your trip is a materially

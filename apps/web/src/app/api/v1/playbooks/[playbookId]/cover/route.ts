@@ -40,6 +40,7 @@ export const { GET, PUT, PATCH, DELETE } = route({
   GET: {
     summary: "Get a playbook's cover image, or null when it has none",
     scope: "library:read",
+    orScope: "current:read",
     response: TripCoverResponse,
     handle: async ({ params, actor }) => {
       // The playbook GET's own rule: yours, or anybody's published one.

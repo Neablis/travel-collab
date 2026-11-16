@@ -306,7 +306,11 @@ describe("openapi.json is derived from the declarations", () => {
     const doc = JSON.parse(await generate()) as {
       paths: Record<string, Record<string, { security: Record<string, string[]>[] }>>;
     };
-    expect(doc.paths["/v1/discover/playbooks"]!.get!.security).toEqual([{}, { bearerAuth: ["library:read"] }]);
+    expect(doc.paths["/v1/discover/playbooks"]!.get!.security).toEqual([
+      {},
+      { bearerAuth: ["library:read"] },
+      { bearerAuth: ["current:read"] },
+    ]);
     for (const [url, methods] of Object.entries(doc.paths)) {
       for (const [method, operation] of Object.entries(methods)) {
         if (url === "/v1/discover/playbooks" && method === "get") continue;

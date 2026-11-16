@@ -2,16 +2,19 @@ import { TripHistory } from "@tc/contracts";
 import { getTripHistory } from "@/server/history";
 import { PublicApiError } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
+import { requireCurrentTrip } from "@/server/public-api/current";
 
 // Every change anyone has made to this trip, newest first.
 export const { GET } = route({
   GET: {
     summary: "List a trip's change history, newest first, and whether undo or redo is possible",
     scope: "trips:read",
+    orScope: "current:read",
     trip: "path",
     role: "viewer",
     response: TripHistory,
-    handle: async ({ params }) => {
+    handle: async ({ actor, params, trip }) => {
+      requireCurrentTrip(actor, trip!, "trips:read", "current:read", Date.now());
       const history = await getTripHistory(params["tripId"]!);
       // Unreachable while the trip resolved above, and asserted rather than
       // assumed: a trip whose detail exists but whose stream does not is a

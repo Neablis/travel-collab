@@ -13,6 +13,18 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-11-15 — `GET /v1/trips/{tripId}/shares` accepts `current:read` (public API 2.9.0)
+- `GET /shares` gains `orScope: "current:read"` plus the current-trip guard (`apps/web/src/app/api/v1/trips/[tripId]/shares/route.ts`), so a `current:read`-only token can list a current trip's share links — the `current:read` consent copy already promised them. A non-current trip answers with the trip's own 404.
+- Why: part-review finding 1 on PR #761 — the copy is the contract the user grants against, so the endpoint delivers it rather than the copy being stripped.
+- Consumers updated: `apps/web` (`server/public-api/openapi.ts`; `API_VERSION` 2.9.0 with a new `API_FINGERPRINT`; `openapi.json` regenerated).
+- Breaking? no: additive (one more scope accepted on an existing endpoint). A token holding neither new scope sees no change.
+
+## 2026-11-15 — `current:read` and `current:write` scopes for the trip under way now or starting within three days (public API 2.8.0)
+- `ApiScope` gains `current:read` and `current:write` (`packages/contracts/src/publicApi.ts`), with consent copy in `SCOPE_CATALOGUE` and hints in `SCOPE_HINTS` (`current:read`: changes `none`; `current:write`: changes `irreversible`, it can delete days and stops). A current trip is one whose `tripNow` phase is `underway` or `soon` (start within `SOON_DAYS = 3`); undated and ended trips are never current. `current:read` also carries the read-only scopes that are not trip-scoped (`library:read`, `account:read`) and the Notebook on a current trip, but never `places:read`, whose every lookup spends the shared geocoding budget. `current:write` changes days and stops and undoes, redoes or reverts, on a current trip only — no trip creation, no sharing, no Notebook or library writes.
+- Why: an agent that only needs the trip a person is on (e.g. Muse) should not also read every planned and past trip. Least privilege, same DTOs as `trips:read`, filtered — not a new shape (Mitchell, 2026-11-15).
+- Consumers updated: `apps/web` (`server/public-api/route.ts` accepts an `orScope` alternative on the gated endpoints, `server/public-api/activeTrips.ts` generalises the scan to underway-or-soon, `server/public-api/current.ts` is the current-trip guard the handlers call, `server/public-api/openapi.ts`; `API_VERSION` 2.8.0 with a new `API_FINGERPRINT`).
+- Breaking? no: additive (two scopes, one optional declaration field). A token holding neither new scope sees no change.
+
 ## 2026-11-14 — `servers: /api` in `openapi.json`, and scope descriptions name what needs them (Poppy 1.0; public API 2.7.0)
 - `openapi.json`: a `servers: [{ url: "/api" }]` entry, so a relative path read off the document resolves — without it an agent read `/v1/discover/playbooks` and got a 404, because the routes live under `/api`. Relative, so one document serves production and previews. `API_VERSION` 2.7.0 with a new `API_FINGERPRINT`.
 - `SCOPE_CATALOGUE` (`packages/contracts/src/publicApi.ts`): every scope description gains a second sentence naming which tasks need the scope and whether a task completes without it (Poppy 1.0 §4.7 guidance). Prose only; no behaviour change. The same sentences appear in `openapi.json`'s description, the consent screen, and the token UI.

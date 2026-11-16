@@ -1,6 +1,7 @@
 import { TripShare } from "@tc/contracts";
 import { createShare, listShares } from "@/server/access/shares";
 import { PublicApiError } from "@/server/public-api/commands";
+import { requireCurrentTrip } from "@/server/public-api/current";
 import { route } from "@/server/public-api/route";
 
 // Read-only share links for a trip.
@@ -13,10 +14,12 @@ export const { GET, POST } = route({
   GET: {
     summary: "List the read-only share links created for a trip",
     scope: "trips:read",
+    orScope: "current:read",
     trip: "path",
     role: "owner",
     collection: { item: TripShare, cursorOf: (share: TripShare) => share.createdAt },
-    handle: async ({ params, page }) => {
+    handle: async ({ actor, params, page, trip }) => {
+      requireCurrentTrip(actor, trip!, "trips:read", "current:read", Date.now());
       const all = await listShares(params["tripId"]!);
       const after = page.after;
       return (after === null ? all : all.filter((s) => s.createdAt < after)).slice(0, page.limit);
