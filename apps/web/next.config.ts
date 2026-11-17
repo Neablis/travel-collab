@@ -266,6 +266,17 @@ const nextConfig: NextConfig = {
       source: "/manifest.webmanifest",
       headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
     },
+    {
+      // The sitemap is read per request (`app/sitemap.ts`, force-dynamic) and
+      // Next serves it `max-age=0, must-revalidate`, so every crawler's fetch
+      // reached the server. A day at a shared cache, as the signed-out library
+      // pages already ask (2026-11-17, Mitchell: cache hard while users are
+      // few, a day is fine): a CDN in front answers the crawlers without the
+      // server or the database, and a Playbook published today reaches the
+      // sitemap within a day, which is sooner than a crawler comes back.
+      source: "/sitemap.xml",
+      headers: [{ key: "Cache-Control", value: "public, max-age=0, s-maxage=86400, stale-while-revalidate=86400" }],
+    },
   ],
 };
 

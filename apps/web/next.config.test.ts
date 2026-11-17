@@ -185,6 +185,27 @@ describe("the web manifest", () => {
   });
 });
 
+describe("the sitemap", () => {
+  // 2026-11-17. Read per request, and Next serves it `max-age=0`, so no CDN
+  // could answer a crawler for it. An hour at a shared cache; browsers still
+  // ask each time.
+  it("is cacheable at a shared cache for a day and keeps every global security header", async () => {
+    const served = await headersServedAt("/sitemap.xml");
+    expect(served.get("cache-control")).toBe("public, max-age=0, s-maxage=86400, stale-while-revalidate=86400");
+
+    const global = (await headersFor("production", "production")).find((r) => r.source === "/:path*");
+    for (const { key, value } of global?.headers ?? []) {
+      expect(served.get(key.toLowerCase()), key).toBe(value);
+    }
+  });
+
+  it("lends its Cache-Control to no other path", async () => {
+    for (const pathname of ["/sitemap", "/sitemap.xml.gz", "/robots.txt"]) {
+      expect((await headersServedAt(pathname)).has("cache-control"), pathname).toBe(false);
+    }
+  });
+});
+
 describe("a public notebook's page", () => {
   // M58, ADR-088 §3. The token is the URL, so an outbound link must not carry
   // it in a Referer, and a revoked link must not answer from a cache.
