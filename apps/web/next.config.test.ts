@@ -189,9 +189,9 @@ describe("the sitemap", () => {
   // 2026-11-17. Read per request, and Next serves it `max-age=0`, so no CDN
   // could answer a crawler for it. An hour at a shared cache; browsers still
   // ask each time.
-  it("is cacheable at a shared cache for an hour and keeps every global security header", async () => {
+  it("is cacheable at a shared cache for a day and keeps every global security header", async () => {
     const served = await headersServedAt("/sitemap.xml");
-    expect(served.get("cache-control")).toBe("public, max-age=0, s-maxage=3600, stale-while-revalidate=86400");
+    expect(served.get("cache-control")).toBe("public, max-age=0, s-maxage=86400, stale-while-revalidate=86400");
 
     const global = (await headersFor("production", "production")).find((r) => r.source === "/:path*");
     for (const { key, value } of global?.headers ?? []) {
