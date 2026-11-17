@@ -1,15 +1,22 @@
 import { after } from "next/server";
-import { consumeQuota, linkPreviewQuota, quotaRefusal, registrationAddress, sweepExpiredCounters } from "../quota";
+import { consumeQuota, linkPreviewQuota, memoryCounters, quotaRefusal, registrationAddress } from "../quota";
 
-// The rate limit on the four `/api/og/**` routes (Mitchell, 2026-09-27): the
-// Postgres counter `quota.ts` already keeps. Never the shared Redis: ADR-059
-// keeps it an expendable cache, and a limiter spends a command per request.
+// The rate limit on the four `/api/og/**` routes (Mitchell, 2026-09-27).
 //
-// **It sits behind the CDN.** The routes answer with `s-maxage`, so a repeat
-// fetch of the same link is served by the CDN in front of the VPS and never runs the
-// function, and so never reaches this counter. Only cache misses are charged.
-// That is also why a refusal says `no-store`: a cached 429 would be served to
-// every unfurler of that link, not just the one that tripped the limit.
+// **Counted in this process, not in Postgres** (2026-11-17). It was the
+// Postgres counter `quota.ts` keeps, on the reasoning that a CDN in front of
+// the app answered repeat fetches, so only cache misses ever reached it. Since
+// M59 nothing fronts the app (`libraryCache.ts`), so every unfurl, Applebot's
+// included, reached it, and each was an upsert: a database that had nothing
+// else to do was woken for a limiter. Neon never got the five idle minutes it
+// needs to scale to zero (production compute active about 20 hours a day).
+// One long-lived server now holds the count; `memoryCounters` says what that
+// costs. Never the shared Redis: ADR-059 keeps it an expendable cache, and a
+// limiter spends a command per request.
+//
+// A refusal still says `no-store`: a cached 429 would be served to every
+// unfurler of that link, not just the one that tripped the limit.
+const counters = memoryCounters();
 
 /**
  * The caller's IP: the first hop of `x-forwarded-for`, which the reverse proxy
@@ -26,42 +33,21 @@ export function clientIp(request: Request): string {
 }
 
 /**
- * Charge this request to its IP. `null` means go ahead; otherwise the 429 (or
- * 503 when the counter itself is down, `consumeQuota`'s fail-closed rule) to
- * return, marked uncacheable.
+ * Charge this request to its IP. `null` means go ahead; otherwise the 429 to
+ * return, marked uncacheable. Reads and writes no database.
  */
-export async function limitLinkPreview(
-  request: Request,
-  onAllowed: () => void = maybeSweep,
-): Promise<Response | null> {
-  const decision = await consumeQuota(linkPreviewQuota(), clientIp(request));
-  if (decision.allowed) {
-    // Only an allowed request may start a sweep (CodeRabbit, PR #259): refused
-    // traffic is the abusive kind, and letting it trigger DELETEs would hand a
-    // flood a lever on the database. `onAllowed` is injected by the tests.
-    onAllowed();
-    return null;
-  }
+export async function limitLinkPreview(request: Request): Promise<Response | null> {
+  const decision = await consumeQuota(linkPreviewQuota(), clientIp(request), counters);
+  if (decision.allowed) return null;
   const refusal = quotaRefusal(decision);
   refusal.headers.set("Cache-Control", "no-store");
   return refusal;
 }
 
-// **The sweep rides on this route, not on a cron.** Keyed by IP, every address
-// that unfurls a link leaves a `rate_limit_counters` row, and `bump` never
-// removes one; this is the only caller whose key space is unbounded, so it is
-// the one that cleans up after itself. The only crons are the Coolify scheduled tasks
-// (/api/cron/embed-days 04:00 UTC, /api/cron/tier-rollup 04:30 UTC), and adding one for a single DELETE would be a second
-// mechanism with its own secret to forget.
-//
-// One request in a hundred is plenty: rows are one-minute windows, so a sweep
-// that runs every few minutes of real traffic keeps the table near the number
-// of IPs seen in that span. With no traffic there are no new rows to sweep.
-const SWEEP_PROBABILITY = 0.01;
-
-function maybeSweep(): void {
-  if (Math.random() < SWEEP_PROBABILITY) scheduleSweep();
-}
+// The sweep below is no longer this route's: link previews leave no
+// `rate_limit_counters` rows now. It stays here because the other IP-keyed
+// Postgres limiters (`publicLibraryLimit.ts`, `oauth/register`) share it and
+// its one-at-a-time flag; each passes the sweep for its own policies.
 
 // **One sweep at a time per instance** (CodeRabbit, PR #259). A sweep with a
 // backlog deletes most of the IP-keyed rows, and the planner rightly scans the
@@ -73,11 +59,11 @@ let sweeping = false;
 
 /**
  * Start a sweep after the response unless one is already in flight on this
- * instance. Returns whether it started. `run` and `defer` are injected by the
- * tests; `defer` is `after` in a request.
+ * instance. Returns whether it started. `run` is the caller's sweep; `defer`
+ * is `after` in a request, and injected by the tests.
  */
 export function scheduleSweep(
-  run: () => Promise<void> = () => sweepExpiredCounters(linkPreviewQuota()),
+  run: () => Promise<void>,
   defer: (task: () => Promise<void>) => void = after,
 ): boolean {
   if (sweeping) return false;

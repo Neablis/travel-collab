@@ -6,6 +6,8 @@ import {
   consumeQuota,
   dailyPolicy,
   geocodeQuota,
+  linkPreviewQuota,
+  memoryCounters,
   oauthRegisterQuota,
   quotaRefusal,
   registrationAddress,
@@ -650,5 +652,65 @@ describe("what a reservation settles and refuses (PR #178)", () => {
     // would tell a client to wait out the rest of a day for a blip, and
     // `quotaRefusal` puts this straight into `Retry-After` on a 503.
     expect(decision).toEqual(expect.objectContaining({ reason: "unavailable", retryAfterSeconds: 60 }));
+  });
+});
+
+// The link-preview limiter's store (og/limit.ts, 2026-11-17): pgCounters' rules
+// with no database, so an unfurl no longer wakes Neon. These pin the rules it
+// must share with the Postgres store, and the bound an IP-keyed map needs.
+describe("memoryCounters", () => {
+  const AT = new Date("2031-01-01T12:00:00Z");
+  const NEXT = new Date("2031-01-01T12:01:00Z");
+
+  it("adds within a window and starts a newer window at the charge", async () => {
+    const counters = memoryCounters();
+    expect(await counters.bump("ip:a", AT)).toBe(1);
+    expect(await counters.bump("ip:a", AT, 3)).toBe(4);
+    expect(await counters.bump("ip:a", NEXT, 2)).toBe(2);
+  });
+
+  it("counts a charge for an older window in the newer one, as the upsert does", async () => {
+    const counters = memoryCounters();
+    await counters.bump("ip:a", NEXT);
+    expect(await counters.bump("ip:a", AT)).toBe(2);
+  });
+
+  it("clamps a charge to a positive whole number, like pgCounters", async () => {
+    const counters = memoryCounters();
+    expect(await counters.bump("ip:a", AT, -5)).toBe(1);
+    expect(await counters.bump("ip:a", AT, 2.9)).toBe(3);
+    expect(await counters.bump("ip:a", AT, Number.NaN)).toBe(4);
+  });
+
+  it("refunds only the window it was charged in, and never below zero", async () => {
+    const counters = memoryCounters();
+    await counters.bump("ip:a", NEXT, 3);
+    await counters.release("ip:a", AT, 3);
+    expect(await counters.bump("ip:a", NEXT, 0)).toBe(4);
+    await counters.release("ip:a", NEXT, 10);
+    expect(await counters.bump("ip:a", NEXT)).toBe(1);
+  });
+
+  it("holds at most its cap, dropping the bucket charged longest ago", async () => {
+    const counters = memoryCounters(2);
+    await counters.bump("ip:a", AT, 5);
+    await counters.bump("ip:b", AT, 5);
+    await counters.bump("ip:a", AT); // a is now the most recent
+    await counters.bump("ip:c", AT); // evicts b, not a
+    expect(await counters.bump("ip:a", AT)).toBe(7);
+    expect(await counters.bump("ip:b", AT)).toBe(1);
+  });
+
+  it("refuses the link-preview ceiling through consumeQuota, as the route does", async () => {
+    vi.stubEnv("LINK_PREVIEW_RATE_LIMIT_PER_IP_MINUTE", "2");
+    try {
+      const counters = memoryCounters();
+      const now = new Date("2031-01-01T12:00:30Z");
+      expect((await consumeQuota(linkPreviewQuota(), "203.0.113.9", counters, now)).allowed).toBe(true);
+      expect((await consumeQuota(linkPreviewQuota(), "203.0.113.9", counters, now)).allowed).toBe(true);
+      expect((await consumeQuota(linkPreviewQuota(), "203.0.113.9", counters, now)).allowed).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

@@ -1169,6 +1169,61 @@ export function pgCounters(database: Db = db): QuotaCounters {
   };
 }
 
+/** How many buckets `memoryCounters` holds before it drops the least recently charged. */
+export const MEMORY_COUNTER_BUCKETS = 10_000;
+
+/**
+ * `QuotaCounters` held in this process's memory: `pgCounters`' rules (a new
+ * window starts at the charge, an older window is discarded, a release only
+ * subtracts in the window it reserved in and never below zero) with no
+ * database behind them.
+ *
+ * **For a limiter whose only job is bounding this server's own work**, and
+ * that must not touch Postgres to do it: the link-preview limiter
+ * (`og/limit.ts`), whose every charge was an upsert that woke a database that
+ * otherwise had nothing to do (2026-11-17). Since M59 production is one
+ * long-lived server, so one process's count is the count; a second container
+ * during a deploy's overlap at most doubles a ceiling for that minute. Never
+ * for a spend gate: those stay on `pgCounters`, where a restart cannot reset
+ * them.
+ *
+ * Bounded at `maxBuckets`, evicting the least recently charged bucket first.
+ * An evicted bucket restarts at zero, which only an actor quiet for longer
+ * than ten thousand others were busy can gain from.
+ */
+export function memoryCounters(maxBuckets: number = MEMORY_COUNTER_BUCKETS): QuotaCounters {
+  const buckets = new Map<string, { windowStart: number; hits: number }>();
+  return {
+    async bump(bucket, windowStart, amount = 1) {
+      const by = Math.max(1, Math.trunc(Number.isFinite(amount) ? amount : 1));
+      const start = windowStart.getTime();
+      const row = buckets.get(bucket);
+      // `pgCounters`' upsert: a newer window starts AT the charge; the same
+      // window adds to it; an older one (a skewed clock) is counted in the
+      // newer window rather than resetting it.
+      const next =
+        row === undefined || start > row.windowStart
+          ? { windowStart: start, hits: by }
+          : { windowStart: row.windowStart, hits: row.hits + by };
+      // Delete first so a charge moves the bucket to the back of the eviction order.
+      buckets.delete(bucket);
+      buckets.set(bucket, next);
+      while (buckets.size > maxBuckets) {
+        const oldest = buckets.keys().next().value;
+        if (oldest === undefined) break;
+        buckets.delete(oldest);
+      }
+      return next.hits;
+    },
+    async release(bucket, windowStart, amount) {
+      const by = Math.max(0, Math.trunc(Number.isFinite(amount) ? amount : 0));
+      const row = buckets.get(bucket);
+      if (by === 0 || row === undefined || row.windowStart !== windowStart.getTime()) return;
+      row.hits = Math.max(row.hits - by, 0);
+    },
+  };
+}
+
 /**
  * **Delete every counter row whose window has fully ended**, for the named
  * policies only.
