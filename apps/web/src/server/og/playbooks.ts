@@ -4,6 +4,7 @@ import { countryName } from "@/lib/place";
 import { countrySlug } from "@/lib/playbookUrls";
 import { db } from "../db/client";
 import { savedDays } from "../db/schema";
+import { LIBRARY_TAG, authorTag, dayTag, libraryCached } from "../libraryCache";
 import { citiesKnownBy, publicAuthor, publicNamesOf } from "../playbooks";
 import { ratingOf, readableSavedDay } from "../savedDays";
 
@@ -23,9 +24,16 @@ import { ratingOf, readableSavedDay } from "../savedDays";
 // private days, and keeps a crafted `?city=` from printing arbitrary text on a
 // Caesura-branded card.
 //
-// Not cached in Redis, unlike the invite and referral cards, nor in Next's
-// data cache: these are a couple of indexed reads, run only on a CDN miss, and
-// the CDN's day (`card.tsx`, purged by tag on publish; ADR-063) is what repeats.
+// **Cached in Next's data cache, as the pages are** (`libraryCached`, a day,
+// cleared by the same tags; 2026-11-17). They were not, on the reasoning that
+// a CDN in front of the app answered every repeat. Since M59 nothing does, so
+// every unfurl ran these reads, and crawlers unfurl all day: with the
+// limiter's upsert (`limit.ts`) that kept Neon's compute from ever idling the
+// five minutes it needs to scale to zero. A card is as fresh as the page it
+// previews: a day's goes with `dayTag` and every card with `LIBRARY_TAG`,
+// which a publish, an unpublish, a moderation and a renamed author all clear.
+// Not Redis, unlike the invite and referral cards: ADR-059 budgets it per use,
+// and this cache is already paid for.
 
 /** How many cities a card names before it stops. */
 export const CITIES_SHOWN = 3;
@@ -62,7 +70,11 @@ export type PlaybookCityCard = { kind: "city"; city: string; days: number } | Ge
 export type PlaybookCountryCard = { kind: "country"; country: string; days: number } | Generic;
 
 /** The card for `/playbooks/day/<savedDayId>`: a published, unmoderated day, or the generic card. */
-export async function dayCardFor(savedDayId: string): Promise<PlaybookDayCard> {
+export function dayCardFor(savedDayId: string): Promise<PlaybookDayCard> {
+  return libraryCached(["og-day", savedDayId], [dayTag(savedDayId), LIBRARY_TAG], () => readDayCard(savedDayId));
+}
+
+async function readDayCard(savedDayId: string): Promise<PlaybookDayCard> {
   // `null`: nobody's own day. What is left is published and not moderated,
   // the same predicate the page reads through, so the card exists exactly when
   // a signed-out reader could open the page.
@@ -84,7 +96,11 @@ export async function dayCardFor(savedDayId: string): Promise<PlaybookDayCard> {
 }
 
 /** The card for `/playbooks/profile/<userId>`: someone who has shared a playbook, or the generic card. */
-export async function profileCardFor(userId: string): Promise<PlaybookProfileCard> {
+export function profileCardFor(userId: string): Promise<PlaybookProfileCard> {
+  return libraryCached(["og-profile", userId], [authorTag(userId), LIBRARY_TAG], () => readProfileCard(userId));
+}
+
+async function readProfileCard(userId: string): Promise<PlaybookProfileCard> {
   // `publicAuthor` and `citiesKnownBy` already count published, undeleted,
   // unmoderated days only, which is what the profile page shows.
   const author = await publicAuthor(userId);
@@ -113,8 +129,11 @@ export async function profileCardFor(userId: string): Promise<PlaybookProfileCar
  * is only ever echoed when a published day already carries those letters.
  */
 export async function cityCardFor(city: string): Promise<PlaybookCityCard> {
+  // Junk is answered before the cache, so a typed URL cannot fill it.
   if (city === "" || city.length > MAX_CITY_LENGTH) return { kind: "generic" };
-  const days = await publishedDaysCarrying(savedDays.cities, city);
+  const days = await libraryCached(["og-city", city], [LIBRARY_TAG], () =>
+    publishedDaysCarrying(savedDays.cities, city),
+  );
   return days === 0 ? { kind: "generic" } : { kind: "city", city, days };
 }
 
@@ -129,7 +148,9 @@ export async function countryCardFor(code: string): Promise<PlaybookCountryCard>
   // The place pages' own test, so a card never names a country that has no page.
   if (!/^[A-Z]{2}$/.test(upper) || countrySlug(upper) === null) return { kind: "generic" };
   const name = countryName(upper)!;
-  const days = await publishedDaysCarrying(savedDays.countries, upper);
+  const days = await libraryCached(["og-country", upper], [LIBRARY_TAG], () =>
+    publishedDaysCarrying(savedDays.countries, upper),
+  );
   return days === 0 ? { kind: "generic" } : { kind: "country", country: name, days };
 }
 

@@ -14,10 +14,12 @@ import { ogColors as c } from "./ogTokens.generated";
 /** The size every link-preview card is drawn at, and the one chat apps expect. */
 export const CARD_SIZE = { width: 1200, height: 630 } as const;
 
-// Cached hard at the edge (Mitchell, 2026-09-27), which is also what keeps the
-// rate limiter cheap: a CDN hit never runs the function (`og/limit.ts`).
-// `stale-while-revalidate` lets the edge answer an expired entry at once and
-// refresh it behind the response, so an unfurler never waits on a re-render.
+// Cached hard at the edge (Mitchell, 2026-09-27): a CDN that honours these
+// headers never runs the function. Since M59 none fronts the app, so every
+// unfurl renders here; the limiter counts in memory and the Playbooks lookups
+// come from Next's data cache, so a render does not wake the database
+// (`og/limit.ts`, `og/playbooks.ts`, 2026-11-17). `stale-while-revalidate` lets
+// an edge answer an expired entry at once and refresh it behind the response.
 
 /**
  * The referral card: a day at the edge. It changes only if the referrer renames

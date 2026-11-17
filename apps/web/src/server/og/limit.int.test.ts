@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { like } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { db } from "../db/client";
+import { rateLimitCounters } from "../db/schema";
 import { clientIp, limitLinkPreview, scheduleSweep } from "./limit";
 
-// When the link-preview limiter may start a counter sweep (CodeRabbit, PR
-// #259): only behind an allowed request, and never twice at once on one
-// instance. Against the real Postgres counter.
+// The link-preview limiter, and the counter sweep the other IP-keyed limiters
+// share (CodeRabbit, PR 259: never twice at once on one instance). Against the
+// real Postgres, so a row the limiter should not write would be seen.
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -14,20 +17,26 @@ afterEach(() => {
 const from = (ip: string) => new Request("http://test/x", { headers: { "x-forwarded-for": ip } });
 
 describe("limitLinkPreview", () => {
-  it("offers a sweep for an allowed request and never for a refused one", async () => {
+  // 2026-11-17: every unfurl was an upsert, and Applebot's alone kept Neon's
+  // compute from ever idling five minutes. The limiter counts in memory now;
+  // this pins that it still refuses, and that it wrote nothing doing it.
+  it("refuses past the per-IP ceiling without writing a counter row", async () => {
     // Pinned mid-minute: the windows are epoch-aligned, see routes.int.test.ts.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2031-01-01T12:00:30.000Z"));
     vi.stubEnv("LINK_PREVIEW_RATE_LIMIT_PER_IP_MINUTE", "1");
     const ip = `ip-${randomUUID()}`;
-    const onAllowed = vi.fn();
 
-    expect(await limitLinkPreview(from(ip), onAllowed)).toBeNull();
-    expect(onAllowed).toHaveBeenCalledTimes(1);
-
-    const refused = await limitLinkPreview(from(ip), onAllowed);
+    expect(await limitLinkPreview(from(ip))).toBeNull();
+    const refused = await limitLinkPreview(from(ip));
     expect(refused?.status).toBe(429);
-    expect(onAllowed).toHaveBeenCalledTimes(1);
+    expect(refused?.headers.get("Cache-Control")).toBe("no-store");
+
+    const rows = await db
+      .select({ bucket: rateLimitCounters.bucket })
+      .from(rateLimitCounters)
+      .where(like(rateLimitCounters.bucket, `%${ip}%`));
+    expect(rows).toEqual([]);
   });
 });
 
