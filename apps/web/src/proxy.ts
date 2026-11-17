@@ -98,7 +98,37 @@ export default function proxy(...args: Parameters<ReturnType<typeof guard>>) {
   // page) gets its cookie and nothing else. No `auth()`: the ref is not about
   // a session, and paying for one there would undo what ADR-078 bought.
   if (!isGuardedPath(req.nextUrl.pathname)) return bankSignupRef(req, NextResponse.next());
-  return guard(req.nextUrl)(...args);
+  const answer = guard(req.nextUrl)(...args);
+  // Auth.js returns a promise; the unit tests' stand-in answers at once.
+  return answer instanceof Promise ? answer.then(shedCachedCopyAuthCookies) : shedCachedCopyAuthCookies(answer);
+}
+
+// Auth.js's wrapper appends the cookies its session lookup minted, a CSRF
+// token and a callback URL, to every response it wraps, after the handler has
+// run (`handleAuth`), so only a wrapper outside it can take them off.
+const AUTH_FLOW_COOKIE = /^(?:__Host-|__Secure-)?authjs\.(?:csrf-token|callback-url)=/;
+
+/**
+ * The library's cached copy without Auth.js's CSRF and callback-URL cookies
+ * (2026-11-17). The page is the same for every signed-out reader and says
+ * `s-maxage` (`app/playbooks/[copy]/layout.tsx`), but a response that sets a
+ * cookie is one no CDN will keep, Cloudflare by default included, so every
+ * crawler's fetch reached the server and, past a deploy or a day, the
+ * database. Neither cookie is needed to read: Auth.js sets both again from
+ * `/api/auth/csrf` and `/signin` when a sign-in starts. Every other response
+ * keeps them, and so does any other cookie on this one (a shed hint, a banked
+ * `?ref=`, a cleared expired session), which is a response no CDN keeps anyway.
+ */
+function shedCachedCopyAuthCookies(response: Response | void): Response | void {
+  if (!(response instanceof Response)) return response;
+  const rewrite = response.headers.get("x-middleware-rewrite");
+  if (rewrite === null || !/^\/playbooks\/cached(?:\/|$)/.test(new URL(rewrite, "http://x").pathname)) return response;
+  const cookies = response.headers.getSetCookie();
+  const kept = cookies.filter((line) => !AUTH_FLOW_COOKIE.test(line));
+  if (kept.length === cookies.length) return response;
+  response.headers.delete("set-cookie");
+  for (const line of kept) response.headers.append("set-cookie", line);
+  return response;
 }
 
 /**

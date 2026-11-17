@@ -9,17 +9,23 @@ import { SIGNUP_REF_COOKIE } from "@/lib/signupRef";
 // What is under test is this file's own branching, not Auth.js's JWT reading.
 // `envOrigin` stands in for `AUTH_URL`: like Auth.js's `reqWithEnvURL`, the
 // handler is then handed the request rebuilt on that origin.
-const authCalls = vi.hoisted(() => ({ count: 0, envOrigin: null as string | null }));
+// `sessionCookies` stands in for what Auth.js's own session lookup mints: the
+// real wrapper appends those to whatever the handler answered (`handleAuth`).
+const authCalls = vi.hoisted(() => ({ count: 0, envOrigin: null as string | null, sessionCookies: [] as string[] }));
 vi.mock("next-auth", async () => {
   const { NextRequest } = await import("next/server");
+  const withSessionCookies = (res: Response) => {
+    for (const line of authCalls.sessionCookies) res.headers.append("set-cookie", line);
+    return res;
+  };
   return {
     default: () => ({
-      auth: (handler: (req: unknown) => unknown) => (req: NextRequest & { auth?: unknown }) => {
+      auth: (handler: (req: unknown) => Response) => (req: NextRequest & { auth?: unknown }) => {
         authCalls.count += 1;
-        if (authCalls.envOrigin === null) return handler(req);
+        if (authCalls.envOrigin === null) return withSessionCookies(handler(req));
         const { href, origin } = req.nextUrl;
         const moved = new NextRequest(href.replace(origin, authCalls.envOrigin), req);
-        return handler(Object.assign(moved, { auth: req.auth }));
+        return withSessionCookies(handler(Object.assign(moved, { auth: req.auth })));
       },
     }),
   };
@@ -129,6 +135,51 @@ describe("proxy", () => {
     expect(res.headers.get("location")).toBeNull();
     expect(res.headers.get("x-middleware-rewrite")).toBe("https://caesura.test/playbooks/cached/board");
     expect(hintSetCookie(res)).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/);
+  });
+
+  // 2026-11-17. Auth.js mints a CSRF token and a callback URL on every request
+  // it wraps, and a response that sets a cookie is one no CDN keeps, so the
+  // cached copy was cached by nothing in front of the server.
+  describe("Auth.js's sign-in cookies", () => {
+    const MINTED = [
+      "__Host-authjs.csrf-token=abc%7Cdef; Path=/; HttpOnly; Secure; SameSite=Lax",
+      "__Secure-authjs.callback-url=https%3A%2F%2Fcaesura.test; Path=/; HttpOnly; Secure; SameSite=Lax",
+    ];
+    const authFlow = (res: Response) => res.headers.getSetCookie().filter((line) => line.includes("authjs."));
+
+    it("are taken off the signed-out cached copy, so a CDN can keep the page", () => {
+      authCalls.sessionCookies = MINTED;
+      try {
+        const res = handle(request("/playbooks/board", { session: false, hint: false }));
+        expect(res.headers.get("x-middleware-rewrite")).toBe("https://caesura.test/playbooks/cached/board");
+        expect(res.headers.getSetCookie()).toEqual([]);
+      } finally {
+        authCalls.sessionCookies = [];
+      }
+    });
+
+    it("leave the cached copy's other cookies, such as a shed hint", () => {
+      authCalls.sessionCookies = MINTED;
+      try {
+        const res = handle(request("/playbooks", { session: false, hint: true }));
+        expect(authFlow(res)).toEqual([]);
+        expect(hintSetCookie(res)).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/);
+      } finally {
+        authCalls.sessionCookies = [];
+      }
+    });
+
+    it.each([
+      ["the live copy", "/playbooks", true],
+      ["a page that sends a signed-out reader to sign in", "/home", false],
+    ])("stay on %s", (_name, path, session) => {
+      authCalls.sessionCookies = MINTED;
+      try {
+        expect(authFlow(handle(request(path, { session, hint: false })))).toEqual(MINTED);
+      } finally {
+        authCalls.sessionCookies = [];
+      }
+    });
   });
 
   // The copies' own URLs are internal. Rewritten again they were an endless

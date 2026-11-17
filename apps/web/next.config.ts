@@ -266,6 +266,16 @@ const nextConfig: NextConfig = {
       source: "/manifest.webmanifest",
       headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
     },
+    {
+      // The sitemap is read per request (`app/sitemap.ts`, force-dynamic) and
+      // Next serves it `max-age=0, must-revalidate`, so every crawler's fetch
+      // reached the server. An hour at a shared cache, as `llms.txt` and the
+      // API index already allow (2026-11-17): its reads are cached for a day
+      // and cleared by a publish, so an hour adds little staleness, and a CDN
+      // in front can answer the crawlers without the server or the database.
+      source: "/sitemap.xml",
+      headers: [{ key: "Cache-Control", value: "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400" }],
+    },
   ],
 };
 
