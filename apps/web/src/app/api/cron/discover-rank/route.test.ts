@@ -1,23 +1,31 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The route is a wrapper: secret check first, then the full rewrite, then the
-// one tag. The rewrite's arithmetic is `discoverRank.int.test.ts`'s; these pin
-// the wrapper's three promises.
+// one tag, cleared only when the ranked order moved. The rewrite's arithmetic
+// and the order read are `discoverRank.int.test.ts`'s; these pin the wrapper.
 const order: string[] = [];
+// What `discoverRankOrder` answers before the rewrite, then after it.
+let orders: string[][] = [["a", "b"], ["b", "a"]];
+const discoverRankOrder = vi.fn(async () => {
+  order.push("read");
+  return orders.shift() ?? [];
+});
 const recomputeDiscoverRanks = vi.fn(async () => {
   order.push("recompute");
 });
 const revalidateTag = vi.fn((..._args: unknown[]) => {
   order.push("revalidate");
 });
-vi.mock("@/server/discoverRank", () => ({ recomputeDiscoverRanks }));
+vi.mock("@/server/discoverRank", () => ({ discoverRankOrder, recomputeDiscoverRanks }));
 vi.mock("next/cache", () => ({ revalidateTag, unstable_cache: vi.fn() }));
 
 afterEach(() => {
   order.length = 0;
+  orders = [["a", "b"], ["b", "a"]];
   vi.unstubAllEnvs();
   vi.resetModules();
   recomputeDiscoverRanks.mockClear();
+  discoverRankOrder.mockClear();
   revalidateTag.mockClear();
 });
 
@@ -36,6 +44,7 @@ describe("GET /api/cron/discover-rank", () => {
     const response = await GET(new Request(URL));
     expect(response.status).toBe(401);
     expect(recomputeDiscoverRanks).not.toHaveBeenCalled();
+    expect(discoverRankOrder).not.toHaveBeenCalled();
     expect(revalidateTag).not.toHaveBeenCalled();
   });
 
@@ -46,16 +55,33 @@ describe("GET /api/cron/discover-rank", () => {
     expect(recomputeDiscoverRanks).toHaveBeenCalledExactlyOnceWith();
   });
 
-  it("with the secret, revalidates only the discover-rank tag", async () => {
+  it("when the order moved, revalidates only the discover-rank tag and says it cleared", async () => {
     const { GET } = await routeWithEnv({ CRON_SECRET: "s3cr3t", NODE_ENV: "production" });
-    await GET(authorised());
+    const response = await GET(authorised());
     expect(revalidateTag.mock.calls).toEqual([["discover-rank", { expire: 0 }]]);
+    expect(await response.json()).toEqual({ ok: true, cleared: true });
   });
 
-  it("rewrites before it clears, so no read re-caches the old order", async () => {
+  it("reads the order on both sides of the rewrite, and clears last, so no read re-caches the old order", async () => {
     const { GET } = await routeWithEnv({ CRON_SECRET: "s3cr3t", NODE_ENV: "production" });
     await GET(authorised());
-    expect(order).toEqual(["recompute", "revalidate"]);
+    expect(order).toEqual(["read", "recompute", "read", "revalidate"]);
+  });
+
+  it("when the order held, clears nothing and says so", async () => {
+    orders = [["a", "b"], ["a", "b"]];
+    const { GET } = await routeWithEnv({ CRON_SECRET: "s3cr3t", NODE_ENV: "production" });
+    const response = await GET(authorised());
+    expect(response.status).toBe(200);
+    expect(revalidateTag).not.toHaveBeenCalled();
+    expect(await response.json()).toEqual({ ok: true, cleared: false });
+  });
+
+  it("counts a day joining the ranked list as a move, though the others kept their places", async () => {
+    orders = [["a", "b"], ["a", "b", "c"]];
+    const { GET } = await routeWithEnv({ CRON_SECRET: "s3cr3t", NODE_ENV: "production" });
+    await GET(authorised());
+    expect(revalidateTag).toHaveBeenCalledOnce();
   });
 
   it("does not answer ok when the tag clear fails", async () => {

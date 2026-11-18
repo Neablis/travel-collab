@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "./db/client";
 import { savedDayAdds, savedDayRanks, savedDayReviews, savedDays } from "./db/schema";
-import { recomputeDiscoverRanks, topDiscoverRanks } from "./discoverRank";
+import { discoverRankOrder, recomputeDiscoverRanks, topDiscoverRanks } from "./discoverRank";
 import { setSavedDayVisibility, updatePlaybookContent } from "./savedDays";
 
 // M61 part 1's gate boxes: *each signal moves a day the right way*, *stars
@@ -410,5 +410,37 @@ describe("topDiscoverRanks", () => {
     expect(rows[0]!.score).toBeGreaterThan(rows[1]!.score);
     expect(rows[0]).toMatchObject({ title: "A day", addsRecent: expect.any(Number), computedAt: expect.any(String) });
     expect(await topDiscoverRanks(1)).toHaveLength(1);
+  });
+});
+
+// The cron clears the rank tag only when this read moves, so it must hold
+// still while scores merely decay, and move when a day really overtakes another.
+describe("discoverRankOrder", () => {
+  it("stays the same an hour later with nothing new, though every score moved", async () => {
+    const high = await day({ publishedAt: ago(2) });
+    const low = await day({ publishedAt: ago(2) });
+    await addedBy(high, [{ by: "a", at: ago(1) }, { by: "b", at: ago(1) }]);
+    await addedBy(low, [{ by: "c", at: ago(1) }]);
+    await recompute();
+    const before = await discoverRankOrder();
+    const scoreBefore = (await rank(high)).score;
+    await recompute(new Date(NOW.getTime() + DAY / 24));
+    expect((await rank(high)).score).not.toBe(scoreBefore);
+    expect(await discoverRankOrder()).toEqual(before);
+    expect(before).toEqual([high, low]);
+  });
+
+  it("moves when one day overtakes another, and leaves out days the library no longer lists", async () => {
+    const first = await day();
+    const second = await day();
+    const gone = await day();
+    await addedBy(first, [{ by: "a", at: NOW }, { by: "b", at: NOW }]);
+    await addedBy(second, [{ by: "c", at: NOW }]);
+    await recompute();
+    expect(await discoverRankOrder()).toEqual([first, second, gone]);
+    await db.update(savedDays).set({ deletedAt: NOW }).where(eq(savedDays.id, gone));
+    await addedBy(second, [{ by: "d", at: NOW }, { by: "e", at: NOW }]);
+    await recompute();
+    expect(await discoverRankOrder()).toEqual([second, first]);
   });
 });

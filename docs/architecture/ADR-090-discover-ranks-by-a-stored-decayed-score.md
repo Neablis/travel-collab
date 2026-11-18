@@ -60,3 +60,21 @@ recent interest above old interest. A lifetime counter buries every new day.
   already paid for.
 - **Clearing `LIBRARY_TAG` hourly**: it would throw away every place, tag and day page the score
   does not change.
+
+## Amendment (2026-11-18): daily, and a clear only when the order moves
+
+Decisions 3 and 4 are amended. Mitchell asked for both on 2026-11-18, while finding out why
+production's Neon database never scaled to zero after the move to Coolify.
+
+- **The job runs daily, at `17 4 * * *` UTC**, beside the 04:00 and 04:30 jobs, so it shares their
+  wake instead of waking Postgres 24 times a day. The half-lives are 7 days and longer, so a
+  day's decay moves few places; the hourly cadence bought freshness nobody could see. The
+  schedule lives in Coolify (`docs/ops/coolify-vps.md`), not in the repo. Publish and re-publish
+  still score their one day in the same request.
+- **The `discover-rank` tag is cleared only when the order moved.** `discoverRankOrder()` reads
+  every listed, ranked day's id in the `top` order, with the same tie-breaks, before and after the
+  rewrite; the route clears only when the two differ, a day joining or leaving the list included.
+  The tag sits on every place, author and tag list as well as Discover, so each needless clear sent
+  the next visitor, mostly link-preview crawlers, to every one of those lists back to Postgres.
+- The consequence on paging stands, at a day's boundary instead of an hour's. The rejected
+  *every 15 minutes* stands for the same reason, more strongly.
