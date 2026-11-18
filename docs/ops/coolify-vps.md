@@ -244,7 +244,7 @@ route with `Authorization: Bearer $CRON_SECRET` (the app checks it,
 |---|---|---|
 | `/api/cron/embed-days` | 04:00 daily | Embeds changed days into pgvector. A no-op while `RAG_PLAN_RETRIEVAL=0` has nothing to read |
 | `/api/cron/tier-rollup` | 04:30 daily | Rewrites this week's plan-tier rollup rows (daily, so a missed day heals) |
-| `/api/cron/discover-rank` | `17 * * * *` (hourly) | Rewrites every public day's Discover rank row (ADR-090: the score decays, so the order drifts hourly) and clears the `discover-rank` cache tag |
+| `/api/cron/discover-rank` | 04:17 daily (`17 4 * * *`) | Rewrites every public day's Discover rank row (ADR-090: the score decays) and clears the `discover-rank` cache tag only when the order a visitor sees moved; its answer's `cleared` says which. Was hourly until 2026-11-18 (ADR-090's amendment): every run woke Postgres |
 
 Run one by hand to test it: Coolify → the application → Scheduled Tasks → the
 task → *Execute now*, then read the task's execution log. A 401 is a wrong or

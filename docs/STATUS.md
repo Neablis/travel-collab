@@ -38,7 +38,9 @@ resolved by PR 721.
 what's worth borrowing now*; decisions, evidence and retro in
 `docs/milestones/M61-discover-ranks-what-is-worth-borrowing.md`, rule in ADR-090). PR 727 landed
 parts 1 to 5 as 678a90d on 2026-11-12, `migrate-production` applied `0076_saved_day_ranks`
-(run 43155805732), and the Coolify task `discover-rank` (`17 * * * *`) runs hourly. Mitchell said
+(run 43155805732), and the Coolify task `discover-rank` ran hourly (`17 * * * *`) until Mitchell
+asked on 2026-11-18 for daily (`17 4 * * *`), with the cache cleared only when the order moves
+(ADR-090's amendment; the schedule is set in Coolify, not in the repo). Mitchell said
 *"Let's close out the gate and merge"* without saying he had walked production; the orchestrator
 took that as a waiver, and nobody has opened preview or production in a browser. `pnpm milestone
 close M61 --confirm` has run (TODO.md row ticked). Production was down for about 8 minutes after

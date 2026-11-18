@@ -183,3 +183,22 @@ export async function topDiscoverRanks(limit: number): Promise<DiscoverRankRow[]
     computedAt: new Date(r.computed_at).toISOString(),
   }));
 }
+
+/**
+ * Every listed, ranked day's id in Discover's `top` order: the score, then the
+ * same tie-breaks as `playbooks.ts`' `top` sort (adds, then newest, then id),
+ * so two reads differ exactly when a cached page would. The cron reads it
+ * before and after a rewrite and clears the rank tag only when it moved: a
+ * decayed score shifts every hour, the order far less often, and each clear
+ * sends the next visitor to every place, author and tag list to Postgres.
+ */
+export async function discoverRankOrder(): Promise<string[]> {
+  const rows = await db.execute<{ saved_day_id: string }>(sql`
+    select r.saved_day_id
+    from saved_day_ranks r
+    join saved_days d on d.id = r.saved_day_id
+    where ${LISTED}
+    order by r.score desc, d.adds desc, d.created_at desc, d.id
+  `);
+  return rows.rows.map((r) => r.saved_day_id);
+}
