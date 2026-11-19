@@ -140,6 +140,11 @@ POST" on v4.7.5), then `GET /api/v1/deployments/<deployment uuid>` until its
 `status` is `finished`, `failed` or `cancelled-by-user`
 (`scripts/coolify-deploy.mjs`).
 
+Once the new container answers its health check it reads every page in its own
+sitemap, signed out, to fill the library's cache before crawlers ask (ADR-063, amendment
+2026-11-19), and again once a day. Its log shows `[warm-up] read <ok> of <n> public pages`
+a few minutes after the deploy, or `[warm-up] skipped: <why>`.
+
 By hand: Actions → *deploy-production* → Run workflow on `main` (migrates, then
 deploys the head). The dashboard's Redeploy and redeploying an older deployment
 (*Rollback*, below) still work and skip the migration step, which is fine: the
