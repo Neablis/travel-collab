@@ -30,8 +30,9 @@ export const LIBRARY_CACHE_SECONDS = 86_400;
 export const LIBRARY_TAG = "library";
 
 /**
- * The tag on Discover's ranked (signed-out) page. The hourly rank rewrite
- * clears it and nothing else: it moves the order, not any day's content.
+ * The tag on Discover's ranked (signed-out) page. The daily rank rewrite
+ * clears it, only when the order moved, and nothing else: it moves the order,
+ * not any day's content.
  */
 export const DISCOVER_RANK_TAG = "discover-rank";
 

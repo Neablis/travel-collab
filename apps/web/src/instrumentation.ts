@@ -4,6 +4,10 @@ import type { Instrumentation } from "next";
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("../sentry.server.config");
+    // Not awaited: the server must start answering before the warm-up can ask
+    // it anything. Production only, which the warmer checks itself.
+    const { startPublicPageWarmer } = await import("./server/warmPublicPages");
+    void startPublicPageWarmer();
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {

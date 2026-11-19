@@ -200,3 +200,18 @@ differently:
 - During a rolling deploy the old and new containers overlap briefly with separate caches, so
   a publish handled by the old one does not clear the new one's. The window is seconds, and
   the day's `readAt` bounds the stale read.
+
+## Amendment — 2026-11-19: the cache is filled at start and once a day
+
+Decision 7's cold cache cost more than a first view after each release. Crawlers walk the
+whole library (several hundred sitemap URLs) one URL every few minutes, so the first view of
+each page arrived as a trickle that kept Neon awake about 23 hours a day on 2026-11-17 and
+11-18. With no deploy for a day and the cache full, it slept about three.
+
+So a production server reads its own sitemap and every page in it once it answers its health
+check, and again every day plus ten minutes (`server/warmPublicPages.ts`, started from
+`instrumentation.ts`). It asks itself on `127.0.0.1`, not the public origin, so the edge
+cannot answer for it and leave this server's cache empty; signed out, two pages at a time,
+with the User-Agent `caesura-cache-warmup`. Each run costs a few minutes of database time
+instead of a day of it, and logs one line: `[warm-up] read <ok> of <n> public pages`.
+`APP_ENV=production` only: previews and staging are not warmed, and the test lanes read live.
