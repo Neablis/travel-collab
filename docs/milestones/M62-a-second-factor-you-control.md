@@ -89,6 +89,27 @@ Each *Recommendation* below is now the decision.
 11. **Tier.** *Recommendation:* free for everyone. Account security is not a Premium feature,
     and a paywall on it reads badly.
 
+### Decided 2026-11-20 at planning, all as recommended
+
+The code survey turned up three gaps. Mitchell also approved how each part works on screen,
+including the interaction sketches in `docs/plans/2026-11-20-M62-a-second-factor-you-control.md`.
+
+12. **Order.** M62 starts now, beside M59. M59 still has its production cutover and Coolify
+    previews open, and M62 depends on neither.
+13. **Wrong codes.** Server actions have no rate limit today. At `/signin/verify`, 5 wrong
+    authenticator or recovery codes in 15 minutes, per account, lock codes for 15 minutes and email
+    the account. Passkeys cannot be guessed, so they stay usable during the lock.
+14. **Where the TOTP key comes from.** The repo has no encryption helper. A new
+    `server/secrets/sealed.ts` (AES-256-GCM) takes its key from `MFA_SECRET_KEY`. Mitchell sets
+    that variable on production in Coolify before the top part merges. The app fails closed on
+    enrolment without it.
+15. **The operator reset's confirmation** is the operator ticking *I confirmed this by email with
+    the account's Google address*, beside a required reason. It is recorded in an `mfa_resets` row
+    and listed on the console's account page. No email-confirmation flow is built.
+16. **The PWA lock setting is per device**, stored locally, because a phone and a laptop want
+    different answers. It is shown only in the installed app, and only when the account has a
+    passkey.
+
 ## Scope
 
 A first cut of the parts, for the plan to settle:

@@ -21,6 +21,8 @@ general setup.
 
 ## Where the work is right now
 
+**M62 started 2026-11-20, beside M59** (*An account can ask for a second factor, and you control every one*; D1–D16 in `docs/milestones/M62-a-second-factor-you-control.md`, ADR-092, plan `docs/plans/2026-11-20-M62-a-second-factor-you-control.md`). It is six stacked draft parts on `claude/m62-part<K>-…`, and part 0 is `ccr-f7b14b1c-can07a`. M59 stays the current milestone until it closes. Production needs `MFA_SECRET_KEY` set in Coolify before the top part merges.
+
 **M60 closed 2026-11-14, gate 11 of 11, with two boxes amended out** (*A personal agent can find
 Caesura, and act for you within what you allow*; decisions, evidence and retro in
 `docs/milestones/M60-personal-agents-act-for-you.md`, mechanisms in ADR-089), by `pnpm milestone
