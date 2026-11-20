@@ -179,6 +179,16 @@ function route(req: NextAuthRequest, own: URL): NextResponse {
   // minted `/playbooks/cached/cached/…`) nor passed on (which would serve the
   // page a second time under a URL of its own).
   if (isInternalPlaybooksPath(req.nextUrl.pathname)) return new NextResponse(null, { status: 404 });
+  // M62 (ADR-092): signed in with Google, but the account asks for a second
+  // factor and this token has not passed one. Ahead of the library rewrite, which
+  // would otherwise serve a first-factor-only session the signed-in live copy. The
+  // flag rides the token because this file cannot read the account (ADR-024), so
+  // it is current as of the last sign-in or `update()`; the epoch, which
+  // `server/auth.ts` checks on every server-side `auth()`, is what revokes.
+  if ((req.auth as SessionWithMfa | null)?.mfaPending) {
+    const back = encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search);
+    return NextResponse.redirect(new URL(`/signin/verify?callbackUrl=${back}`, req.nextUrl));
+  }
   // The public library, for everyone: a reader with no session and no query
   // gets the cached copy, anyone else the per-request one (`playbooksReader.ts`).
   // `req.auth` rather than the cookie's presence: a cookie whose session has
@@ -192,17 +202,7 @@ function route(req: NextAuthRequest, own: URL): NextResponse {
     target.pathname = library;
     return NextResponse.rewrite(target);
   }
-  if (req.auth) {
-    // M62 (ADR-092): signed in with Google, but the account asks for a second
-    // factor and this token has not passed one. The flag rides the token because
-    // this file cannot read the account (ADR-024); `server/auth.ts`'s `jwt`
-    // callback keeps it current on every server-side `auth()`.
-    if ((req.auth as SessionWithMfa).mfaPending) {
-      const back = encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search);
-      return NextResponse.redirect(new URL(`/signin/verify?callbackUrl=${back}`, req.nextUrl));
-    }
-    return NextResponse.next();
-  }
+  if (req.auth) return NextResponse.next();
   const { pathname } = req.nextUrl;
   // M27 link 6: the invite landing is PUBLIC — it is what an invite link
   // opens for somebody with no account (SPEC §35.6), so it is served, not
@@ -301,6 +301,10 @@ export const config = {
     "/home",
     "/plans",
     "/account",
+    // M62: server-rendered with `auth()`, which hands a first-factor-only session
+    // a full one, so the second-factor redirect has to be in front of them.
+    "/admin",
+    "/oauth/authorize",
     "/trips/:path*",
     "/invite/:path*",
     "/playbooks/:path*",

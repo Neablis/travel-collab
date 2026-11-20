@@ -22,6 +22,10 @@ const MIN_KEY_BYTES = 32;
 // A label, so the derived key belongs to this use alone.
 const LABEL = "caesura mfa sealed secret v1";
 const VERSION = "v1";
+// Pinned on both sides: Node otherwise accepts a tag of 4 to 16 bytes on decrypt,
+// which would leave a doctored row checked against 32 bits instead of 128.
+const NONCE_BYTES = 12;
+const TAG_BYTES = 16;
 
 // Read per call, not at import: a test sets it, and a missing key fails the
 // request that needed it rather than the import of anything that touches this.
@@ -33,8 +37,8 @@ function key(): Buffer {
 
 /** `v1.<nonce>.<tag>.<ciphertext>`, each part base64url. Throws when the key is unset. */
 export function seal(plaintext: string): string {
-  const nonce = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key(), nonce);
+  const nonce = randomBytes(NONCE_BYTES);
+  const cipher = createCipheriv("aes-256-gcm", key(), nonce, { authTagLength: TAG_BYTES });
   const body = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   return [VERSION, nonce, cipher.getAuthTag(), body].map((p) => (typeof p === "string" ? p : p.toString("base64url"))).join(".");
 }
@@ -45,7 +49,10 @@ export function unseal(sealed: string): string {
   if (version !== VERSION || !nonce || !tag || body === undefined || extra.length > 0) {
     throw new Error("Not a sealed secret.");
   }
-  const decipher = createDecipheriv("aes-256-gcm", key(), Buffer.from(nonce, "base64url"));
-  decipher.setAuthTag(Buffer.from(tag, "base64url"));
+  const nonceBytes = Buffer.from(nonce, "base64url");
+  const tagBytes = Buffer.from(tag, "base64url");
+  if (nonceBytes.length !== NONCE_BYTES || tagBytes.length !== TAG_BYTES) throw new Error("Not a sealed secret.");
+  const decipher = createDecipheriv("aes-256-gcm", key(), nonceBytes, { authTagLength: TAG_BYTES });
+  decipher.setAuthTag(tagBytes);
   return Buffer.concat([decipher.update(Buffer.from(body, "base64url")), decipher.final()]).toString("utf8");
 }

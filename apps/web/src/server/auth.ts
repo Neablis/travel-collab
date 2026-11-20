@@ -25,7 +25,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // and the second factor, which the proxy's database-free copy cannot do.
     jwt: createJwtCallback({
       stateFor: mfaStateFor,
-      secondFactorFrom: (userId, payload, epoch) => readSecondFactorProof(userId, payload, epoch, new Date()),
+      secondFactorFrom: (userId, sid, payload, epoch) => readSecondFactorProof(userId, sid, payload, epoch, new Date()),
     }),
   },
 });

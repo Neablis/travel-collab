@@ -42,4 +42,13 @@ describe("sealed secrets", () => {
     flipped[0] = flipped[0]! ^ 1;
     expect(() => unseal([v, nonce, tag, flipped.toString("base64url")].join("."))).toThrow();
   });
+
+  it("refuses a tag cut short, even a genuine prefix, and a nonce of another length", () => {
+    process.env.MFA_SECRET_KEY = KEY;
+    const [v, nonce, tag, body] = seal("secret").split(".");
+    const cut = Buffer.from(tag!, "base64url").subarray(0, 4).toString("base64url");
+    expect(() => unseal([v, nonce, cut, body].join("."))).toThrow();
+    const longer = Buffer.concat([Buffer.from(nonce!, "base64url"), Buffer.from([0])]).toString("base64url");
+    expect(() => unseal([v, longer, tag, body].join("."))).toThrow();
+  });
 });

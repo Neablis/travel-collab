@@ -417,7 +417,7 @@ describe("the second-factor claims", () => {
 
   const lookupWith = (state: { enabled: boolean; epoch: number }, proves: "otp" | null = null) => ({
     stateFor: async () => state,
-    secondFactorFrom: () => proves,
+    secondFactorFrom: () => (proves ? { method: proves, expiresAt: 1_000 } : null),
   });
   const callback = async (lookup?: ReturnType<typeof lookupWith>) => {
     const { createJwtCallback } = await import("./authConfig");
@@ -444,13 +444,17 @@ describe("the second-factor claims", () => {
 
   it("adds a second factor on update only when the lookup vouches for it, and then adopts the current epoch", async () => {
     const proved = await callback(lookupWith({ enabled: true, epoch: 4 }, "otp"));
-    const upgraded = await proved({ token: fresh({ epoch: 3, amr: ["google"] }), trigger: "update", session: {} });
+    const upgraded = await proved({
+      token: fresh({ epoch: 3, amr: ["google"], sid: "s1" }),
+      trigger: "update",
+      session: {},
+    });
     expect(upgraded).toMatchObject({ amr: ["google", "otp"], epoch: 4 });
     expect(typeof upgraded!.mfaAt).toBe("number");
 
     const unproved = await callback(lookupWith({ enabled: true, epoch: 4 }));
     const claimed = await unproved({
-      token: fresh({ epoch: 4, amr: ["google"] }),
+      token: fresh({ epoch: 4, amr: ["google"], sid: "s1" }),
       trigger: "update",
       session: { method: "otp" },
     });
