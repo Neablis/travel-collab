@@ -5,8 +5,9 @@ about how caesura is a AI first tool, document all the AI tools we have like mcp
 tokens, the api, agents.md, poppy, and give examples how caesura is a partner to your favorite ai
 tools."* Placed **last**, after M62, until Mitchell places it (see `docs/milestones/README.md`,
 *2026-11-20 — minted: M62 and M63*). **Scoped the same day with every decision as recommended,
-and the *Built with agents* section ships.** Mitchell: *"Go with your recommendations, ship the
-agents section."*
+and a site-level `/agents.md`.** Mitchell: *"Go with your recommendations, ship the agents
+section."* **The page says nothing about how Caesura is built.** Mitchell, the same day: *"we
+should leave development details from the ai SEO page"*.
 
 ## Why this exists
 
@@ -45,10 +46,10 @@ Each *Recommendation* below is now the decision.
    publish a site-level **`/agents.md`**, the instructions file for an agent that *acts on*
    Caesura: how to authenticate (token, OAuth, Poppy), which surface to use for which job, the
    scopes, the rate limits, and what never to do (publish without asking, for example). It is a
-   sibling of `/llms.txt` and is generated from the same `SCOPE_CATALOGUE`. The page also gets a
-   short *Built with agents* section that says Caesura itself is built by AI agents under one
-   `AGENTS.md`. That section only describes the practice and does not link the private repo.
-   **Mitchell: it ships.**
+   sibling of `/llms.txt` and is generated from the same `SCOPE_CATALOGUE`. A *Built with agents*
+   section on the page, saying Caesura is itself built by AI agents, was proposed and then
+   **dropped by Mitchell**: the page leaves development details out. Neither the page nor
+   `/agents.md` mentions the repository's `AGENTS.md`, the build process or its tooling.
 3. **Which AI tools the examples name.** *Recommendation:* only what has been seen working on
    production, each with its setup in three steps or fewer:
    - **Claude** (claude.ai and the desktop app): add Caesura as a custom connector at
@@ -88,7 +89,7 @@ A first cut of the parts, for the plan to settle:
 2. **`/agents.md`** (decision 2): the route, generated from the contracts, linked from
    `llms.txt` and the api-catalog, with a discovery test.
 3. **The `/ai` page** (decisions 1, 4, 6, 7): the surfaces, the scope table, the examples, and
-   the *Built with agents* section.
+   no development details.
 4. **Search** (decisions 1, 5): metadata, JSON-LD, the OG image, the sitemap entry and the
    inbound links.
 0. **The gate**: the evidence, the approved words, the retro.
@@ -119,6 +120,7 @@ A first cut of the parts, for the plan to settle:
 - [ ] **Signed out:** with JavaScript off, `/ai` answers HTML with one `<h1>` and every example
   (`test:e2e:ci-like`, or CI on the PR).
 - [ ] **Words:** the title, description and headline are the words Mitchell approved.
-- [ ] **Built with agents:** the section is on the page, and it links nothing private.
+- [ ] **No development details:** neither the page nor `/agents.md` mentions the repository,
+  its `AGENTS.md` or how Caesura is built.
 - [ ] **[walk]** Mitchell runs `/ai` through Google's Rich Results Test with no errors, and
   follows the Claude example from the page to a published playbook.
