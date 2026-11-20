@@ -1,9 +1,10 @@
 # M62 — An account can ask for a second factor, and you control every one
 
-**Status (2026-11-20): proposed, not scoped.** Minted by Mitchell the same day: *"support for MFA,
+**Status (2026-11-20): scoped, not started.** Minted by Mitchell the same day: *"support for MFA,
 including biometric unlock, revoking MFA and adding new ones"*. Placed **last**, after M53, until
-Mitchell places it (see `docs/milestones/README.md`, *2026-11-20 — minted: M62 and M63*). Every
-decision below is a recommendation; none has been answered.
+Mitchell places it (see `docs/milestones/README.md`, *2026-11-20 — minted: M62 and M63*).
+**Scoped the same day with every decision as recommended.** Mitchell: *"Go with your
+recommendations."*
 
 ## Why this exists
 
@@ -27,7 +28,9 @@ What is asked for:
 
 ## Decisions
 
-### Open
+### Decided 2026-11-20, all as recommended
+
+Each *Recommendation* below is now the decision.
 
 1. **What MFA sits on top of.** *Recommendation:* a second step after Google, not a replacement
    for it. Google stays the only first factor. Once an account has MFA on, a Google sign-in

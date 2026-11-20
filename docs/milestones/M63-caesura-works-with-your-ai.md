@@ -4,8 +4,9 @@
 about how caesura is a AI first tool, document all the AI tools we have like mcp, fine scoped
 tokens, the api, agents.md, poppy, and give examples how caesura is a partner to your favorite ai
 tools."* Placed **last**, after M62, until Mitchell places it (see `docs/milestones/README.md`,
-*2026-11-20 — minted: M62 and M63*). Every decision below is a recommendation; none has been
-answered.
+*2026-11-20 — minted: M62 and M63*). **Scoped the same day with every decision as recommended,
+and the *Built with agents* section ships.** Mitchell: *"Go with your recommendations, ship the
+agents section."*
 
 ## Why this exists
 
@@ -27,14 +28,19 @@ it?"*, and nothing ranks for those searches.
 
 ## Decisions
 
-### Open
+### Decided 2026-11-20, all as recommended
+
+Each *Recommendation* below is now the decision.
 
 1. **The URL and the words it targets.** *Recommendation:* `/ai`, titled *"Caesura works with
    your AI: Claude, ChatGPT, Gemini and agents"* (the build proposes the final words, and Mitchell
    approves them, as in M50 and M53). It targets *AI trip planner*, *trip planner MCP server*,
    *Claude trip planning* and *travel planning API for agents*. It is in the sitemap, linked from
    the landing's footer, `/developers`, and `/llms.txt`.
-2. **What "agents.md" is here.** There is no public `agents.md` today. The repository's own
+2. **What "agents.md" is here.** There is no public `agents.md` today. Checked 2026-11-20:
+   `/agents.md`, `/AGENTS.md`, `/agent.md` and `/.well-known/agents.md` all answer 404 on
+   production, and no route on `main` serves one. What exists for agents is `/llms.txt`,
+   `poppy.json`, the api-catalog and the OpenAPI document. The repository's own
    `AGENTS.md` is the operating manual for the agents that *build* Caesura. *Recommendation:*
    publish a site-level **`/agents.md`**, the instructions file for an agent that *acts on*
    Caesura: how to authenticate (token, OAuth, Poppy), which surface to use for which job, the
@@ -42,7 +48,7 @@ it?"*, and nothing ranks for those searches.
    sibling of `/llms.txt` and is generated from the same `SCOPE_CATALOGUE`. The page also gets a
    short *Built with agents* section that says Caesura itself is built by AI agents under one
    `AGENTS.md`. That section only describes the practice and does not link the private repo.
-   Mitchell decides whether that section ships.
+   **Mitchell: it ships.**
 3. **Which AI tools the examples name.** *Recommendation:* only what has been seen working on
    production, each with its setup in three steps or fewer:
    - **Claude** (claude.ai and the desktop app): add Caesura as a custom connector at
@@ -82,7 +88,7 @@ A first cut of the parts, for the plan to settle:
 2. **`/agents.md`** (decision 2): the route, generated from the contracts, linked from
    `llms.txt` and the api-catalog, with a discovery test.
 3. **The `/ai` page** (decisions 1, 4, 6, 7): the surfaces, the scope table, the examples, and
-   the *Built with agents* section if Mitchell keeps it.
+   the *Built with agents* section.
 4. **Search** (decisions 1, 5): metadata, JSON-LD, the OG image, the sitemap entry and the
    inbound links.
 0. **The gate**: the evidence, the approved words, the retro.
@@ -113,5 +119,6 @@ A first cut of the parts, for the plan to settle:
 - [ ] **Signed out:** with JavaScript off, `/ai` answers HTML with one `<h1>` and every example
   (`test:e2e:ci-like`, or CI on the PR).
 - [ ] **Words:** the title, description and headline are the words Mitchell approved.
+- [ ] **Built with agents:** the section is on the page, and it links nothing private.
 - [ ] **[walk]** Mitchell runs `/ai` through Google's Rich Results Test with no errors, and
   follows the Claude example from the page to a published playbook.
