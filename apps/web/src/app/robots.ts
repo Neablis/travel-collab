@@ -14,6 +14,18 @@ import { deploymentOrigin } from "@/lib/deploymentOrigin";
 // PR #295). The longer path wins, so the token-keyed invite and referral
 // cards stay out.
 /**
+ * The library with a query: a Discover filter or page turn (`/playbooks?…`,
+ * whose next-page link carries a fresh `after=` cursor) and a place page's
+ * `?page=N` (`/playbooks/…?…`). Each is served live and is its own data-cache
+ * entry, which the warm-up does not read (it reads the sitemap, and no sitemap
+ * URL has a query), so every new one a crawler follows is a Postgres read. The
+ * filters and cursors make that a space with no end, and the database stayed
+ * awake on it (2026-11-20). Nothing is lost to the index: every day and every
+ * place, tag and length page is in the sitemap under its own URL with no query.
+ */
+const LIBRARY_QUERY_SKIPPED = ["/playbooks?", "/playbooks/*?"] as const;
+
+/**
  * Paths a crawler is asked to leave alone besides `/api/`. Each is a page that
  * is rendered per request and is never indexed, so a crawl of it bought
  * nothing and cost Active CPU (2026-11-06, the free team past 270% of its
@@ -22,7 +34,12 @@ import { deploymentOrigin } from "@/lib/deploymentOrigin";
  * URL is in the sitemap. `*` is honoured by Google and Bing (RFC 9309 leaves
  * it to them).
  */
-export const CRAWL_SKIPPED = ["/playbooks/profile/", "/playbooks/board", "/*?*from="] as const;
+export const CRAWL_SKIPPED = [
+  "/playbooks/profile/",
+  "/playbooks/board",
+  "/*?*from=",
+  ...LIBRARY_QUERY_SKIPPED,
+] as const;
 
 /**
  * The `/api/` reads a sitemap page's own content is drawn from in the browser.

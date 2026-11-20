@@ -80,7 +80,16 @@ export async function libraryCached<T>(
 ): Promise<T> {
   if (process.env.NODE_ENV !== "production") return read();
   const { unstable_cache } = await nextCache();
-  return unstable_cache(read, ["library", ...cacheScope(), ...key], {
+  // One line per read that reached Postgres, naming what was asked
+  // (2026-11-20). A crawler walking URLs the warm-up does not read showed up
+  // only as the database staying awake, with nothing to say which URLs; this
+  // line in the server's log is what says so. Inside the cached function, so
+  // a hit prints nothing.
+  const missed = (): Promise<T> => {
+    console.log(`[library] cache miss: ${key.join(" ")}`);
+    return read();
+  };
+  return unstable_cache(missed, ["library", ...cacheScope(), ...key], {
     revalidate: LIBRARY_CACHE_SECONDS,
     tags: [...tags],
   })();
