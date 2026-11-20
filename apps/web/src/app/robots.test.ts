@@ -60,7 +60,34 @@ describe("robots.txt", () => {
   it("keeps crawlers off profiles, the board and back-link copies", () => {
     const { rules } = robots();
     const rule = Array.isArray(rules) ? rules[0]! : rules;
-    expect(rule.disallow).toEqual(["/api/", "/playbooks/profile/", "/playbooks/board", "/*?*from="]);
+    expect(rule.disallow).toEqual(expect.arrayContaining(["/api/", "/playbooks/profile/", "/playbooks/board", "/*?*from="]));
+  });
+
+  // Each filter, cursor and page number is a live render and a fresh
+  // data-cache entry the warm-up never read; a crawler walking them kept the
+  // database awake (2026-11-20).
+  it("keeps crawlers off library pages with a query, and on their sitemap URLs", () => {
+    const { allow, disallow } = lists();
+    for (const path of [
+      "/playbooks?sort=new",
+      "/playbooks?after=eyJyIjoxfQ",
+      "/playbooks?city=Kyoto&length=weekend",
+      "/playbooks/city/kyoto?page=2",
+      "/playbooks/city/kyoto/food?page=3",
+      "/playbooks/country/jp/length/weekend?page=2",
+    ]) {
+      expect(crawlable(path, allow, disallow), path).toBe(false);
+    }
+    for (const path of [
+      "/playbooks",
+      "/playbooks/city/kyoto",
+      "/playbooks/city/kyoto/food",
+      "/playbooks/day/three-days-in-kyoto-0b1c2d3e-0000-4000-8000-000000000001",
+      "/demo/kyoto?step=2",
+      "/developers?tab=api",
+    ]) {
+      expect(crawlable(path, allow, disallow), path).toBe(true);
+    }
   });
 
   // The sitemap's own pages must stay crawlable: nothing it lists may sit

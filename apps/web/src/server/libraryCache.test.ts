@@ -123,6 +123,26 @@ describe("libraryCached", () => {
     expect(two).toContain("dpl_two");
     expect(two).not.toEqual(one);
   });
+
+  // The database stayed awake on reads nothing named (2026-11-20). A read
+  // that reaches Postgres says what it was; one served from the cache is quiet.
+  it("logs a read that reaches the database, and not one the cache answers", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const read = vi.fn(async () => ["kyoto"]);
+      await expect(libraryCached(["days", '{"cities":["Kyoto"]}', '{"page":2}'], ["library"], read)).resolves.toEqual(["kyoto"]);
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(log).toHaveBeenCalledWith('[library] cache miss: days {"cities":["Kyoto"]} {"page":2}');
+
+      log.mockClear();
+      unstable_cache.mockImplementationOnce(() => async () => ["from the cache"]);
+      await expect(libraryCached(["places"], ["library"], read)).resolves.toEqual(["from the cache"]);
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  });
 });
 
 describe("cacheTagHeader", () => {

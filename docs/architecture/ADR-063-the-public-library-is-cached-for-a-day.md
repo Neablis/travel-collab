@@ -215,3 +215,22 @@ cannot answer for it and leave this server's cache empty; signed out, two pages 
 with the User-Agent `caesura-cache-warmup`. Each run costs a few minutes of database time
 instead of a day of it, and logs one line: `[warm-up] read <ok> of <n> public pages`.
 `APP_ENV=production` only: previews and staging are not warmed, and the test lanes read live.
+
+## Amendment — 2026-11-20: crawlers are kept off the library's query URLs
+
+The warm-up reads the sitemap, and no sitemap URL carries a query. Every library
+URL that does (a Discover filter, Discover's next-page link with its `after=`
+cursor, a place page's `?page=N`) is served live and is a data-cache entry of its
+own, so the first visit to each one after a deploy reads Postgres. Filters and
+cursors make that space endless. The day after the warm-up shipped, Neon slept
+about one hour in 24 (three the day before), and in a sample while it stayed awake
+every read was a library list read with no signed-in request beside it.
+
+`robots.txt` now disallows `/playbooks?` and `/playbooks/*?`. Nothing is lost to
+the index: each of those pages is a filter or page of a list whose days and places
+are all in the sitemap under URLs with no query. `libraryCached` also logs one line
+per read that reaches Postgres (`[library] cache miss: <key>`), so the next time
+the database will not sleep, the server log says which reads it was. A bot that
+ignores `robots.txt` still reaches them; if the log shows that, the next step is
+serving the signed-out lists from one cached copy of the library, not one entry
+per URL.
