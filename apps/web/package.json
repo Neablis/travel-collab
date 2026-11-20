@@ -56,6 +56,8 @@
     "@scalar/api-reference-react": "^0.9.90",
     "@sentry/nextjs": "^10.78.0",
     "@sentry/profiling-node": "^10.78.0",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.1.0",
     "@tc/contracts": "workspace:*",
     "@tc/domain": "workspace:*",
     "@tc/fixtures": "workspace:*",

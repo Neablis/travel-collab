@@ -81,3 +81,21 @@ export function readSecondFactorProof(
   if (epoch !== currentEpoch || expiresAt < now.getTime()) return null;
   return digestsMatch(proof, digestOf(userId, method, epoch, expiresAt)) ? method : null;
 }
+
+/** How recent a check must be to add, remove or regenerate (M62 D6). */
+export const FRESH_CHECK_MS = 10 * 60 * 1000;
+
+/**
+ * Whether the session has proved itself lately: a second factor within ten
+ * minutes when the account has MFA on, or a Google sign-in within ten minutes
+ * when it is off and there is no second factor to ask for. Judged from what the
+ * session carries (`SessionWithMfa`), so it costs no read.
+ */
+export function hasFreshCheck(
+  mfaEnabled: boolean,
+  session: { mfaAt?: number; signedInAt?: number },
+  now: Date,
+): boolean {
+  const at = mfaEnabled ? session.mfaAt : session.signedInAt;
+  return at !== undefined && now.getTime() - at <= FRESH_CHECK_MS;
+}

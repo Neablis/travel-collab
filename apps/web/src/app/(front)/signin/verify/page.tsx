@@ -1,18 +1,22 @@
-"use client";
+import { VerifyScreen } from "@/components/front/VerifyScreen";
+import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
+import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 
-import { signOut } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { Heading } from "@/components/ui/heading";
+// M62 (ADR-092): where the proxy sends a session that has passed Google and not
+// yet its account's second factor. Request-rendered for the `callbackUrl`, which
+// is untrusted input and goes through `safeCallbackUrl` before the screen may
+// navigate to it.
+export const metadata = pageMetadata({
+  title: "Confirm it’s you",
+  description: "Finish signing in to Caesura with your second step.",
+  robots: NOINDEX,
+});
 
-// M62 part 1 (ADR-092): a placeholder, so the proxy's redirect for an account that
-// asks for a second factor lands somewhere. Part 2 replaces it with the real screen.
-export default function VerifyPage() {
-  return (
-    <main>
-      <Heading level={1}>Confirm it&rsquo;s you</Heading>
-      <Button type="button" onClick={() => void signOut({ callbackUrl: "/" })}>
-        Sign out
-      </Button>
-    </main>
-  );
+export default async function VerifyPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { callbackUrl } = await searchParams;
+  return <VerifyScreen callbackUrl={safeCallbackUrl(typeof callbackUrl === "string" ? callbackUrl : null)} />;
 }

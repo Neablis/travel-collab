@@ -1,0 +1,56 @@
+import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
+import { z } from "zod";
+import { authIncludingPending } from "@/server/auth";
+import { passkeysOf, recordPasskeyUse } from "@/server/mfa/factors";
+import { authenticationOptions, verifyAuthentication } from "@/server/mfa/passkey";
+import { mfaStateFor, mintSecondFactorProof } from "@/server/mfa/state";
+
+// The second step of sign-in (M62 D3a), and the fresh check inside the app. This
+// is one of the two places that reads a session that has not passed its second
+// factor yet (`authIncludingPending`); the other is Auth.js's own sign-out.
+//
+// It does not set the claim itself. It verifies the passkey and answers with a
+// server-minted proof, which the browser hands to NextAuth's `update`, because
+// only the `jwt` callback can write the cookie (`server/mfa/state.ts`).
+const Step = z.discriminatedUnion("step", [
+  z.object({ kind: z.literal("passkey"), step: z.literal("options") }),
+  z.object({
+    kind: z.literal("passkey"),
+    step: z.literal("verify"),
+    ticket: z.string().min(1),
+    response: z.record(z.string(), z.unknown()),
+  }),
+]);
+
+export async function POST(request: Request) {
+  const session = await authIncludingPending();
+  const userId = session?.user?.id;
+  if (userId === undefined || userId === "") return Response.json({ error: "unauthenticated" }, { status: 401 });
+
+  const body = Step.safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: "invalid-request" }, { status: 400 });
+
+  const state = await mfaStateFor(userId);
+  if (!state.enabled) return Response.json({ error: "mfa-not-enabled" }, { status: 409 });
+
+  const now = new Date();
+  const passkeys = await passkeysOf(userId);
+  if (body.data.step === "options") {
+    if (passkeys.length === 0) return Response.json({ error: "no-passkey" }, { status: 409 });
+    return Response.json(await authenticationOptions(userId, passkeys, now));
+  }
+
+  const verified = await verifyAuthentication(
+    userId,
+    passkeys,
+    body.data.response as unknown as AuthenticationResponseJSON,
+    body.data.ticket,
+    now,
+  );
+  // Not a 400: this is somebody who may not be who they say, and the answer is
+  // the same whether the key was wrong, the account's, or the challenge stale.
+  if (verified === null) return Response.json({ error: "passkey-not-verified" }, { status: 401 });
+
+  await recordPasskeyUse(verified.factorId, verified.counter, now);
+  return Response.json({ proof: mintSecondFactorProof(userId, "webauthn", state.epoch, now) });
+}

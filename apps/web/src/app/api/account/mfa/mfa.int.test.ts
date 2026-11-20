@@ -1,0 +1,240 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
+import { generateKeyPairSync } from "node:crypto";
+import { eq } from "drizzle-orm";
+import { db } from "@/server/db/client";
+import { userRecoveryCodes, users } from "@/server/db/schema";
+import { createJwtCallback } from "@/lib/authConfig";
+import { mfaStateFor, readSecondFactorProof } from "@/server/mfa/state";
+import { softAuthenticator, type SoftAuthenticator } from "@/server/test-support/softAuthenticator";
+
+// Only the Auth.js wrapper is replaced, so the real `@/server/auth` runs: its
+// refusal of a half-signed-in session is one of the things under test. What the
+// session says is whatever the test sets.
+const current = vi.hoisted(() => ({ session: null as unknown }));
+vi.mock("next-auth", () => ({
+  default: () => ({ handlers: {}, signIn: vi.fn(), signOut: vi.fn(), auth: async () => current.session }),
+}));
+
+const { GET: FACTORS } = await import("./factors/route");
+const { PATCH: RENAME } = await import("./factors/[factorId]/route");
+const { POST: ADD } = await import("./passkeys/route");
+const { POST: VERIFY } = await import("../../mfa/verify/route");
+const { GET: PREFERENCES } = await import("../preferences/route");
+
+const ORIGIN = "https://caesura.example";
+const ctx = { origin: ORIGIN, rpId: "caesura.example" };
+beforeEach(() => vi.stubEnv("PUBLIC_ORIGIN", ORIGIN));
+afterEach(() => vi.unstubAllEnvs());
+
+async function account(): Promise<string> {
+  const id = `dev-${randomUUID()}`;
+  const now = new Date().toISOString();
+  await db.insert(users).values({ id, createdAt: now, updatedAt: now });
+  return id;
+}
+
+interface SessionClaims {
+  mfaPending?: boolean;
+  mfaAt?: number;
+  signedInAt?: number;
+}
+function signedInAs(id: string, claims: SessionClaims = { signedInAt: Date.now() }) {
+  current.session = { user: { id, email: `${id}@example.test` }, ...claims };
+}
+
+const post = (body: unknown) => new Request("http://localhost/x", { method: "POST", body: JSON.stringify(body) });
+// The union of what these routes answer with; a test reads only the fields its route sets.
+interface Body {
+  options: { challenge: string; allowCredentials: unknown[] };
+  ticket: string;
+  proof: unknown;
+  recoveryCodes: string[] | null;
+  enabled: boolean;
+  factors: { id: string; name: string }[];
+  error?: string;
+}
+const json = async (res: Response) => (await res.json()) as Body;
+
+/** Registers `device` through the routes, as a freshly signed-in account would. */
+async function addPasskey(device: SoftAuthenticator) {
+  const { options, ticket } = await json(await ADD(post({ step: "options" })));
+  return ADD(post({ step: "verify", ticket, response: device.attest(options as { challenge: string }, ctx) }));
+}
+
+/** The `jwt` callback `server/auth.ts` builds, over the real tables. */
+const jwt = createJwtCallback({
+  stateFor: mfaStateFor,
+  secondFactorFrom: (userId, payload, epoch) => readSecondFactorProof(userId, payload, epoch, new Date()),
+}) as unknown as (a: unknown) => Promise<Record<string, unknown> | null>;
+
+/** An account with MFA on and one passkey, its session satisfied. */
+async function accountWithPasskey() {
+  const id = await account();
+  const device = softAuthenticator();
+  signedInAs(id);
+  expect((await addPasskey(device)).status).toBe(200);
+  return { id, device };
+}
+
+describe("a session that has passed only Google", () => {
+  it("is refused by an ordinary API route, and an ordinary session is not", async () => {
+    const id = await account();
+    signedInAs(id, { mfaPending: true });
+    const refused = await PREFERENCES();
+    expect(refused.status).toBe(401);
+
+    signedInAs(id, { mfaPending: false });
+    expect((await PREFERENCES()).status).toBe(200);
+  });
+
+  it("can still reach the verify endpoint, which is how it stops being half signed in", async () => {
+    const { id } = await accountWithPasskey();
+    signedInAs(id, { mfaPending: true });
+    const res = await VERIFY(post({ kind: "passkey", step: "options" }));
+    expect(res.status).toBe(200);
+    expect((await json(res)).options.allowCredentials).toHaveLength(1);
+  });
+});
+
+describe("verifying a passkey", () => {
+  it("answers with a proof the token callback turns into a second factor", async () => {
+    const { id, device } = await accountWithPasskey();
+    signedInAs(id, { mfaPending: true });
+    const { options, ticket } = await json(await VERIFY(post({ kind: "passkey", step: "options" })));
+    const res = await VERIFY(
+      post({ kind: "passkey", step: "verify", ticket, response: device.assert(options as { challenge: string }, ctx) }),
+    );
+    expect(res.status).toBe(200);
+    const { proof } = await json(res);
+
+    const signedIn = await jwt({ token: {}, user: { id }, account: { providerAccountId: id } });
+    expect(signedIn!.amr).toEqual(["google"]);
+    const updated = await jwt({ token: { ...signedIn }, trigger: "update", session: proof });
+    expect(updated!.amr).toEqual(["google", "webauthn"]);
+  });
+
+  it("does not set the second factor for an assertion signed by another key", async () => {
+    const { id, device } = await accountWithPasskey();
+    signedInAs(id, { mfaPending: true });
+    const thief = softAuthenticator({ key: generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey });
+    const { options, ticket } = await json(await VERIFY(post({ kind: "passkey", step: "options" })));
+    const forged = device.assert(options as { challenge: string }, ctx) as { response: { signature: string } };
+    forged.response.signature = (thief.assert(options as { challenge: string }, ctx) as typeof forged).response.signature;
+
+    const res = await VERIFY(post({ kind: "passkey", step: "verify", ticket, response: forged }));
+    expect(res.status).toBe(401);
+    expect(await json(res)).toEqual({ error: "passkey-not-verified" });
+
+    // And what the browser could send NextAuth in its place is not believed either.
+    const signedIn = await jwt({ token: {}, user: { id }, account: { providerAccountId: id } });
+    const invented = { method: "webauthn", epoch: 0, expiresAt: Date.now() + 60_000, proof: "0".repeat(64) };
+    const updated = await jwt({ token: { ...signedIn }, trigger: "update", session: invented });
+    expect(updated!.amr).toEqual(["google"]);
+  });
+
+  it("does not set the second factor for another account's passkey", async () => {
+    const mine = await accountWithPasskey();
+    const theirs = await accountWithPasskey();
+    signedInAs(mine.id, { mfaPending: true });
+    const { options, ticket } = await json(await VERIFY(post({ kind: "passkey", step: "options" })));
+    const res = await VERIFY(
+      post({ kind: "passkey", step: "verify", ticket, response: theirs.device.assert(options as { challenge: string }, ctx) }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("does not set the second factor from a challenge issued to a different account", async () => {
+    const mine = await accountWithPasskey();
+    const other = await accountWithPasskey();
+    signedInAs(other.id, { mfaPending: true });
+    const { ticket } = await json(await VERIFY(post({ kind: "passkey", step: "options" })));
+    signedInAs(mine.id, { mfaPending: true });
+    const { options } = await json(await VERIFY(post({ kind: "passkey", step: "options" })));
+    const res = await VERIFY(
+      post({ kind: "passkey", step: "verify", ticket, response: mine.device.assert(options as { challenge: string }, ctx) }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("refuses an account that has no second factor turned on", async () => {
+    signedInAs(await account());
+    expect((await VERIFY(post({ kind: "passkey", step: "options" }))).status).toBe(409);
+  });
+});
+
+describe("adding a passkey", () => {
+  it("needs a fresh Google sign-in while two-step sign-in is off", async () => {
+    signedInAs(await account(), { signedInAt: Date.now() - 11 * 60 * 1000 });
+    const res = await ADD(post({ step: "options" }));
+    expect(res.status).toBe(403);
+    expect(await json(res)).toEqual({ error: "fresh-check-required" });
+  });
+
+  it("turns two-step sign-in on and returns ten recovery codes, once, with the first passkey", async () => {
+    const id = await account();
+    signedInAs(id);
+    const res = await addPasskey(softAuthenticator());
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.recoveryCodes).toHaveLength(10);
+    expect((await mfaStateFor(id)).enabled).toBe(true);
+    // Stored as digests, never as the codes themselves.
+    const stored = await db.select().from(userRecoveryCodes).where(eq(userRecoveryCodes.userId, id));
+    expect(stored).toHaveLength(10);
+    expect(stored.map((r) => r.codeHash)).not.toContain(body.recoveryCodes![0]);
+  });
+
+  it("needs a second-factor check, not Google, once it is on, and returns no codes for a second one", async () => {
+    const { id } = await accountWithPasskey();
+    // Google signed in a minute ago; no second factor has passed.
+    signedInAs(id, { signedInAt: Date.now() });
+    expect((await ADD(post({ step: "options" }))).status).toBe(403);
+
+    signedInAs(id, { mfaAt: Date.now() });
+    const res = await addPasskey(softAuthenticator());
+    expect(res.status).toBe(200);
+    expect((await json(res)).recoveryCodes).toBeNull();
+    expect((await json(await FACTORS())).factors).toHaveLength(2);
+  });
+
+  it("refuses an attestation that was not made for this deployment", async () => {
+    const id = await account();
+    signedInAs(id);
+    const { options, ticket } = await json(await ADD(post({ step: "options" })));
+    const response = softAuthenticator().attest(options as { challenge: string }, { origin: "https://evil.example", rpId: "caesura.example" });
+    const res = await ADD(post({ step: "verify", ticket, response }));
+    expect(res.status).toBe(400);
+    expect((await mfaStateFor(id)).enabled).toBe(false);
+  });
+});
+
+describe("renaming a factor", () => {
+  it("renames your own, and answers 404 for anyone else's", async () => {
+    const mine = await accountWithPasskey();
+    const theirs = await accountWithPasskey();
+    signedInAs(theirs.id);
+    const factor = (await json(await FACTORS())).factors[0]!;
+
+    signedInAs(mine.id);
+    const rename = (id: string, name: unknown) =>
+      RENAME(new Request("http://localhost/x", { method: "PATCH", body: JSON.stringify({ name }) }), {
+        params: Promise.resolve({ factorId: id }),
+      });
+    expect((await rename(factor.id, "Stolen")).status).toBe(404);
+
+    const own = (await json(await FACTORS())).factors[0]!;
+    expect((await rename(own.id, "  iPhone passkey ")).status).toBe(200);
+    expect((await json(await FACTORS())).factors[0]!.name).toBe("iPhone passkey");
+    expect((await rename(own.id, "   ")).status).toBe(400);
+    expect((await rename("not-a-uuid", "x")).status).toBe(404);
+  });
+
+  it("lists names and times and never a key", async () => {
+    const { id } = await accountWithPasskey();
+    signedInAs(id);
+    const listed = await json(await FACTORS());
+    expect(listed.enabled).toBe(true);
+    expect(Object.keys(listed.factors[0]!).sort()).toEqual(["createdAt", "id", "kind", "lastUsedAt", "name"]);
+  });
+});

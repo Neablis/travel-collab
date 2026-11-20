@@ -33,6 +33,7 @@ vi.mock("./ProfileSection", () => ({
 vi.mock("./PlanSection", () => ({ PlanSection: () => <div data-testid="plan-panel" /> }));
 vi.mock("./TokensSection", () => ({ TokensSection: () => <div data-testid="tokens-panel" /> }));
 vi.mock("./ConnectedAppsSection", () => ({ ConnectedAppsSection: () => <div data-testid="apps-panel" /> }));
+vi.mock("./TwoStepSection", () => ({ TwoStepSection: () => <div data-testid="two-step-panel" /> }));
 
 function mount(tab?: string) {
   params = new URLSearchParams(tab === undefined ? "" : `tab=${tab}`);
@@ -129,10 +130,11 @@ describe("AccountScreen", () => {
   // heading — drawn here rather than inside the sections, which render nothing
   // until they have fetched — and Profile holds neither.
   describe("the Security tab", () => {
-    it("holds API tokens then Connected apps, each a section named by its heading", () => {
+    it("holds Two-step sign-in, API tokens, then Connected apps, each a section named by its heading", () => {
       mount("security");
       const panel = screen.getByRole("tabpanel", { name: "Security" });
       expect(within(panel).getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+        "Two-step sign-in",
         "API tokens",
         "Connected apps",
       ]);

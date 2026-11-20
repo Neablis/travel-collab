@@ -473,4 +473,21 @@ describe("the second-factor claims", () => {
     expect(session({ mfaRequired: true, amr: ["google", "webauthn"] })).toBe(false);
     expect(session({ mfaRequired: false, amr: ["google"] })).toBe(false);
   });
+
+  // What a fresh check (M62 D6) is judged on: Google's sign-in time stamped once
+  // at sign-in and never by an update, and both times readable from the session.
+  it("stamps when Google signed the session in, keeps it through an update, and exposes both times", async () => {
+    const { authConfig } = await import("./authConfig");
+    const jwt = await callback(lookupWith({ enabled: true, epoch: 0 }, "otp"));
+    const signedIn = await jwt({ token: {}, ...signingIn });
+    expect(typeof signedIn!.signedInAt).toBe("number");
+    const updated = await jwt({ token: { ...signedIn }, trigger: "update", session: {} });
+    expect(updated!.signedInAt).toBe(signedIn!.signedInAt);
+
+    const read = (authConfig.callbacks!.session as unknown as (a: unknown) => { mfaAt?: number; signedInAt?: number })({
+      session: { user: {} },
+      token: updated,
+    });
+    expect(read).toMatchObject({ signedInAt: signedIn!.signedInAt, mfaAt: updated!.mfaAt });
+  });
 });

@@ -593,6 +593,28 @@ export async function openAccountPage(page: Page, tab?: "profile" | "plan" | "se
   await expect(page.getByRole("tab", { name: label })).toHaveAttribute("aria-selected", "true");
 }
 
+/**
+ * A passkey authenticator that answers for itself, so a spec can register a
+ * passkey and use it with no one to touch a sensor (M62). Chrome's DevTools
+ * `WebAuthn` domain: an internal, resident-key, user-verifying authenticator
+ * whose presence and verification are simulated. It lives on the page's CDP
+ * session, so it is gone with the page and a second page needs its own.
+ */
+export async function addVirtualAuthenticator(page: Page): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("WebAuthn.enable");
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+}
+
 /** The account page's content, for a spec that used to scope to the Sheet's dialog. */
 export function accountPanel(page: Page): Locator {
   return page.getByRole("tabpanel");

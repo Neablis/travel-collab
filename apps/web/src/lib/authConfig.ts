@@ -197,8 +197,12 @@ if (isDevLoginEnabled()) {
   );
 }
 
-/** `Session` plus the one M62 field the proxy needs. Not a contract: it never leaves the server. */
-export type SessionWithMfa = Session & { mfaPending?: boolean };
+/**
+ * `Session` plus the M62 fields. Not a contract: they are server-side reads.
+ * `mfaAt` and `signedInAt` are what a fresh check is judged on (`server/mfa/state.ts`):
+ * when a second factor last passed, and when Google last signed this session in.
+ */
+export type SessionWithMfa = Session & { mfaPending?: boolean; mfaAt?: number; signedInAt?: number };
 
 /** What the `jwt` callback may ask the server about an account (M62, ADR-092). */
 export interface SessionLookup {
@@ -246,6 +250,10 @@ export function createJwtCallback(lookup?: SessionLookup): NonNullable<NonNullab
       // only one a sign-in can be. A second is added by `update`, never here.
       token.amr = ["google"];
       delete token.mfaAt;
+      // Adding a first factor to an account with MFA off asks for a fresh Google
+      // sign-in (M62 D6), and a token's own `iat` cannot say when that was:
+      // Auth.js re-issues it on every session read.
+      token.signedInAt = Date.now();
       const state = await lookup?.stateFor(subject);
       token.epoch = state?.epoch ?? 0;
       token.mfaRequired = state?.enabled ?? false;
@@ -312,6 +320,8 @@ export const authConfig: NextAuthConfig = {
       // a second factor and this token has only passed the first.
       (session as SessionWithMfa).mfaPending =
         token.mfaRequired === true && ((token.amr as string[] | undefined)?.length ?? 1) < 2;
+      (session as SessionWithMfa).mfaAt = token.mfaAt as number | undefined;
+      (session as SessionWithMfa).signedInAt = token.signedInAt as number | undefined;
       // Overrides `sendDefaultPii: false` deliberately (Mitchell, 2026-08-30):
       // this is the one seam every `auth()` call in both runtimes passes
       // through, so it's the single place to attach identity to whatever

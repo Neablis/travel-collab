@@ -17,6 +17,7 @@ import { ProfileSection } from "./ProfileSection";
 import { PlanSection } from "./PlanSection";
 import { TokensSection } from "./TokensSection";
 import { ConnectedAppsSection } from "./ConnectedAppsSection";
+import { TwoStepSection } from "./TwoStepSection";
 import { Text } from "@/components/ui/text";
 import type { AccountPlanChoice, AccountPlanState } from "@/lib/accountPlan";
 import { HOME_PATH } from "@/lib/homePath";
@@ -42,8 +43,8 @@ import { clearSignedInHint } from "@/lib/sessionHint";
 // **Security holds API tokens and Connected apps** (M55 part 6). They were
 // sub-views reached by quiet links at the foot of Profile (SPEC §35.4, M27
 // D7; M55 D10), and Mitchell found them buried there. The tab is the place
-// for whatever else secures an account later (MFA), beside `PremiumSecurity`
-// rather than inside it.
+// for whatever else secures an account, beside `PremiumSecurity` rather than
+// inside it: M62's *Two-step sign-in* is that, above them.
 const TABS = [
   { value: "profile", label: "Profile" },
   { value: "plan", label: "Plan & usage" },
@@ -264,7 +265,15 @@ export function AccountScreen() {
             />
           )}
           {tab === "plan" && <PlanSection />}
-          {tab === "security" && <PremiumSecurity />}
+          {tab === "security" && (
+            <div className="flex flex-col gap-10">
+              {/* M62: above API tokens, because it is what protects them. */}
+              <SecuritySection heading="Two-step sign-in" headingId="account-two-step-heading">
+                <TwoStepSection />
+              </SecuritySection>
+              <PremiumSecurity />
+            </div>
+          )}
         </div>
 
         {/* **Sign out, on the phone only, below the tabs** — and this is the
