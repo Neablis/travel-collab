@@ -1,7 +1,7 @@
 import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 import { NextResponse, type NextRequest } from "next/server";
 import NextAuth, { type NextAuthRequest } from "next-auth";
-import { authConfig } from "@/lib/authConfig";
+import { authConfig, type SessionWithMfa } from "@/lib/authConfig";
 import {
   PENDING_ADMISSION_COOKIE,
   normalizePendingAdmission,
@@ -192,7 +192,17 @@ function route(req: NextAuthRequest, own: URL): NextResponse {
     target.pathname = library;
     return NextResponse.rewrite(target);
   }
-  if (req.auth) return NextResponse.next();
+  if (req.auth) {
+    // M62 (ADR-092): signed in with Google, but the account asks for a second
+    // factor and this token has not passed one. The flag rides the token because
+    // this file cannot read the account (ADR-024); `server/auth.ts`'s `jwt`
+    // callback keeps it current on every server-side `auth()`.
+    if ((req.auth as SessionWithMfa).mfaPending) {
+      const back = encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search);
+      return NextResponse.redirect(new URL(`/signin/verify?callbackUrl=${back}`, req.nextUrl));
+    }
+    return NextResponse.next();
+  }
   const { pathname } = req.nextUrl;
   // M27 link 6: the invite landing is PUBLIC — it is what an invite link
   // opens for somebody with no account (SPEC §35.6), so it is served, not

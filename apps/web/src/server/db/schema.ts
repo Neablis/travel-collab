@@ -136,9 +136,101 @@ export const users = pgTable("users", {
   // row and never after. Null is a direct signup, or one that came before
   // attribution existed.
   signupRef: text("signup_ref"),
+  // **M62 (ADR-092): when a second factor was turned on**, null while it is off.
+  // The proxy cannot read this row, so `authConfig`'s `jwt` callback copies "is it
+  // set" onto the token as `mfaRequired`; the epoch below is what makes a stale
+  // copy refusable. Absent from `upsertUser`'s `set` list like the other settings.
+  mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true, mode: "date" }),
+  // **The revocation counter** (ADR-092 §4). Goes up on every factor change,
+  // turn-off, code regeneration and operator reset; a token minted under a lower
+  // number is refused. An integer in the row, never a claim in the token alone:
+  // a token cannot revoke itself.
+  securityEpoch: integer("security_epoch").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
 });
+
+// **M62 (ADR-092): second factors** — passkeys and authenticator apps, owned
+// through `users.id` with no foreign key (ADR-025). Not event-sourced: Invariant 1
+// scopes the log to planning.
+export const userFactors = pgTable(
+  "user_factors",
+  {
+    id: uuid("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    kind: text("kind").$type<"passkey" | "totp">().notNull(),
+    // What the person called it; the only way they will tell two apart.
+    name: text("name").notNull(),
+    // Passkeys: the WebAuthn credential id (base64url), its COSE public key
+    // (base64url) and signature counter. Null on a TOTP row.
+    credentialId: text("credential_id"),
+    publicKey: text("public_key"),
+    counter: integer("counter"),
+    transports: text("transports").array(),
+    // TOTP: the secret, sealed under `MFA_SECRET_KEY` (`server/secrets/sealed.ts`)
+    // because verifying a code needs it back. Null on a passkey row.
+    sealedSecret: text("sealed_secret"),
+    // TOTP: the last accepted time step, so a code works once.
+    lastUsedStep: integer("last_used_step"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    index("user_factors_user").on(t.userId),
+    // A credential id names one authenticator, whoever's account it is on.
+    uniqueIndex("user_factors_credential").on(t.credentialId),
+  ],
+);
+
+// **M62: one-time recovery codes**, stored as `keyedDigest(code)` like every
+// other secret here, never in plaintext. Reissuing deletes the old set.
+export const userRecoveryCodes = pgTable(
+  "user_recovery_codes",
+  {
+    id: uuid("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    codeHash: text("code_hash").notNull(),
+    keyVersion: text("key_version").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    // Set when the code is spent; the row stays so "how many are left" is a count.
+    usedAt: timestamp("used_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    index("user_recovery_codes_user").on(t.userId),
+    // The lookup key: two rows sharing a digest would make "which code was
+    // this" unanswerable, so a collision fails loudly.
+    uniqueIndex("user_recovery_codes_hash").on(t.codeHash),
+  ],
+);
+
+// **M62 (D13): wrong code attempts**, one row per failure; the limiter counts
+// the rows inside its window. Nothing sweeps it: old rows cost nothing to ignore.
+export const mfaAttempts = pgTable(
+  "mfa_attempts",
+  {
+    id: uuid("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    at: timestamp("at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [index("mfa_attempts_user_at").on(t.userId, t.at)],
+);
+
+// **M62 (D15): operator resets**, the audit trail of the one recovery past the
+// codes. Written by part 6; the table lands with the rest of the model.
+export const mfaResets = pgTable(
+  "mfa_resets",
+  {
+    id: uuid("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    // The `users.id` of the operator who did it.
+    operatorId: text("operator_id").notNull(),
+    reason: text("reason").notNull(),
+    // What the operator attests they checked with the account's email owner.
+    emailConfirmation: text("email_confirmation").notNull(),
+    at: timestamp("at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [index("mfa_resets_user").on(t.userId)],
+);
 
 // **Who holds what they did not buy** (M20 link 2, ADR-045 rule 1).
 //

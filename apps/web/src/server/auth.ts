@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
-import { authConfig } from "@/lib/authConfig";
+import { authConfig, createJwtCallback } from "@/lib/authConfig";
+import { mfaStateFor, readSecondFactorProof } from "./mfa/state";
 import { recordSignIn } from "./users";
 
 // The full server-side Auth.js instance, built from the shared proxy-safe
@@ -13,7 +14,18 @@ import { recordSignIn } from "./users";
 // instance entirely — the proxy still reads the JWT and touches nothing.
 // This is also the only place it can live and still run once per sign-in: the
 // `jwt` callback in `authConfig` runs on every session read, in both instances.
+// The `jwt` callback is the exception that proves it: M62 composes it here too,
+// because the epoch check needs a read the proxy's instance must not make.
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  callbacks: { ...authConfig.callbacks, signIn: recordSignIn },
+  callbacks: {
+    ...authConfig.callbacks,
+    signIn: recordSignIn,
+    // The same callback with the database behind it (ADR-092): the epoch check
+    // and the second factor, which the proxy's database-free copy cannot do.
+    jwt: createJwtCallback({
+      stateFor: mfaStateFor,
+      secondFactorFrom: (userId, payload, epoch) => readSecondFactorProof(userId, payload, epoch, new Date()),
+    }),
+  },
 });

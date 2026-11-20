@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { devLoginIdentity, googleProfile } from "./authConfig";
+import { authEnvironment, devLoginIdentity, googleProfile } from "./authConfig";
 
 // Dev login exists to resemble a real Google sign-in closely enough that
 // email-shaped features are testable end to end (ADR-025's seam, and the gap
@@ -405,5 +405,72 @@ describe("the session cookie's SameSite attribute", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+// M62 (ADR-092): the token records what passed, and a database-backed copy of
+// the callback refuses one minted under an older `security_epoch`. The lookup is
+// a stand-in here; `server/mfa/model.int.test.ts` drives the real one.
+describe("the second-factor claims", () => {
+  const signingIn = { user: { id: "dev-alice" }, account: { providerAccountId: "dev-alice" } };
+  const fresh = (token: Record<string, unknown>) => ({ env: authEnvironment(), userId: "dev-alice", ...token });
+
+  const lookupWith = (state: { enabled: boolean; epoch: number }, proves: "otp" | null = null) => ({
+    stateFor: async () => state,
+    secondFactorFrom: () => proves,
+  });
+  const callback = async (lookup?: ReturnType<typeof lookupWith>) => {
+    const { createJwtCallback } = await import("./authConfig");
+    return createJwtCallback(lookup) as unknown as (a: unknown) => Promise<Record<string, unknown> | null>;
+  };
+
+  it("records Google as the first factor and the account's epoch and MFA flag at sign-in", async () => {
+    const jwt = await callback(lookupWith({ enabled: true, epoch: 3 }));
+    expect(await jwt({ token: {}, ...signingIn })).toMatchObject({ amr: ["google"], epoch: 3, mfaRequired: true });
+  });
+
+  it("refuses a token minted under an older epoch", async () => {
+    const jwt = await callback(lookupWith({ enabled: false, epoch: 2 }));
+    expect(await jwt({ token: fresh({ epoch: 1, amr: ["google"] }) })).toBeNull();
+    expect(await jwt({ token: fresh({ epoch: 2, amr: ["google"] }) })).not.toBeNull();
+  });
+
+  it("treats a token with no epoch as 0, so one minted before M62 survives an untouched account", async () => {
+    const untouched = await callback(lookupWith({ enabled: false, epoch: 0 }));
+    expect(await untouched({ token: fresh({}) })).toMatchObject({ amr: ["google"], mfaRequired: false });
+    const bumped = await callback(lookupWith({ enabled: false, epoch: 1 }));
+    expect(await bumped({ token: fresh({}) })).toBeNull();
+  });
+
+  it("adds a second factor on update only when the lookup vouches for it, and then adopts the current epoch", async () => {
+    const proved = await callback(lookupWith({ enabled: true, epoch: 4 }, "otp"));
+    const upgraded = await proved({ token: fresh({ epoch: 3, amr: ["google"] }), trigger: "update", session: {} });
+    expect(upgraded).toMatchObject({ amr: ["google", "otp"], epoch: 4 });
+    expect(typeof upgraded!.mfaAt).toBe("number");
+
+    const unproved = await callback(lookupWith({ enabled: true, epoch: 4 }));
+    const claimed = await unproved({
+      token: fresh({ epoch: 4, amr: ["google"] }),
+      trigger: "update",
+      session: { method: "otp" },
+    });
+    expect(claimed).toMatchObject({ amr: ["google"] });
+  });
+
+  it("with no database behind it, trusts the token it was handed", async () => {
+    const jwt = await callback();
+    expect(await jwt({ token: fresh({ epoch: 0, amr: ["google"] }) })).toMatchObject({ amr: ["google"] });
+  });
+
+  it("marks the session pending exactly while the account wants a second factor the token lacks", async () => {
+    const { authConfig } = await import("./authConfig");
+    const session = (token: Record<string, unknown>) =>
+      (authConfig.callbacks!.session as unknown as (a: unknown) => { mfaPending?: boolean })({
+        session: { user: {} },
+        token: { userId: "dev-alice", ...token },
+      }).mfaPending;
+    expect(session({ mfaRequired: true, amr: ["google"] })).toBe(true);
+    expect(session({ mfaRequired: true, amr: ["google", "webauthn"] })).toBe(false);
+    expect(session({ mfaRequired: false, amr: ["google"] })).toBe(false);
   });
 });
