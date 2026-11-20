@@ -1,8 +1,8 @@
 # M62 — An account can ask for a second factor, and you control every one
 
 **Status (2026-11-20): scoped, not started.** Minted by Mitchell the same day: *"support for MFA,
-including biometric unlock, revoking MFA and adding new ones"*. Placed **last**, after M53, until
-Mitchell places it (see `docs/milestones/README.md`, *2026-11-20 — minted: M62 and M63*).
+including biometric unlock, revoking MFA and adding new ones"*. Placed **next after M59, ahead of
+M53**, by Mitchell the same day (see `docs/milestones/README.md`, *2026-11-20 — minted: M62 and M63*).
 **Scoped the same day with every decision as recommended.** Mitchell: *"Go with your
 recommendations."*
 
