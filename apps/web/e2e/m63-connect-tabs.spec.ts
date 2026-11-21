@@ -14,6 +14,15 @@ test.describe("with JavaScript", () => {
     await expect(section).toBeInViewport();
   });
 
+  test("a link to Poppy's or the script's section opens its tab", async ({ page }) => {
+    await page.goto("/developers#connect-poppy");
+    await expect(page.getByRole("tab", { name: "Poppy" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("region", { name: "Connect Poppy agents" })).toBeInViewport();
+    await page.goto("/developers#connect-script");
+    await expect(page.getByRole("tab", { name: "Script" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("region", { name: "Connect a script" })).toBeInViewport();
+  });
+
   test("a click on a link to the hash already in the URL opens its tab again", async ({ page }) => {
     await page.goto("/developers#connect-chatgpt");
     await page.getByRole("tab", { name: "Gemini" }).click();
@@ -30,13 +39,13 @@ test.describe("with JavaScript", () => {
 });
 
 // A reader with no JavaScript has inert tab buttons: every client's steps must
-// be readable anyway, though the server renders two panels `hidden`.
+// be readable anyway, though the server renders four panels `hidden`.
 test.describe("without JavaScript", () => {
   test.use({ javaScriptEnabled: false });
 
   test("every client's steps are visible", async ({ page }) => {
     await page.goto("/developers");
-    for (const name of ["Connect Claude", "Connect ChatGPT", "Connect Gemini"]) {
+    for (const name of ["Connect Claude", "Connect ChatGPT", "Connect Gemini", "Connect Poppy agents", "Connect a script"]) {
       await expect(page.getByRole("region", { name })).toBeVisible();
     }
     await expect(page.getByText("Import the OpenAPI document as an Action")).toBeVisible();

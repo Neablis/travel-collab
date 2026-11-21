@@ -26,12 +26,6 @@ const PROMPTS = [
     link: "Connect an MCP client",
   },
   {
-    tool: "Poppy agents",
-    prompt: "List the cities that have published days in Caesura's library.",
-    href: "/developers#connect-poppy",
-    link: "Connect Poppy agents",
-  },
-  {
     tool: "Claude",
     prompt: "Turn my Lisbon trip into a three-day playbook and publish it.",
     href: "/developers#connect-claude",
@@ -48,6 +42,12 @@ const PROMPTS = [
     prompt: "Look through the library and pick the days that suit a rainy weekend in Porto.",
     href: "/developers#connect-gemini",
     link: "Connect Gemini",
+  },
+  {
+    tool: "Poppy agents",
+    prompt: "List the cities that have published days in Caesura's library.",
+    href: "/developers#connect-poppy",
+    link: "Connect Poppy agents",
   },
   {
     tool: "A script",

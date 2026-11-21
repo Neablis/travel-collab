@@ -87,36 +87,32 @@ describe("DevelopersScreen", () => {
     expect(connect.textContent).toContain("Account → Security → Connected apps");
   });
 
-  // Mitchell's walk (2026-11-21): the generic ways in come first, then one tab
-  // list of the specific AI clients, then the script.
-  it("orders the connect sections: MCP, Poppy, the client tabs, then the script", () => {
+  // Mitchell's walk (2026-11-21): the MCP section stands alone as the generic
+  // way, then one tab list holds every specific tool, Poppy and the script too.
+  it("puts the MCP section before one tab list that holds Poppy and the script", () => {
     render(<DevelopersScreen tools={TOOLS} />);
     const mcp = screen.getByRole("region", { name: "Connect an MCP client" });
-    const poppy = screen.getByRole("region", { name: "Connect Poppy agents" });
-    const tablist = screen.getByRole("tablist", { name: "Your AI assistant" });
-    const script = screen.getByRole("region", { name: "Connect a script" });
-    const before = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(before(mcp, poppy)).toBe(true);
-    expect(before(poppy, tablist)).toBe(true);
-    expect(before(tablist, script)).toBe(true);
+    const tablist = screen.getByRole("tablist", { name: "Pick your tool" });
+    expect(Boolean(mcp.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    for (const name of ["Poppy", "Script"]) expect(within(tablist).getByRole("tab", { name })).toBeDefined();
   });
 
-  it("has a tab per client, Claude selected by default, each tab owning its panel", () => {
+  it("has a tab per tool, Claude selected by default, each tab owning its panel", () => {
     render(<DevelopersScreen tools={TOOLS} />);
-    const tabs = within(screen.getByRole("tablist", { name: "Your AI assistant" })).getAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Claude", "ChatGPT", "Gemini"]);
-    expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual(["true", "false", "false"]);
-    expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"]);
+    const tabs = within(screen.getByRole("tablist", { name: "Pick your tool" })).getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual(["Claude", "ChatGPT", "Gemini", "Poppy", "Script"]);
+    expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false", "false"]);
+    expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1", "-1"]);
     const panel = screen.getByRole("tabpanel", { name: "Claude" });
     expect(within(panel).getByRole("region", { name: "Connect Claude" })).toBeDefined();
     // Only the selected tab points at its panel; the others' panels are
     // hidden by a class jsdom does not style, so they cannot be told by role.
-    expect(tabs.map((t) => t.getAttribute("aria-controls"))).toEqual(["connect-panel-claude", null, null]);
+    expect(tabs.map((t) => t.getAttribute("aria-controls"))).toEqual(["connect-panel-claude", null, null, null, null]);
   });
 
   it("moves between clients with the arrow keys and on click", () => {
     render(<DevelopersScreen tools={TOOLS} />);
-    const list = screen.getByRole("tablist", { name: "Your AI assistant" });
+    const list = screen.getByRole("tablist", { name: "Pick your tool" });
     fireEvent.keyDown(list, { key: "ArrowRight" });
     expect(screen.getByRole("tab", { name: "ChatGPT" }).getAttribute("aria-selected")).toBe("true");
     expect(within(screen.getByRole("tabpanel", { name: "ChatGPT" })).getByRole("region", { name: "Connect ChatGPT" })).toBeDefined();
@@ -124,10 +120,14 @@ describe("DevelopersScreen", () => {
     expect(screen.getByRole("tabpanel", { name: "Gemini" })).toBeDefined();
   });
 
-  it("opens the tab a URL hash names", () => {
-    window.location.hash = "#connect-gemini";
+  it.each([
+    ["connect-gemini", "Gemini"],
+    ["connect-poppy", "Poppy"],
+    ["connect-script", "Script"],
+  ])("opens the tab the hash #%s names", (hash, tab) => {
+    window.location.hash = `#${hash}`;
     render(<DevelopersScreen tools={TOOLS} />);
-    expect(screen.getByRole("tab", { name: "Gemini" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: tab }).getAttribute("aria-selected")).toBe("true");
   });
 
   // A link to the hash already in the URL fires no `hashchange`, so after
@@ -149,11 +149,13 @@ describe("DevelopersScreen", () => {
   // there (no flash for a JS visitor) and a noscript rule shows them again.
   it("sends every client's steps in the server HTML, the non-default ones hidden and un-hidden by noscript", () => {
     const html = renderToString(<DevelopersScreen tools={TOOLS} />);
-    for (const id of ["connect-claude", "connect-chatgpt", "connect-gemini"]) expect(html).toContain(`id="${id}"`);
+    for (const id of ["connect-claude", "connect-chatgpt", "connect-gemini", "connect-poppy", "connect-script"]) expect(html).toContain(`id="${id}"`);
     expect(html).toContain("Import the OpenAPI document as an Action");
     expect(html).toContain("Declare functions from the OpenAPI document");
     expect(html.match(/<div[^>]*role="tabpanel"[^>]*>/g)?.map((tag) => /class="[^"]*\bhidden\b/.test(tag))).toEqual([
       false,
+      true,
+      true,
       true,
       true,
     ]);

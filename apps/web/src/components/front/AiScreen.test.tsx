@@ -33,7 +33,7 @@ function servedPaths(): Set<string> {
   return out;
 }
 
-const PROMPT_TOOLS = ["MCP client", "Poppy", "Claude", "ChatGPT", "Gemini", "script"];
+const PROMPT_TOOLS = ["MCP client", "Claude", "ChatGPT", "Gemini", "Poppy", "script"];
 
 describe("AiScreen", () => {
   it("names every surface a person can reach their AI through", () => {
@@ -113,7 +113,7 @@ describe("AiScreen", () => {
       const link = within(items[i]!).getByRole("link", { name: new RegExp(tool, "i") });
       expect(link.getAttribute("href"), tool).toMatch(/^\/developers#connect-[a-z]+$/);
     }
-    expect(within(items[2]!).getByText("Turn my Lisbon trip into a three-day playbook and publish it.")).toBeDefined();
+    expect(within(items[1]!).getByText("Turn my Lisbon trip into a three-day playbook and publish it.")).toBeDefined();
   });
 
   // Every internal link goes to a page that exists, or to an anchor the

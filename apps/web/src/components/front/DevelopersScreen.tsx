@@ -256,7 +256,7 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
           </ol>
         </section>
 
-        {/* M55: the MCP connector (ADR-083), M63: one section per tool. Production's
+        {/* M55: the MCP connector (ADR-083), M63: one section per tool, in one tab list (Poppy and the script too). Production's
             URL, written out: this page is static, and the connector a person
             adds is production's whichever deploy they read this on. Premium is
             the same `api.tokens` entitlement (D6); the consent page ticks every
@@ -291,22 +291,13 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
               </Text>
             </Step>
           </ConnectSection>
-          <ConnectSection id="connect-poppy" title="Connect Poppy agents">
-            <Step level={4} n={1} title="There is nothing to set up">
-              <Text className="text-pretty">
-                A Poppy agent discovers{" "}
-                <InlineLink href="/.well-known/poppy.json">/.well-known/poppy.json</InlineLink> on its own and takes it
-                from there.
-              </Text>
-            </Step>
-          </ConnectSection>
           </div>
 
           <div className="flex flex-col gap-4">
-            <GroupLabel>Your AI assistant</GroupLabel>
+            <GroupLabel>Pick your tool</GroupLabel>
             <ConnectTabs
               idPrefix="connect"
-              aria-label="Your AI assistant"
+              aria-label="Pick your tool"
               clients={[
                 { value: "claude", label: "Claude", panel: (
                 <ConnectSection id="connect-claude" title="Connect Claude">
@@ -367,20 +358,32 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
                   </Step>
                 </ConnectSection>
                 ) },
+                { value: "poppy", label: "Poppy", panel: (
+                <ConnectSection id="connect-poppy" title="Connect Poppy agents">
+                  <Step level={4} n={1} title="There is nothing to set up">
+                    <Text className="text-pretty">
+                      A Poppy agent discovers{" "}
+                      <InlineLink href="/.well-known/poppy.json">/.well-known/poppy.json</InlineLink> on its own and takes it
+                      from there.
+                    </Text>
+                  </Step>
+                </ConnectSection>
+                ) },
+                { value: "script", label: "Script", panel: (
+                <ConnectSection id="connect-script" title="Connect a script">
+                  <Step level={4} n={1} title="Make a token with trips:read">
+                    <Text className="text-pretty">
+                      A script needs only the scopes it uses. To list your trips, <Code>trips:read</Code> is enough. API tokens need the Premium plan.
+                    </Text>
+                  </Step>
+                  <Step level={4} n={2} title="Call the API">
+                    <Pre>{`curl https://caesura.today/api/v1/trips \\\n  -H "Authorization: Bearer ${API_TOKEN_PREFIX}..."`}</Pre>
+                  </Step>
+                </ConnectSection>
+                ) },
               ]}
             />
           </div>
-
-          <ConnectSection id="connect-script" title="Connect a script">
-            <Step level={4} n={1} title="Make a token with trips:read">
-              <Text className="text-pretty">
-                A script needs only the scopes it uses. To list your trips, <Code>trips:read</Code> is enough. API tokens need the Premium plan.
-              </Text>
-            </Step>
-            <Step level={4} n={2} title="Call the API">
-              <Pre>{`curl https://caesura.today/api/v1/trips \\\n  -H "Authorization: Bearer ${API_TOKEN_PREFIX}..."`}</Pre>
-            </Step>
-          </ConnectSection>
 
           <section aria-labelledby="mcp-tools" className="flex flex-col gap-3 pt-2">
             <Heading level={3} id="mcp-tools" className="text-xl">
