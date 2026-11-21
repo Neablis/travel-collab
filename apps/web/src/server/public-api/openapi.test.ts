@@ -319,3 +319,17 @@ describe("openapi.json is derived from the declarations", () => {
     }
   });
 });
+
+describe("every operation carries generated code samples", () => {
+  it("has a curl, JavaScript and Python sample on every operation", async () => {
+    const doc = JSON.parse(await generate()) as { paths: Record<string, Record<string, { "x-codeSamples"?: { lang: string }[] }>> };
+    const missing: string[] = [];
+    for (const [url, methods] of Object.entries(doc.paths)) {
+      for (const [method, op] of Object.entries(methods)) {
+        const langs = (op["x-codeSamples"] ?? []).map((s) => s.lang);
+        if (!["Shell", "JavaScript", "Python"].every((l) => langs.includes(l))) missing.push(`${method.toUpperCase()} ${url}`);
+      }
+    }
+    expect(missing, "operations without all three samples").toEqual([]);
+  });
+});
