@@ -189,6 +189,9 @@ function route(req: NextAuthRequest, own: URL): NextResponse {
     const back = encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search);
     return NextResponse.redirect(new URL(`/signin/verify?callbackUrl=${back}`, req.nextUrl));
   }
+  // `/admin` is 404 for anyone who is not an operator, signed out included
+  // (`requireAdmin.ts`): a sign-in redirect would confirm the console exists.
+  if (!req.auth && req.nextUrl.pathname === "/admin") return new NextResponse(null, { status: 404 });
   // The public library, for everyone: a reader with no session and no query
   // gets the cached copy, anyone else the per-request one (`playbooksReader.ts`).
   // `req.auth` rather than the cookie's presence: a cookie whose session has

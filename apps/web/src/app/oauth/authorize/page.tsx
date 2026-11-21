@@ -11,9 +11,10 @@ import { parseAuthorizeRequest, type AuthorizeParams } from "@/server/oauth/auth
 // to the client with `state` and `iss`: straight back for a recognised
 // redirect, and through a link the person clicks for any other (amendment M).
 //
-// `/oauth/*` is outside the proxy's matcher (`proxy.ts`), so signing in is this
-// page's own job: it sends a signed-out person to sign in and back to this
-// exact URL, every parameter included.
+// `/oauth/authorize` is in the proxy's matcher (`proxy.ts`), which sends a signed-out
+// person to sign in and back to this exact URL, every parameter included, and an
+// account owing a second factor to `/signin/verify`. The check below is the
+// page's own, for a request that reaches it some other way.
 
 export const metadata = pageMetadata({
   title: "Connect an app",

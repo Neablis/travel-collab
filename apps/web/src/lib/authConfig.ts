@@ -216,6 +216,13 @@ export interface SessionLookup {
   ): { method: "webauthn" | "otp" | "recovery"; expiresAt: number } | null;
 }
 
+// A cookie minted before sessions carried an id has none. A fixed value stands in
+// for it on both the mint and the read side, so such a session can still add a
+// second factor; a random one minted on read would disagree between the two
+// Auth.js instances. The proof it gets is no weaker for it: it is still bound to
+// the account, the epoch and the pepper, and is accepted once.
+const sidOf = (token: Record<string, unknown>): string => (token.sid as string | undefined) ?? "";
+
 /**
  * The session `jwt` callback, with or without a database behind it.
  *
@@ -283,8 +290,8 @@ export function createJwtCallback(lookup?: SessionLookup): NonNullable<NonNullab
     // Checked BEFORE the epoch: the session that just changed a factor bumped the
     // epoch under its own token, and this is how it gets a current one. The proof
     // is for this account and this epoch, so a revoked cookie cannot use it.
-    const sid = token.sid as string | undefined;
-    const proved = trigger === "update" && sid ? lookup.secondFactorFrom(userId, sid, session, state.epoch) : null;
+    const proved =
+      trigger === "update" ? lookup.secondFactorFrom(userId, sidOf(token), session, state.epoch) : null;
     // Single use: a proof is accepted once, so one that leaks inside its two
     // minutes cannot be replayed to stretch the fresh-check window.
     if (proved && proved.expiresAt > ((token.proofExp as number | undefined) ?? 0)) {
@@ -325,11 +332,11 @@ export const authConfig: NextAuthConfig = {
       // stamped above or no token is issued, which leaves nothing to fall
       // back FOR — and an empty id is caught by every owner-scoped read.
       session.user.id = (token.userId as string | undefined) ?? "";
-      // What `proxy.ts` reads, since it can read nothing else: the account asks for
-      // a second factor and this token has only passed the first.
       // Not a secret: a proof also needs the server's pepper. The route that verifies
       // a factor reads it here to mint the proof for this cookie.
-      (session as SessionWithMfa).sid = token.sid as string | undefined;
+      (session as SessionWithMfa).sid = sidOf(token);
+      // What `proxy.ts` reads, since it can read nothing else: the account asks for
+      // a second factor and this token has only passed the first.
       (session as SessionWithMfa).mfaPending =
         token.mfaRequired === true && ((token.amr as string[] | undefined)?.length ?? 1) < 2;
       // Overrides `sendDefaultPii: false` deliberately (Mitchell, 2026-08-30):
