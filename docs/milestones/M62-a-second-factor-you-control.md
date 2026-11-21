@@ -137,23 +137,116 @@ A first cut of the parts, for the plan to settle:
 
 ## Exit gate
 
-- [ ] **Model:** a session whose account has MFA on and whose token lacks a second factor is sent
+- [x] **Model:** a session whose account has MFA on and whose token lacks a second factor is sent
   to `/signin/verify` from every app route, and a token under an older `security_epoch` is refused
-  (integration tests).
-- [ ] **Passkey:** registering, verifying and removing a passkey pass with a virtual
-  authenticator (`test:e2e:ci-like`, or CI on the PR).
-- [ ] **Authenticator app:** a TOTP code from the enrolled secret passes, a used or wrong code
-  fails, and the secret is not stored in plain text (unit and integration tests).
-- [ ] **Recovery codes:** each code works once, regenerating voids the old set, and they are
-  stored as keyed digests (integration tests).
+  (integration tests). Evidence (paths under `apps/web/`, lines as at b26e446): `src/server/mfa/model.int.test.ts:54` (MFA account with only its first factor is sent to `/signin/verify` from an app route), `:64` (also from `/admin`, `/oauth/authorize` and the live library), `:118` (a token under an older `security_epoch` is refused, the session that made the change kept). CI run 44872567334 on b26e446, green (unit, integration, e2e 1/2 and 2/2).
+- [x] **Passkey:** registering, verifying and removing a passkey pass with a virtual
+  authenticator (`test:e2e:ci-like`, or CI on the PR). Evidence: `e2e/m62-passkey.spec.ts:14` (register with a virtual authenticator, sign out, sign in through verify, rename) and `:128` (remove a passkey). CI run 44872567334 on b26e446, green (unit, integration, e2e 1/2 and 2/2).
+- [x] **Authenticator app:** a TOTP code from the enrolled secret passes, a used or wrong code
+  fails, and the secret is not stored in plain text (unit and integration tests). Evidence: `src/server/mfa/totp.int.test.ts:36` (secret stored sealed, never as the scanned base32), `:66` (the current code passes once, the same step again fails), `:82` (a code outside one step of drift fails), `:96` (another account's code fails); `src/server/secrets/sealed.test.ts:14`. CI run 44872567334 on b26e446, green (unit, integration, e2e 1/2 and 2/2).
+- [x] **Recovery codes:** each code works once, regenerating voids the old set, and they are
+  stored as keyed digests (integration tests). Evidence: `src/server/mfa/recoveryCodes.int.test.ts:29` (each code works once), `:51` (regenerating voids the whole old set), `:13` (stored as keyed digests, none in plaintext). CI run 44872567334 on b26e446, green (unit, integration, e2e 1/2 and 2/2).
 - [ ] **Add a second factor:** a second passkey or an authenticator app can be added beside the
-  first, and either one completes sign-in.
-- [ ] **Revoke:** removing a factor, turning MFA off, and regenerating codes each sign out every
-  other session and send the account an email.
-- [ ] **Credential gates:** the OAuth consent screen and *Create token* refuse a session without a
-  satisfied second factor when MFA is on.
-- [ ] **PWA lock:** with the lock on, an installed app idle past its time shows the lock screen,
-  and only a passkey clears it.
-- [ ] **Operator reset:** the console action clears an account's factors and records who did it and why.
+  first, and either one completes sign-in. **Open (partial evidence), left unticked.** Proven at b26e446: an authenticator app is added beside a passkey and its code completes sign-in (`apps/web/e2e/m62-totp.spec.ts:28`; `apps/web/src/app/api/account/mfa/mfa.int.test.ts:600`), and a passkey completes sign-in (`apps/web/e2e/m62-passkey.spec.ts:14`; `mfa.int.test.ts:148`). A second passkey is added only at the route level (`mfa.int.test.ts:307`, `:710`); no test signs in with a second passkey, because the virtual authenticator refuses a second credential for one account (`apps/web/e2e/m62-passkey.spec.ts:126`).
+- [x] **Revoke:** removing a factor, turning MFA off, and regenerating codes each sign out every
+  other session and send the account an email. Evidence: `src/app/api/account/mfa/mfa.int.test.ts:779` (Remove signs out a session minted before it, keeps this one), `:810` (Turn off), `:694` (Regenerate bumps the epoch so another session is refused), `:838` (one email per change, asserted by recipient and subject for Remove, Regenerate and Turn off). CI run 44872567334 on b26e446, green (unit, integration, e2e 1/2 and 2/2).
+- [x] **Credential gates:** the OAuth consent screen and *Create token* refuse a session without a
+  satisfied second factor when MFA is on. Evidence: `src/app/api/oauth/authorize/route.int.test.ts:113` (Allow is refused with 403 and grants nothing without a second factor in the last ten minutes), `src/app/api/account/tokens/tokens.int.test.ts:66` (Create token is refused with 403 and no token). CI run 44872567334 on b26e446, green (unit, integration, e2e 1/2 and 2/2).
+- [x] **PWA lock:** with the lock on, an installed app idle past its time shows the lock screen,
+  and only a passkey clears it. Evidence: `e2e/m62-pwa-lock.spec.ts:23` (idle past its time locks, the passkey opens it; installed mode is emulated through `navigator.standalone`) and `src/components/PwaLockGate.test.tsx:60` (locks, and only the passkey clears it). CI run 44872567334 on b26e446, green (unit, integration, e2e 1/2 and 2/2).
+- [x] **Operator reset:** the console action clears an account's factors and records who did it and why. Evidence: `src/app/api/admin/accounts/[accountId]/mfa-reset/route.int.test.ts:140` (clears factors and codes, turns two-step off, bumps the epoch, records the operator, reason and confirmed email in `mfa_resets`, emails the account). CI run 44872567334 on b26e446, green (unit, integration, e2e 1/2 and 2/2).
 - [ ] **[walk]** Mitchell turns MFA on production on with Face ID on his phone, adds his laptop's
   passkey and an authenticator app, signs in with each, removes one, and turns it off.
+
+## Retro — written 2026-11-21 (8 of 10 boxes ticked)
+
+Draft written before the production walk. The **[walk]** box is open and waits for Mitchell on
+production after PR 779 merges and `MFA_SECRET_KEY` is set in Coolify. *Add a second factor* is
+open for a stated reason (see its box). Nothing below the walk's result is final.
+
+### What went well
+
+- Six parts, PRs 774 to 779, stacked on part 0 (PR 773), with the code complete on the top, PR 779.
+  Part 1 adds migration `0079_mfa`.
+- One full CI run on the top part decided the milestone, as `building-a-milestone.md` says. It went red once (run 44865756857 on
+  317a13b) and green after the fixes (run 44872567334 on b26e446: unit, integration, e2e 1/2 and 2/2).
+- Every new test was seen red first, in the builders' and fixers' reports, per the
+  `write-a-test` rule.
+- Eight of ten gate boxes are ticked with a test path, a line and the green run behind each (see the
+  Exit gate).
+- The build ran with no browser calls, no `SendMessage` and no full `pnpm check`; the
+  implementer-brief-check guard denied 2 calls.
+
+### What could be better
+
+- **The red CI run was fixed on part 6, not on the lowest part each fix touched.** Run 44865756857
+  on 317a13b had red jobs: missing exposure lines, a missing artboard entry, 13 missing docstrings, and
+  an architecture cycle. The cycle was broken by moving `CodeEntryForm` from `components/front` to
+  `components/account`. `building-a-milestone.md` §4 says a fix goes to the lowest part it touches and
+  merges up. These went to the top, which was faster and kept the stack's merges to one, and it
+  means parts 1 to 5 each fail those checks on their own. They are drafts that never merge alone, so it cost
+  nothing here, but it is a deviation and is recorded as one.
+- **Build session 1's spend block is lost.** Session 1 (parts 0 to 3: 11 `phase-implementer`, 8
+  `part-reviewer` and 1 Explore dispatch, 0 browser calls, 0 `pnpm check` runs) was handed off at about 265k
+  context, and its `## Spend` block was not carried in the hand-off. Its transcript went with its
+  container. Its numbers are not reconstructed here, and none are invented. The block below covers
+  session 2 only, so this milestone's spend is understated by everything parts 0 to 3 cost. The
+  hand-off rule exists for exactly this (`writing-a-retro.md`, *The spend block*); it was not followed.
+  A change that would have prevented it: run `session-metrics` as the hand-off's first step and paste
+  the block into the handoff text before anything else is written.
+- **No per-model cost breakdown or USD figure is available for either session.** The block reports
+  units only.
+- **Previews never had a working sign-in**, so no part was ever walked in a browser before the close.
+  Everything about how the screens feel waits for the production walk.
+
+### Not verified (pending Mitchell's production walk)
+
+- No browser walk of any screen. Previews never had working sign-in, and the gate's e2e specs run against dev login with a virtual authenticator.
+- iOS Safari starting WebAuthn on arrival at `/signin/verify` without a user gesture is **reasoned
+  about, not seen**. If Safari refuses it, the fallback is the "Use a passkey" button on the same screen.
+- The PWA lock was seen only through the e2e emulation of standalone mode
+  (`navigator.standalone`), never in an installed app.
+- The **[walk]** box: Face ID on Mitchell's phone, his laptop's passkey, an authenticator app, signing in with
+  each, removing one, turning it off. Open until he has done it.
+
+### Leftovers
+
+- `globals.css` (part 5): up to 7 seconds of blank screen if a launch never hydrates (the splash ends
+  at 3 s and the lock mark lifts at 10 s). Carried minor; Mitchell's call whether it is worth a
+  known issue.
+- `templates.ts` is now the fifth hardcoded copy of the support address, and also the reset email's
+  reply-to. Carried minor; Mitchell's call.
+- `FreshCheckDialog` has no unit test file. Carried minor; Mitchell's call.
+- The PWA lock's server paint: `docs/known-issues/` KI-20261121, on part 5.
+- PR 777's body does not name the part 2 and part 3 fixes it carries (`safeCallbackUrl.ts`,
+  `VerifyScreen.tsx`). It is a draft that lands through PR 779's merge, so it only matters to a
+  reader of that PR's history.
+- *Add a second factor* (Exit gate): no test signs in with a second passkey. The route adds one
+  (`mfa.int.test.ts:307`), and the virtual authenticator refuses a second credential for one account.
+  Mitchell's walk adds his laptop's passkey, which covers it by hand; the box stays open until
+  then or until a test for it exists.
+
+## Spend
+<!-- session-metrics:milestone v1 -->
+
+Build session 2 (2026-11-21, session 16cd7ff1: parts 4 to 6, the CI fixes and close step 1). Build
+session 1 (parts 0 to 3) is not in this block, because its block was lost with its container.
+
+19 agents, 984 API calls, 13.18M units (input + 1.25 × cache write + 0.1 × cache read; output excluded).
+
+| Who | Agents | Calls | Avg ctx | Peak ctx | Units | Share |
+|---|---|---|---|---|---|---|
+| phase-implementer | 10 | 671 | 106k | 250k | 8.67M | 65.8% |
+| part-reviewer | 7 | 219 | 81k | 157k | 2.63M | 20.0% |
+| orchestrator | 1 | 73 | 170k | 225k | 1.42M | 10.8% |
+| general-purpose | 1 | 21 | 103k | 110k | 463k | 3.5% |
+
+Target: orchestrator share under 15%, met at 10.9%. SendMessage 0. implementer-brief-check denied 2. Browser calls 0. Full `pnpm check` runs 0.
+
+### Spend against the last milestone
+
+- Orchestrator's share of the spend: target under 15%, met at 10.9% for session 2 (the table's row reads
+  10.8%; the two figures are as the session reported them). Not comparable for session 1, whose block is lost.
+- A builder's average context: target none over 250k, met (phase-implementer average 106k, peak 250k, which is at the limit, not over it).
+- Dollars per 1,000 lines added, GitHub wakes per merged part, and cache re-writes after a coordinator
+  message: not measured. There is no USD figure for either session, and `SendMessage` was 0.
