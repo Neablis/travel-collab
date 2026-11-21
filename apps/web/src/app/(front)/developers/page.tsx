@@ -1,4 +1,5 @@
 import { DevelopersScreen } from "@/components/front/DevelopersScreen";
+import { TOOL_SCOPES } from "@/app/api/mcp/tools";
 import { pageMetadata } from "@/lib/siteMetadata";
 
 // Public on purpose: `/developers` is outside `proxy.ts`'s matcher, so a
@@ -17,5 +18,5 @@ export const metadata = pageMetadata({
 
 /** `/developers`: the onboarding path to an API token, for a person or their agent. */
 export default function DevelopersPage() {
-  return <DevelopersScreen />;
+  return <DevelopersScreen tools={TOOL_SCOPES} />;
 }
