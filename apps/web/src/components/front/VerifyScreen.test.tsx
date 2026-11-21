@@ -205,6 +205,23 @@ describe("VerifyScreen", () => {
       expect(screen.queryByRole("button", { name: "Use a passkey" })).toBeNull();
     });
 
+    // The arrival prompt is already in flight when the tap lands, so the guard on
+    // starting it cannot help: only where the answer sends the person can.
+    it("keeps the recovery code chosen while the arrival prompt was out, when no passkey turns out to exist", async () => {
+      let answer: (result: PasskeyCheck) => void = () => {};
+      check.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+      render(<VerifyScreen callbackUrl="/home" />);
+      await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+      await userEvent.click(screen.getByRole("button", { name: "Use a recovery code" }));
+      await screen.findByRole("textbox", { name: "Recovery code" });
+      // Offered while the answer is out, withdrawn once it says there is none.
+      expect(screen.getByRole("button", { name: "Use a passkey" })).toBeDefined();
+      answer("unavailable");
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Use a passkey" })).toBeNull());
+      expect(screen.getByRole("textbox", { name: "Recovery code" })).toBeDefined();
+      expect(screen.queryByRole("textbox", { name: "Authenticator code" })).toBeNull();
+    });
+
     it("opens on the code field when the account has no passkey to ask for", async () => {
       check.mockResolvedValue("unavailable");
       render(<VerifyScreen callbackUrl="/home" />);
