@@ -87,6 +87,21 @@ describe("DevelopersScreen", () => {
     expect(steps.length).toBeLessThanOrEqual(3);
   });
 
+  // A step sits under its section's heading, not beside it.
+  it("puts each connect step's heading one level below its section's", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    const section = within(screen.getByRole("region", { name: "Connect ChatGPT" }));
+    expect(section.getAllByRole("heading", { level: 3 })).toHaveLength(1);
+    expect(section.getAllByRole("heading", { level: 4 })).toHaveLength(3);
+  });
+
+  it("tells a ChatGPT reader the import needs the document URL, and the token needs Premium", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    const section = within(screen.getByRole("region", { name: "Connect ChatGPT" }));
+    expect(section.getByText(/needs the document.s URL/)).toBeDefined();
+    expect(section.getByText(/Premium plan/)).toBeDefined();
+  });
+
   it("points the script and Poppy sections at their real endpoints", () => {
     render(<DevelopersScreen tools={TOOLS} />);
     expect(within(screen.getByRole("region", { name: "Connect Poppy agents" })).getByText("/.well-known/poppy.json")).toBeDefined();
