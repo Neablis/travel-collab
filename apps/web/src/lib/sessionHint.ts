@@ -17,11 +17,23 @@ import { HOME_PATH } from "@/lib/homePath";
 // a large JWT is chunked. `authConfig` sets no custom cookie name.
 const SESSION_COOKIE = /^(?:__Secure-)?authjs\.session-token(?:\.\d+)?$/;
 
+/** Whether this cookie name is an Auth.js session cookie, a chunk of one included. */
+export function isSessionCookieName(name: string): boolean {
+  return SESSION_COOKIE.test(name);
+}
+
 /** Whether any of these cookie names is an Auth.js session cookie. */
 export function hasSessionCookie(names: Iterable<string>): boolean {
-  for (const name of names) if (SESSION_COOKIE.test(name)) return true;
+  for (const name of names) if (isSessionCookieName(name)) return true;
   return false;
 }
+
+/**
+ * The request header the proxy sets, on a request it let through as signed in,
+ * to the path and query being read. A server component is not told its URL, and
+ * `servedForApp` needs it to send a refused cookie back to where it was going.
+ */
+export const REQUEST_PATH_HEADER = "x-tc-path";
 
 // ADR-078: `/` is a static page, so it cannot read the session — and the
 // Auth.js cookie is HttpOnly, so a script on it cannot either. This second

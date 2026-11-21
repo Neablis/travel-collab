@@ -1,6 +1,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API_SCOPES, API_TOKEN_MAX_LIFETIME_DAYS, type ApiToken } from "@tc/contracts";
+const checkWithCode = vi.fn<(kind: "otp" | "recovery", code: string) => Promise<"passed" | "refused">>();
+vi.mock("@/lib/mfaClient", () => ({
+  checkWithCode: (kind: "otp" | "recovery", code: string) => checkWithCode(kind, code),
+  checkWithPasskey: async () => "refused",
+}));
+vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
+
 import { TokensSection, expiresSoon, reachLine, relativeDays, tokenState } from "./TokensSection";
 
 // **What a person can READ and DO on this screen** — `PlanSection.test.tsx`'s
@@ -204,6 +212,58 @@ describe("the one-time reveal", () => {
     await screen.findByTestId("token-revealed");
     expect(text("token-revealed")).toContain("not shown again");
     expect((screen.getByTestId("token-secret") as HTMLInputElement).value).toBe("tc_theonlycopy");
+  });
+
+  // M62 D8: with two-step sign-in on, the server refuses a mint that has no recent
+  // second factor and says so with a 403. The form must not lose what was typed.
+  it("opens the fresh check on a 403 and sends the same token again once it passes", async () => {
+    const posts: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const method = init?.method ?? "GET";
+        if (String(url) === "/api/account/mfa/factors") {
+          return Response.json({ enabled: true, factors: [], recoveryCodesLeft: 9 });
+        }
+        if (method === "POST") {
+          posts.push(JSON.parse(String(init?.body)));
+          return posts.length === 1
+            ? Response.json({ error: "fresh-check-required" }, { status: 403 })
+            : Response.json({ token: token({ tokenId: "minted", name: "Calendar" }), secret: "tc_theonlycopy" }, { status: 201 });
+        }
+        return Response.json({ tokens: [] });
+      }),
+    );
+    checkWithCode.mockResolvedValue("passed");
+    render(<TokensSection entitled />);
+    await screen.findByTestId("tokens-section");
+    fireEvent.click(screen.getByTestId("token-new"));
+    fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Calendar" } });
+    fireEvent.click(screen.getByTestId("token-create"));
+
+    await userEvent.type(await screen.findByLabelText("Authenticator code"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: "Verify" }));
+
+    await screen.findByTestId("token-revealed");
+    expect(checkWithCode).toHaveBeenCalledWith("otp", "123456");
+    expect(posts).toHaveLength(2);
+    expect(posts[1]).toEqual(posts[0]);
+  });
+
+  it("says a 403 that is not about the check went wrong, and opens no check", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string | URL, init?: RequestInit) =>
+        init?.method === "POST" ? Response.json({ error: "forbidden" }, { status: 403 }) : Response.json({ tokens: [] }),
+      ),
+    );
+    render(<TokensSection entitled />);
+    await screen.findByTestId("tokens-section");
+    fireEvent.click(screen.getByTestId("token-new"));
+    fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Calendar" } });
+    fireEvent.click(screen.getByTestId("token-create"));
+    expect(await screen.findByTestId("tokens-error")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("posts what the form actually says", async () => {

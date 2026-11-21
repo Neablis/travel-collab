@@ -227,6 +227,8 @@ export default defineConfig({
       // missing element rather than the fail-closed throw it was
       // (KI-2026-09-19-a). CI's own pepper and any real value still win.
       API_TOKEN_PEPPER: process.env.API_TOKEN_PEPPER || "e2e-pepper-not-a-real-key-but-32-bytes-long",
+      // Sealing an authenticator-app secret needs it (`m62-totp.spec.ts`); a blank counts as missing.
+      MFA_SECRET_KEY: process.env.MFA_SECRET_KEY || "e2e-mfa-key-not-a-real-key-32-bytes-long",
       DATABASE_URL,
       // Every e2e spec that touches the AI compose path must exercise the
       // simulated model, never a real provider (token cost) — see

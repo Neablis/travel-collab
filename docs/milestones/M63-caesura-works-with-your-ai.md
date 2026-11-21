@@ -1,4 +1,4 @@
-# M63 — One page says Caesura is AI first, and shows it working with your AI
+# M63 — Two pages say Caesura is AI first, and safe to hand to your AI
 
 **Status (2026-11-20): proposed, not scoped.** Minted by Mitchell the same day: *"adding a SEO page
 about how caesura is a AI first tool, document all the AI tools we have like mcp, fine scoped
@@ -8,7 +8,10 @@ tools."* Placed **after M62, ahead of M53**, by Mitchell the same day (see `docs
 and a site-level `/agents.md`.** Mitchell: *"Go with your recommendations, ship the agents
 section."* **The page says nothing about how Caesura is built.** Mitchell, the same day: *"we
 should leave development details from the ai SEO page"*. **Amended the same day to split the work
-across three places** (decision 8). Mitchell: *"yes, amend M63 with the split"*.
+across three places** (decision 8). Mitchell: *"yes, amend M63 with the split"*. **Amended
+2026-11-21 to add a second page, `/security`** (decisions 10 to 14). Mitchell: *"modify the next
+milestone, the ai SEO page a bit, to include two new pages, the one on ai, but also one on our
+security"*, then *"Yes, amend M63"* to the proposal as written.
 
 ## Why this exists
 
@@ -33,6 +36,15 @@ each endpoint's required scope in the OpenAPI document (and so in `/developers/r
 scope list in `/llms.txt`, and the token form and OAuth consent screen. **One gap:** nothing says
 which scope each MCP tool needs, so someone who unticks `notebook:write` on the consent screen
 cannot tell that `update_notebook_page` will refuse.
+
+**Nothing public says how an account is kept safe, either.** The facts exist: Google sign-in and,
+from M62 (ordered before this milestone), a second factor with passkeys, authenticator apps and
+recovery codes; tokens kept only as a hash and revocable; every OAuth grant listed with
+*Disconnect*; other sessions signed out when a factor changes (M62's `security_epoch`); HTTPS
+everywhere with HSTS and a content security policy (`apps/web/next.config.ts`); and an RFC 9116
+`/.well-known/security.txt` for reporting a vulnerability. They are spread across the Security
+tab, response headers and a file only scanners read. *"Is my data safe with an AI tool?"* is the
+question an AI-first page raises most, and today it has nowhere to point.
 
 ## Decisions
 
@@ -77,7 +89,9 @@ Each *Recommendation* below is now the decision.
 4. **Fine scoped tokens, explained to a non-developer.** *Recommendation:* `/ai` does not
    repeat the scope table. It says in plain words that *an AI tool can never do more than you
    can, you choose what it may do, and you can disconnect it at any time*. It names
-   *Connected apps*, and links to `/developers#scopes`, which stays the one table.
+   *Connected apps*, and links to `/developers#scopes`, which stays the one table. *(Amended
+   2026-11-21:)* anything more about keeping an account safe is a link to `/security`
+   (decision 10), not a second explanation on `/ai`.
 5. **Structured data.** *Recommendation:* `WebPage` with `about` the `SoftwareApplication`, and
    an `FAQPage` block for the four or five questions the page answers (*Does Caesura work with
    Claude? With ChatGPT? Is my data safe with an AI tool? What can an agent not do?*). The FAQ is
@@ -108,6 +122,41 @@ Each *Recommendation* below is now the decision.
    so the consent screen's unticked boxes have a visible cost. The same list goes into
    `/agents.md`.
 
+### Decided 2026-11-21: the `/security` page, all as recommended
+
+10. **A second page, `/security`.** *Recommendation:* a plain-language page, written for the
+    person deciding whether to trust Caesura (and to hand it to an AI), not for an auditor. It
+    covers, in this order: how you sign in, and the second factor from M62; what an AI tool or a
+    token can and cannot do (one line, then a link to `/ai` and `/developers#scopes`); how you
+    take access back (tokens, *Connected apps*, signing out other sessions); how your data is
+    protected in transit; and how to report a vulnerability. `/ai`'s *"Is my data safe with an
+    AI tool?"* answer is a short line and a link here, so each fact lives in one place, the same
+    rule as decision 8.
+11. **Outcomes, not configuration.** *Recommendation:* the page leaves build and infrastructure
+    details out, as `/ai` does: no list of response headers, no hosting or database vendor, no
+    repository, no libraries. It states what is true for the reader (*"every connection is
+    encrypted"*, *"we keep only a fingerprint of each token, which cannot be turned back into
+    the token"*), which is more convincing than *"we take security seriously"* and gives an
+    attacker nothing a scan would not already show.
+12. **Every claim is true on production.** *Recommendation:* each statement on the page is
+    checked against production before the gate, as `/ai`'s prompts are, and the check is
+    recorded. A claim that cannot be checked is cut. No compliance badges or certifications
+    (SOC 2, ISO 27001): Caesura has none, and the page says nothing that implies one. If M62 has
+    not merged by the time this part is built, the page describes sign-in as it is and the
+    second-factor paragraph waits for it.
+13. **`security.txt` and `/security` point at each other.** *Recommendation:*
+    `/.well-known/security.txt` gains a `Policy:` line naming `/security` (RFC 9116 allows it),
+    and the page's reporting section is the human-readable version of that file: the same
+    contacts, read from one constant so they cannot drift. `security.txt`'s `Expires` and its
+    contacts do not change.
+14. **Search, and the same shape as `/ai`.** *Recommendation:* a static, signed-out,
+    server-rendered page outside `proxy.ts`'s matcher, cached, with its own OG image, in the
+    sitemap, linked from the landing's footer, `/ai`, `/developers` and `/agents.md`. It is
+    titled along the lines of *"Security at Caesura: your account, your data, your AI"* (the
+    build proposes the words, Mitchell approves them), within M53's title and description
+    limits. Structured data is `WebPage` with an `FAQPage` block only for questions visible on
+    the page.
+
 ## Scope
 
 A first cut of the parts, for the plan to settle:
@@ -124,7 +173,12 @@ A first cut of the parts, for the plan to settle:
    section, the safety summary, and no development details.
 6. **Search** (decisions 1, 5): metadata, JSON-LD, the OG image, the sitemap entry and the
    inbound links.
-0. **The gate**: the evidence, the approved words, the retro.
+7. **The `/security` page** (decisions 10 to 13): the page, every claim checked on production,
+   the reporting section and `security.txt` sharing one contacts constant, and the `Policy:`
+   line. `/ai`'s safety answer becomes a link here.
+8. **Search for `/security`** (decision 14): metadata, JSON-LD, the OG image, the sitemap entry
+   and the inbound links. It may fold into part 6 if the plan finds them small enough together.
+0. **The gate**: the evidence, the approved words for both pages, the retro.
 
 ## Out of scope
 
@@ -135,6 +189,9 @@ A first cut of the parts, for the plan to settle:
 - A page per AI tool. One page first; per-tool landing pages are a candidate if the one page
   ranks.
 - Rewriting the rest of `/developers` or its M53 title and description.
+- New security capability, a privacy policy or terms of service, and any compliance
+  certification. `/security` describes what exists; a gap found while checking its claims
+  becomes a known issue or a candidate.
 
 ## Exit gate
 
@@ -163,3 +220,17 @@ A first cut of the parts, for the plan to settle:
   its `AGENTS.md` or how Caesura is built.
 - [ ] **[walk]** Mitchell runs `/ai` through Google's Rich Results Test with no errors, and
   follows the Claude example from `/ai`, through `/developers#connect-claude`, to a published playbook.
+- [ ] **`/security` claims:** every statement on `/security` has a recorded check on production,
+  and the page names no certification Caesura does not hold.
+- [ ] **One place for safety:** `/ai`'s safety answer links to `/security` and does not repeat
+  it, and every link on `/security` reaches a route or anchor that exists (unit test).
+- [ ] **Reporting:** `/security`'s reporting section and `/.well-known/security.txt` read their
+  contacts from one constant, and `security.txt` carries a `Policy:` line naming `/security`
+  (unit tests).
+- [ ] **`/security` search and signed out:** in the production sitemap with a canonical, an
+  `og:url`, a title of 60 characters or fewer and a description of 160 or fewer; with JavaScript
+  off it answers HTML with one `<h1>` (`test:e2e:ci-like`, or CI on the PR).
+- [ ] **No build details on `/security`:** it names no response header, hosting or database
+  vendor, library or repository.
+- [ ] **`/security` words:** the title, description and headline are the words Mitchell
+  approved.

@@ -1,7 +1,8 @@
 import * as Sentry from "@sentry/nextjs";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import type { ServedSession } from "@/components/AppShell";
-import { hasSessionCookie } from "@/lib/sessionHint";
+import { hasSessionCookie, REQUEST_PATH_HEADER } from "@/lib/sessionHint";
 import { auth } from "@/server/auth";
 import { readAccountPreferences } from "@/server/accountPreferences";
 import { entitlementsFor } from "@/server/entitlements/resolver";
@@ -29,6 +30,25 @@ import { entitlementsFor } from "@/server/entitlements/resolver";
 export async function servedForRequest(): Promise<{ noSessionCookie: boolean; served: ServedSession | null }> {
   const noSessionCookie = !hasSessionCookie((await cookies()).getAll().map((cookie) => cookie.name));
   return { noSessionCookie, served: noSessionCookie ? null : await servedSession() };
+}
+
+/**
+ * `servedForRequest` for the pages that need a session. A cookie that `auth()`
+ * refuses, because it expired or because the account's security epoch moved past
+ * it (M62), goes to sign-in, by way of the route that clears the cookie and the
+ * signed-in hint (`api/session-expired`) and keeps the page asked for: the proxy
+ * cannot tell the second case (ADR-024, it reads no database), and left alone
+ * the page would draw a signed-out screen or `/signin` would send the landing
+ * round again. `null` is the refusal; `undefined` is a read that threw, which
+ * stays served.
+ */
+export async function servedForApp(): ReturnType<typeof servedForRequest> {
+  const request = await servedForRequest();
+  if (request.served?.user === null) {
+    const path = (await headers()).get(REQUEST_PATH_HEADER);
+    redirect(path === null ? "/api/session-expired" : `/api/session-expired?callbackUrl=${encodeURIComponent(path)}`);
+  }
+  return request;
 }
 
 /**

@@ -14,6 +14,7 @@ const {
   invalidatePublicDay,
   invalidatePublicDays,
   libraryCached,
+  LISTS_CLEARED,
 } = await import("./libraryCache");
 
 const DAY = "aa000000-0000-4000-8000-000000000001";
@@ -97,6 +98,45 @@ describe("the narrower clears", () => {
 
     const tags = ["day:d1", `author:${OWNER}`, "day:d2", "library"];
     expect(revalidateTag.mock.calls.map(([tag]) => tag)).toEqual(tags);
+  });
+});
+
+// 2026-11-21. A cleared list is every place, tag and Discover page at once;
+// the warm-up reads them back in one burst instead of crawlers all day.
+describe("telling the warm-up a list was cleared", () => {
+  const listener = vi.fn();
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production");
+    (globalThis as Record<symbol, unknown>)[LISTS_CLEARED] = listener;
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    delete (globalThis as Record<symbol, unknown>)[LISTS_CLEARED];
+    listener.mockReset();
+    revalidateTag.mockReset();
+  });
+
+  it("calls it after a publish, a name change and a rank change, each once", async () => {
+    await invalidatePublicDay(DAY, OWNER);
+    expect(listener).toHaveBeenCalledOnce();
+    await invalidateAuthor(OWNER);
+    await invalidateDiscoverRank();
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  it("leaves it alone for an add, which clears no list, and outside production", async () => {
+    await invalidateDayRead(DAY, OWNER);
+    vi.stubEnv("NODE_ENV", "test");
+    await invalidatePublicDay(DAY, OWNER);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("calls it only once the tags are cleared, so the warm-up never reads the old lists back", async () => {
+    const order: string[] = [];
+    revalidateTag.mockImplementation((tag: string) => order.push(tag));
+    listener.mockImplementation(() => order.push("warm-up"));
+    await invalidatePublicDay(DAY, OWNER);
+    expect(order).toEqual([...TAGS, "warm-up"]);
   });
 });
 

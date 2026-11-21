@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "@/server/db/client";
-import { oauthCodes } from "@/server/db/schema";
+import { oauthCodes, users } from "@/server/db/schema";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { registerClient, resolveClient } from "@/server/oauth/clients";
@@ -16,8 +16,10 @@ import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { upsertUser } from "@/server/users";
 
 let currentUserId: string | null = null;
+// What the session says about its second factor; empty for the account that has none.
+let claims: { mfaAt?: number; signedInAt?: number } = {};
 vi.mock("@/server/auth", () => ({
-  auth: vi.fn(async () => (currentUserId === null ? null : { user: { id: currentUserId } })),
+  auth: vi.fn(async () => (currentUserId === null ? null : { user: { id: currentUserId }, ...claims })),
 }));
 // Real, except where a test has a metadata document change between the page and the click.
 vi.mock("@/server/oauth/clients", async (importOriginal) => {
@@ -96,6 +98,41 @@ describe("POST /api/oauth/authorize", () => {
     expect(target.searchParams.get("state")).toBe("s-1");
     expect(target.searchParams.get("iss")).toBe(oauthIssuer());
     expect(target.searchParams.has("code")).toBe(false);
+  });
+
+  describe("while two-step sign-in is on", () => {
+    async function allow() {
+      return decide({ params: await authorizeParams(), decision: "allow", scopes: ["trips:read"], clientName: "Test" });
+    }
+    async function accountWithMfa(): Promise<string> {
+      const id = await account(true);
+      await db.update(users).set({ mfaEnabledAt: new Date() }).where(eq(users.id, id));
+      return id;
+    }
+
+    it("refuses Allow with 403 and grants nothing unless a second factor passed in the last ten minutes", async () => {
+      currentUserId = await accountWithMfa();
+      claims = { signedInAt: Date.now(), mfaAt: Date.now() - 11 * 60 * 1000 };
+      const res = await allow();
+      expect(res.status).toBe(403);
+      expect(await res.json()).toEqual({ error: "fresh-check-required" });
+      expect(await listGrants(currentUserId)).toHaveLength(0);
+    });
+
+    it("allows once it has, and still lets Deny through without one", async () => {
+      currentUserId = await accountWithMfa();
+      claims = { mfaAt: Date.now() - 60 * 1000 };
+      expect((await allow()).status).toBe(200);
+      claims = {};
+      const denied = await decide({ params: await authorizeParams(), decision: "deny" });
+      expect(denied.status).toBe(200);
+    });
+
+    it("asks nothing of an account with two-step sign-in off", async () => {
+      currentUserId = await account(true);
+      claims = {};
+      expect((await allow()).status).toBe(200);
+    });
   });
 
   it("refuses a free account with 402 and issues nothing", async () => {

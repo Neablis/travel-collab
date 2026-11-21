@@ -46,4 +46,24 @@ describe("safeCallbackUrl", () => {
     expect(safeCallbackUrl("/\\evil.example")).toBe("/home");
     expect(safeCallbackUrl("/\\/evil.example")).toBe("/home");
   });
+
+  // A browser strips tab and newline from a URL before parsing it, so "/<TAB>/evil.example"
+  // resolves to "//evil.example", another origin, while looking like a plain path. The
+  // session-expired route puts this value in a Location header for a signed-in visitor.
+  it("rejects control characters that a browser strips before resolving", () => {
+    expect(safeCallbackUrl("/\t/evil.example")).toBe("/home");
+    expect(safeCallbackUrl(decodeURIComponent("/%09/evil.example"))).toBe("/home");
+    expect(safeCallbackUrl("/\n/evil")).toBe("/home");
+    expect(safeCallbackUrl("/\r/evil")).toBe("/home");
+    expect(safeCallbackUrl("/trips/\u0000abc")).toBe("/home");
+  });
+
+  it("keeps a path with a query and a fragment", () => {
+    expect(safeCallbackUrl("/trips/abc?tab=days#top")).toBe("/trips/abc?tab=days#top");
+  });
+
+  it("falls back to Home for a path too long to put in a redirect", () => {
+    expect(safeCallbackUrl(`/trips/${"a".repeat(2048)}`)).toBe("/home");
+    expect(safeCallbackUrl(`/${"a".repeat(2000)}`)).toBe(`/${"a".repeat(2000)}`);
+  });
 });

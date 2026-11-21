@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiToken, ConnectedApp } from "@tc/contracts";
 import type { AccountPlanChoice } from "@/lib/accountPlan";
+import type { MfaStatusResponse } from "@/lib/mfaWire";
 import { AccountScreen } from "./AccountScreen";
 
 // **The Security tab with its real sections**, for an account without the API
@@ -85,10 +86,14 @@ function serve(
       }
       if (href === "/api/account/tokens") return new Response(JSON.stringify({ tokens: [token] }), { status: 200 });
       if (href === "/api/account/connected-apps") return new Response(JSON.stringify({ apps: [app] }), { status: 200 });
+      if (href === "/api/account/mfa/factors") return new Response(JSON.stringify(mfa), { status: 200 });
       return new Response("{}", { status: 404 });
     }),
   );
 }
+
+// What `GET /api/account/mfa/factors` says; off unless a test turns it on.
+let mfa: MfaStatusResponse = { enabled: false, factors: [], recoveryCodesLeft: 0 };
 
 /** The one live region on the page that says Premium; fails if there are none or several. */
 function thePremiumBanner(): HTMLElement {
@@ -100,6 +105,40 @@ function thePremiumBanner(): HTMLElement {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  mfa = { enabled: false, factors: [], recoveryCodesLeft: 0 };
+});
+
+describe("the Security tab's Two-step sign-in", () => {
+  it("sits above API tokens, and offers a passkey while it is off", async () => {
+    serve({ entitlements: ["api.tokens"], billing: { state: "active" } });
+    render(<AccountScreen />);
+    const twoStep = await screen.findByRole("region", { name: "Two-step sign-in" });
+    const tokens = screen.getByRole("region", { name: "API tokens" });
+    expect(twoStep.compareDocumentPosition(tokens) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(await within(twoStep).findByText("Add a second step after Google")).toBeTruthy();
+    expect(within(twoStep).getByRole("button", { name: "Add a passkey" })).toBeTruthy();
+  });
+
+  it("lists one row per factor with its name, kind and last use once it is on", async () => {
+    mfa = {
+      enabled: true,
+      recoveryCodesLeft: 10,
+      factors: [
+        { id: "f1", name: "iPhone passkey", kind: "passkey", createdAt: new Date(Date.now() - 3 * DAY).toISOString(), lastUsedAt: new Date(Date.now() - 2 * DAY).toISOString() },
+        { id: "f2", name: "Work laptop", kind: "passkey", createdAt: new Date(Date.now() - DAY).toISOString(), lastUsedAt: null },
+      ],
+    };
+    serve({ entitlements: ["api.tokens"], billing: { state: "active" } });
+    render(<AccountScreen />);
+    const twoStep = await screen.findByRole("region", { name: "Two-step sign-in" });
+    const rows = await within(twoStep).findAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.textContent).toContain("iPhone passkey");
+    expect(rows[0]!.textContent).toContain("Passkey · used 2 days ago");
+    expect(rows[1]!.textContent).toContain("never used");
+    expect(within(rows[1]!).getByRole("button", { name: "Rename Work laptop" })).toBeTruthy();
+    expect(within(twoStep).queryByText("Add a second step after Google")).toBeNull();
+  });
 });
 
 describe("the Security tab on an account without the API", () => {

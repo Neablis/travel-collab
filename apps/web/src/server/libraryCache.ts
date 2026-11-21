@@ -36,6 +36,15 @@ export const LIBRARY_TAG = "library";
  */
 export const DISCOVER_RANK_TAG = "discover-rank";
 
+/**
+ * Where a production server's warm-up (`warmPublicPages.ts`) listens for a
+ * list being cleared, so it can read the library again before crawlers do
+ * (2026-11-21). On `globalThis`, not in this module: Next bundles
+ * `instrumentation.ts`, which starts the warm-up, apart from the routes that
+ * clear, so the two need not share one copy of this module.
+ */
+export const LISTS_CLEARED = Symbol.for("caesura.library.listsCleared");
+
 /** The tag on one day's cached read and on its preview card. */
 export const dayTag = (savedDayId: string): string => `day:${savedDayId}`;
 
@@ -160,6 +169,15 @@ async function clearOrThrow(tags: string[]): Promise<void> {
   // `{ expire: 0 }`: gone now. A profile such as "max" would serve the old
   // entry once while it refreshed.
   for (const tag of tags) revalidateTag(tag, { expire: 0 });
+  // A day's own tags are left to the next visit: one page, one read. A list
+  // is every place, tag and Discover page at once, which crawlers would
+  // otherwise read back one URL every few minutes for the rest of the day,
+  // each read waking the database (2026-11-21: two publishes kept it from
+  // sleeping from 10 AM to 6 PM).
+  if (tags.includes(LIBRARY_TAG) || tags.includes(DISCOVER_RANK_TAG)) {
+    const listener = (globalThis as Record<symbol, unknown>)[LISTS_CLEARED];
+    if (typeof listener === "function") listener();
+  }
 }
 
 // Every writer's clear: the write has committed, so a failure is logged.

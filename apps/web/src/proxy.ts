@@ -1,14 +1,14 @@
 import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 import { NextResponse, type NextRequest } from "next/server";
 import NextAuth, { type NextAuthRequest } from "next-auth";
-import { authConfig } from "@/lib/authConfig";
+import { authConfig, type SessionWithMfa } from "@/lib/authConfig";
 import {
   PENDING_ADMISSION_COOKIE,
   normalizePendingAdmission,
   pendingAdmissionCookieOptions,
 } from "@/lib/pendingAdmission";
 import { isInternalPlaybooksPath, playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
-import { SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
+import { REQUEST_PATH_HEADER, SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
 import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@/lib/signupRef";
 
 // This file was `src/middleware.ts` until the Next 16 upgrade, which
@@ -179,6 +179,19 @@ function route(req: NextAuthRequest, own: URL): NextResponse {
   // minted `/playbooks/cached/cached/…`) nor passed on (which would serve the
   // page a second time under a URL of its own).
   if (isInternalPlaybooksPath(req.nextUrl.pathname)) return new NextResponse(null, { status: 404 });
+  // M62 (ADR-092): signed in with Google, but the account asks for a second
+  // factor and this token has not passed one. Ahead of the library rewrite, which
+  // would otherwise serve a first-factor-only session the signed-in live copy. The
+  // flag rides the token because this file cannot read the account (ADR-024), so
+  // it is current as of the last sign-in or `update()`; the epoch, which
+  // `server/auth.ts` checks on every server-side `auth()`, is what revokes.
+  if ((req.auth as SessionWithMfa | null)?.mfaPending) {
+    const back = encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search);
+    return NextResponse.redirect(new URL(`/signin/verify?callbackUrl=${back}`, req.nextUrl));
+  }
+  // `/admin` is 404 for anyone who is not an operator, signed out included
+  // (`requireAdmin.ts`): a sign-in redirect would confirm the console exists.
+  if (!req.auth && req.nextUrl.pathname === "/admin") return new NextResponse(null, { status: 404 });
   // The public library, for everyone: a reader with no session and no query
   // gets the cached copy, anyone else the per-request one (`playbooksReader.ts`).
   // `req.auth` rather than the cookie's presence: a cookie whose session has
@@ -192,7 +205,14 @@ function route(req: NextAuthRequest, own: URL): NextResponse {
     target.pathname = library;
     return NextResponse.rewrite(target);
   }
-  if (req.auth) return NextResponse.next();
+  if (req.auth) {
+    // `req.auth` is the cookie as this file can read it; the server may still
+    // refuse it (a moved security epoch), and then needs to know where the
+    // person was going (`servedForApp`).
+    const forwarded = new Headers(req.headers);
+    forwarded.set(REQUEST_PATH_HEADER, req.nextUrl.pathname + req.nextUrl.search);
+    return NextResponse.next({ request: { headers: forwarded } });
+  }
   const { pathname } = req.nextUrl;
   // M27 link 6: the invite landing is PUBLIC — it is what an invite link
   // opens for somebody with no account (SPEC §35.6), so it is served, not
@@ -291,6 +311,10 @@ export const config = {
     "/home",
     "/plans",
     "/account",
+    // M62: server-rendered with `auth()`, which hands a first-factor-only session
+    // a full one, so the second-factor redirect has to be in front of them.
+    "/admin",
+    "/oauth/authorize",
     "/trips/:path*",
     "/invite/:path*",
     "/playbooks/:path*",

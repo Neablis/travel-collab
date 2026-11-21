@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { ApiScope } from "@tc/contracts";
+import type { SessionWithMfa } from "@/lib/authConfig";
 import { auth } from "@/server/auth";
+import { needsFreshSecondFactor } from "@/server/mfa/state";
 import { accountCan } from "@/server/entitlements/resolver";
 import { parseAuthorizeRequest, redirectBack } from "@/server/oauth/authorizeRequest";
 import { createGrant, issueCode } from "@/server/oauth/grants";
@@ -29,7 +31,8 @@ const Decision = z.object({
 
 /** Record Allow or Deny for a signed-in person on this origin, answering where the browser goes next. */
 export async function POST(request: Request) {
-  const userId = (await auth())?.user?.id;
+  const session = await auth();
+  const userId = session?.user?.id;
   if (userId === undefined) return Response.json({ error: "unauthenticated" }, { status: 401 });
   // The session cookie is SameSite=Lax, and this is the second lock: a page on
   // another origin cannot post a consent, whatever it gets the browser to send.
@@ -48,6 +51,11 @@ export async function POST(request: Request) {
 
   if (body.data.decision === "deny") {
     return Response.json({ redirectTo: redirectBack(authorize.redirectUri, authorize.state, { error: "access_denied" }) });
+  }
+  // M62 D8: a grant is a standing credential, as a token is, so Allow asks for a second
+  // factor within ten minutes while two-step sign-in is on. Deny grants nothing.
+  if (await needsFreshSecondFactor(userId, session as SessionWithMfa, new Date())) {
+    return Response.json({ error: "fresh-check-required" }, { status: 403 });
   }
   // D6: the same entitlement minting a token needs. Checked again on every use (part 3).
   if (!(await accountCan(userId, "api.tokens"))) return Response.json({ error: "api-not-entitled" }, { status: 402 });

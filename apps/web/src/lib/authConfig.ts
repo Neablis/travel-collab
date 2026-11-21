@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import type { Provider } from "next-auth/providers";
-import type { NextAuthConfig } from "next-auth";
+import type { NextAuthConfig, Session } from "next-auth";
 import { isDevLoginEnabled } from "@/lib/devLogin";
 import { deployEnv } from "@/lib/deployment/env";
 
@@ -197,6 +197,137 @@ if (isDevLoginEnabled()) {
   );
 }
 
+/**
+ * `Session` plus the M62 fields. Not a contract: they are server-side reads.
+ * `mfaAt` and `signedInAt` are what a fresh check is judged on (`server/mfa/state.ts`):
+ * when a second factor last passed, and when Google last signed this session in.
+ * `sid` is the cookie's own id, which a second-factor proof is minted for.
+ */
+export type SessionWithMfa = Session & { mfaPending?: boolean; mfaAt?: number; signedInAt?: number; sid?: string };
+
+/** What the `jwt` callback may ask the server about an account (M62, ADR-092). */
+export interface SessionLookup {
+  /** The account's current second-factor state: `mfa_enabled_at` set, and `security_epoch`. */
+  stateFor(userId: string): Promise<{ enabled: boolean; epoch: number }>;
+  /**
+   * The factor a NextAuth `update` payload proves, or null. The payload comes from
+   * the browser, so only a server-minted proof counts (`server/mfa/state.ts`).
+   */
+  secondFactorFrom(
+    userId: string,
+    sid: string,
+    payload: unknown,
+    currentEpoch: number,
+  ): { method: "webauthn" | "otp" | "recovery" | "epoch"; expiresAt: number } | null;
+}
+
+// Empty only for a token with no account, which every route refuses anyway: a
+// signed-in token without one is given one on its next read (`createJwtCallback`).
+const sidOf = (token: Record<string, unknown>): string => (token.sid as string | undefined) ?? "";
+
+/**
+ * The session `jwt` callback, with or without a database behind it.
+ *
+ * `authConfig` below uses it with none, as `proxy.ts` must (ADR-024): it can only
+ * trust what the token already says. `server/auth.ts` passes the lookup, which is
+ * where a token under an older `security_epoch` is refused and where `update` can
+ * add a second factor. The proxy's copy therefore never revokes by itself; the
+ * next `auth()` on the server does, and that is what every API route and page
+ * runs. (ADR-092 expected the callback to read the account already. It did not:
+ * it is pure data, so the read is added here, behind a seam.)
+ */
+export function createJwtCallback(lookup?: SessionLookup): NonNullable<NonNullable<NextAuthConfig["callbacks"]>["jwt"]> {
+  return async ({ token, user, account, trigger, session }) => {
+    if (user) {
+      // From the ACCOUNT, never from `user.id` — see `googleProfile` above.
+      // `user.id` is a fresh UUID per OAuth sign-in, so minting the claim
+      // from it made every request for the whole 30-day life of the cookie
+      // act as an account that existed only for that one sign-in. This must
+      // agree with `recordSignIn`'s reading of the same field, or the gate
+      // admits one identity and the session then carries another.
+      const subject = account?.providerAccountId?.trim();
+      // Fail-closed, and unreachable in practice: `recordSignIn` has already
+      // refused a sign-in with no durable subject. Null is Auth.js's "this
+      // session is over" signal, so no cookie is issued at all — the one
+      // thing that must not happen here is quietly falling back to `user.id`
+      // and reviving the bug behind a gate that just passed.
+      if (!subject) return null;
+      token.userId = subject;
+      // Stamped at mint time, so the claim describes where the credential
+      // was actually issued rather than where it is being presented.
+      token.env = authEnvironment();
+      // Google, or dev login standing in for it, is the first factor and the
+      // only one a sign-in can be. A second is added by `update`, never here.
+      token.amr = ["google"];
+      delete token.mfaAt;
+      delete token.proofExp;
+      // Adding a first factor to an account with MFA off asks for a fresh Google
+      // sign-in (M62 D6), and a token's own `iat` cannot say when that was:
+      // Auth.js re-issues it on every session read.
+      token.signedInAt = Date.now();
+      // This cookie's own id, which a second-factor proof is minted for: one
+      // session's proof upgrades no other, whatever the account.
+      token.sid = crypto.randomUUID();
+      const state = await lookup?.stateFor(subject);
+      token.epoch = state?.epoch ?? 0;
+      token.mfaRequired = state?.enabled ?? false;
+      return token;
+    }
+    // Returning null is Auth.js's own "this session is over" signal: it
+    // clears the session cookie and answers with no session
+    // (`@auth/core/lib/actions/session.js` — `sessionStore.clean()`), so a
+    // cross-environment token is discarded rather than merely ignored.
+    //
+    // A token with NO claim fails this too, deliberately. Tokens minted
+    // before this shipped are exactly the ones whose origin we cannot
+    // establish, so they are the ones the check exists for. The cost is one
+    // forced re-sign-in for anyone holding a live session when this
+    // deploys; the alternative — trusting an unstamped token — would leave
+    // the hole open for the 30-day life of every cookie already issued.
+    if (token.env !== authEnvironment()) return null;
+    // A cookie minted before sessions carried an id (M62 part 1) is given one here,
+    // or every route that binds a proof to it would refuse the session. In both
+    // instances: the proxy's re-issues the cookie on the guarded page the person is
+    // on (`/account`), so the routes that page calls read the id it stored. A copy
+    // minted by an `auth()` that cannot write the cookie lives one request.
+    if (token.userId && !token.sid) token.sid = crypto.randomUUID();
+    if (!lookup) return token;
+    const userId = token.userId as string | undefined;
+    if (!userId) return token;
+    // Fails closed, on purpose (ADR-092 Consequences): if this read throws, Auth.js
+    // reads it as "no session" and, on its own handlers, clears the cookie. A
+    // revocation check that fell back to the token's own epoch would let a revoked
+    // session through for as long as the database was down.
+    const state = await lookup.stateFor(userId);
+    // Checked BEFORE the epoch: the session that just changed a factor bumped the
+    // epoch under its own token, and this is how it gets a current one. The proof
+    // is for this account and this epoch, so a revoked cookie cannot use it.
+    const proved =
+      trigger === "update" ? lookup.secondFactorFrom(userId, sidOf(token), session, state.epoch) : null;
+    // Single use: a proof is accepted once, so one that leaks inside its two
+    // minutes cannot be replayed to stretch the fresh-check window.
+    if (proved && proved.expiresAt > ((token.proofExp as number | undefined) ?? 0)) {
+      token.proofExp = proved.expiresAt;
+      // An `epoch` proof presented no factor, so it neither adds one to `amr` nor
+      // restarts the fresh-check clock: chaining it would keep a stolen check fresh.
+      if (proved.method !== "epoch") {
+        token.amr = ["google", proved.method];
+        token.mfaAt = Date.now();
+      }
+      token.epoch = state.epoch;
+      token.mfaRequired = state.enabled;
+      return token;
+    }
+    // A missing epoch is 0: a token minted before M62 predates the counter, and
+    // an account nobody has touched is still at 0, so it keeps working.
+    if (((token.epoch as number | undefined) ?? 0) < state.epoch) return null;
+    // Before M62 there was one factor, so an unstamped token has passed it.
+    token.amr ??= ["google"];
+    token.mfaRequired = state.enabled;
+    return token;
+  };
+}
+
 export const authConfig: NextAuthConfig = {
   providers,
   // M15: our screens replace Auth.js's default sign-in page. `error` points
@@ -207,41 +338,7 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     // Called with `user` exactly once, on sign-in; with the decoded token
     // alone on every subsequent session read, in both runtimes.
-    jwt: ({ token, user, account }) => {
-      if (user) {
-        // From the ACCOUNT, never from `user.id` — see `googleProfile` above.
-        // `user.id` is a fresh UUID per OAuth sign-in, so minting the claim
-        // from it made every request for the whole 30-day life of the cookie
-        // act as an account that existed only for that one sign-in. This must
-        // agree with `recordSignIn`'s reading of the same field, or the gate
-        // admits one identity and the session then carries another.
-        const subject = account?.providerAccountId?.trim();
-        // Fail-closed, and unreachable in practice: `recordSignIn` has already
-        // refused a sign-in with no durable subject. Null is Auth.js's "this
-        // session is over" signal, so no cookie is issued at all — the one
-        // thing that must not happen here is quietly falling back to `user.id`
-        // and reviving the bug behind a gate that just passed.
-        if (!subject) return null;
-        token.userId = subject;
-        // Stamped at mint time, so the claim describes where the credential
-        // was actually issued rather than where it is being presented.
-        token.env = authEnvironment();
-        return token;
-      }
-      // Returning null is Auth.js's own "this session is over" signal: it
-      // clears the session cookie and answers with no session
-      // (`@auth/core/lib/actions/session.js` — `sessionStore.clean()`), so a
-      // cross-environment token is discarded rather than merely ignored.
-      //
-      // A token with NO claim fails this too, deliberately. Tokens minted
-      // before this shipped are exactly the ones whose origin we cannot
-      // establish, so they are the ones the check exists for. The cost is one
-      // forced re-sign-in for anyone holding a live session when this
-      // deploys; the alternative — trusting an unstamped token — would leave
-      // the hole open for the 30-day life of every cookie already issued.
-      if (token.env !== authEnvironment()) return null;
-      return token;
-    },
+    jwt: createJwtCallback(),
     session: ({ session, token }) => {
       // `token.userId` only. The `?? token.sub` fallback that used to sit here
       // was not a safety net but a second copy of the bug: for an OAuth
@@ -251,6 +348,15 @@ export const authConfig: NextAuthConfig = {
       // stamped above or no token is issued, which leaves nothing to fall
       // back FOR — and an empty id is caught by every owner-scoped read.
       session.user.id = (token.userId as string | undefined) ?? "";
+      // Not a secret: a proof also needs the server's pepper. The route that verifies
+      // a factor reads it here to mint the proof for this cookie.
+      (session as SessionWithMfa).sid = sidOf(token);
+      // What `proxy.ts` reads, since it can read nothing else: the account asks for
+      // a second factor and this token has only passed the first.
+      (session as SessionWithMfa).mfaPending =
+        token.mfaRequired === true && ((token.amr as string[] | undefined)?.length ?? 1) < 2;
+      (session as SessionWithMfa).mfaAt = token.mfaAt as number | undefined;
+      (session as SessionWithMfa).signedInAt = token.signedInAt as number | undefined;
       // Overrides `sendDefaultPii: false` deliberately (Mitchell, 2026-08-30):
       // this is the one seam every `auth()` call in both runtimes passes
       // through, so it's the single place to attach identity to whatever
