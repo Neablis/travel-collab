@@ -17,6 +17,11 @@ const Step = z.discriminatedUnion("step", [
   z.object({ step: z.literal("confirm"), ticket: z.string().min(1), code: z.string().min(1).max(32) }),
 ]);
 
+/**
+ * One step of adding an authenticator app: `start` returns the secret to scan and a ticket,
+ * `confirm` checks the app's code, stores the factor and returns this session's proof, plus
+ * the recovery codes when it is the account's first factor. 403 without a fresh check.
+ */
 export async function POST(request: Request) {
   const session = await auth();
   const userId = session?.user?.id;

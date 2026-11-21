@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
-import { CodeEntryForm, type CodeKind } from "@/components/front/CodeEntryForm";
+import { CodeEntryForm, type CodeKind } from "@/components/account/CodeEntryForm";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { checkWithCode, checkWithPasskey, type CodeCheck, type PasskeyCheck } from "@/lib/mfaClient";
 import { clearSignedInHint } from "@/lib/sessionHint";

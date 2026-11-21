@@ -22,6 +22,7 @@ export interface SoftAuthenticator {
 
 // `counterStaysZero` is what synced platform passkeys (Apple, Google) do: they
 // report a sign count of 0 forever, so the library's counter check never fires.
+/** A fresh software authenticator with its own ES256 key pair, which attests and asserts like a real one. */
 export function softAuthenticator(overrides: { key?: KeyObject; counterStaysZero?: boolean } = {}): SoftAuthenticator {
   const { publicKey, privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   const signingKey = overrides.key ?? privateKey;

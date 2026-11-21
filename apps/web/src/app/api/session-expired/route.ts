@@ -14,6 +14,7 @@ import { auth } from "@/server/auth";
 //
 // A GET that clears cookies would let any page sign a visitor out, so it asks
 // `auth()` first and only clears what it refuses.
+/** Clears a session cookie `auth()` refuses and redirects to sign-in; a session it accepts goes straight back. */
 export async function GET(request: Request) {
   const raw = new URL(request.url).searchParams.get("callbackUrl");
   const back = safeCallbackUrl(raw);

@@ -7,6 +7,7 @@ import { issueRecoveryCodes } from "@/server/mfa/recoveryCodes";
 // codes included. It bumps the epoch like every change to how an account is
 // entered, which signs out the other sessions; this one is handed a proof so it is
 // not signed out with them.
+/** Replaces the account's recovery codes and returns the new ten with this session's proof. 409 while two-step is off. */
 export async function POST() {
   const session = await auth();
   const userId = session?.user?.id;
