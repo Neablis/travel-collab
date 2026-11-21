@@ -5,29 +5,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { formatRelativeInstant } from "@/lib/formatDate";
-import { addPasskey } from "@/lib/mfaClient";
+import { addPasskey, regenerateRecoveryCodes } from "@/lib/mfaClient";
 import type { MfaFactorView, MfaStatusResponse } from "@/lib/mfaWire";
+import { AddAuthenticatorDialog } from "./AddAuthenticatorDialog";
 import { FreshCheckDialog } from "./FreshCheckDialog";
 import { RecoveryCodesSheet } from "./RecoveryCodesSheet";
 
 // *Two-step sign-in* on the Security tab (M62). Off, it offers a second step after
 // Google; on, it lists every factor so each can be told apart and renamed. The
 // heading is the tab's (`SecuritySection`), as for its neighbours. Remove and
-// turn-off are part 4, and the authenticator app is part 3.
+// turn-off are part 4.
+
+const RECOVERY_CODE_COUNT = 10;
+
+/** What the fresh check was asked for, so passing it carries on with that. */
+type Pending = "passkey" | "authenticator" | "regenerate";
 
 const KIND_LABEL: Record<MfaFactorView["kind"], string> = { passkey: "Passkey", totp: "Authenticator app" };
 
 const lastUsed = (factor: MfaFactorView) =>
   factor.lastUsedAt === null ? "never used" : `used ${formatRelativeInstant(factor.lastUsedAt) ?? "recently"}`;
 
-/** Whether two-step sign-in is on, its factors, and adding a passkey. */
+/** Whether two-step sign-in is on, its factors and recovery codes, and adding a factor. */
 export function TwoStepSection() {
   // `null` until the first read lands, so the section does not flash "off" at an
   // account that has it on; `"failed"` when it never does.
   const [status, setStatus] = useState<MfaStatusResponse | "failed" | null>(null);
   const [adding, setAdding] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
+  const [checking, setChecking] = useState<Pending | null>(null);
+  const [authenticator, setAuthenticator] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [codes, setCodes] = useState<string[] | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
 
@@ -50,7 +58,7 @@ export function TwoStepSection() {
     setProblem(null);
     const result = await addPasskey();
     setAdding(false);
-    if (result.status === "fresh-check-required") setChecking(true);
+    if (result.status === "fresh-check-required") setChecking("passkey");
     else if (result.status === "added") {
       if (result.recoveryCodes !== null) setCodes(result.recoveryCodes);
       await load();
@@ -61,6 +69,18 @@ export function TwoStepSection() {
           : "The passkey could not be added just now. Try again.",
       );
     }
+  }
+
+  async function regenerate() {
+    setRegenerating(true);
+    setProblem(null);
+    const result = await regenerateRecoveryCodes();
+    setRegenerating(false);
+    if (result.status === "fresh-check-required") setChecking("regenerate");
+    else if (result.status === "regenerated") {
+      setCodes(result.recoveryCodes);
+      await load();
+    } else setProblem("The recovery codes could not be regenerated just now. Try again.");
   }
 
   async function rename() {
@@ -140,23 +160,57 @@ export function TwoStepSection() {
       ) : (
         <Text variant="secondary">Add a second step after Google</Text>
       )}
+      {status.enabled ? (
+        <div className="flex flex-wrap items-center gap-x-1 text-sm">
+          <Text as="span" variant="secondary">
+            Recovery codes: {status.recoveryCodesLeft} of {RECOVERY_CODE_COUNT} left
+          </Text>
+          <span aria-hidden className="text-slate">
+            ·
+          </span>
+          <Button variant="ghost" size="sm" pending={regenerating} onClick={() => void regenerate()}>
+            Regenerate
+          </Button>
+        </div>
+      ) : null}
       {problem === null ? null : (
         <Text variant="secondary" role="alert" className="text-danger-ink">
           {problem}
         </Text>
       )}
-      <div>
+      <div className="flex flex-wrap gap-2">
         <Button variant={status.enabled ? "secondary" : "primary"} pending={adding} onClick={() => void add()}>
           Add a passkey
         </Button>
+        <Button variant="secondary" onClick={() => setAuthenticator(true)}>
+          Add an authenticator app
+        </Button>
       </div>
-      {checking ? (
+      {checking === null ? null : (
         <FreshCheckDialog
           mfaEnabled={status.enabled}
-          onClose={() => setChecking(false)}
+          hasPasskey={status.factors.some((f) => f.kind === "passkey")}
+          onClose={() => setChecking(null)}
           onChecked={() => {
-            setChecking(false);
-            void add();
+            const next = checking;
+            setChecking(null);
+            if (next === "passkey") void add();
+            else if (next === "authenticator") setAuthenticator(true);
+            else void regenerate();
+          }}
+        />
+      )}
+      {authenticator ? (
+        <AddAuthenticatorDialog
+          onClose={() => setAuthenticator(false)}
+          onFreshCheckRequired={() => {
+            setAuthenticator(false);
+            setChecking("authenticator");
+          }}
+          onAdded={(recoveryCodes) => {
+            setAuthenticator(false);
+            if (recoveryCodes !== null) setCodes(recoveryCodes);
+            void load();
           }}
         />
       ) : null}

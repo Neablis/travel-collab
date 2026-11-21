@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { generateKeyPairSync } from "node:crypto";
 import { eq } from "drizzle-orm";
+import * as OTPAuth from "otpauth";
 import { db } from "@/server/db/client";
 import { userRecoveryCodes, users } from "@/server/db/schema";
 import { mfaStateFor } from "@/server/mfa/state";
@@ -28,6 +29,8 @@ vi.mock("next/headers", () => ({
 const { GET: FACTORS } = await import("./factors/route");
 const { PATCH: RENAME } = await import("./factors/[factorId]/route");
 const { POST: ADD } = await import("./passkeys/route");
+const { POST: ADD_TOTP } = await import("./totp/route");
+const { POST: REGENERATE } = await import("./recovery-codes/route");
 const { POST: VERIFY } = await import("../../mfa/verify/route");
 const { GET: PREFERENCES } = await import("../preferences/route");
 const { servedForApp } = await import("@/server/servedSession");
@@ -62,6 +65,7 @@ interface Body {
   proof: unknown;
   recoveryCodes: string[] | null;
   enabled: boolean;
+  recoveryCodesLeft: number;
   factors: { id: string; name: string }[];
   error?: string;
 }
@@ -298,5 +302,171 @@ describe("an app route given a session cookie that auth() refuses", () => {
     current.cookieNames = [];
     current.session = null;
     expect(await sentTo()).toBeNull();
+  });
+});
+
+// ---- M62 part 3: the authenticator app and the recovery codes ---------------
+
+/** What the person's app shows for `secret` at `at`: the test's own copy of RFC 6238. */
+const codeAt = (secret: string, at: Date) =>
+  new OTPAuth.TOTP({ algorithm: "SHA1", digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(secret) }).generate({
+    timestamp: at.getTime(),
+  });
+
+/** Enrols an authenticator app through the routes; returns the secret the person scanned. */
+async function addAuthenticator() {
+  const started = (await (await ADD_TOTP(post({ step: "start" }))).json()) as { ticket: string; secret: string; qr: string };
+  const res = await ADD_TOTP(post({ step: "confirm", ticket: started.ticket, code: codeAt(started.secret, new Date()) }));
+  return { res, secret: started.secret };
+}
+
+/** An account whose only factor is an authenticator app, now a half-signed-in session. */
+async function accountWithAuthenticator() {
+  const id = await account();
+  signedInAs(id);
+  const { res, secret } = await addAuthenticator();
+  expect(res.status).toBe(200);
+  const signedIn = (await signIn(id))!;
+  signedInAs(id, { mfaPending: true, sid: signedIn.sid as string });
+  return { id, secret, codes: (await json(res)).recoveryCodes! };
+}
+
+const verifyCode = (kind: "otp" | "recovery", code: string) => VERIFY(post({ kind, code }));
+
+/** Runs `body` with the clock two time steps on, so the enrolment code's own step is behind it. */
+async function later<T>(body: (now: Date) => Promise<T>): Promise<T> {
+  const now = new Date(Date.now() + 90_000);
+  vi.useFakeTimers({ toFake: ["Date"], now });
+  try {
+    return await body(now);
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+describe("adding an authenticator app", () => {
+  it("turns two-step sign-in on as the first factor, with ten recovery codes and a proof", async () => {
+    const id = await account();
+    signedInAs(id);
+    const { res } = await addAuthenticator();
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.recoveryCodes).toHaveLength(10);
+    expect(body.proof).toMatchObject({ method: "otp" });
+    expect((await mfaStateFor(id)).enabled).toBe(true);
+    expect((await json(await FACTORS())).factors).toMatchObject([{ name: "Authenticator app", kind: "totp" }]);
+  });
+
+  it("returns no codes for a second factor beside a passkey, and needs the second-factor check", async () => {
+    const { id } = await accountWithPasskey();
+    signedInAs(id, { signedInAt: Date.now() });
+    expect((await ADD_TOTP(post({ step: "start" }))).status).toBe(403);
+
+    signedInAs(id, { mfaAt: Date.now() });
+    const { res } = await addAuthenticator();
+    expect(res.status).toBe(200);
+    expect((await json(res)).recoveryCodes).toBeNull();
+  });
+
+  it("refuses a wrong confirmation code and stores nothing", async () => {
+    const id = await account();
+    signedInAs(id);
+    const started = (await (await ADD_TOTP(post({ step: "start" }))).json()) as { ticket: string };
+    const res = await ADD_TOTP(post({ step: "confirm", ticket: started.ticket, code: "000000" }));
+    expect(res.status).toBe(400);
+    expect((await mfaStateFor(id)).enabled).toBe(false);
+  });
+});
+
+describe("signing in with an authenticator code", () => {
+  it("gives a proof the token callback turns into a second factor, and refuses the same code twice", async () => {
+    const { secret } = await accountWithAuthenticator();
+    await later(async (now) => {
+      const code = codeAt(secret, now);
+      const res = await verifyCode("otp", code);
+      expect(res.status).toBe(200);
+      expect(((await json(res)).proof as { method: string }).method).toBe("otp");
+      expect((await verifyCode("otp", code)).status).toBe(401);
+    });
+  });
+
+  it("counts a wrong code toward the lock, and the sixth try is refused even with the right code", async () => {
+    const { secret } = await accountWithAuthenticator();
+    await later(async (now) => {
+      for (let i = 0; i < 5; i++) expect((await verifyCode("otp", "000000")).status).toBe(401);
+      const locked = await verifyCode("otp", codeAt(secret, now));
+      expect(locked.status).toBe(429);
+      expect(await json(locked)).toEqual({ error: "locked" });
+      // Recovery codes are codes too.
+      expect((await verifyCode("recovery", "aaaaa-bbbbb")).status).toBe(429);
+    });
+  });
+
+  it("leaves a passkey working while codes are locked", async () => {
+    const { id, device } = await accountWithPasskey();
+    const signedIn = (await signIn(id))!;
+    signedInAs(id, { mfaPending: true, sid: signedIn.sid as string });
+    for (let i = 0; i < 5; i++) await verifyCode("otp", "000000");
+    expect((await verifyCode("otp", "000000")).status).toBe(429);
+    const { options, ticket } = await json(await VERIFY(post({ kind: "passkey", step: "options" })));
+    const res = await VERIFY(
+      post({ kind: "passkey", step: "verify", ticket, response: device.assert(options as { challenge: string }, ctx) }),
+    );
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("recovery codes", () => {
+  it("each works once, whatever the case or dash, and gives a proof", async () => {
+    const { codes } = await accountWithAuthenticator();
+    const res = await verifyCode("recovery", codes[0]!.toUpperCase());
+    expect(res.status).toBe(200);
+    expect(((await json(res)).proof as { method: string }).method).toBe("recovery");
+    expect((await verifyCode("recovery", codes[0]!)).status).toBe(401);
+    expect((await verifyCode("recovery", codes[1]!.replace("-", " "))).status).toBe(200);
+  });
+
+  it("reports how many are left", async () => {
+    const { id, codes } = await accountWithAuthenticator();
+    await verifyCode("recovery", codes[0]!);
+    signedInAs(id, { mfaAt: Date.now() });
+    expect((await json(await FACTORS())).recoveryCodesLeft).toBe(9);
+  });
+});
+
+describe("regenerating recovery codes", () => {
+  it("voids the old set and the new codes work", async () => {
+    const { id, codes: old } = await accountWithAuthenticator();
+    signedInAs(id, { mfaAt: Date.now() });
+    const res = await REGENERATE();
+    expect(res.status).toBe(200);
+    const fresh = (await json(res)).recoveryCodes!;
+    expect(fresh).toHaveLength(10);
+
+    const signedIn = (await signIn(id))!;
+    signedInAs(id, { mfaPending: true, sid: signedIn.sid as string });
+    expect((await verifyCode("recovery", old[0]!)).status).toBe(401);
+    expect((await verifyCode("recovery", fresh[0]!)).status).toBe(200);
+  });
+
+  it("needs the second-factor check, and only while two-step sign-in is on", async () => {
+    const { id } = await accountWithAuthenticator();
+    signedInAs(id, { signedInAt: Date.now() });
+    expect((await REGENERATE()).status).toBe(403);
+
+    signedInAs(await account(), { mfaAt: Date.now() });
+    expect((await REGENERATE()).status).toBe(409);
+  });
+
+  it("bumps the epoch, so another session is refused and this one carries on by its proof", async () => {
+    const { id } = await accountWithAuthenticator();
+    const other = (await signIn(id))!;
+    const mine = (await signIn(id))!;
+    signedInAs(id, { mfaAt: Date.now(), sid: mine.sid as string });
+    const before = (await mfaStateFor(id)).epoch;
+    const res = await REGENERATE();
+    expect((await mfaStateFor(id)).epoch).toBe(before + 1);
+    expect(await jwt({ token: other })).toBeNull();
+    expect(await jwt({ token: mine, trigger: "update", session: (await json(res)).proof })).toMatchObject({ epoch: before + 1 });
   });
 });

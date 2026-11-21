@@ -17,6 +17,8 @@ export interface MfaFactorView {
 export interface MfaStatusResponse {
   enabled: boolean;
   factors: MfaFactorView[];
+  /** Unspent recovery codes, out of ten; zero while two-step sign-in is off. */
+  recoveryCodesLeft: number;
 }
 
 /**

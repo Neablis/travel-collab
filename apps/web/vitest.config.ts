@@ -22,6 +22,10 @@ if (existsSync(envLocalPath)) {
 // a digest against a fixture.
 process.env.API_TOKEN_PEPPER ||= "test-pepper-not-a-real-key-but-32-bytes-long";
 
+// Authenticator-app secrets are sealed under this (`server/secrets/sealed.ts`),
+// which throws without it by design. Present and 32 bytes is all a test needs.
+process.env.MFA_SECRET_KEY ||= "test-mfa-key-not-a-real-key-32-bytes-long";
+
 // The link-preview cache (ADR-059) is off under test: a process-wide memory
 // cache would let one test's lookup answer another's, and hide the database
 // behaviour a test is there to see. Tests that exercise a cache inject a port.

@@ -2,9 +2,12 @@ import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
 import { z } from "zod";
 import type { SessionWithMfa } from "@/lib/authConfig";
 import { authIncludingPending } from "@/server/auth";
+import { attemptCode } from "@/server/mfa/attempts";
 import { passkeysOf, recordPasskeyUse } from "@/server/mfa/factors";
 import { authenticationOptions, verifyAuthentication } from "@/server/mfa/passkey";
+import { consumeRecoveryCode } from "@/server/mfa/recoveryCodes";
 import { mfaStateFor, mintSecondFactorProof } from "@/server/mfa/state";
+import { verifyTotp } from "@/server/mfa/totp";
 
 // The second step of sign-in (M62 D3a), and the fresh check inside the app. This
 // is one of the two places that reads a session that has not passed its second
@@ -13,7 +16,7 @@ import { mfaStateFor, mintSecondFactorProof } from "@/server/mfa/state";
 // It does not set the claim itself. It verifies the passkey and answers with a
 // server-minted proof, which the browser hands to NextAuth's `update`, because
 // only the `jwt` callback can write the cookie (`server/mfa/state.ts`).
-const Step = z.discriminatedUnion("step", [
+const Step = z.union([
   z.object({ kind: z.literal("passkey"), step: z.literal("options") }),
   z.object({
     kind: z.literal("passkey"),
@@ -21,6 +24,8 @@ const Step = z.discriminatedUnion("step", [
     ticket: z.string().min(1),
     response: z.record(z.string(), z.unknown()),
   }),
+  // A code is typed, so it is bounded here and judged in `totp.ts` and `recoveryCodes.ts`.
+  z.object({ kind: z.enum(["otp", "recovery"]), code: z.string().min(1).max(64) }),
 ]);
 
 export async function POST(request: Request) {
@@ -38,6 +43,18 @@ export async function POST(request: Request) {
   if (!state.enabled) return Response.json({ error: "mfa-not-enabled" }, { status: 409 });
 
   const now = new Date();
+  if (body.data.kind !== "passkey") {
+    const { kind, code } = body.data;
+    // The only way a code is tested (`attempts.ts`): five wrong ones in fifteen
+    // minutes lock codes for the account, and a passkey still gets through.
+    const attempt = await attemptCode(userId, now, async () =>
+      kind === "otp" ? (await verifyTotp(userId, code, now)) !== null : consumeRecoveryCode(userId, code, now),
+    );
+    if (attempt === "locked") return Response.json({ error: "locked" }, { status: 429 });
+    if (attempt === "wrong") return Response.json({ error: "code-not-verified" }, { status: 401 });
+    return Response.json({ proof: mintSecondFactorProof(userId, sid, kind, state.epoch, now) });
+  }
+
   const passkeys = await passkeysOf(userId);
   if (body.data.step === "options") {
     if (passkeys.length === 0) return Response.json({ error: "no-passkey" }, { status: 409 });

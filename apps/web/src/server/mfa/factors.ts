@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { userFactors, users } from "@/server/db/schema";
+import { userFactors, userRecoveryCodes, users } from "@/server/db/schema";
 import type { MfaFactorView } from "@/lib/mfaWire";
 import { issueRecoveryCodes } from "./recoveryCodes";
 import { bumpSecurityEpoch } from "./state";
 import type { StoredPasskey, VerifiedRegistration } from "./passkey";
+import { AUTHENTICATOR_NAME, type ConfirmedTotp } from "./totp";
 
 /** What the Security tab lists: names and times, never a key. */
 export async function listFactors(userId: string): Promise<MfaFactorView[]> {
@@ -64,13 +65,37 @@ export async function recordPasskeyUse(factorId: string, counter: number, now: D
   await db.update(userFactors).set({ counter, lastUsedAt: now }).where(eq(userFactors.id, factorId));
 }
 
+/** Recovery codes not yet spent, for "N of 10 left". */
+export async function recoveryCodesLeft(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(userRecoveryCodes)
+    .where(and(eq(userRecoveryCodes.userId, userId), isNull(userRecoveryCodes.usedAt)));
+  return row?.n ?? 0;
+}
+
 /**
- * Stores the passkey. The first factor on an account turns MFA on in the same
- * breath, bumps the security epoch and returns the ten recovery codes, once
- * (M62 D6); a later one returns none. The bump is what reaches the account's other
+ * What the first factor on an account does, whichever kind it is: turns MFA on,
+ * bumps the security epoch and returns the ten recovery codes, once (M62 D6); a
+ * later one returns none. The bump is what reaches the account's other
  * open sessions: their tokens say MFA is off, and only an older epoch gets them
- * refused and sent to sign in again. `mfa_enabled_at` is set by a conditional UPDATE, so two first passkeys
- * registered at once cannot both be told they were first.
+ * refused and sent to sign in again. `mfa_enabled_at` is set by a conditional
+ * UPDATE, so two first factors added at once cannot both be told they were first.
+ */
+async function turnOnWithFirstFactor(userId: string, now: Date): Promise<{ recoveryCodes: string[] | null }> {
+  const turnedOn = await db
+    .update(users)
+    .set({ mfaEnabledAt: now })
+    .where(and(eq(users.id, userId), isNull(users.mfaEnabledAt)))
+    .returning({ id: users.id });
+  if (turnedOn.length === 0) return { recoveryCodes: null };
+  await bumpSecurityEpoch(userId);
+  return { recoveryCodes: await issueRecoveryCodes(userId, now) };
+}
+
+/**
+ * Stores the passkey and, if it is the account's first factor, turns two-step
+ * sign-in on (`turnOnWithFirstFactor`).
  *
  * A credential id already on any account fails on the unique index and throws:
  * an authenticator names one credential, whoever owns it.
@@ -91,12 +116,23 @@ export async function addPasskey(
     transports: passkey.transports,
     createdAt: now,
   });
-  const turnedOn = await db
-    .update(users)
-    .set({ mfaEnabledAt: now })
-    .where(and(eq(users.id, userId), isNull(users.mfaEnabledAt)))
-    .returning({ id: users.id });
-  if (turnedOn.length === 0) return { recoveryCodes: null };
-  await bumpSecurityEpoch(userId);
-  return { recoveryCodes: await issueRecoveryCodes(userId, now) };
+  return turnOnWithFirstFactor(userId, now);
+}
+
+/**
+ * Stores a confirmed authenticator app, with the step its enrolment code used
+ * already spent so that code cannot also sign anyone in. Throws on a repeated
+ * ticket: the row id is the ticket's, so a second confirm hits the primary key.
+ */
+export async function addTotp(userId: string, totp: ConfirmedTotp, now: Date): Promise<{ recoveryCodes: string[] | null }> {
+  await db.insert(userFactors).values({
+    id: totp.factorId,
+    userId,
+    kind: "totp",
+    name: AUTHENTICATOR_NAME,
+    sealedSecret: totp.sealedSecret,
+    lastUsedStep: totp.step,
+    createdAt: now,
+  });
+  return turnOnWithFirstFactor(userId, now);
 }

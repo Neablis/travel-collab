@@ -86,3 +86,84 @@ export async function addPasskey(): Promise<AddPasskeyResult> {
     return { status: "failed", reason: "other" };
   }
 }
+
+/** `locked`: five wrong codes in fifteen minutes (M62 D13); a passkey still works. */
+export type CodeCheck = "passed" | "refused" | "locked";
+
+/** Checks a typed authenticator or recovery code and, when it is right, tells the session. Never throws. */
+export async function checkWithCode(kind: "otp" | "recovery", code: string): Promise<CodeCheck> {
+  try {
+    const verified = await post("/api/mfa/verify", { kind, code });
+    if (verified.status === 429) return "locked";
+    if (verified.status !== 200 || verified.body === null) return "refused";
+    return (await applySecondFactorProof(verified.body.proof as SecondFactorProofBody)) ? "passed" : "refused";
+  } catch {
+    return "refused";
+  }
+}
+
+export interface AuthenticatorStart {
+  ticket: string;
+  /** Base32, for "Can't scan?". */
+  secret: string;
+  /** A data URL of the QR code. */
+  qr: string;
+}
+
+/** `fresh-check-required` is the route's 403, as for a passkey. */
+export type StartAuthenticatorResult =
+  | { status: "started"; start: AuthenticatorStart }
+  | { status: "fresh-check-required" }
+  | { status: "failed" };
+
+/** Asks for a new secret to scan. Never throws. */
+export async function startAuthenticator(): Promise<StartAuthenticatorResult> {
+  try {
+    const started = await post("/api/account/mfa/totp", { step: "start" });
+    if (started.status === 403) return { status: "fresh-check-required" };
+    if (started.status !== 200 || started.body === null) return { status: "failed" };
+    return { status: "started", start: started.body as unknown as AuthenticatorStart };
+  } catch {
+    return { status: "failed" };
+  }
+}
+
+export type ConfirmAuthenticatorResult =
+  /** `recoveryCodes` is set only for the first factor, which turned two-step sign-in on. */
+  | { status: "added"; recoveryCodes: string[] | null }
+  | { status: "wrong-code" }
+  | { status: "locked" }
+  | { status: "failed" };
+
+/** Sends the six digits the app shows; on success tells the session, as a passkey does. Never throws. */
+export async function confirmAuthenticator(ticket: string, code: string): Promise<ConfirmAuthenticatorResult> {
+  try {
+    const added = await post("/api/account/mfa/totp", { step: "confirm", ticket, code });
+    if (added.status === 400) return { status: "wrong-code" };
+    if (added.status === 429) return { status: "locked" };
+    if (added.status !== 200 || added.body === null) return { status: "failed" };
+    await applySecondFactorProof(added.body.proof as SecondFactorProofBody);
+    return { status: "added", recoveryCodes: (added.body.recoveryCodes as string[] | null) ?? null };
+  } catch {
+    return { status: "failed" };
+  }
+}
+
+export type RegenerateResult =
+  | { status: "regenerated"; recoveryCodes: string[] }
+  | { status: "fresh-check-required" }
+  | { status: "failed" };
+
+/** Ten new recovery codes; the old set stops working. Never throws. */
+export async function regenerateRecoveryCodes(): Promise<RegenerateResult> {
+  try {
+    const res = await post("/api/account/mfa/recovery-codes", {});
+    if (res.status === 403) return { status: "fresh-check-required" };
+    if (res.status !== 200 || res.body === null) return { status: "failed" };
+    // Regenerating bumps the epoch; without the proof this very session would be signed out.
+    await applySecondFactorProof(res.body.proof as SecondFactorProofBody);
+    return { status: "regenerated", recoveryCodes: res.body.recoveryCodes as string[] };
+  } catch {
+    return { status: "failed" };
+  }
+}

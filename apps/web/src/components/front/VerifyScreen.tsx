@@ -8,24 +8,27 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
+import { CodeEntryForm, type CodeKind } from "@/components/front/CodeEntryForm";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
-import { checkWithPasskey, type PasskeyCheck } from "@/lib/mfaClient";
+import { checkWithCode, checkWithPasskey, type CodeCheck, type PasskeyCheck } from "@/lib/mfaClient";
 import { clearSignedInHint } from "@/lib/sessionHint";
 
 // The second step after Google (M62 D3a). It opens with the passkey prompt already
 // up, so on a phone the whole step is one Face ID; if the prompt is closed, the
 // person is left with a button to bring it back rather than a dead end.
 //
-// Authenticator codes and recovery codes are part 3: their buttons are left out
-// until the routes behind them exist, rather than shown disabled, because an
-// account can only hold a passkey until then and a greyed option would suggest
-// otherwise.
+// An authenticator code or a recovery code is one tap away. An account with no
+// passkey has nothing for the prompt to ask, so it opens on the code field and the
+// passkey is not offered. Five wrong codes lock codes, not passkeys (D13), which is
+// why the lock message points back at the passkey.
 //
 // `callbackUrl` arrives already through `safeCallbackUrl` (`signin/verify/page.tsx`).
 /** The verify step of sign-in for an account that asks for a second factor. */
 export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter();
   const [outcome, setOutcome] = useState<PasskeyCheck | "asking">("asking");
+  const [mode, setMode] = useState<"passkey" | CodeKind>("passkey");
+  const [codeOutcome, setCodeOutcome] = useState<CodeCheck | "checking" | null>(null);
   // The ref, not the state, is what stops a second prompt: React runs an effect
   // twice in development, and two prompts at once is one the browser refuses.
   const inFlight = useRef(false);
@@ -33,11 +36,25 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
   async function ask() {
     if (inFlight.current) return;
     inFlight.current = true;
+    setMode("passkey");
     setOutcome("asking");
     const result = await checkWithPasskey();
     inFlight.current = false;
     setOutcome(result);
+    if (result === "unavailable") setMode("otp");
     if (result === "passed") router.replace(callbackUrl);
+  }
+
+  async function submitCode(kind: CodeKind, code: string) {
+    setCodeOutcome("checking");
+    const result = await checkWithCode(kind, code);
+    setCodeOutcome(result);
+    if (result === "passed") router.replace(callbackUrl);
+  }
+
+  function chooseCode(kind: CodeKind) {
+    setCodeOutcome(null);
+    setMode(kind);
   }
 
   useEffect(() => {
@@ -46,6 +63,8 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
   }, []);
 
   const busy = outcome === "asking" || outcome === "passed";
+  const hasPasskey = outcome !== "unavailable";
+  const codeBusy = codeOutcome === "checking" || codeOutcome === "passed";
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
       <FrontDoorHeader />
@@ -57,16 +76,42 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
               Your account asks for a second step after Google.
             </Text>
           </div>
-          {outcome === "refused" ? (
+          {mode === "passkey" && outcome === "refused" ? (
             <Banner variant="danger">That passkey did not work. Try again.</Banner>
           ) : null}
-          {outcome === "unavailable" ? (
-            <Banner variant="danger">This account has no passkey to use.</Banner>
+          {mode !== "passkey" && codeOutcome === "refused" ? (
+            <Banner variant="danger">That code did not work. Try again.</Banner>
+          ) : null}
+          {mode !== "passkey" && codeOutcome === "locked" ? (
+            <Banner variant="danger">
+              Too many wrong codes. Try again in 15 minutes{hasPasskey ? ", or use a passkey" : ""}.
+            </Banner>
           ) : null}
           <Card raised className="flex flex-col gap-3.5">
-            <Button type="button" variant="primary" pending={busy} onClick={() => void ask()}>
-              Use a passkey
-            </Button>
+            {mode === "passkey" ? (
+              <Button type="button" variant="primary" pending={busy} onClick={() => void ask()}>
+                Use a passkey
+              </Button>
+            ) : (
+              <CodeEntryForm key={mode} kind={mode} pending={codeBusy} onSubmit={(code) => void submitCode(mode, code)} />
+            )}
+            <div className="flex flex-col gap-1">
+              {mode !== "passkey" && hasPasskey ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => void ask()}>
+                  Use a passkey
+                </Button>
+              ) : null}
+              {mode !== "otp" ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => chooseCode("otp")}>
+                  Use authenticator code
+                </Button>
+              ) : null}
+              {mode !== "recovery" ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => chooseCode("recovery")}>
+                  Use a recovery code
+                </Button>
+              ) : null}
+            </div>
           </Card>
           <Button
             type="button"

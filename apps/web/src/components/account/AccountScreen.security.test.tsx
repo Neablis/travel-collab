@@ -93,7 +93,7 @@ function serve(
 }
 
 // What `GET /api/account/mfa/factors` says; off unless a test turns it on.
-let mfa: MfaStatusResponse = { enabled: false, factors: [] };
+let mfa: MfaStatusResponse = { enabled: false, factors: [], recoveryCodesLeft: 0 };
 
 /** The one live region on the page that says Premium; fails if there are none or several. */
 function thePremiumBanner(): HTMLElement {
@@ -105,7 +105,7 @@ function thePremiumBanner(): HTMLElement {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  mfa = { enabled: false, factors: [] };
+  mfa = { enabled: false, factors: [], recoveryCodesLeft: 0 };
 });
 
 describe("the Security tab's Two-step sign-in", () => {
@@ -122,6 +122,7 @@ describe("the Security tab's Two-step sign-in", () => {
   it("lists one row per factor with its name, kind and last use once it is on", async () => {
     mfa = {
       enabled: true,
+      recoveryCodesLeft: 10,
       factors: [
         { id: "f1", name: "iPhone passkey", kind: "passkey", createdAt: new Date(Date.now() - 3 * DAY).toISOString(), lastUsedAt: new Date(Date.now() - 2 * DAY).toISOString() },
         { id: "f2", name: "Work laptop", kind: "passkey", createdAt: new Date(Date.now() - DAY).toISOString(), lastUsedAt: null },

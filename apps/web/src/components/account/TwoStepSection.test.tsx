@@ -1,20 +1,38 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AddPasskeyResult, PasskeyCheck } from "@/lib/mfaClient";
+import type {
+  AddPasskeyResult,
+  CodeCheck,
+  ConfirmAuthenticatorResult,
+  PasskeyCheck,
+  RegenerateResult,
+  StartAuthenticatorResult,
+} from "@/lib/mfaClient";
 import type { MfaStatusResponse } from "@/lib/mfaWire";
 
 const add = vi.fn<() => Promise<AddPasskeyResult>>();
 const check = vi.fn<() => Promise<PasskeyCheck>>();
-vi.mock("@/lib/mfaClient", () => ({ addPasskey: () => add(), checkWithPasskey: () => check() }));
+const checkCode = vi.fn<(kind: "otp" | "recovery", code: string) => Promise<CodeCheck>>();
+const regenerate = vi.fn<() => Promise<RegenerateResult>>();
+const startApp = vi.fn<() => Promise<StartAuthenticatorResult>>();
+const confirmApp = vi.fn<(ticket: string, code: string) => Promise<ConfirmAuthenticatorResult>>();
+vi.mock("@/lib/mfaClient", () => ({
+  addPasskey: () => add(),
+  checkWithPasskey: () => check(),
+  checkWithCode: (kind: "otp" | "recovery", code: string) => checkCode(kind, code),
+  regenerateRecoveryCodes: () => regenerate(),
+  startAuthenticator: () => startApp(),
+  confirmAuthenticator: (ticket: string, code: string) => confirmApp(ticket, code),
+}));
 const signInMock = vi.fn();
 vi.mock("next-auth/react", () => ({ signIn: (...args: unknown[]) => signInMock(...args) }));
 
 import { TwoStepSection } from "./TwoStepSection";
 
-const OFF: MfaStatusResponse = { enabled: false, factors: [] };
+const OFF: MfaStatusResponse = { enabled: false, factors: [], recoveryCodesLeft: 0 };
 const phone = { id: "f1", name: "Device passkey", kind: "passkey" as const, createdAt: "2026-11-01T00:00:00Z", lastUsedAt: null };
-const ON: MfaStatusResponse = { enabled: true, factors: [phone] };
+const ON: MfaStatusResponse = { enabled: true, factors: [phone], recoveryCodesLeft: 9 };
 
 let status: MfaStatusResponse = OFF;
 const renamed: { url: string; body: unknown }[] = [];
@@ -42,6 +60,10 @@ afterEach(() => {
   add.mockReset();
   check.mockReset();
   signInMock.mockReset();
+  checkCode.mockReset();
+  regenerate.mockReset();
+  startApp.mockReset();
+  confirmApp.mockReset();
   renamed.length = 0;
   status = OFF;
 });
@@ -121,5 +143,75 @@ describe("TwoStepSection", () => {
     add.mockResolvedValueOnce({ status: "failed", reason: "already-registered" });
     await userEvent.click(screen.getByRole("button", { name: "Add a passkey" }));
     expect((await screen.findByRole("alert")).textContent).toBe("That passkey is already on this account.");
+  });
+
+  it("turns two-step sign-in on with an authenticator app as the first factor, then shows the codes", async () => {
+    serve();
+    startApp.mockResolvedValue({ status: "started", start: { ticket: "t1", secret: "JBSWY3DPEHPK3PXP", qr: "data:image/png;base64,AAAA" } });
+    confirmApp.mockImplementation(async () => {
+      status = { enabled: true, factors: [{ ...phone, name: "Authenticator app", kind: "totp" }], recoveryCodesLeft: 10 };
+      return { status: "added", recoveryCodes: CODES };
+    });
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add an authenticator app" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add an authenticator app" });
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Authenticator code" }), "123456{Enter}");
+
+    const sheet = await screen.findByRole("dialog", { name: "Save your recovery codes" });
+    expect(within(sheet).getAllByRole("listitem")).toHaveLength(10);
+    expect(confirmApp).toHaveBeenCalledWith("t1", "123456");
+    expect(await screen.findByText("Authenticator app · never used")).toBeTruthy();
+  });
+
+  it("asks for a check first when adding an authenticator app, and a code is enough", async () => {
+    status = ON;
+    serve();
+    startApp.mockResolvedValueOnce({ status: "fresh-check-required" });
+    startApp.mockResolvedValue({ status: "started", start: { ticket: "t2", secret: "JBSWY3DPEHPK3PXP", qr: "data:image/png;base64,AAAA" } });
+    checkCode.mockResolvedValue("passed");
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add an authenticator app" }));
+
+    const check = await screen.findByRole("dialog", { name: "Confirm it’s you" });
+    await userEvent.click(within(check).getByRole("button", { name: "Use authenticator code" }));
+    await userEvent.type(within(check).getByRole("textbox", { name: "Authenticator code" }), "654321{Enter}");
+    expect(checkCode).toHaveBeenCalledWith("otp", "654321");
+    expect(await screen.findByRole("dialog", { name: "Add an authenticator app" })).toBeTruthy();
+    expect(startApp).toHaveBeenCalledTimes(2);
+  });
+
+  it("says how many recovery codes are left, and Regenerate shows the new set once the check passes", async () => {
+    status = ON;
+    serve();
+    regenerate.mockResolvedValueOnce({ status: "fresh-check-required" });
+    regenerate.mockResolvedValueOnce({ status: "regenerated", recoveryCodes: CODES });
+    check.mockResolvedValue("passed");
+    render(<TwoStepSection />);
+    expect(await screen.findByText("Recovery codes: 9 of 10 left")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Use a passkey" }));
+    const sheet = await screen.findByRole("dialog", { name: "Save your recovery codes" });
+    expect(within(sheet).getAllByRole("listitem")).toHaveLength(10);
+    expect(regenerate).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not show the recovery codes line while two-step sign-in is off", async () => {
+    serve();
+    render(<TwoStepSection />);
+    await screen.findByRole("button", { name: "Add a passkey" });
+    expect(screen.queryByText(/Recovery codes:/)).toBeNull();
+  });
+
+  it("opens the fresh check on a code when the account has no passkey", async () => {
+    status = { enabled: true, factors: [{ ...phone, kind: "totp" }], recoveryCodesLeft: 10 };
+    serve();
+    regenerate.mockResolvedValue({ status: "fresh-check-required" });
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Regenerate" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
+    expect(within(dialog).getByRole("textbox", { name: "Authenticator code" })).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Use a passkey" })).toBeNull();
   });
 });

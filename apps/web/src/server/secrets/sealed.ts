@@ -35,16 +35,21 @@ function key(): Buffer {
   return Buffer.from(hkdfSync("sha256", raw, Buffer.alloc(0), LABEL, 32));
 }
 
-/** `v1.<nonce>.<tag>.<ciphertext>`, each part base64url. Throws when the key is unset. */
-export function seal(plaintext: string): string {
+/**
+ * `v1.<nonce>.<tag>.<ciphertext>`, each part base64url. Throws when the key is unset.
+ * `aad` is GCM additional data: it is not stored, and `unseal` fails unless it is
+ * given back unchanged, so a sealed value copied onto another row stops opening.
+ */
+export function seal(plaintext: string, aad = ""): string {
   const nonce = randomBytes(NONCE_BYTES);
   const cipher = createCipheriv("aes-256-gcm", key(), nonce, { authTagLength: TAG_BYTES });
+  cipher.setAAD(Buffer.from(aad, "utf8"));
   const body = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   return [VERSION, nonce, cipher.getAuthTag(), body].map((p) => (typeof p === "string" ? p : p.toString("base64url"))).join(".");
 }
 
-/** The plaintext `seal` made this from. Throws on a missing key, a wrong key or any altered byte. */
-export function unseal(sealed: string): string {
+/** The plaintext `seal` made this from. Throws on a missing key, a wrong key, other `aad` or any altered byte. */
+export function unseal(sealed: string, aad = ""): string {
   const [version, nonce, tag, body, ...extra] = sealed.split(".");
   if (version !== VERSION || !nonce || !tag || body === undefined || extra.length > 0) {
     throw new Error("Not a sealed secret.");
@@ -53,6 +58,7 @@ export function unseal(sealed: string): string {
   const tagBytes = Buffer.from(tag, "base64url");
   if (nonceBytes.length !== NONCE_BYTES || tagBytes.length !== TAG_BYTES) throw new Error("Not a sealed secret.");
   const decipher = createDecipheriv("aes-256-gcm", key(), nonceBytes, { authTagLength: TAG_BYTES });
+  decipher.setAAD(Buffer.from(aad, "utf8"));
   decipher.setAuthTag(tagBytes);
   return Buffer.concat([decipher.update(Buffer.from(body, "base64url")), decipher.final()]).toString("utf8");
 }
