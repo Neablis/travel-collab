@@ -5,7 +5,7 @@ import { db } from "@/server/db/client";
 import { userFactors, users } from "@/server/db/schema";
 import type { Email } from "@/server/email/send";
 import { describeClient, recordSecurityChange, turnOffIn } from "./changes";
-import { addPasskey } from "./factors";
+import { addPasskey, addTotp } from "./factors";
 import { mfaStateFor } from "./state";
 
 // The mail provider is the only thing replaced: what the account is told is the
@@ -138,18 +138,25 @@ describe("a change racing an add on the same account", () => {
   const settlesWithin = (work: Promise<unknown>, ms: number) =>
     Promise.race([work.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms))]);
 
-  const passkey = () => ({ credentialId: randomUUID(), publicKey: "key", counter: 0, transports: [], name: "Passkey" });
+  const adds = {
+    passkey: (id: string) =>
+      addPasskey(id, { credentialId: randomUUID(), publicKey: "key", counter: 0, transports: [], name: "Passkey" }, new Date()),
+    // The secret is never opened here, so any sealed string will do.
+    "authenticator app": (id: string) => addTotp(id, { factorId: randomUUID(), sealedSecret: "sealed", step: 1 }, new Date()),
+  };
 
   // With two-step sign-in on, the add's conditional UPDATE matches no row and so
   // never waits on its own: only taking the row first makes it.
-  it("an add waits for the account's row, even when two-step sign-in is already on", async () => {
-    const id = await withTwoStepOn();
-    const release = await holding(id);
-    const adding = addPasskey(id, passkey(), new Date());
-    expect(await settlesWithin(adding, 300)).toBe(false);
-    await release();
-    expect(await adding).toEqual({ recoveryCodes: null });
-  });
+  for (const [kind, add] of Object.entries(adds)) {
+    it(`an add (${kind}) waits for the account's row, even when two-step sign-in is already on`, async () => {
+      const id = await withTwoStepOn();
+      const release = await holding(id);
+      const adding = add(id);
+      expect(await settlesWithin(adding, 300)).toBe(false);
+      await release();
+      expect(await adding).toEqual({ recoveryCodes: null });
+    });
+  }
 
   it("Turn off takes the account's row before it deletes, so a factor added meanwhile goes too", async () => {
     const id = await withTwoStepOn();

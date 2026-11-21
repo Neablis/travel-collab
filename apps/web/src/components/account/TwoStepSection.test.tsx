@@ -382,6 +382,34 @@ describe("TwoStepSection", () => {
       expect(screen.getByRole("button", { name: "Remove Authenticator app" }).matches(":focus")).toBe(true);
     });
 
+    // "Yes, remove" unmounts with focus in it too, and Remove is disabled until the change settles.
+    it("hands focus back to Remove once a removal that failed has settled", async () => {
+      status = TWO;
+      serve();
+      removeOne.mockResolvedValue({ status: "failed" });
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove Authenticator app" }));
+      await userEvent.keyboard("{Enter}");
+      expect(await screen.findByRole("alert")).toBeTruthy();
+      const back = screen.getByRole("button", { name: "Remove Authenticator app" });
+      await waitFor(() => expect(back.matches(":focus")).toBe(true));
+    });
+
+    it("moves focus to Add a passkey once the removed row is gone", async () => {
+      status = TWO;
+      serve();
+      removeOne.mockImplementation(async () => {
+        status = ON;
+        return { status: "done", signedIn: true };
+      });
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove Authenticator app" }));
+      await userEvent.keyboard("{Enter}");
+      await waitFor(() => expect(screen.queryByText("Authenticator app")).toBeNull());
+      const next = screen.getByRole("button", { name: "Add a passkey" });
+      await waitFor(() => expect(next.matches(":focus")).toBe(true));
+    });
+
     it("opens the fresh check when Remove is refused for want of one, and removes once it passes", async () => {
       status = TWO;
       serve();

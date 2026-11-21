@@ -92,6 +92,20 @@ export function TwoStepSection({ onRevoked }: { onRevoked?: () => void } = {}) {
     setConfirmingRemove(null);
   }
 
+  // "Yes, remove" unmounts with focus in it as well, and the row's Remove stays
+  // disabled until the change settles, so focus waits for that: back to Remove if
+  // the row is still there, to Add a passkey if it is gone. A fresh check open
+  // over the section holds it until it closes.
+  const addPasskeyButton = useRef<HTMLButtonElement>(null);
+  const removeSettledFor = useRef<string | null>(null);
+  const [removeSettled, setRemoveSettled] = useState(0);
+
+  useEffect(() => {
+    if (removeSettledFor.current === null || checking !== null) return;
+    (removeButtons.current.get(removeSettledFor.current) ?? addPasskeyButton.current)?.focus();
+    removeSettledFor.current = null;
+  }, [removeSettled, checking]);
+
   const load = useCallback(async () => {
     try {
       // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
@@ -161,6 +175,8 @@ export function TwoStepSection({ onRevoked }: { onRevoked?: () => void } = {}) {
     const result = await removeFactor(factorId);
     setChanging(false);
     await settle(result, `remove:${factorId}`);
+    removeSettledFor.current = factorId;
+    setRemoveSettled((n) => n + 1);
   }
 
   async function turnOff() {
@@ -330,7 +346,7 @@ export function TwoStepSection({ onRevoked }: { onRevoked?: () => void } = {}) {
         </Text>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button variant={status.enabled ? "secondary" : "primary"} pending={adding} onClick={() => void add()}>
+        <Button ref={addPasskeyButton} variant={status.enabled ? "secondary" : "primary"} pending={adding} onClick={() => void add()}>
           Add a passkey
         </Button>
         <Button variant="secondary" onClick={() => setAuthenticator(true)}>
