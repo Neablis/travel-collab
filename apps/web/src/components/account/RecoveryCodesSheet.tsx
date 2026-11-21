@@ -9,20 +9,26 @@ import { Text } from "@/components/ui/text";
 // The ten recovery codes, shown once (M62 D6). Turning two-step sign-in on is not
 // finished until the person ticks that they saved them, and nothing closes this
 // before then: the codes are not stored anywhere they can be read back, so a stray
-// Esc or a click outside would lose the only copy. (The revoke-everything tick
-// from D8 joins this sheet in part 4.)
+// Esc or a click outside would lose the only copy. Turning on also offers the
+// revoke-everything tick (D8), unticked: it is the moment a person may want every
+// token and connected app made again under the new second step.
 /** The recovery codes, with Download, Copy and the tick that lets Done through. */
 export function RecoveryCodesSheet({
   codes,
   onDone,
   note,
+  offerRevoke = false,
 }: {
   codes: readonly string[];
-  onDone: () => void;
+  /** `revokeAll` is the revoke tick's state, always false unless `offerRevoke`. */
+  onDone: (revokeAll: boolean) => void;
   /** Something the person must read before leaving, shown above the codes. */
   note?: string;
+  /** Show *Also revoke all tokens and connected apps*; only when turning two-step sign-in on. */
+  offerRevoke?: boolean;
 }) {
   const [saved, setSaved] = useState(false);
+  const [revokeAll, setRevokeAll] = useState(false);
   const [copied, setCopied] = useState<"copied" | "failed" | null>(null);
   const text = codes.join("\n");
 
@@ -50,7 +56,7 @@ export function RecoveryCodesSheet({
     // The Close button is there only once the tick lets it work (`dismissible`).
     <Dialog
       open
-      onOpenChange={(open) => (open || !saved ? undefined : onDone())}
+      onOpenChange={(open) => (open || !saved ? undefined : onDone(offerRevoke && revokeAll))}
       title="Save your recovery codes"
       dismissible={saved}
       description="Each code works once. If you lose your passkey, a code gets you back in. They are shown only now, so keep them somewhere safe. Tick the box to close this."
@@ -78,9 +84,17 @@ export function RecoveryCodesSheet({
           </Text>
         </div>
         <CheckboxField checked={saved} onCheckedChange={setSaved} title="I saved these" />
+        {offerRevoke ? (
+          <CheckboxField
+            checked={revokeAll}
+            onCheckedChange={setRevokeAll}
+            title="Also revoke all tokens and connected apps"
+            description="Cuts off every program and app that can reach your trips. You can make new ones afterwards."
+          />
+        ) : null}
       </div>
       <DialogFooter>
-        <Button variant="primary" disabled={!saved} onClick={onDone}>
+        <Button variant="primary" disabled={!saved} onClick={() => onDone(offerRevoke && revokeAll)}>
           Done
         </Button>
       </DialogFooter>

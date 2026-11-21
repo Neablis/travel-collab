@@ -1,6 +1,14 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { API_SCOPES } from "@tc/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
+const checkWithCode = vi.fn<(kind: "otp" | "recovery", code: string) => Promise<"passed" | "refused">>();
+vi.mock("@/lib/mfaClient", () => ({
+  checkWithCode: (kind: "otp" | "recovery", code: string) => checkWithCode(kind, code),
+  checkWithPasskey: async () => "refused",
+}));
+vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
+
 import { ConsentScreen, type ConsentScreenProps } from "./ConsentScreen";
 
 // **What a person reads before sending access somewhere** (ADR-083 §6). The
@@ -190,5 +198,33 @@ describe("ConsentScreen", () => {
       scopes: ["trips:read"],
       clientName: props().clientName,
     });
+  });
+
+  // M62 D8: with two-step sign-in on, Allow is refused without a recent second factor.
+  it("opens the fresh check when Allow is refused with a 403, then allows once it passes", async () => {
+    const decisions: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        if (String(url) === "/api/account/mfa/factors") {
+          return Response.json({ enabled: true, factors: [], recoveryCodesLeft: 9 });
+        }
+        decisions.push((JSON.parse(String(init?.body)) as { decision: string }).decision);
+        return decisions.length === 1
+          ? Response.json({ error: "fresh-check-required" }, { status: 403 })
+          : Response.json({ redirectTo: "https://evil.example/cb?code=tcc_x" });
+      }),
+    );
+    checkWithCode.mockResolvedValue("passed");
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    render(<ConsentScreen {...props()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Allow" }));
+
+    await userEvent.type(await screen.findByLabelText("Authenticator code"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: "Verify" }));
+
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledWith("https://evil.example/cb?code=tcc_x"));
+    expect(decisions).toEqual(["allow", "allow"]);
   });
 });

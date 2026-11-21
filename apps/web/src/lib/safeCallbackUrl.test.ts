@@ -61,4 +61,9 @@ describe("safeCallbackUrl", () => {
   it("keeps a path with a query and a fragment", () => {
     expect(safeCallbackUrl("/trips/abc?tab=days#top")).toBe("/trips/abc?tab=days#top");
   });
+
+  it("falls back to Home for a path too long to put in a redirect", () => {
+    expect(safeCallbackUrl(`/trips/${"a".repeat(2048)}`)).toBe("/home");
+    expect(safeCallbackUrl(`/${"a".repeat(2000)}`)).toBe(`/${"a".repeat(2000)}`);
+  });
 });

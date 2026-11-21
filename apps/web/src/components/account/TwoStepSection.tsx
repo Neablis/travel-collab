@@ -5,21 +5,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { formatRelativeInstant } from "@/lib/formatDate";
-import { addPasskey, regenerateRecoveryCodes } from "@/lib/mfaClient";
+import {
+  addPasskey,
+  regenerateRecoveryCodes,
+  removeFactor,
+  revokeAllCredentials,
+  turnOffTwoStep,
+  type ChangeResult,
+} from "@/lib/mfaClient";
 import type { MfaFactorView, MfaStatusResponse } from "@/lib/mfaWire";
+import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { AddAuthenticatorDialog } from "./AddAuthenticatorDialog";
 import { FreshCheckDialog } from "./FreshCheckDialog";
 import { RecoveryCodesSheet } from "./RecoveryCodesSheet";
 
 // *Two-step sign-in* on the Security tab (M62). Off, it offers a second step after
 // Google; on, it lists every factor so each can be told apart and renamed. The
-// heading is the tab's (`SecuritySection`), as for its neighbours. Remove and
-// turn-off are part 4.
+// heading is the tab's (`SecuritySection`), as for its neighbours. Remove and Turn
+// off each ask for the fresh check and end every other session (M62 D7).
 
 const RECOVERY_CODE_COUNT = 10;
 
 /** What the fresh check was asked for, so passing it carries on with that. */
-type Pending = "passkey" | "authenticator" | "regenerate";
+type Pending = "passkey" | "authenticator" | "regenerate" | "turn-off" | `remove:${string}`;
 
 const KIND_LABEL: Record<MfaFactorView["kind"], string> = { passkey: "Passkey", totp: "Authenticator app" };
 
@@ -40,7 +48,12 @@ export function TwoStepSection() {
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
   // `signedIn: false` rides with the codes: the session could not be told that
   // two-step sign-in is on, so it ends when the codes are put away.
-  const [codes, setCodes] = useState<{ list: string[]; signedIn: boolean } | null>(null);
+  // `turnedOn` is what earns the revoke-everything tick: only turning on offers it, not Regenerate.
+  const [codes, setCodes] = useState<{ list: string[]; signedIn: boolean; turnedOn: boolean } | null>(null);
+  // The factor whose Remove was clicked once, and whether Turn off was: neither acts on the first click.
+  const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null);
+  const [confirmingOff, setConfirmingOff] = useState(false);
+  const [changing, setChanging] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   // The row whose rename just ended: its input unmounts with focus in it, and focus
   // would fall to the page's start. Each Rename button is kept to hand it back to.
@@ -79,7 +92,7 @@ export function TwoStepSection() {
     setAdding(false);
     if (result.status === "fresh-check-required") setChecking("passkey");
     else if (result.status === "added") {
-      if (result.recoveryCodes !== null) setCodes({ list: result.recoveryCodes, signedIn: result.signedIn });
+      if (result.recoveryCodes !== null) setCodes({ list: result.recoveryCodes, signedIn: result.signedIn, turnedOn: true });
       else if (!result.signedIn) leaveSession();
       await load();
     } else if (result.status === "cancelled" && afterCheck) {
@@ -102,9 +115,47 @@ export function TwoStepSection() {
     setRegenerating(false);
     if (result.status === "fresh-check-required") setChecking("regenerate");
     else if (result.status === "regenerated") {
-      setCodes({ list: result.recoveryCodes, signedIn: true });
+      setCodes({ list: result.recoveryCodes, signedIn: true, turnedOn: false });
       await load();
     } else setProblem("The recovery codes could not be regenerated just now. Try again.");
+  }
+
+  // What Remove and Turn off share: the check they may be sent back for, and the
+  // session they may have cost (every other one is signed out; `signedIn` is this one).
+  async function settle(result: ChangeResult, retry: Pending) {
+    if (result.status === "fresh-check-required") setChecking(retry);
+    else if (result.status === "done") {
+      if (result.signedIn) await load();
+      else leaveSession();
+    } else if (result.status === "last-factor") {
+      setProblem("That is your only second step. Use Turn off two-step sign-in to remove it.");
+      await load();
+    } else setProblem("That could not be changed just now. Try again.");
+  }
+
+  async function remove(factorId: string) {
+    setConfirmingRemove(null);
+    setChanging(true);
+    setProblem(null);
+    const result = await removeFactor(factorId);
+    setChanging(false);
+    await settle(result, `remove:${factorId}`);
+  }
+
+  async function turnOff() {
+    setConfirmingOff(false);
+    setChanging(true);
+    setProblem(null);
+    const result = await turnOffTwoStep();
+    setChanging(false);
+    await settle(result, "turn-off");
+  }
+
+  // The tick on the codes sheet. The sheet has just been closed, so a failure is said here, with where else to do it.
+  async function revokeEverything() {
+    if ((await revokeAllCredentials()) !== "revoked") {
+      setProblem("Tokens and connected apps could not be revoked just now. You can revoke them from the lists below.");
+    }
   }
 
   // The session cookie is one the server refuses now: the route that clears it goes on to sign-in.
@@ -172,18 +223,43 @@ export function TwoStepSection() {
                     <Text variant="muted">
                       {KIND_LABEL[factor.kind]} · {lastUsed(factor)}
                     </Text>
+                    {status.factors.length === 1 ? (
+                      <Text variant="muted">Your only second step. To remove it, use Turn off two-step sign-in below.</Text>
+                    ) : null}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Rename ${factor.name}`}
-                    ref={(button) => {
-                      renameButtons.current.set(factor.id, button);
-                    }}
-                    onClick={() => setRenaming({ id: factor.id, name: factor.name })}
-                  >
-                    Rename
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Rename ${factor.name}`}
+                      ref={(button) => {
+                        renameButtons.current.set(factor.id, button);
+                      }}
+                      onClick={() => setRenaming({ id: factor.id, name: factor.name })}
+                    >
+                      Rename
+                    </Button>
+                    {status.factors.length === 1 ? null : confirmingRemove === factor.id ? (
+                      <>
+                        <Button variant="ghost" size="sm" aria-label={`Yes, remove ${factor.name}`} onClick={() => void remove(factor.id)}>
+                          Yes, remove
+                        </Button>
+                        <Button variant="ghost" size="sm" aria-label={`Keep ${factor.name}`} onClick={() => setConfirmingRemove(null)}>
+                          Keep
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Remove ${factor.name}`}
+                        disabled={changing}
+                        onClick={() => setConfirmingRemove(factor.id)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
                 </>
               )}
             </li>
@@ -231,7 +307,29 @@ export function TwoStepSection() {
         <Button variant="secondary" onClick={() => setAuthenticator(true)}>
           Add an authenticator app
         </Button>
+        {status.enabled ? (
+          <Button variant="ghost" pending={changing} onClick={() => setConfirmingOff(true)}>
+            Turn off two-step sign-in
+          </Button>
+        ) : null}
       </div>
+      {confirmingOff ? (
+        <Dialog
+          open
+          onOpenChange={(open) => (open ? undefined : setConfirmingOff(false))}
+          title="Turn off two-step sign-in?"
+          description="Every passkey, authenticator app and recovery code is removed, and every other device is signed out. Google alone will sign you in."
+        >
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmingOff(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => void turnOff()}>
+              Turn off
+            </Button>
+          </DialogFooter>
+        </Dialog>
+      ) : null}
       {checking === null ? null : (
         <FreshCheckDialog
           mfaEnabled={status.enabled}
@@ -242,6 +340,8 @@ export function TwoStepSection() {
             setChecking(null);
             if (next === "passkey") void add(true);
             else if (next === "authenticator") setAuthenticator(true);
+            else if (next === "turn-off") void turnOff();
+            else if (next.startsWith("remove:")) void remove(next.slice("remove:".length));
             else void regenerate();
           }}
         />
@@ -255,7 +355,7 @@ export function TwoStepSection() {
           }}
           onAdded={(recoveryCodes, signedIn) => {
             setAuthenticator(false);
-            if (recoveryCodes !== null) setCodes({ list: recoveryCodes, signedIn });
+            if (recoveryCodes !== null) setCodes({ list: recoveryCodes, signedIn, turnedOn: true });
             else if (!signedIn) leaveSession();
             void load();
           }}
@@ -265,9 +365,12 @@ export function TwoStepSection() {
         <RecoveryCodesSheet
           codes={codes.list}
           note={codes.signedIn ? undefined : "This browser could not be signed in to the new second step. Save the codes, then sign in again."}
-          onDone={() => {
+          // Offered only when this session is whole: the revoke is a request it must be able to make.
+          offerRevoke={codes.turnedOn && codes.signedIn}
+          onDone={(revokeAll) => {
             setCodes(null);
             if (!codes.signedIn) leaveSession();
+            else if (revokeAll) void revokeEverything();
           }}
         />
       )}

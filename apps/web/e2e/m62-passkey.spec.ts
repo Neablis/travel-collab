@@ -1,3 +1,4 @@
+import * as OTPAuth from "otpauth";
 import { expect, test } from "./fixtures/test";
 import { addVirtualAuthenticator, openAccountPage, signInAsDevUser } from "./helpers";
 
@@ -116,4 +117,73 @@ test("a session cookie refused after another browser turned two-step on is shed,
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Plan the trip together." })).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
+});
+
+// **Removing a factor ends every other session and keeps this one** (M62 D7). A
+// passkey and an authenticator app are on the account, a second browser is signed
+// in with a code, and removing the passkey in the first leaves that browser
+// holding a cookie the server now refuses, while the first carries on. The
+// second factor is an app, not a second passkey: the virtual authenticator holds
+// the first credential and refuses to make another for the same account.
+test("removing a passkey signs out a second browser and keeps this one", async ({ page, browser }) => {
+  const username = `m62r${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+  await signInAsDevUser(page, username);
+  await addVirtualAuthenticator(page);
+  await openAccountPage(page, "security");
+  const twoStep = page.getByRole("region", { name: "Two-step sign-in" });
+  await twoStep.getByRole("button", { name: "Add a passkey" }).click();
+  const sheet = page.getByRole("dialog", { name: "Save your recovery codes" });
+  // Unticked until the person chooses it: the tick is an opt-in.
+  await expect(sheet.getByRole("checkbox", { name: /Also revoke all tokens and connected apps/ })).not.toBeChecked();
+  await sheet.getByRole("checkbox", { name: "I saved these" }).check();
+  await sheet.getByRole("button", { name: "Done" }).click();
+
+  await twoStep.getByRole("button", { name: "Add an authenticator app" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add an authenticator app" });
+  await dialog.getByRole("button", { name: "Can’t scan?" }).click();
+  const secret = (await dialog.locator("code").innerText()).trim();
+  const codeAt = (at: number) =>
+    new OTPAuth.TOTP({ algorithm: "SHA1", digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(secret) }).generate({
+      timestamp: at,
+    });
+  await dialog.getByRole("textbox", { name: "Authenticator code" }).fill(codeAt(Date.now()));
+  await dialog.getByRole("textbox", { name: "Authenticator code" }).press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(twoStep.getByText("Authenticator app · never used")).toBeVisible();
+
+  // ---- a second browser signs in with a code ---------------------------------
+  const otherPage = await (await browser.newContext()).newPage();
+  // An authenticator that holds nothing answers the verify screen's automatic prompt at once, with a refusal.
+  await addVirtualAuthenticator(otherPage);
+  await otherPage.goto("/signin?callbackUrl=%2Faccount%3Ftab%3Dsecurity");
+  // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: the form's one field, as `signInAsDevUser` fills it
+  await otherPage.fill('input[name="username"]', username);
+  await otherPage.getByRole("button", { name: /sign in with dev login/i }).click();
+  // A click before the screen has hydrated is lost, so it is repeated until the code field is there.
+  const codeField = otherPage.getByRole("textbox", { name: "Authenticator code" });
+  await expect(async () => {
+    await otherPage.getByRole("button", { name: "Use authenticator code" }).click({ timeout: 2000 });
+    await expect(codeField).toBeVisible({ timeout: 2000 });
+  }).toPass();
+  // The enrolment code spent this step, so the next one signs in.
+  await codeField.fill(codeAt(Date.now() + 30_000));
+  await codeField.press("Enter");
+  await expect(otherPage).toHaveURL(/\/account\?tab=security/);
+
+  // ---- remove the passkey here -----------------------------------------------
+  await twoStep.getByRole("button", { name: "Remove Device passkey" }).click();
+  await twoStep.getByRole("button", { name: "Yes, remove Device passkey" }).click();
+  await expect(twoStep.getByText("Device passkey")).toBeHidden();
+  // What is left is the last factor, which says how to go on instead of offering Remove.
+  await expect(twoStep.getByText(/only second step/)).toBeVisible();
+  await expect(twoStep.getByRole("button", { name: /^Remove / })).toHaveCount(0);
+
+  // This browser keeps its session: a reload is still the account page.
+  await page.reload();
+  await expect(page).toHaveURL(/\/account\?tab=security/);
+  await expect(page.getByRole("region", { name: "Two-step sign-in" }).getByText("Authenticator app", { exact: true })).toBeVisible();
+
+  // The other one is sent to sign in, the page it asked for kept.
+  await otherPage.goto("/account?tab=security");
+  await expect(otherPage).toHaveURL(/\/signin\?callbackUrl=%2Faccount%3Ftab%3Dsecurity/);
 });

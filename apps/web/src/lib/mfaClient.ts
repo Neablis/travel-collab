@@ -7,9 +7,9 @@ import type { SecondFactorProofBody } from "./mfaWire";
 // of the components so the screens read as screens, and so the one thing that is
 // easy to get wrong, telling the token what passed, is written once.
 
-async function post(url: string, body: unknown): Promise<{ status: number; body: Record<string, unknown> | null }> {
+async function post(url: string, body: unknown, method = "POST"): Promise<{ status: number; body: Record<string, unknown> | null }> {
   // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return { status: res.status, body: (await res.json().catch(() => null)) as Record<string, unknown> | null };
 }
 
@@ -191,5 +191,51 @@ export async function regenerateRecoveryCodes(): Promise<RegenerateResult> {
     return { status: "regenerated", recoveryCodes: res.body.recoveryCodes as string[] };
   } catch {
     return { status: "failed" };
+  }
+}
+
+/**
+ * `done`: the change was made. `signedIn` is false when this session could not be
+ * handed its new epoch (the change signed out every other session, and this one
+ * with them), so it ends at the next page.
+ * `last-factor`: Remove was refused for the account's only factor (M62 D7).
+ */
+export type ChangeResult =
+  | { status: "done"; signedIn: boolean }
+  | { status: "fresh-check-required" }
+  | { status: "last-factor" }
+  | { status: "failed" };
+
+// Remove and Turn off bump the epoch, which signs out every other session; the
+// proof in the answer is what keeps this one, as for Regenerate. One more try,
+// since a lapse in the network here costs the session.
+async function change(url: string): Promise<ChangeResult> {
+  try {
+    const res = await post(url, {}, "DELETE");
+    if (res.status === 403) return { status: "fresh-check-required" };
+    if (res.status === 409 && res.body?.error === "last-factor") return { status: "last-factor" };
+    if (res.status !== 200 || res.body === null) return { status: "failed" };
+    const proof = res.body.proof as SecondFactorProofBody;
+    const signedIn = (await applySecondFactorProof(proof).catch(() => false)) || (await applySecondFactorProof(proof).catch(() => false));
+    return { status: "done", signedIn };
+  } catch {
+    return { status: "failed" };
+  }
+}
+
+/** Removes one factor, unless it is the last. Never throws. */
+export const removeFactor = (factorId: string) => change(`/api/account/mfa/factors/${factorId}`);
+
+/** Removes every factor and recovery code. Never throws. */
+export const turnOffTwoStep = () => change("/api/account/mfa");
+
+/** The tick on the recovery-codes sheet: every API token and connected app revoked. Never throws. */
+export async function revokeAllCredentials(): Promise<"revoked" | "fresh-check-required" | "failed"> {
+  try {
+    const res = await post("/api/account/mfa", {});
+    if (res.status === 403) return "fresh-check-required";
+    return res.status === 200 ? "revoked" : "failed";
+  } catch {
+    return "failed";
   }
 }

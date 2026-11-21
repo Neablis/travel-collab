@@ -113,3 +113,17 @@ export function hasFreshCheck(
   const at = mfaEnabled ? session.mfaAt : session.signedInAt;
   return at !== undefined && now.getTime() - at <= FRESH_CHECK_MS;
 }
+
+/**
+ * Whether a credential-granting act (consent, Create token) must be turned away for
+ * want of a second factor: two-step sign-in is on and none has passed within ten
+ * minutes. Off, there is nothing to ask for and the act stands as it always did.
+ */
+export async function needsFreshSecondFactor(
+  userId: string,
+  session: { mfaAt?: number; signedInAt?: number },
+  now: Date,
+): Promise<boolean> {
+  const { enabled } = await mfaStateFor(userId);
+  return enabled && !hasFreshCheck(true, session, now);
+}

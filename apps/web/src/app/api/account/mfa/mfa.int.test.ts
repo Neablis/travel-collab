@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { generateKeyPairSync } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import * as OTPAuth from "otpauth";
 import { db } from "@/server/db/client";
-import { userFactors, userRecoveryCodes, users } from "@/server/db/schema";
+import { apiTokens, oauthGrants, userFactors, userRecoveryCodes, users } from "@/server/db/schema";
 import { passkeysOf, recordPasskeyUse } from "@/server/mfa/factors";
 import { mfaStateFor } from "@/server/mfa/state";
 import { softAuthenticator, type SoftAuthenticator } from "@/server/test-support/softAuthenticator";
@@ -40,7 +40,8 @@ vi.mock("@/server/mfa/recoveryCodes", async (original) => {
 });
 
 const { GET: FACTORS } = await import("./factors/route");
-const { PATCH: RENAME } = await import("./factors/[factorId]/route");
+const { PATCH: RENAME, DELETE: REMOVE } = await import("./factors/[factorId]/route");
+const { DELETE: TURN_OFF, POST: REVOKE_ALL } = await import("./route");
 const { POST: ADD } = await import("./passkeys/route");
 const { POST: ADD_TOTP } = await import("./totp/route");
 const { POST: REGENERATE } = await import("./recovery-codes/route");
@@ -70,6 +71,10 @@ interface SessionClaims {
 function signedInAs(id: string, claims: SessionClaims = { signedInAt: Date.now() }) {
   current.session = { user: { id, email: `${id}@example.test` }, sid: "a-session", ...claims };
 }
+
+/** The request a change to the account's sign-in arrives as; the routes read its headers for the email. */
+const change = () => new Request("http://localhost/x", { method: "DELETE" });
+const remove = (factorId: string) => REMOVE(change(), { params: Promise.resolve({ factorId }) });
 
 const post = (body: unknown) => new Request("http://localhost/x", { method: "POST", body: JSON.stringify(body) });
 // The union of what these routes answer with; a test reads only the fields its route sets.
@@ -600,7 +605,7 @@ describe("regenerating recovery codes", () => {
     mine.mfaAt = checkedAt;
     signedInAs(id, { mfaAt: checkedAt, sid: mine.sid as string });
     const before = (await mfaStateFor(id)).epoch;
-    const res = await REGENERATE();
+    const res = await REGENERATE(change());
     // No factor was presented, so a stolen fresh check cannot be chained into a fresh one.
     expect(await jwt({ token: mine, trigger: "update", session: (await json(res)).proof })).toMatchObject({
       epoch: before + 1,
@@ -611,7 +616,7 @@ describe("regenerating recovery codes", () => {
   it("voids the old set and the new codes work", async () => {
     const { id, codes: old } = await accountWithAuthenticator();
     signedInAs(id, { mfaAt: Date.now() });
-    const res = await REGENERATE();
+    const res = await REGENERATE(change());
     expect(res.status).toBe(200);
     const fresh = (await json(res)).recoveryCodes!;
     expect(fresh).toHaveLength(10);
@@ -625,10 +630,10 @@ describe("regenerating recovery codes", () => {
   it("needs the second-factor check, and only while two-step sign-in is on", async () => {
     const { id } = await accountWithAuthenticator();
     signedInAs(id, { signedInAt: Date.now() });
-    expect((await REGENERATE()).status).toBe(403);
+    expect((await REGENERATE(change())).status).toBe(403);
 
     signedInAs(await account(), { mfaAt: Date.now() });
-    expect((await REGENERATE()).status).toBe(409);
+    expect((await REGENERATE(change())).status).toBe(409);
   });
 
   it("bumps the epoch, so another session is refused and this one carries on by its proof", async () => {
@@ -637,10 +642,149 @@ describe("regenerating recovery codes", () => {
     const mine = (await signIn(id))!;
     signedInAs(id, { mfaAt: Date.now(), sid: mine.sid as string });
     const before = (await mfaStateFor(id)).epoch;
-    const res = await REGENERATE();
+    const res = await REGENERATE(change());
     expect((await mfaStateFor(id)).epoch).toBe(before + 1);
     expect(await jwt({ token: other })).toBeNull();
     expect(await jwt({ token: mine, trigger: "update", session: (await json(res)).proof })).toMatchObject({ epoch: before + 1 });
+  });
+});
+
+/** An account with a passkey and an authenticator app, and two sessions on it: the one acting, and another. */
+async function accountWithTwoFactors() {
+  const { id, device } = await accountWithPasskey();
+  signedInAs(id, { mfaAt: Date.now() });
+  expect((await addAuthenticator()).res.status).toBe(200);
+  const other = (await signIn(id))!;
+  const mine = (await signIn(id))!;
+  signedInAs(id, { mfaAt: Date.now(), sid: mine.sid as string });
+  const { factors } = await json(await FACTORS());
+  return { id, device, other, mine, factors };
+}
+
+describe("removing a factor", () => {
+  it("refuses the last one, and leaves it, two-step sign-in on and the epoch where they were", async () => {
+    const { id } = await accountWithPasskey();
+    signedInAs(id, { mfaAt: Date.now() });
+    const [only] = (await json(await FACTORS())).factors;
+    const before = (await mfaStateFor(id)).epoch;
+
+    const res = await remove(only!.id);
+    expect(res.status).toBe(409);
+    expect(await json(res)).toEqual({ error: "last-factor" });
+    expect((await json(await FACTORS())).factors).toHaveLength(1);
+    expect(await mfaStateFor(id)).toEqual({ enabled: true, epoch: before });
+  });
+
+  it("signs out a session minted before it, and this one carries on by its proof", async () => {
+    const { id, other, mine, factors } = await accountWithTwoFactors();
+    const before = (await mfaStateFor(id)).epoch;
+
+    const res = await remove(factors[0]!.id);
+    expect(res.status).toBe(200);
+    expect((await json(await FACTORS())).factors).toHaveLength(1);
+    expect((await mfaStateFor(id)).epoch).toBe(before + 1);
+    expect(await jwt({ token: other })).toBeNull();
+    expect(await jwt({ token: mine })).toBeNull();
+    expect(await jwt({ token: mine, trigger: "update", session: (await json(res)).proof })).toMatchObject({ epoch: before + 1 });
+  });
+
+  it("needs the second-factor check", async () => {
+    const { id, factors } = await accountWithTwoFactors();
+    signedInAs(id, { signedInAt: Date.now() });
+    const res = await remove(factors[0]!.id);
+    expect(res.status).toBe(403);
+    expect((await json(await FACTORS())).factors).toHaveLength(2);
+  });
+
+  it("answers 404 for a factor on another account, and for an id that is not one", async () => {
+    const { factors } = await accountWithTwoFactors();
+    const { id: stranger } = await accountWithPasskey();
+    signedInAs(stranger, { mfaAt: Date.now() });
+    expect((await remove(factors[0]!.id)).status).toBe(404);
+    expect((await remove("not-a-uuid")).status).toBe(404);
+  });
+});
+
+describe("turning two-step sign-in off", () => {
+  it("removes every factor and code, signs out the other sessions and keeps this one", async () => {
+    const { id, other, mine } = await accountWithTwoFactors();
+    const before = (await mfaStateFor(id)).epoch;
+
+    const res = await TURN_OFF(change());
+    expect(res.status).toBe(200);
+    expect(await db.select().from(userFactors).where(eq(userFactors.userId, id))).toHaveLength(0);
+    expect(await db.select().from(userRecoveryCodes).where(eq(userRecoveryCodes.userId, id))).toHaveLength(0);
+    expect(await mfaStateFor(id)).toEqual({ enabled: false, epoch: before + 1 });
+    expect(await jwt({ token: other })).toBeNull();
+    expect(await jwt({ token: mine, trigger: "update", session: (await json(res)).proof })).toMatchObject({
+      epoch: before + 1,
+      mfaRequired: false,
+    });
+  });
+
+  it("needs the second-factor check, and only while two-step sign-in is on", async () => {
+    const { id } = await accountWithTwoFactors();
+    signedInAs(id, { signedInAt: Date.now() });
+    expect((await TURN_OFF(change())).status).toBe(403);
+    expect((await mfaStateFor(id)).enabled).toBe(true);
+
+    signedInAs(await account(), { mfaAt: Date.now() });
+    expect((await TURN_OFF(change())).status).toBe(409);
+  });
+});
+
+describe("revoking every token and connected app", () => {
+  async function credentialsOf(id: string) {
+    const created = new Date();
+    await db.insert(apiTokens).values({
+      id: randomUUID(),
+      ownerId: id,
+      name: "Calendar sync",
+      tokenHash: randomUUID(),
+      keyVersion: "v1",
+      prefix: "tc_abcde",
+      scopes: ["trips:read"],
+      tripIds: null,
+      createdAt: created,
+      expiresAt: new Date(created.getTime() + 86_400_000),
+    });
+    await db.insert(oauthGrants).values({
+      id: randomUUID(),
+      ownerId: id,
+      clientId: randomUUID(),
+      clientName: "An app",
+      redirectUri: "https://example.com/cb",
+      scopes: ["trips:read"],
+      resource: "https://caesura.example/api/mcp",
+      createdAt: created,
+      expiresAt: new Date(created.getTime() + 86_400_000),
+    });
+  }
+  const live = async (id: string) => ({
+    tokens: await db.select().from(apiTokens).where(and(eq(apiTokens.ownerId, id), isNull(apiTokens.revokedAt))),
+    grants: await db.select().from(oauthGrants).where(and(eq(oauthGrants.ownerId, id), isNull(oauthGrants.revokedAt))),
+  });
+
+  it("revokes this account's and nobody else's", async () => {
+    const { id } = await accountWithPasskey();
+    const { id: neighbour } = await accountWithPasskey();
+    await credentialsOf(id);
+    await credentialsOf(neighbour);
+    signedInAs(id, { mfaAt: Date.now() });
+
+    const res = await REVOKE_ALL();
+    expect(await res.json()).toEqual({ tokens: 1, grants: 1 });
+    expect(await live(id)).toEqual({ tokens: [], grants: [] });
+    expect((await live(neighbour)).tokens).toHaveLength(1);
+    expect((await live(neighbour)).grants).toHaveLength(1);
+  });
+
+  it("needs the second-factor check", async () => {
+    const { id } = await accountWithPasskey();
+    await credentialsOf(id);
+    signedInAs(id, { signedInAt: Date.now() });
+    expect((await REVOKE_ALL()).status).toBe(403);
+    expect((await live(id)).tokens).toHaveLength(1);
   });
 });
 

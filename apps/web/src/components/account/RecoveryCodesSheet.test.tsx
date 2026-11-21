@@ -69,4 +69,25 @@ describe("RecoveryCodesSheet", () => {
     });
     for (const code of CODES) expect(text).toContain(code);
   });
+
+  it("offers the revoke tick unticked when asked, and hands its state to onDone", async () => {
+    const onDone = vi.fn();
+    render(<RecoveryCodesSheet codes={CODES} onDone={onDone} offerRevoke />);
+    await userEvent.click(screen.getByRole("checkbox", { name: "I saved these" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(onDone).toHaveBeenLastCalledWith(false);
+
+    onDone.mockClear();
+    cleanup();
+    render(<RecoveryCodesSheet codes={CODES} onDone={onDone} offerRevoke />);
+    await userEvent.click(screen.getByRole("checkbox", { name: /Also revoke all tokens and connected apps/ }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "I saved these" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(onDone).toHaveBeenLastCalledWith(true);
+  });
+
+  it("does not show the tick unless asked", () => {
+    render(<RecoveryCodesSheet codes={CODES} onDone={() => {}} />);
+    expect(screen.queryByRole("checkbox", { name: /Also revoke all tokens and connected apps/ })).toBeNull();
+  });
 });

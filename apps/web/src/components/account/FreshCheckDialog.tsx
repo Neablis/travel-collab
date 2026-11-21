@@ -21,10 +21,13 @@ import { checkWithCode, checkWithPasskey } from "@/lib/mfaClient";
 export function FreshCheckDialog({
   mfaEnabled,
   hasPasskey,
+  purpose = "Changing how you sign in",
   onChecked,
   onClose,
 }: {
   mfaEnabled: boolean;
+  /** What the check is for, as the start of a sentence: "<purpose> needs a passkey first." */
+  purpose?: string;
   /** Whether the account holds a passkey; without one, the dialog opens on the code field. */
   hasPasskey: boolean;
   onChecked: () => void;
@@ -109,7 +112,7 @@ export function FreshCheckDialog({
       open
       onOpenChange={(open) => (open ? undefined : onClose())}
       title="Confirm it’s you"
-      description={`Changing how you sign in needs ${code === null ? "your passkey" : "a code"} first. It stays good for ten minutes.`}
+      description={`${purpose} needs ${code === null ? "your passkey" : "a code"} first. It stays good for ten minutes.`}
     >
       <div className="flex flex-col gap-3">
         {code === null ? null : (

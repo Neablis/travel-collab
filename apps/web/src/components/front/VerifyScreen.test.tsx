@@ -52,7 +52,8 @@ describe("VerifyScreen", () => {
   it("tells the person to tap the button when the automatic prompt was cancelled", async () => {
     check.mockResolvedValue("cancelled");
     render(<VerifyScreen callbackUrl="/home" />);
-    expect(await screen.findByText("Tap Use a passkey to continue.")).toBeDefined();
+    // A live region, so a screen reader says it when the prompt is refused.
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Tap Use a passkey to continue."));
   });
 
   it("says so when the passkey is refused, and stays on the screen", async () => {

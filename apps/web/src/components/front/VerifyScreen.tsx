@@ -109,12 +109,11 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
           {mode === "passkey" && outcome === "refused" ? (
             <Banner variant="danger">That passkey did not work. Try again.</Banner>
           ) : null}
-          {mode === "passkey" && outcome === "cancelled" ? (
-            // Safari refuses the prompt this screen opens on its own (no tap started it) and says so as "cancelled".
-            <Text as="p" variant="secondary">
-              Tap Use a passkey to continue.
-            </Text>
-          ) : null}
+          {/* Safari refuses the prompt this screen opens on its own (no tap started it) and says so as "cancelled".
+              Always rendered: a live region is announced when its text changes, and one that appears with its text is not. */}
+          <Text as="p" variant="secondary" role="status" className="empty:hidden">
+            {mode === "passkey" && outcome === "cancelled" ? "Tap Use a passkey to continue." : ""}
+          </Text>
           <Card raised>
             <div className="flex flex-col gap-3.5">
               {mode === "passkey" ? (

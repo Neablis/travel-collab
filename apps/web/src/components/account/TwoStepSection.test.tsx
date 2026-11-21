@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   AddPasskeyResult,
+  ChangeResult,
   CodeCheck,
   ConfirmAuthenticatorResult,
   PasskeyCheck,
@@ -15,6 +16,9 @@ const add = vi.fn<() => Promise<AddPasskeyResult>>();
 const check = vi.fn<() => Promise<PasskeyCheck>>();
 const checkCode = vi.fn<(kind: "otp" | "recovery", code: string) => Promise<CodeCheck>>();
 const regenerate = vi.fn<() => Promise<RegenerateResult>>();
+const removeOne = vi.fn<(factorId: string) => Promise<ChangeResult>>();
+const turnOff = vi.fn<() => Promise<ChangeResult>>();
+const revokeAll = vi.fn<() => Promise<"revoked" | "fresh-check-required" | "failed">>();
 const startApp = vi.fn<() => Promise<StartAuthenticatorResult>>();
 const confirmApp = vi.fn<(ticket: string, code: string) => Promise<ConfirmAuthenticatorResult>>();
 vi.mock("@/lib/mfaClient", () => ({
@@ -22,6 +26,9 @@ vi.mock("@/lib/mfaClient", () => ({
   checkWithPasskey: () => check(),
   checkWithCode: (kind: "otp" | "recovery", code: string) => checkCode(kind, code),
   regenerateRecoveryCodes: () => regenerate(),
+  removeFactor: (factorId: string) => removeOne(factorId),
+  turnOffTwoStep: () => turnOff(),
+  revokeAllCredentials: () => revokeAll(),
   startAuthenticator: () => startApp(),
   confirmAuthenticator: (ticket: string, code: string) => confirmApp(ticket, code),
 }));
@@ -62,6 +69,9 @@ afterEach(() => {
   signInMock.mockReset();
   checkCode.mockReset();
   regenerate.mockReset();
+  removeOne.mockReset();
+  turnOff.mockReset();
+  revokeAll.mockReset();
   startApp.mockReset();
   confirmApp.mockReset();
   renamed.length = 0;
@@ -337,5 +347,146 @@ describe("TwoStepSection", () => {
     const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
     expect(within(dialog).getByRole("textbox", { name: "Authenticator code" })).toBeTruthy();
     expect(within(dialog).queryByRole("button", { name: "Use a passkey" })).toBeNull();
+  });
+
+  describe("removing a factor", () => {
+    const app = { id: "f2", name: "Authenticator app", kind: "totp" as const, createdAt: "2026-11-02T00:00:00Z", lastUsedAt: null };
+    const TWO: MfaStatusResponse = { enabled: true, factors: [phone, app], recoveryCodesLeft: 9 };
+
+    it("removes the factor after a confirm, and the list reads on without it", async () => {
+      status = TWO;
+      serve();
+      removeOne.mockImplementation(async () => {
+        status = ON;
+        return { status: "done", signedIn: true };
+      });
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove Authenticator app" }));
+      // Nothing is sent by the first click.
+      expect(removeOne).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole("button", { name: "Yes, remove Authenticator app" }));
+      await waitFor(() => expect(removeOne).toHaveBeenCalledWith("f2"));
+      await waitFor(() => expect(screen.queryByText("Authenticator app")).toBeNull());
+    });
+
+    it("opens the fresh check when Remove is refused for want of one, and removes once it passes", async () => {
+      status = TWO;
+      serve();
+      removeOne.mockResolvedValueOnce({ status: "fresh-check-required" }).mockResolvedValueOnce({ status: "done", signedIn: true });
+      check.mockResolvedValue("passed");
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove Authenticator app" }));
+      await userEvent.click(screen.getByRole("button", { name: "Yes, remove Authenticator app" }));
+      const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
+      await userEvent.click(within(dialog).getByRole("button", { name: "Use a passkey" }));
+      await waitFor(() => expect(removeOne).toHaveBeenCalledTimes(2));
+    });
+
+    it("offers no Remove for the only factor, and says Turn off is the way", async () => {
+      status = ON;
+      serve();
+      render(<TwoStepSection />);
+      await screen.findByText("Device passkey");
+      expect(screen.queryByRole("button", { name: "Remove Device passkey" })).toBeNull();
+      expect(screen.getByText(/only second step/i).textContent).toContain("Turn off two-step sign-in");
+    });
+
+    it("sends the person to sign in again when this session could not be kept", async () => {
+      status = TWO;
+      serve();
+      removeOne.mockResolvedValue({ status: "done", signedIn: false });
+      const assign = vi.fn();
+      vi.stubGlobal("location", { ...window.location, assign });
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove Authenticator app" }));
+      await userEvent.click(screen.getByRole("button", { name: "Yes, remove Authenticator app" }));
+      await waitFor(() => expect(assign).toHaveBeenCalledWith(expect.stringContaining("/api/session-expired")));
+    });
+  });
+
+  describe("turning two-step sign-in off", () => {
+    it("asks first, then removes everything and shows the section off", async () => {
+      status = ON;
+      serve();
+      turnOff.mockImplementation(async () => {
+        status = OFF;
+        return { status: "done", signedIn: true };
+      });
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Turn off two-step sign-in" }));
+      const confirm = await screen.findByRole("dialog", { name: "Turn off two-step sign-in?" });
+      expect(turnOff).not.toHaveBeenCalled();
+      await userEvent.click(within(confirm).getByRole("button", { name: "Turn off" }));
+      await waitFor(() => expect(turnOff).toHaveBeenCalledTimes(1));
+      expect(await screen.findByText("Add a second step after Google")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Turn off two-step sign-in" })).toBeNull();
+    });
+
+    it("keeps it on when the confirm is cancelled", async () => {
+      status = ON;
+      serve();
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Turn off two-step sign-in" }));
+      await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Cancel" }));
+      expect(turnOff).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("opens the fresh check when refused for want of one, and turns off once it passes", async () => {
+      status = ON;
+      serve();
+      turnOff.mockResolvedValueOnce({ status: "fresh-check-required" }).mockResolvedValueOnce({ status: "done", signedIn: true });
+      check.mockResolvedValue("passed");
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Turn off two-step sign-in" }));
+      await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Turn off" }));
+      const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
+      await userEvent.click(within(dialog).getByRole("button", { name: "Use a passkey" }));
+      await waitFor(() => expect(turnOff).toHaveBeenCalledTimes(2));
+    });
+  });
+
+  describe("the revoke-everything tick", () => {
+    async function turnOnAndReachSheet() {
+      status = OFF;
+      serve();
+      add.mockImplementation(async () => {
+        status = ON;
+        return { status: "added", recoveryCodes: CODES, signedIn: true };
+      });
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Add a passkey" }));
+      return screen.findByRole("dialog", { name: "Save your recovery codes" });
+    }
+
+    it("is unticked, and ticking it revokes every token and connected app when Done is pressed", async () => {
+      revokeAll.mockResolvedValue("revoked");
+      const sheet = await turnOnAndReachSheet();
+      const tick = within(sheet).getByRole("checkbox", { name: /Also revoke all tokens and connected apps/ });
+      expect((tick as HTMLInputElement).checked).toBe(false);
+      await userEvent.click(tick);
+      await userEvent.click(within(sheet).getByRole("checkbox", { name: "I saved these" }));
+      await userEvent.click(within(sheet).getByRole("button", { name: "Done" }));
+      await waitFor(() => expect(revokeAll).toHaveBeenCalledTimes(1));
+    });
+
+    it("revokes nothing when left unticked", async () => {
+      const sheet = await turnOnAndReachSheet();
+      await userEvent.click(within(sheet).getByRole("checkbox", { name: "I saved these" }));
+      await userEvent.click(within(sheet).getByRole("button", { name: "Done" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(revokeAll).not.toHaveBeenCalled();
+    });
+
+    it("is not offered on regenerated codes", async () => {
+      status = ON;
+      serve();
+      regenerate.mockResolvedValue({ status: "regenerated", recoveryCodes: CODES });
+      render(<TwoStepSection />);
+      await userEvent.click(await screen.findByRole("button", { name: "Regenerate" }));
+      await userEvent.click(screen.getByRole("button", { name: "Regenerate codes" }));
+      const sheet = await screen.findByRole("dialog", { name: "Save your recovery codes" });
+      expect(within(sheet).queryByRole("checkbox", { name: /Also revoke all tokens and connected apps/ })).toBeNull();
+    });
   });
 });

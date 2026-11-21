@@ -114,3 +114,45 @@ export function tripInviteEmail(input: {
     text: [lead, "", body, "", `Open the invite: ${input.inviteUrl}`, "", ignoreLine].join("\n"),
   };
 }
+
+/** What `securityChangeEmail` says happened; one phrase per change, in the order a person would list them. */
+export type SecurityChangeKind = "factor-removed" | "two-step-off" | "codes-regenerated";
+
+const SECURITY_CHANGE_WORDING: Record<SecurityChangeKind, { subject: string; what: string }> = {
+  "factor-removed": { subject: "A second step was removed from your account", what: "A way of signing in with two steps was removed from your account." },
+  "two-step-off": { subject: "Two-step sign-in was turned off", what: "Two-step sign-in was turned off, and every passkey, authenticator app and recovery code was removed." },
+  "codes-regenerated": { subject: "Your recovery codes were replaced", what: "Your recovery codes were replaced. The old ones no longer work." },
+};
+
+/**
+ * Sent after a change to how an account is entered (M62 D7): what changed, when,
+ * and from what kind of device. `client` and `ip` are optional and coarse on
+ * purpose: a browser and system name, and the address as the proxy saw it, never
+ * a place.
+ */
+export function securityChangeEmail(input: {
+  to: string;
+  change: SecurityChangeKind;
+  at: Date;
+  client: string | null;
+  ip: string | null;
+  securityUrl: string;
+}): Email {
+  const { subject, what } = SECURITY_CHANGE_WORDING[input.change];
+  const when = `${input.at.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+  const from = [input.client, input.ip === null ? null : `IP address ${input.ip}`].filter((part) => part !== null).join(", ");
+  const details = `When: ${when}${from === "" ? "" : `\nFrom: ${from}`}`;
+  const advice = "If this was you, there is nothing to do. If it was not, sign in and review your security settings now. Every other signed-in device was signed out.";
+  return {
+    to: input.to,
+    tag: "security-change",
+    subject,
+    html: layout({
+      heading: escapeHtml(subject),
+      paragraphs: [escapeHtml(what), escapeHtml(details).replace(/\n/g, "<br>"), escapeHtml(advice)],
+      cta: { label: "Review security settings", href: input.securityUrl },
+      footer: "You're receiving this because your Caesura account's sign-in settings changed.",
+    }),
+    text: [what, "", details, "", advice, "", `Review security settings: ${input.securityUrl}`].join("\n"),
+  };
+}
