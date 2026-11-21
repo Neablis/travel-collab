@@ -10,6 +10,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API_SCOPES } from "@tc/contracts";
+import { TOOLS } from "../../app/api/mcp/tools";
+import { mcpToolScopes } from "../mcp/toolScopes";
 import { config as proxyConfig } from "../../proxy";
 import { GET as index } from "../../app/api/v1/route";
 import { GET as catalog } from "../../app/.well-known/api-catalog/route";
@@ -182,6 +184,21 @@ describe("/agents.md", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     for (const scope of API_SCOPES) expect(text, scope).toContain(`\`${scope}\``);
+  });
+
+  // toolScopes.test covers the join; this holds the markdown rendering of it.
+  it("renders one table row per MCP tool, with an `or` for a tool that takes either of two scopes", async () => {
+    const { text } = await read();
+    const rows = text.split("\n").filter((line) => line.startsWith("| `"));
+    const tools = mcpToolScopes(TOOLS);
+    expect(tools.length).toBeGreaterThan(0);
+    for (const tool of tools) {
+      const row = rows.find((line) => line.startsWith(`| \`${tool.name}\` |`));
+      expect(row, tool.name).toBeDefined();
+      expect(row, tool.name).toContain(`\`${tool.scope}\``);
+      if (tool.orScope !== undefined) expect(row, tool.name).toContain(` or \`${tool.orScope}\``);
+    }
+    expect(tools.some((tool) => tool.orScope !== undefined), "no tool with an orScope to check").toBe(true);
   });
 
   // Signed out means outside the proxy: a path entry that reached it would
