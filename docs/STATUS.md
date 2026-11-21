@@ -21,6 +21,8 @@ general setup.
 
 ## Where the work is right now
 
+**M62 closed 2026-11-21, gate 10 of 10, the walk amended** (*An account can ask for a second factor, and you control every one*; decisions, evidence and retro in `docs/milestones/M62-a-second-factor-you-control.md`, ADR-092), by `pnpm milestone close M62 --confirm` on part 0 (PR 773, `ccr-f7b14b1c-can07a`, prose only), which **waits on Mitchell's merge**. All six code parts are on `main`: PRs 774 to 778 through PR 778 (2557e2e, 18:19Z), then PR 779 (301f28e, 18:26Z). `deploy-production` run 44934907812 on 2557e2e applied `0079_mfa`; run 44935504221 on 301f28e is green. Mitchell walked production the same day with no iPhone: an authenticator app, and a biometric passkey on Android and on desktop. He amended the [walk] box for that (Face ID replaced) and it is ticked. **Not walked on production:** removing a factor, turning MFA off, iOS Safari. One known issue: `KI-20261121-m62-early-lock-script-warns-on-client-navigation`. **M59 is still current, with 3 gate boxes open.**
+
 **M60 closed 2026-11-14, gate 11 of 11, with two boxes amended out** (*A personal agent can find
 Caesura, and act for you within what you allow*; decisions, evidence and retro in
 `docs/milestones/M60-personal-agents-act-for-you.md`, mechanisms in ADR-089), by `pnpm milestone
@@ -146,6 +148,7 @@ confirmed fixed"*). Evidence, retro and spend are in
 `docs/milestones/M52-the-trip-comes-with-you.md`.
 
 **Next action:**
+000. **M62:** Mitchell merges PR 773 (part 0, prose only; all code is merged and `0079_mfa` is applied, so no lower draft is open and no `migrate-production` is due). Then remove the orchestrator's `tc-orchestrator` guard file. Optional: walk remove-a-factor and turn-off on production, and an iPhone when one is at hand.
 00. **M60:** Mitchell merges PR 712 (part 0, prose only; all code is merged and `0075` is applied, so
    no `migrate-production` is due and no lower draft is open) and confirms the two amended-out boxes. The kit validator ran 2026-11-15
    and was re-run after an Allow (KI-2026-11-14-a resolved; its leftovers are KI-2026-11-15-a, since resolved, and
