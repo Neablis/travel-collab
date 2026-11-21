@@ -126,4 +126,18 @@ describe("DevelopersScreen", () => {
       expect(row.textContent).toContain(tool.scope);
     }
   });
+
+  // On a phone the tables are restyled with display:block/flex, which Safari
+  // and older Chromium answer by dropping the table semantics. An explicit
+  // role on every element keeps each cell tied to its column header.
+  it("names its table roles outright, so the phone layout cannot drop them", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    for (const name of ["MCP tools", "Scopes"]) {
+      const table = within(screen.getByRole("region", { name })).getByRole("table");
+      expect(table.getAttribute("role")).toBe("table");
+      for (const role of ["rowgroup", "row", "columnheader", "cell"]) {
+        for (const el of within(table).getAllByRole(role)) expect(el.getAttribute("role")).toBe(role);
+      }
+    }
+  });
 });

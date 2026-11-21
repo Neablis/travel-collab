@@ -99,8 +99,9 @@ function Pre({ children }: { children: React.ReactNode }) {
 }
 
 // The same panels and section heading as `/ai` (see the note there), from the
-// walk of PR 788. Inside "Connect your AI" each tool is a paper panel of its own,
-// so six sets of steps do not run into one another.
+// walk of PR 788. Inside "Connect your AI" each tool is a paper panel of its own
+// from md up; on a phone it is a ruled block with no box, so the code blocks keep
+// the width the section panel already took in padding.
 const sectionClass =
   "flex scroll-mt-20 flex-col gap-5 rounded-xl border border-hairline bg-surface p-5 shadow-raised md:p-8";
 
@@ -119,6 +120,8 @@ function SectionHeading({ id, children }: { id: string; children: React.ReactNod
 // The tool and scope tables: framed, a tinted head and banded rows so the eye
 // can run along one tool. On a phone three columns do not fit, so each row
 // stacks into a card of its cells; the head stays for screen readers only.
+// That restyle (display:block/flex) makes Safari and older Chromium drop the
+// table semantics, so every element carries its ARIA role outright.
 const tableFrameClass = "overflow-x-auto rounded-lg border border-hairline bg-surface";
 const tableClass = "max-md:block";
 const theadClass = "bg-moss max-md:sr-only";
@@ -132,7 +135,7 @@ function ConnectSection({ id, title, children }: { id: string; title: string; ch
     <section
       id={id}
       aria-labelledby={`${id}-title`}
-      className="flex scroll-mt-20 flex-col gap-4 rounded-lg border border-hairline bg-paper p-4 md:p-5"
+      className="flex scroll-mt-20 flex-col gap-4 border-t border-hairline pt-5 md:rounded-lg md:border md:bg-paper md:p-5"
     >
       <Heading level={3} id={`${id}-title`} className="text-xl">
         {title}
@@ -363,22 +366,22 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
               scope cannot use the tool.
             </Text>
             <div className={tableFrameClass}>
-              <Table className={tableClass}>
-                <THead className={theadClass}>
-                  <TR>
-                    <TH scope="col" className={thClass}>Tool</TH>
-                    <TH scope="col" className={thClass}>What it does</TH>
-                    <TH scope="col" className={thClass}>Scope</TH>
+              <Table role="table" className={tableClass}>
+                <THead role="rowgroup" className={theadClass}>
+                  <TR role="row">
+                    <TH role="columnheader" scope="col" className={thClass}>Tool</TH>
+                    <TH role="columnheader" scope="col" className={thClass}>What it does</TH>
+                    <TH role="columnheader" scope="col" className={thClass}>Scope</TH>
                   </TR>
                 </THead>
-                <TBody className="max-md:block">
+                <TBody role="rowgroup" className="max-md:block">
                   {tools.map((tool) => (
-                    <TR key={tool.name} className={rowClass}>
-                      <TD className={cn(tdClass, "whitespace-nowrap")}>
+                    <TR key={tool.name} role="row" className={rowClass}>
+                      <TD role="cell" className={cn(tdClass, "whitespace-nowrap")}>
                         <Code className="font-medium">{tool.name}</Code>
                       </TD>
-                      <TD className={cn(tdClass, "text-sm text-pretty")}>{tool.description}</TD>
-                      <TD className={cn(tdClass, "text-sm md:w-1/4")}>
+                      <TD role="cell" className={cn(tdClass, "text-sm text-pretty")}>{tool.description}</TD>
+                      <TD role="cell" className={cn(tdClass, "text-sm md:w-1/4")}>
                         <Code className="whitespace-nowrap">{tool.scope}</Code>
                         {tool.orScope === undefined ? null : (
                           <>
@@ -402,20 +405,20 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
             <Code>trips:read</Code>. Ask for both if you need both.
           </Text>
           <div className={tableFrameClass}>
-            <Table className={tableClass}>
-              <THead className={theadClass}>
-                <TR>
-                  <TH scope="col" className={thClass}>Scope</TH>
-                  <TH scope="col" className={thClass}>What a token holding it may do</TH>
+            <Table role="table" className={tableClass}>
+              <THead role="rowgroup" className={theadClass}>
+                <TR role="row">
+                  <TH role="columnheader" scope="col" className={thClass}>Scope</TH>
+                  <TH role="columnheader" scope="col" className={thClass}>What a token holding it may do</TH>
                 </TR>
               </THead>
-              <TBody className="max-md:block">
+              <TBody role="rowgroup" className="max-md:block">
                 {API_SCOPES.map((scope) => (
-                  <TR key={scope} className={rowClass}>
-                    <TD className={cn(tdClass, "whitespace-nowrap")}>
+                  <TR key={scope} role="row" className={rowClass}>
+                    <TD role="cell" className={cn(tdClass, "whitespace-nowrap")}>
                       <Code className="font-medium">{scope}</Code>
                     </TD>
-                    <TD className={cn(tdClass, "text-sm text-pretty")}>{SCOPE_CATALOGUE[scope].description}</TD>
+                    <TD role="cell" className={cn(tdClass, "text-sm text-pretty")}>{SCOPE_CATALOGUE[scope].description}</TD>
                   </TR>
                 ))}
               </TBody>
