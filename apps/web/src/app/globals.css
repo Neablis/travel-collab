@@ -3094,6 +3094,12 @@ html[data-look="ledger"] .shadow-raised {
       visibility: hidden;
     }
   }
+  /* The installed app reopened past its idle lock (`EARLY_LOCK_SCRIPT`,
+     `lib/pwaLock.ts`), hidden until `PwaLockGate` locks or decides not to. The
+     splash is left out: it is still the first frame of a home-screen launch. */
+  html[data-pwa-locked] body > :not(.launch-overlay) {
+    visibility: hidden;
+  }
 
   @keyframes tc-unlock-left {
     to {

@@ -15,7 +15,9 @@ import { servedForApp } from "@/server/servedSession";
 // The installed app's idle lock goes over all of it (M62 D3b). A request with no
 // session cookie has no account to lock; the user id is for Sign out on the lock.
 // Its script goes ahead of the app's HTML so a reopened app past its idle time
-// does not show the server's paint while it hydrates (`EARLY_LOCK_SCRIPT`).
+// does not show the server's paint while it hydrates (`EARLY_LOCK_SCRIPT`). On a
+// client navigation in here React only warns about it, in development, and does
+// not run it (KI-2026-11-21, m62-early-lock-script-warns-on-client-navigation).
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const served = await servedForApp();
   const signedIn = !served.noSessionCookie;

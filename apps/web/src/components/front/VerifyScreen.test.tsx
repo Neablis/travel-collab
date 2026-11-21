@@ -169,21 +169,51 @@ describe("VerifyScreen", () => {
 
     // On a slow phone a tap can be replayed after the screen commits and before its
     // arrival effect runs. A layout effect lands it in exactly that gap.
+    function TapsBeforeArrival({ option }: { option: string }) {
+      useLayoutEffect(() => {
+        fireEvent.click(screen.getByRole("button", { name: option }));
+      }, [option]);
+      return null;
+    }
+
     it("keeps the code field, and asks for no passkey, when the code is chosen before the arrival prompt starts", async () => {
-      function TapsBeforeArrival() {
-        useLayoutEffect(() => {
-          fireEvent.click(screen.getByRole("button", { name: "Use authenticator code" }));
-        }, []);
-        return null;
-      }
       render(
         <>
           <VerifyScreen callbackUrl="/home" />
-          <TapsBeforeArrival />
+          <TapsBeforeArrival option="Use authenticator code" />
         </>,
       );
       expect(await screen.findByRole("textbox", { name: "Authenticator code" })).toBeDefined();
       expect(check).not.toHaveBeenCalled();
+    });
+
+    // The skipped arrival prompt was the only thing that would have learned whether
+    // a passkey exists, so nothing may promise one until something has asked.
+    it("does not point a locked code at a passkey when the early tap meant none was ever asked for", async () => {
+      checkCode.mockResolvedValue("locked");
+      render(
+        <>
+          <VerifyScreen callbackUrl="/home" />
+          <TapsBeforeArrival option="Use authenticator code" />
+        </>,
+      );
+      await userEvent.type(await screen.findByRole("textbox", { name: "Authenticator code" }), "000000{Enter}");
+      expect(await screen.findByText("Too many wrong codes. Try again in 15 minutes.")).toBeDefined();
+      expect(check).not.toHaveBeenCalled();
+    });
+
+    it("goes back to the recovery code when the passkey asked for from it turns out not to exist", async () => {
+      check.mockResolvedValue("unavailable");
+      render(
+        <>
+          <VerifyScreen callbackUrl="/home" />
+          <TapsBeforeArrival option="Use a recovery code" />
+        </>,
+      );
+      await screen.findByRole("textbox", { name: "Recovery code" });
+      await userEvent.click(screen.getByRole("button", { name: "Use a passkey" }));
+      expect(await screen.findByRole("textbox", { name: "Recovery code" })).toBeDefined();
+      expect(screen.queryByRole("button", { name: "Use a passkey" })).toBeNull();
     });
 
     it("opens on the code field when the account has no passkey to ask for", async () => {
