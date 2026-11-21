@@ -106,6 +106,10 @@ export function forgetActivity(storage: StorageAccess = local): void {
   }
 }
 
+// The attribute `globals.css` hides the app under, and how long it may stay.
+const EARLY_LOCK_MARK = "data-pwa-locked";
+const EARLY_LOCK_FAILSAFE_MS = 10_000;
+
 /**
  * Hides the page before it paints when an installed app is reopened past its idle
  * time. Inlined ahead of the app's server HTML, which would otherwise show for as
@@ -113,17 +117,23 @@ export function forgetActivity(storage: StorageAccess = local): void {
  * shows the page again (`releaseEarlyLock`) once its lock is up, or once it has
  * decided not to lock. The same test as `isStandalone` and `isPastIdle`, which
  * cannot run before the bundle; the keys and durations are this module's.
+ *
+ * It marks `<html>` and `globals.css` does the hiding, of everything but the M54
+ * launch splash, which is still the first frame of a home-screen launch. A bundle
+ * that never hydrates would leave the gate unmounted and the page blank for good,
+ * Sign out included, so the mark lifts itself after `EARLY_LOCK_FAILSAFE_MS`: long
+ * enough for a slow phone to hydrate first, as the splash's own fail-safe is.
  */
 export const EARLY_LOCK_SCRIPT =
   `try{var m=${JSON.stringify(LOCK_AFTER_MS)},k=localStorage.getItem(${JSON.stringify(LOCK_AFTER)}),` +
-  `a=Number(localStorage.getItem(${JSON.stringify(LAST_ACTIVE)}));` +
+  `a=Number(localStorage.getItem(${JSON.stringify(LAST_ACTIVE)})),h=document.documentElement;` +
   `if((navigator.standalone===true||(typeof matchMedia==="function"&&matchMedia("(display-mode: standalone)").matches))` +
-  `&&Object.prototype.hasOwnProperty.call(m,k)&&a>0&&Date.now()-a>=m[k])` +
-  `document.documentElement.style.visibility="hidden"}catch(e){}`;
+  `&&Object.prototype.hasOwnProperty.call(m,k)&&a>0&&Date.now()-a>=m[k]){h.setAttribute(${JSON.stringify(EARLY_LOCK_MARK)},"");` +
+  `setTimeout(function(){h.removeAttribute(${JSON.stringify(EARLY_LOCK_MARK)})},${EARLY_LOCK_FAILSAFE_MS})}}catch(e){}`;
 
 /** Undoes `EARLY_LOCK_SCRIPT`; a no-op when it hid nothing. */
 export function releaseEarlyLock(): void {
-  document.documentElement.style.removeProperty("visibility");
+  document.documentElement.removeAttribute(EARLY_LOCK_MARK);
 }
 
 /**

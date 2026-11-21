@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -48,7 +50,7 @@ afterEach(() => {
   unlock.mockReset();
   signOutMock.mockReset();
   window.localStorage.clear();
-  document.documentElement.style.removeProperty("visibility");
+  document.documentElement.removeAttribute("data-pwa-locked");
   status = { enabled: true, factors: [passkey], recoveryCodesLeft: 10 };
 });
 
@@ -191,6 +193,15 @@ describe("PwaLockGate", () => {
 });
 
 describe("before the app hydrates", () => {
+  // The hide's own rules, as `globals.css` writes them, so jsdom hides what a browser would.
+  const rules = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8").match(
+    /html\[data-pwa-locked\][^{]*\{[^}]*\}/g,
+  );
+  const style = document.createElement("style");
+  style.textContent = (rules ?? []).join("\n");
+  beforeEach(() => document.head.append(style));
+  afterEach(() => style.remove());
+
   // The script as `(app)/layout.tsx` inlines it, run against this window.
   const runEarlyLock = () =>
     runInNewContext(EARLY_LOCK_SCRIPT, {
@@ -198,8 +209,23 @@ describe("before the app hydrates", () => {
       navigator: window.navigator,
       matchMedia: globalThis.matchMedia,
       document,
+      setTimeout: globalThis.setTimeout,
     });
-  const hidden = () => document.documentElement.style.visibility === "hidden";
+  // The server's paint stands in as a body child, beside the M54 launch splash.
+  function serverPaint() {
+    const page = document.createElement("main");
+    const splash = document.createElement("div");
+    splash.className = "launch-overlay";
+    document.body.append(splash, page);
+    return { page, splash, remove: () => (page.remove(), splash.remove()) };
+  }
+  const shown = (el: Element) => getComputedStyle(el).visibility !== "hidden";
+  const hidden = () => {
+    const paint = serverPaint();
+    const result = !shown(paint.page);
+    paint.remove();
+    return result;
+  };
 
   it("hides an installed app reopened past its idle time, and the gate shows it once the lock is up", async () => {
     installed(true);
@@ -208,6 +234,30 @@ describe("before the app hydrates", () => {
     expect(hidden()).toBe(true);
     app();
     expect(await screen.findByRole("dialog", { name: "Caesura is locked" })).toBeTruthy();
+    expect(hidden()).toBe(false);
+  });
+
+  // M54 decision 6: the splash is the first frame of a home-screen launch, never hidden then shown.
+  it("leaves the launch splash showing while it hides the app", () => {
+    installed(true);
+    idleFor(20 * MIN);
+    const paint = serverPaint();
+    runEarlyLock();
+    expect(shown(paint.page)).toBe(false);
+    expect(shown(paint.splash)).toBe(true);
+    paint.remove();
+  });
+
+  // A chunk that never loads, or a root that throws in hydration, never mounts the
+  // gate: the page must not stay blank for good, with Sign out under it.
+  it("shows the page again by itself when the gate never mounts", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    installed(true);
+    idleFor(20 * MIN);
+    runEarlyLock();
+    vi.advanceTimersByTime(9_000);
+    expect(hidden()).toBe(true);
+    vi.advanceTimersByTime(1_000);
     expect(hidden()).toBe(false);
   });
 
@@ -228,6 +278,18 @@ describe("before the app hydrates", () => {
     idleFor(20 * MIN);
     runEarlyLock();
     app(false);
+    expect(hidden()).toBe(false);
+  });
+
+  // Another window of the app recorded activity between the script and hydration:
+  // no lock goes up, so nothing else would show the page.
+  it("shows the page when activity elsewhere has brought it back inside the idle time", () => {
+    installed(true);
+    idleFor(20 * MIN);
+    runEarlyLock();
+    idleFor(0);
+    app();
+    expect(lockScreen()).toBeNull();
     expect(hidden()).toBe(false);
   });
 });
