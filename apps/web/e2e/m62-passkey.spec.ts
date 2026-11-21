@@ -53,4 +53,67 @@ test("passkey: register, sign out, sign in through verify, rename", async ({ pag
   await name.fill("Work laptop");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("region", { name: "Two-step sign-in" }).getByText("Work laptop")).toBeVisible();
+  // Focus goes back to the row's Rename button rather than to the page's start.
+  await expect(page.getByRole("button", { name: "Rename Work laptop" })).toBeFocused();
+
+  // ---- the fresh check ------------------------------------------------------
+  // Ten minutes cannot be waited out, so the server's first two answers to
+  // adding are the 403 it gives an old check. The dialog, its Close, and the
+  // real passkey check behind it are the subject; the authenticator then
+  // refuses to hold the same credential twice, which is the end of the road.
+  let refused = 0;
+  await page.route("**/api/account/mfa/passkeys", async (route) => {
+    const step = (route.request().postDataJSON() as { step?: string } | null)?.step;
+    if (step === "options" && refused < 2) {
+      refused += 1;
+      await route.fulfill({ status: 403, json: { error: "fresh-check-required" } });
+    } else await route.continue();
+  });
+  const twoStepNow = page.getByRole("region", { name: "Two-step sign-in" });
+  await twoStepNow.getByRole("button", { name: "Add a passkey" }).click();
+  const check = page.getByRole("dialog", { name: "Confirm it’s you" });
+  await expect(check).toBeVisible();
+  await expect(check).toHaveAccessibleDescription(/needs your passkey first/);
+  await check.getByRole("button", { name: "Close" }).click();
+  await expect(check).toBeHidden();
+
+  await twoStepNow.getByRole("button", { name: "Add a passkey" }).click();
+  await page.getByRole("dialog", { name: "Confirm it’s you" }).getByRole("button", { name: "Use a passkey" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(twoStepNow.getByRole("alert")).toHaveText("That passkey is already on this account.");
+});
+
+// **A cookie the server refuses, because the account's security epoch moved.**
+// Two browsers are the same person; the second turns two-step sign-in on, which
+// bumps the epoch, and the first is left holding a cookie the proxy reads as
+// signed in and the server does not. It must end signed out, with the cookie and
+// the landing's hint gone and the page it asked for kept, not bounce between the
+// landing and sign-in (`api/session-expired`).
+test("a session cookie refused after another browser turned two-step on is shed, and the landing stays put", async ({
+  page,
+  browser,
+}) => {
+  const username = `m62s${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+  await signInAsDevUser(page, username);
+
+  const other = await (await browser.newContext()).newPage();
+  await signInAsDevUser(other, username);
+  await addVirtualAuthenticator(other);
+  await openAccountPage(other, "security");
+  await other.getByRole("region", { name: "Two-step sign-in" }).getByRole("button", { name: "Add a passkey" }).click();
+  await expect(other.getByRole("dialog", { name: "Save your recovery codes" })).toBeVisible();
+
+  const context = page.context();
+  // The hint the app shell had set, so the landing would send this browser to /home.
+  await context.addCookies([{ name: "tc_signed_in", value: "1", url: page.url() }]);
+  await page.goto("/plans?checkout=cs_test_1");
+  await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fplans%3Fcheckout%3Dcs_test_1$/);
+
+  const names = (await context.cookies()).map((cookie) => cookie.name);
+  expect(names.filter((name) => /session-token/.test(name))).toEqual([]);
+  expect(names).not.toContain("tc_signed_in");
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Plan the trip together." })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
 });
