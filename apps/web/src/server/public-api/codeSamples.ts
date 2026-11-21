@@ -52,10 +52,18 @@ export function exampleOf(schema: Schema | undefined, depth = 0): unknown {
   }
 }
 
-/** The three samples for one operation. `url` keeps its `{param}` segments. */
-export function codeSamplesFor(op: { method: string; url: string; body?: Schema }): CodeSample[] {
+/**
+ * The three samples for one operation. A `{tripId}` path segment becomes
+ * `YOUR_TRIP_ID`, so the sample reads as "fill this in" rather than as a
+ * brace-wrapped literal; `query` is the query object schema, and its required
+ * parameters are written with an example value, since a call without them is a 400.
+ */
+export function codeSamplesFor(op: { method: string; url: string; body?: Schema; query?: Schema }): CodeSample[] {
   const method = op.method.toUpperCase();
-  const href = `${SAMPLE_ORIGIN}${op.url}`;
+  const path = op.url.replace(/\{(\w+)\}/g, (_, name: string) => `YOUR_${name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toUpperCase()}`);
+  const required = Object.entries((exampleOf(op.query) ?? {}) as Record<string, unknown>);
+  const queryString = required.length === 0 ? "" : `?${new URLSearchParams(required.map(([k, v]) => [k, String(v)]))}`;
+  const href = `${SAMPLE_ORIGIN}${path}${queryString}`;
   const json = op.body === undefined ? undefined : JSON.stringify(exampleOf(op.body), null, 2);
 
   const curl = [

@@ -41,7 +41,7 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
 export const API_VERSION = "2.10.0";
-export const API_FINGERPRINT = "1fcf736e69221de3386520f03e286c9125a89172340a6baee97fa8a999880dff";
+export const API_FINGERPRINT = "a20a37451abb7290d88d43dd709c39fe553f3060eef254901d32196c29a37887";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -449,6 +449,7 @@ export function buildOpenApi(
           method,
           url,
           body: def.body === undefined ? undefined : schemaOf(def.body),
+          query: def.query === undefined ? undefined : schemaOf(def.query),
         }),
         description: [
           def.signedOut === true

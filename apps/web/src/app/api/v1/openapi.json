@@ -88,17 +88,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/cities' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/cities?q=string' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/cities\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/cities?q=string\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/cities\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/cities?q=string\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope.",
@@ -682,17 +682,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/geocode' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/geocode?q=string' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/geocode\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/geocode?q=string\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/geocode\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/geocode?q=string\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `places:read` scope.",
@@ -870,17 +870,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/library/{savedDayId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/library/YOUR_SAVED_DAY_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/library/{savedDayId}\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/library/YOUR_SAVED_DAY_ID\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/library/{savedDayId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/library/YOUR_SAVED_DAY_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:read` scope.",
@@ -1469,17 +1469,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PATCH 'https://caesura.today/api/v1/library/{savedDayId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"visibility\": \"private\"\n}'"
+            "source": "curl -X PATCH 'https://caesura.today/api/v1/library/YOUR_SAVED_DAY_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"visibility\": \"private\"\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/library/{savedDayId}\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"visibility\": \"private\"\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/library/YOUR_SAVED_DAY_ID\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"visibility\": \"private\"\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/library/{savedDayId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"visibility\": \"private\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/library/YOUR_SAVED_DAY_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"visibility\": \"private\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:write` scope.",
@@ -2091,17 +2091,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/library/{savedDayId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/library/YOUR_SAVED_DAY_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/library/{savedDayId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/library/YOUR_SAVED_DAY_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/library/{savedDayId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/library/YOUR_SAVED_DAY_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:write` scope.",
@@ -3448,17 +3448,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/playbooks/{playbookId}/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/{playbookId}/cover\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/playbooks/{playbookId}/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:read` scope, or `current:read`.",
@@ -3653,17 +3653,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PUT 'https://caesura.today/api/v1/playbooks/{playbookId}/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"url\": \"string\"\n}'"
+            "source": "curl -X PUT 'https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"url\": \"string\"\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/{playbookId}/cover\", {\n  method: \"PUT\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"url\": \"string\"\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover\", {\n  method: \"PUT\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"url\": \"string\"\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PUT\",\n    \"https://caesura.today/api/v1/playbooks/{playbookId}/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"url\": \"string\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PUT\",\n    \"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"url\": \"string\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:write` scope.",
@@ -3909,17 +3909,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PATCH 'https://caesura.today/api/v1/playbooks/{playbookId}/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"position\": 0\n}'"
+            "source": "curl -X PATCH 'https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"position\": 0\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/{playbookId}/cover\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"position\": 0\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"position\": 0\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/playbooks/{playbookId}/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"position\": 0},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"position\": 0},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:write` scope.",
@@ -4130,17 +4130,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/playbooks/{playbookId}/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/{playbookId}/cover\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/playbooks/{playbookId}/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:write` scope.",
@@ -4332,17 +4332,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/playbooks/{playbookId}/export' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/export' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/{playbookId}/export\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/export\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/playbooks/{playbookId}/export\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID/export\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:read` scope.",
@@ -5513,17 +5513,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/playbooks/{playbookId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/{playbookId}\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/playbooks/{playbookId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
@@ -6129,17 +6129,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PATCH 'https://caesura.today/api/v1/playbooks/{playbookId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
+            "source": "curl -X PATCH 'https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/{playbookId}\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/playbooks/{playbookId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:write` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
@@ -7310,17 +7310,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/playbooks/{playbookId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/{playbookId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/playbooks/{playbookId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/playbooks/YOUR_PLAYBOOK_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `library:write` scope.",
@@ -11109,17 +11109,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/{tripId}/activities/{activityId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
+            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/activities/YOUR_ACTIVITY_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/activities/{activityId}\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/activities/YOUR_ACTIVITY_ID\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/{tripId}/activities/{activityId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/activities/YOUR_ACTIVITY_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
@@ -12444,17 +12444,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}/activities/{activityId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/activities/YOUR_ACTIVITY_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/activities/{activityId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/activities/YOUR_ACTIVITY_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}/activities/{activityId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/activities/YOUR_ACTIVITY_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
@@ -13268,17 +13268,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/activities' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"title\": \"string\"\n}'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/activities' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"title\": \"string\"\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/activities\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"title\": \"string\"\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/activities\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"title\": \"string\"\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/activities\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"title\": \"string\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/activities\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"title\": \"string\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
@@ -14586,17 +14586,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}/conflicts/{conflictId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/conflicts/YOUR_CONFLICT_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/conflicts/{conflictId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/conflicts/YOUR_CONFLICT_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}/conflicts/{conflictId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/conflicts/YOUR_CONFLICT_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
@@ -15405,17 +15405,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/cover\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
@@ -15605,17 +15605,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PUT 'https://caesura.today/api/v1/trips/{tripId}/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"url\": \"string\"\n}'"
+            "source": "curl -X PUT 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"url\": \"string\"\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/cover\", {\n  method: \"PUT\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"url\": \"string\"\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover\", {\n  method: \"PUT\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"url\": \"string\"\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PUT\",\n    \"https://caesura.today/api/v1/trips/{tripId}/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"url\": \"string\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PUT\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"url\": \"string\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
@@ -15861,17 +15861,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/{tripId}/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"position\": 0\n}'"
+            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"position\": 0\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/cover\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"position\": 0\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"position\": 0\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/{tripId}/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"position\": 0},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"position\": 0},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
@@ -16082,17 +16082,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/cover\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/cover\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
@@ -16284,17 +16284,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}/days/{dayId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/days/YOUR_DAY_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/days/{dayId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/days/YOUR_DAY_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}/days/{dayId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/days/YOUR_DAY_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
@@ -17108,17 +17108,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/days' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/days' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/days\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/days\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/days\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/days\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
@@ -17924,17 +17924,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/export' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/export' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/export\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/export\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/export\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/export\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
@@ -19069,17 +19069,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/geocode' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/geocode?q=string' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/geocode\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/geocode?q=string\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/geocode\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/geocode?q=string\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
@@ -19266,17 +19266,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/globals' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/globals' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/globals\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/globals\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/globals\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/globals\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
@@ -19585,17 +19585,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}/link' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"userId\": \"string\"\n}'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID/link' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"userId\": \"string\"\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}/link\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"userId\": \"string\"\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID/link\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"userId\": \"string\"\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}/link\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"userId\": \"string\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID/link\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"userId\": \"string\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `viewer` role on the trip.",
@@ -19708,17 +19708,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
+            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip.",
@@ -19830,17 +19830,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip.",
@@ -19933,17 +19933,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}/unlink' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID/unlink' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}/unlink\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID/unlink\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/guests/{guestId}/unlink\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests/YOUR_GUEST_ID/unlink\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
@@ -20036,17 +20036,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/guests' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/guests\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/guests\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
@@ -20165,17 +20165,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/guests' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"name\": \"string\"\n}'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"name\": \"string\"\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/guests\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"name\": \"string\"\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"name\": \"string\"\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/guests\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"name\": \"string\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/guests\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"name\": \"string\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip.",
@@ -20281,17 +20281,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/history/{seq}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/YOUR_SEQ' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/history/{seq}\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/YOUR_SEQ\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/history/{seq}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/YOUR_SEQ\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
@@ -21105,17 +21105,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/history/redo' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/redo' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/history/redo\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/redo\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/history/redo\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/redo\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
@@ -21921,17 +21921,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/history/revert' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"toSeq\": 0\n}'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/revert' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"toSeq\": 0\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/history/revert\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"toSeq\": 0\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/revert\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"toSeq\": 0\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/history/revert\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"toSeq\": 0},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/revert\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"toSeq\": 0},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
@@ -22758,17 +22758,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/history' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/history\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/history\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
@@ -23062,17 +23062,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/history/undo' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/undo' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/history/undo\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/undo\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/history/undo\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/history/undo\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope, or `current:write`. Requires at least the `editor` role on the trip.",
@@ -23878,17 +23878,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}/invites/{inviteId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/invites/YOUR_INVITE_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/invites/{inviteId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/invites/YOUR_INVITE_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}/invites/{inviteId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/invites/YOUR_INVITE_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
@@ -24014,17 +24014,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/invites' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/invites' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/invites\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/invites\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/invites\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/invites\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope. Requires at least the `owner` role on the trip.",
@@ -24176,17 +24176,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/invites' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"email\": \"string\",\n  \"role\": \"viewer\"\n}'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/invites' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"email\": \"string\",\n  \"role\": \"viewer\"\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/invites\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"email\": \"string\",\n    \"role\": \"viewer\"\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/invites\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"email\": \"string\",\n    \"role\": \"viewer\"\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/invites\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"email\": \"string\", \"role\": \"viewer\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/invites\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"email\": \"string\", \"role\": \"viewer\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
@@ -24338,17 +24338,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/members' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/members' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/members\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/members\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/members\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/members\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
@@ -24452,17 +24452,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `notebook:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
@@ -24626,17 +24626,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
+            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `notebook:write` scope. Requires at least the `editor` role on the trip.",
@@ -24883,17 +24883,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `notebook:write` scope. Requires at least the `editor` role on the trip.",
@@ -24962,17 +24962,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}/shares/{shareId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID/shares/YOUR_SHARE_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}/shares/{shareId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID/shares/YOUR_SHARE_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}/shares/{shareId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID/shares/YOUR_SHARE_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip.",
@@ -25072,17 +25072,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}/shares' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID/shares' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}/shares\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID/shares\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}/shares\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID/shares\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope. Requires at least the `editor` role on the trip.",
@@ -25208,17 +25208,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}/shares' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID/shares' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}/shares\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID/shares\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/pages/{pageId}/shares\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages/YOUR_PAGE_ID/shares\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `editor` role on the trip. Answers 422 for the seeded Bookings & confirmations, Money and During-the-trip notebooks, and for a deleted trip. A page that is already public is answered with its live link.",
@@ -25310,17 +25310,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/pages' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/pages\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/pages\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `notebook:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
@@ -25491,17 +25491,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/pages' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"title\": \"string\",\n  \"context\": {\n    \"tripId\": \"00000000-0000-4000-8000-000000000000\"\n  },\n  \"content\": {\n    \"type\": \"doc\"\n  }\n}'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"title\": \"string\",\n  \"context\": {\n    \"tripId\": \"00000000-0000-4000-8000-000000000000\"\n  },\n  \"content\": {\n    \"type\": \"doc\"\n  }\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/pages\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"title\": \"string\",\n    \"context\": {\n      \"tripId\": \"00000000-0000-4000-8000-000000000000\"\n    },\n    \"content\": {\n      \"type\": \"doc\"\n    }\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"title\": \"string\",\n    \"context\": {\n      \"tripId\": \"00000000-0000-4000-8000-000000000000\"\n    },\n    \"content\": {\n      \"type\": \"doc\"\n    }\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/pages\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"title\": \"string\", \"context\": {\"tripId\": \"00000000-0000-4000-8000-000000000000\"}, \"content\": {\"type\": \"doc\"}},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/pages\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"title\": \"string\", \"context\": {\"tripId\": \"00000000-0000-4000-8000-000000000000\"}, \"content\": {\"type\": \"doc\"}},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `notebook:write` scope. Requires at least the `editor` role on the trip.",
@@ -25747,17 +25747,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/playbook-applications' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"playbookId\": \"00000000-0000-4000-8000-000000000000\"\n}'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/playbook-applications' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n  \"playbookId\": \"00000000-0000-4000-8000-000000000000\"\n}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/playbook-applications\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"playbookId\": \"00000000-0000-4000-8000-000000000000\"\n  }),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/playbook-applications\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"playbookId\": \"00000000-0000-4000-8000-000000000000\"\n  }),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/playbook-applications\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"playbookId\": \"00000000-0000-4000-8000-000000000000\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/playbook-applications\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={\"playbookId\": \"00000000-0000-4000-8000-000000000000\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip. With `placement: { mode: \"startingAt\" }`, a Playbook day that lands on an existing trip day is merged into it by start time: each timed Playbook stop goes before the first stop there that starts later (or at the end), and untimed Playbook stops go last, in the Playbook's order. The trip's existing stops never move. A day the application adds keeps the Playbook's order.",
@@ -26012,17 +26012,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/restore' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/restore' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/restore\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/restore\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/restore\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/restore\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope. Requires at least the `owner` role on the trip.",
@@ -26823,17 +26823,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
@@ -27637,17 +27637,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/{tripId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
+            "source": "curl -X PATCH 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN' \\\n  -H 'Content-Type: application/json' \\\n  -d '{}'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID\", {\n  method: \"PATCH\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({}),\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/{tripId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"PATCH\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n    json={},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
@@ -28496,17 +28496,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:write` scope. Requires at least the `owner` role on the trip.",
@@ -29307,17 +29307,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/{tripId}/shares/{shareId}' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X DELETE 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/shares/YOUR_SHARE_ID' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/shares/{shareId}\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/shares/YOUR_SHARE_ID\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/{tripId}/shares/{shareId}\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"DELETE\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/shares/YOUR_SHARE_ID\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
@@ -29409,17 +29409,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/shares' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/shares' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/shares\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/shares\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/shares\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/shares\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `owner` role on the trip.",
@@ -29542,17 +29542,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X POST 'https://caesura.today/api/v1/trips/{tripId}/shares' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X POST 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/shares' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/shares\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/shares\", {\n  method: \"POST\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/{tripId}/shares\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"POST\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/shares\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
@@ -29636,17 +29636,17 @@
           {
             "lang": "Shell",
             "label": "curl",
-            "source": "curl -X GET 'https://caesura.today/api/v1/trips/{tripId}/today' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
+            "source": "curl -X GET 'https://caesura.today/api/v1/trips/YOUR_TRIP_ID/today' \\\n  -H 'Authorization: Bearer tc_YOUR_TOKEN'"
           },
           {
             "lang": "JavaScript",
             "label": "JavaScript (fetch)",
-            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/{tripId}/today\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
+            "source": "const response = await fetch(\"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/today\", {\n  method: \"GET\",\n  headers: {\n    Authorization: \"Bearer tc_YOUR_TOKEN\",\n  },\n});\nconst data = await response.json();"
           },
           {
             "lang": "Python",
             "label": "Python (requests)",
-            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/{tripId}/today\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
+            "source": "import requests\n\nresponse = requests.request(\n    \"GET\",\n    \"https://caesura.today/api/v1/trips/YOUR_TRIP_ID/today\",\n    headers={\"Authorization\": \"Bearer tc_YOUR_TOKEN\"},\n)\ndata = response.json()"
           }
         ],
         "description": "Requires the `trips:read` scope, or `current:read`. Requires at least the `viewer` role on the trip.",
