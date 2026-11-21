@@ -16,7 +16,8 @@ import {
   type ChangeResult,
 } from "@/lib/mfaClient";
 import type { MfaFactorView, MfaStatusResponse } from "@/lib/mfaWire";
-import { isStandalone, lockSetting, setLockSetting, type LockAfter } from "@/lib/pwaLock";
+import { isStandalone } from "@/lib/installPrompt";
+import { lockSetting, setLockSetting, type LockAfter } from "@/lib/pwaLock";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { AddAuthenticatorDialog } from "./AddAuthenticatorDialog";
 import { FreshCheckDialog } from "./FreshCheckDialog";

@@ -30,7 +30,9 @@ const Step = z.union([
     response: z.record(z.string(), z.unknown()),
   }),
   // A code is typed, so it is bounded here and judged in `totp.ts` and `recoveryCodes.ts`.
-  z.object({ kind: z.enum(["otp", "recovery"]), code: z.string().min(1).max(64) }),
+  // Strict, so a code sent with `purpose: "unlock"` is refused rather than stripped
+  // to an ordinary check that mints a proof and restarts `mfaAt` (D7).
+  z.strictObject({ kind: z.enum(["otp", "recovery"]), code: z.string().min(1).max(64) }),
 ]);
 
 export async function POST(request: Request) {

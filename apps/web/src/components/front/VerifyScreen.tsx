@@ -11,6 +11,7 @@ import { Text } from "@/components/ui/text";
 import { CodeEntryForm, type CodeKind } from "@/components/front/CodeEntryForm";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { checkWithCode, checkWithPasskey, type CodeCheck, type PasskeyCheck } from "@/lib/mfaClient";
+import { recordActivity } from "@/lib/pwaLock";
 import { clearSignedInHint } from "@/lib/sessionHint";
 
 // The second step after Google (M62 D3a). It opens with the passkey prompt already
@@ -47,10 +48,17 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
     inFlight.current = false;
     setOutcome(result);
     if (result === "unavailable") setMode("otp");
-    if (result === "passed" || result === "not-required") router.replace(callbackUrl);
+    if (result === "passed" || result === "not-required") goOn();
     // Nothing on this screen can work without a session behind the cookie. The
     // route clears it, then sends the person to sign in with where they were going.
     else if (result === "signed-out") leaveSession();
+  }
+
+  // Signing in is activity. Without it the installed app's lock (M62 D3b) reads a
+  // last activity from before the sign-out and locks seconds after this passkey.
+  function goOn() {
+    recordActivity();
+    router.replace(callbackUrl);
   }
 
   function leaveSession() {
@@ -62,7 +70,7 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
     const result = await checkWithCode(kind, code);
     setCodeOutcome(result);
     // The same exits as the passkey's: neither has a retry.
-    if (result === "passed" || result === "not-required") router.replace(callbackUrl);
+    if (result === "passed" || result === "not-required") goOn();
     else if (result === "signed-out") leaveSession();
   }
 

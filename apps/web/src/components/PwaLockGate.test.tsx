@@ -2,7 +2,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MfaStatusResponse } from "@/lib/mfaWire";
-import type { UnlockResult } from "@/lib/pwaLock";
+import { setLockSetting, type UnlockResult } from "@/lib/pwaLock";
 
 const unlock = vi.fn<() => Promise<UnlockResult>>();
 vi.mock("@/lib/pwaLock", async (original) => ({
@@ -27,7 +27,7 @@ function idleFor(ms: number, setting = "15m") {
 }
 function app(signedIn = true) {
   return render(
-    <PwaLockGate signedIn={signedIn}>
+    <PwaLockGate signedIn={signedIn} userId="u1">
       <button type="button">Plan a trip</button>
     </PwaLockGate>,
   );
@@ -75,12 +75,45 @@ describe("PwaLockGate", () => {
     expect(lockScreen()).toBeTruthy();
   });
 
-  it("signs out from the lock screen", async () => {
+  it("says it is offline, not that the passkey failed, when the unlock cannot reach the server", async () => {
     installed(true);
     idleFor(20 * MIN);
+    unlock.mockResolvedValue("offline");
+    app();
+    await userEvent.click(await screen.findByRole("button", { name: "Unlock with passkey" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "You're offline. Your passkey can open the app once you're connected.",
+    );
+  });
+
+  it("signs out from the lock screen, and takes the account's Ask conversations with it", async () => {
+    installed(true);
+    idleFor(20 * MIN);
+    window.localStorage.setItem("ask_thread_v1:u1:home", "[]");
     app();
     await userEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/" });
+    expect(window.localStorage.getItem("ask_thread_v1:u1:home")).toBeNull();
+  });
+
+  it("moves focus to Unlock when it locks, and back to where it was once unlocked", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    installed(true);
+    idleFor(0);
+    unlock.mockResolvedValue("unlocked");
+    app();
+    const planATrip = await screen.findByRole("button", { name: "Plan a trip" });
+    planATrip.focus();
+    await act(async () => {
+      vi.advanceTimersByTime(16 * MIN);
+    });
+    const unlockButton = screen.getByRole("button", { name: "Unlock with passkey" });
+    expect(unlockButton.matches(":focus")).toBe(true);
+    await act(async () => {
+      unlockButton.click();
+    });
+    expect(lockScreen()).toBeNull();
+    expect(planATrip.matches(":focus")).toBe(true);
   });
 
   it("does not lock in a browser tab", async () => {
@@ -99,6 +132,20 @@ describe("PwaLockGate", () => {
     expect(await screen.findByRole("button", { name: "Plan a trip" })).toBeTruthy();
     expect(lockScreen()).toBeNull();
     expect(window.localStorage.getItem("caesura_lock_after")).toBeNull();
+  });
+
+  it("watches from the moment the lock is turned on, without a relaunch", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    installed(true);
+    app();
+    expect(await screen.findByRole("button", { name: "Plan a trip" })).toBeTruthy();
+    act(() => {
+      setLockSetting("15m");
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(16 * MIN);
+    });
+    expect(lockScreen()).toBeTruthy();
   });
 
   it("locks an app left open in the foreground once the idle time passes", async () => {

@@ -12,11 +12,11 @@ import { servedForApp } from "@/server/servedSession";
 // (`lib/playbooksReader.ts`).
 //
 // The installed app's idle lock goes over all of it (M62 D3b). A request with no
-// session cookie has no account to lock.
+// session cookie has no account to lock; the user id is for Sign out on the lock.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const served = await servedForApp();
   return (
-    <PwaLockGate signedIn={!served.noSessionCookie}>
+    <PwaLockGate signedIn={!served.noSessionCookie} userId={served.served?.user?.id ?? null}>
       <AppShell {...served}>{children}</AppShell>
     </PwaLockGate>
   );

@@ -1,5 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { isPastIdle, lastActiveAt, lockSetting, recordActivity, setLockSetting, type LockAfter } from "./pwaLock";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  isPastIdle,
+  lastActiveAt,
+  lockSetting,
+  recordActivity,
+  setLockSetting,
+  unlockWithPasskey,
+  type LockAfter,
+} from "./pwaLock";
 
 const MIN = 60_000;
 const NOW = Date.UTC(2026, 10, 21, 12, 0);
@@ -60,5 +68,14 @@ describe("the lock setting on this device", () => {
     expect(setLockSetting("1h", NOW, throwingStorage)).toBe(false);
     expect(() => recordActivity(NOW, throwingStorage)).not.toThrow();
     expect(lastActiveAt(throwingStorage)).toBeNull();
+  });
+});
+
+describe("unlockWithPasskey", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is offline, not refused, when the request cannot leave the device", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
+    expect(await unlockWithPasskey()).toBe("offline");
   });
 });

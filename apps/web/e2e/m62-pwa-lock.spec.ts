@@ -6,7 +6,8 @@ import { addVirtualAuthenticator, openAccountPage, signInAsDevUser } from "./hel
 // authenticator. A preview cannot be installed, so the spec makes the page an
 // installed app the way iOS says so (`navigator.standalone`), turns the lock on,
 // and stands in for the idle time by moving the last activity back: fifteen
-// minutes cannot be waited out. The lock opens to the passkey, and Sign out works.
+// minutes cannot be waited out. The lock opens to the passkey, over an open
+// dialog too, and Sign out works.
 //
 // A fresh dev user, not the shared alice session: this account turns MFA on
 // (`m62-passkey.spec.ts` records why).
@@ -33,6 +34,22 @@ test("the installed app locks after its idle time, a passkey opens it, and Sign 
   await sheet.getByRole("checkbox", { name: "I saved these" }).check();
   await sheet.getByRole("button", { name: "Done" }).click();
   await twoStep.getByRole("combobox", { name: "Lock after inactivity" }).selectOption({ label: "15 minutes" });
+
+  // ---- it locks over an open dialog, without a relaunch, and Unlock still works -
+  // A modal Radix dialog turns off pointer events on the body and traps focus,
+  // so a lock drawn over one has to win both back. The dialog is still there after.
+  await twoStep.getByRole("button", { name: "Turn off two-step sign-in" }).click();
+  const confirmOff = page.getByRole("dialog", { name: "Turn off two-step sign-in?" });
+  await expect(confirmOff).toBeVisible();
+  await page.evaluate(() => {
+    window.localStorage.setItem("caesura_last_active", String(Date.now() - 20 * 60_000));
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(lockScreen(page)).toBeVisible();
+  await lockScreen(page).getByRole("button", { name: "Unlock with passkey" }).click();
+  await expect(lockScreen(page)).toBeHidden();
+  await expect(confirmOff).toBeVisible();
+  await confirmOff.getByRole("button", { name: "Cancel" }).click();
 
   // ---- inside the idle time it stays open ------------------------------------
   await walkAway(page, 5);

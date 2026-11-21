@@ -34,6 +34,17 @@ describe("VerifyScreen", () => {
     expect(check).toHaveBeenCalledTimes(1);
   });
 
+  // The installed app's lock (M62 D3b) reads this device's last activity; one from
+  // before a sign-out would lock the app seconds after the passkey that signed in.
+  it("restarts the installed app's idle clock once the second step passes", async () => {
+    window.localStorage.setItem("caesura_last_active", String(Date.now() - 24 * 60 * 60_000));
+    check.mockResolvedValue("passed");
+    render(<VerifyScreen callbackUrl="/home" />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/home"));
+    expect(Number(window.localStorage.getItem("caesura_last_active"))).toBeGreaterThan(Date.now() - 60_000);
+    window.localStorage.clear();
+  });
+
   it("leaves a button to try again when the prompt is closed, and does not move on", async () => {
     check.mockResolvedValueOnce("cancelled").mockResolvedValueOnce("passed");
     render(<VerifyScreen callbackUrl="/home" />);

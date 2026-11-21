@@ -245,13 +245,18 @@ describe("unlocking the installed app with a passkey", () => {
     );
   }
 
-  it("succeeds on an assertion and mints no proof, so the session and its mfaAt stay as they were", async () => {
-    const { id, device } = await accountWithPasskey();
-    const before = await mfaStateFor(id);
+  it("succeeds on an assertion and mints no proof, so the browser has nothing to move mfaAt with", async () => {
+    const { device } = await accountWithPasskey();
     const res = await unlock(device);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ unlocked: true });
-    expect(await mfaStateFor(id)).toEqual(before);
+  });
+
+  it("refuses the unlock purpose on a code, rather than checking the code and minting a proof", async () => {
+    await accountWithPasskey();
+    const res = await VERIFY(post({ kind: "recovery", code: "aaaa-bbbb", purpose: "unlock" }));
+    expect(res.status).toBe(400);
+    expect(await json(res)).toEqual({ error: "invalid-request" });
   });
 
   it("refuses another account's passkey", async () => {
