@@ -168,6 +168,12 @@ Each *Recommendation* below is now the decision.
 17. **The words are approved on the preview at the gate.** Builders draft from the working titles
     in decisions 1 and 14.
 
+18. **No GitHub contacts anywhere (amends decision 13), answered 2026-11-21.** Part 5's review found
+    that `security.txt`'s GitHub advisory and issues links, reused on `/security`, put the
+    repository in the page's links and revealed that it is private. Mitchell: *drop GitHub
+    everywhere*. `security.txt` and `/security` both keep only the security email, still read from
+    one constant. `security.txt`'s `Expires` does not change, and it gains its `Policy:` line.
+
 ## Scope
 
 A first cut of the parts, for the plan to settle:
