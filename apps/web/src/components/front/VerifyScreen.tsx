@@ -50,8 +50,9 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
     const result = await checkWithPasskey();
     inFlight.current = false;
     setOutcome(result);
-    // Asked for from a code, it goes back to that code: the person chose it.
-    if (result === "unavailable") setMode(from === "passkey" ? "otp" : from);
+    // Asked for from a code, it goes back to that code: the person chose it. A code
+    // tapped while the prompt was out is chosen too, so only passkey mode is left.
+    if (result === "unavailable") setMode((m) => (m !== "passkey" ? m : from === "passkey" ? "otp" : from));
     if (result === "passed" || result === "not-required") goOn();
     // Nothing on this screen can work without a session behind the cookie. The
     // route clears it, then sends the person to sign in with where they were going.
