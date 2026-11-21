@@ -1,6 +1,6 @@
 # M63 — Two pages say Caesura is AI first, and safe to hand to your AI
 
-**Status (2026-11-20): proposed, not scoped.** Minted by Mitchell the same day: *"adding a SEO page
+**Status (2026-11-21): scoped and started.** Plan: `docs/plans/2026-11-21-M63-caesura-works-with-your-ai.md`, five parts as one stack, tracked by part 0 on `ccr-8a6d904d-vhaiet`. *(Was: proposed 2026-11-20.)* Minted by Mitchell the same day: *"adding a SEO page
 about how caesura is a AI first tool, document all the AI tools we have like mcp, fine scoped
 tokens, the api, agents.md, poppy, and give examples how caesura is a partner to your favorite ai
 tools."* Placed **after M62, ahead of M53**, by Mitchell the same day (see `docs/milestones/README.md`,
@@ -156,6 +156,17 @@ Each *Recommendation* below is now the decision.
     build proposes the words, Mitchell approves them), within M53's title and description
     limits. Structured data is `WebPage` with an `FAQPage` block only for questions visible on
     the page.
+
+### Plan questions, answered 2026-11-21 (Mitchell)
+
+15. **ChatGPT and Gemini are built, and Mitchell proves them.** Their sections are written from each
+    vendor's docs; Mitchell runs each on production before the gate, and any he cannot get working is
+    removed on the top part before it merges. Claude, an MCP client, Poppy discovery and the `curl`
+    script are proven from the orchestrating session.
+16. **Five parts, not eight.** Each page ships with its own search pieces; proving the examples is
+    evidence in part 0, not a code part.
+17. **The words are approved on the preview at the gate.** Builders draft from the working titles
+    in decisions 1 and 14.
 
 ## Scope
 
