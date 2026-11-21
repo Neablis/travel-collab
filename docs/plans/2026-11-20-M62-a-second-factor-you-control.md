@@ -83,7 +83,8 @@ Gate boxes: **Model** (seen red), and **Recovery codes** for the server half.
 **Theme.** This part covers D3a, D6 and D10. It builds WebAuthn register and verify, the real
 `/signin/verify` screen (passkey first), the *Two-step sign-in* section with Add a passkey, rename,
 the 10-minute fresh-check dialog, and the first factor turning MFA on with recovery codes shown
-once. Remove and turn-off belong to part 4.
+once. Turning on **bumps the epoch** (part 1 review, finding 5a). A request carrying a session
+cookie that `auth()` refuses as stale is redirected to `/signin` (finding 5b). Remove and turn-off belong to part 4.
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
@@ -108,7 +109,9 @@ Sign out and back in, and the passkey prompt appears.
 
 ## Part 3: Authenticator app and recovery codes (~10 files)
 
-**Theme.** This part covers D2, D6, D7 (Regenerate) and D13 in the UI. It adds TOTP enrolment with
+**Theme.** This part covers D2, D6, D7 (Regenerate) and D13 in the UI. Pass the factor row's id as GCM
+additional data when sealing the TOTP secret, so a sealed secret can't be moved to another row
+(part 1 review, finding 8). Verify codes only through the atomic attempt entry point from part 1. It adds TOTP enrolment with
 a QR code and the *Can't scan?* text, the code and recovery-code paths on `/signin/verify` with the
 lock message, *Regenerate* with the left count, and either factor completing sign-in.
 
@@ -131,7 +134,8 @@ code. Sign out, choose *Use authenticator code*, and get in.
 
 ## Part 4: Revoking and its reach (~12 files)
 
-**Theme.** This part covers D7 and D8. It adds Remove (refused for the last factor), *Turn off
+**Theme.** This part covers D7 and D8. Consume the `carry` proof that re-mints the changing session's token
+(part 1 review, finding 7). It adds Remove (refused for the last factor), *Turn off
 two-step sign-in*, the epoch bump on every change (other sessions are signed out), the security
 email, the gates on consent and *Create token*, and the *Also revoke all tokens and connected
 apps* tick.

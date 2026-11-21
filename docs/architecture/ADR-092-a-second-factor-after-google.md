@@ -25,8 +25,11 @@ Mitchell asked for MFA with biometric unlock, adding factors and revoking them
 4. **Revocation is an epoch.** `users.security_epoch` goes up on every factor change, turn-off,
    code regeneration and operator reset. The `jwt` callback refuses a token minted under an older
    epoch, which signs out every other session. The session that made the change gets a new token.
-   This is the one place stateless sessions become revocable. It costs one indexed read per
-   `auth()`, a read the callback already makes for the account.
+   This is the one place stateless sessions become revocable. It costs one primary-key read of
+   `users` per server `auth()`, which means several per page render. This is a new read: the
+   callback was pure before M62, and `server/auth.ts` now supplies the lookup. The proxy's
+   `mfaRequired` flag is current only as of sign-in or the last `update()`, so turning MFA on
+   bumps the epoch too, and a cookie the epoch has made stale is sent to `/signin`.
 5. **Secrets at rest.** The TOTP secret is sealed with AES-256-GCM under `MFA_SECRET_KEY`
    (`server/secrets/sealed.ts`), because verifying a code needs the secret back. Recovery codes
    are stored as keyed digests (`server/secrets/keyedDigest.ts`), and each works once.
