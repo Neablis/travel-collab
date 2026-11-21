@@ -13,6 +13,7 @@ import {
   lockSetting,
   onLockSettingChange,
   recordActivity,
+  releaseEarlyLock,
   setLockSetting,
   unlockWithPasskey,
 } from "@/lib/pwaLock";
@@ -21,8 +22,8 @@ import { signOutHere } from "@/lib/signOutHere";
 // The installed app's idle lock (M62 D3b, `lib/pwaLock.ts`). The app stays
 // mounted under the lock, only `inert`, so whatever was open is still there,
 // half-typed, when the passkey clears it. Only in the installed app, and only for
-// an account with a passkey (D16): an account that has lost its last one has the
-// setting cleared rather than a lock it cannot open.
+// an account with a passkey (D16): an account without one is not locked, and the
+// device's setting is left for whoever chose it.
 
 // How often a foreground app looks at the clock, and how often a run of taps is
 // written down: the shortest setting is 15 minutes, so neither needs to be finer.
@@ -68,19 +69,24 @@ export function PwaLockGate({
 
   // A layout effect, so a cold start past the idle time locks before the first
   // client frame rather than after it.
+  // `EARLY_LOCK_SCRIPT` may have hidden the server's paint: shown again here when
+  // there is no lock to put up, and by the lock's own effect when there is.
   useLayoutEffect(() => {
     if (!signedIn || !isStandalone(window) || lockSetting() === "off") {
       setWatching(false);
+      releaseEarlyLock();
       return;
     }
     // Locked at once if it was closed past its time, before the check below
     // answers: the app must not show for the length of a request.
-    setLocked(isPastIdle(lockSetting(), lastActiveAt(), Date.now()));
+    const pastIdle = isPastIdle(lockSetting(), lastActiveAt(), Date.now());
+    setLocked(pastIdle);
+    if (!pastIdle) releaseEarlyLock();
     setWatching(true);
     let current = true;
     void accountHasPasskey().then((has) => {
+      // The setting stays: it is the device's, and another account here may have chosen it.
       if (!current || has !== false) return;
-      setLockSetting("off");
       setWatching(false);
       setLocked(false);
     });
@@ -136,10 +142,18 @@ export function PwaLockGate({
     const keep = (event: Event) => event.stopPropagation();
     overlay.addEventListener("pointerdown", keep);
     overlay.addEventListener("focusin", keep);
+    // Escape is caught on the document in the capture phase, past `inert`: stopped
+    // here on the window, before it, or the dialog underneath closes with what was typed in it.
+    const keepEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") event.stopPropagation();
+    };
+    window.addEventListener("keydown", keepEscape, { capture: true });
     unlockButton.current?.focus();
+    releaseEarlyLock();
     return () => {
       overlay.removeEventListener("pointerdown", keep);
       overlay.removeEventListener("focusin", keep);
+      window.removeEventListener("keydown", keepEscape, { capture: true });
       for (const el of others) el.removeAttribute("inert");
       const before = focusBeforeLock.current;
       focusBeforeLock.current = null;
