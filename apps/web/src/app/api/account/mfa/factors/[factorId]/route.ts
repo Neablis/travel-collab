@@ -33,7 +33,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ fa
 // read as not found, as for rename.
 /**
  * Removes one of the signed-in account's factors and returns the proof that keeps this
- * session signed in through the epoch bump. 403 without a fresh check, 409 for the last factor.
+ * session signed in through the epoch bump. 403 without a fresh check, 409 for the last
+ * factor, 404 for an id that is malformed or not theirs.
  */
 export async function DELETE(request: Request, { params }: { params: Promise<{ factorId: string }> }) {
   const session = await auth();

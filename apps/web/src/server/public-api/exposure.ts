@@ -296,7 +296,7 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "account/mfa/recovery-codes": {
     status: "never",
     why: "Issuing recovery codes — a token could mint a way past its owner's second factor",
-    reaches: [{ module: "@/server/mfa/recoveryCodes" }],
+    reaches: [{ module: "@/server/mfa/recoveryCodes" }, { module: "@/server/mfa/changes", symbols: ["recordSecurityChange"] }],
   },
   "account/mfa/totp": {
     status: "never",
@@ -311,7 +311,12 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "mfa/verify": {
     status: "never",
     why: "The second step of sign-in; a token is already signed in",
-    reaches: [{ module: "@/server/mfa/attempts" }, { module: "@/server/mfa/state", symbols: ["mintSecondFactorProof"] }],
+    reaches: [
+      { module: "@/server/mfa/attempts" },
+      { module: "@/server/mfa/totp", symbols: ["verifyTotp"] },
+      { module: "@/server/mfa/recoveryCodes", symbols: ["consumeRecoveryCode"] },
+      { module: "@/server/mfa/state", symbols: ["mintSecondFactorProof"] },
+    ],
   },
   "session-expired": {
     status: "never",
