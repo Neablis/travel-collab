@@ -266,4 +266,13 @@ A first cut of the parts, for the plan to settle:
 - **2026-11-21, a script.** `GET /api/v1/openapi` answered 200 signed out. `GET /api/v1/trips`
   without a token answered 401. A run with a real `trips:read` token is still to be recorded, since
   this session has no token.
+- **2026-11-21, Mitchell's confirmation.** Mitchell confirmed he has run all three before on
+  production and they work: a script with a real `trips:read` token, Claude publishing a playbook,
+  and Poppy end to end (connector to a working Caesura session). Recorded here as his word, not a
+  run captured by this session.
 - **ChatGPT, Gemini:** Mitchell, before the gate (decision 15).
+
+### `/security` claims on production (gate box *Security claims*)
+
+- **2026-11-21, Mitchell.** Checked the claims in PR 788's "Claims to check on production" table
+  and confirmed them: "Confirmed and good".
