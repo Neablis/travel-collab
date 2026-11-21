@@ -109,7 +109,9 @@ describe("DevelopersScreen", () => {
     expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"]);
     const panel = screen.getByRole("tabpanel", { name: "Claude" });
     expect(within(panel).getByRole("region", { name: "Connect Claude" })).toBeDefined();
-    expect(screen.queryByRole("tabpanel", { name: "ChatGPT" })).toBeNull();
+    // Only the selected tab points at its panel; the others' panels are
+    // hidden by a class jsdom does not style, so they cannot be told by role.
+    expect(tabs.map((t) => t.getAttribute("aria-controls"))).toEqual(["connect-panel-claude", null, null]);
   });
 
   it("moves between clients with the arrow keys and on click", () => {
@@ -128,14 +130,34 @@ describe("DevelopersScreen", () => {
     expect(screen.getByRole("tab", { name: "Gemini" }).getAttribute("aria-selected")).toBe("true");
   });
 
+  // A link to the hash already in the URL fires no `hashchange`, so after
+  // switching tabs by hand, following it again must still open its tab.
+  it("opens a tab again when a link to the hash already in the URL is clicked", () => {
+    window.location.hash = "#connect-chatgpt";
+    render(<DevelopersScreen tools={TOOLS} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Gemini" }));
+    expect(screen.getByRole("tab", { name: "Gemini" }).getAttribute("aria-selected")).toBe("true");
+    const link = document.body.appendChild(document.createElement("a"));
+    link.href = "#connect-chatgpt";
+    fireEvent.click(link);
+    link.remove();
+    expect(screen.getByRole("tab", { name: "ChatGPT" }).getAttribute("aria-selected")).toBe("true");
+  });
+
   // With JavaScript off the tab buttons do nothing, so every client's steps
-  // must already be in the HTML the server sends, none of them hidden.
-  it("sends every client's steps in the server HTML, none hidden", () => {
+  // must be in the HTML the server sends. The other two panels are hidden
+  // there (no flash for a JS visitor) and a noscript rule shows them again.
+  it("sends every client's steps in the server HTML, the non-default ones hidden and un-hidden by noscript", () => {
     const html = renderToString(<DevelopersScreen tools={TOOLS} />);
     for (const id of ["connect-claude", "connect-chatgpt", "connect-gemini"]) expect(html).toContain(`id="${id}"`);
     expect(html).toContain("Import the OpenAPI document as an Action");
     expect(html).toContain("Declare functions from the OpenAPI document");
-    expect(html).not.toMatch(/\shidden(=|\s|>)/);
+    expect(html.match(/<div[^>]*role="tabpanel"[^>]*>/g)?.map((tag) => /class="[^"]*\bhidden\b/.test(tag))).toEqual([
+      false,
+      true,
+      true,
+    ]);
+    expect(html).toMatch(/<noscript><style>[^<]*\{display:block!important\}<\/style><\/noscript>/);
   });
 
   it("has a way back home", () => {

@@ -1,20 +1,24 @@
 "use client";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
+import { cn } from "@/lib/cn";
 import { tabId, tabPanelId, UnderlineTabs } from "@/components/ui/underline-tabs";
 
 // The client tabs of `/developers`' "Connect your AI". A client component only
 // because a tab keeps a selection; `DevelopersScreen` stays a server component
 // and hands each panel in as children.
 //
-// **JavaScript off.** Every panel is in the server's HTML and none is hidden,
-// so each client's steps are readable and the tab buttons are simply inert.
-// Panels are hidden only once the page has hydrated (`useSyncExternalStore`'s
-// server snapshot is `false`, so the first client render matches the HTML).
+// **JavaScript off.** The server HTML carries every panel's text, the
+// non-default ones hidden, so a JS visitor never sees them flash and
+// collapse. A `<noscript><style>` shows them again for a reader without
+// JavaScript, whose tab buttons are inert.
 //
 // **Hash.** The section inside each panel keeps its own anchor (`#connect-claude`
-// and so on), linked from `/ai` and `/agents.md`. A hash naming one opens that
-// tab on load and on every `hashchange`, then scrolls to it: the browser's own
-// jump lands on a panel that was still hidden.
+// and so on), linked from `/ai` and `/agents.md`. A hash naming one, on load, on
+// `hashchange` or on a click on a link to it, opens that tab and then scrolls to
+// the section from an effect, which runs after React has committed the panel
+// un-hidden. (A `requestAnimationFrame` could fire first and scroll to nothing.)
+// The click is handled too because a link to the hash already in the URL fires
+// no `hashchange`.
 
 export interface ConnectClient<T extends string> {
   readonly value: T;
@@ -23,7 +27,10 @@ export interface ConnectClient<T extends string> {
 }
 
 const HASH_PREFIX = "connect-";
-const subscribe = () => () => {};
+// Un-hides the panels the server rendered hidden, for a reader with no JavaScript.
+// Hidden by the `hidden` class, not the attribute: Tailwind's preflight hides
+// `[hidden]` with a layered `!important`, which an unlayered rule cannot beat.
+const NO_SCRIPT_CSS = "[data-connect-panel]{display:block!important}";
 
 export function ConnectTabs<T extends string>({
   clients,
@@ -35,24 +42,39 @@ export function ConnectTabs<T extends string>({
   "aria-label": string;
 }) {
   const [selected, setSelected] = useState<T>(clients[0]!.value);
-  const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
+  // A fresh object per request, so asking for the tab already open still scrolls.
+  const [scrollTo, setScrollTo] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
-    function fromHash() {
-      const id = window.location.hash.slice(1);
+    function open(id: string) {
       const match = clients.find((c) => id === `${HASH_PREFIX}${c.value}`);
       if (match === undefined) return;
       setSelected(match.value);
-      // After the new panel is shown: the section's own id is what the link names.
-      requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView?.());
+      setScrollTo({ id });
+    }
+    const fromHash = () => open(window.location.hash.slice(1));
+    function onClick(event: MouseEvent) {
+      const href = (event.target as Element | null)?.closest?.("a[href^='#']")?.getAttribute("href");
+      if (href != null) open(href.slice(1));
     }
     fromHash();
     window.addEventListener("hashchange", fromHash);
-    return () => window.removeEventListener("hashchange", fromHash);
+    document.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("hashchange", fromHash);
+      document.removeEventListener("click", onClick);
+    };
   }, [clients]);
+
+  useEffect(() => {
+    if (scrollTo !== null) document.getElementById(scrollTo.id)?.scrollIntoView?.();
+  }, [scrollTo]);
 
   return (
     <div className="flex flex-col gap-4">
+      <noscript>
+        <style>{NO_SCRIPT_CSS}</style>
+      </noscript>
       <UnderlineTabs
         value={selected}
         onValueChange={setSelected}
@@ -67,9 +89,12 @@ export function ConnectTabs<T extends string>({
           role="tabpanel"
           id={tabPanelId(idPrefix, c.value)}
           aria-labelledby={tabId(idPrefix, c.value)}
-          hidden={hydrated && c.value !== selected}
+          data-connect-panel=""
           tabIndex={0}
-          className="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          className={cn(
+            "rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
+            c.value !== selected && "hidden",
+          )}
         >
           {c.panel}
         </div>

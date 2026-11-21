@@ -17,9 +17,12 @@ function servedPaths(): Set<string> {
   const walk = (dir: string, segments: string[]): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.isDirectory()) {
-        // `[copy]` and `live` are the library's two renderings of one URL tree
-        // (the proxy picks by session), not segments a visitor types.
-        const hidden = (entry.name.startsWith("(") && entry.name.endsWith(")")) || entry.name === "[copy]" || entry.name === "live";
+        // Under `playbooks`, `[copy]` and `live` are the library's two renderings
+        // of one URL tree (the proxy picks by session), not segments a visitor types.
+        const inPlaybooks = segments[0] === "playbooks";
+        const hidden =
+          (entry.name.startsWith("(") && entry.name.endsWith(")")) ||
+          (inPlaybooks && (entry.name === "[copy]" || entry.name === "live"));
         walk(path.join(dir, entry.name), hidden ? segments : [...segments, entry.name]);
       } else if (entry.name === "route.ts" || entry.name === "page.tsx") {
         out.add(`/${segments.join("/")}`);

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
+import { BASE_URL } from "../src/config";
 import { DATABASE_URL } from "../src/server/config";
 import { expect, test } from "./fixtures/test";
 import { forget, publishedDay, stranger } from "./helpers";
@@ -541,12 +542,17 @@ for (const route of ["/", "/ai", "/security", "/developers"]) {
     const visitor = await stranger(browser);
     try {
       const html = await (await visitor.request.get(route)).text();
-      const content = /<meta property="og:image" content="([^"]*)"/.exec(html)?.[1];
-      expect(content, "an og:image tag").toBeDefined();
-      // Absolute on the deployment's origin; the test server answers the same path.
-      const image = await visitor.request.get(new URL(content!, "http://localhost").pathname);
-      expect(image.status()).toBe(200);
-      expect(image.headers()["content-type"]).toContain("image/");
+      const images = [...html.matchAll(/<meta property="og:image" content="([^"]*)"/g)].map((m) => m[1]!);
+      expect(images.length, "an og:image tag").toBeGreaterThan(0);
+      for (const content of images) {
+        // Absolute, on the site's own origin: a relative URL is read against the
+        // reader's page, not ours.
+        expect(content).toMatch(/^https?:\/\//);
+        expect(new URL(content).origin).toBe(new URL(BASE_URL).origin);
+        const image = await visitor.request.get(content);
+        expect(image.status()).toBe(200);
+        expect(image.headers()["content-type"]).toContain("image/");
+      }
     } finally {
       await visitor.context().close();
     }
