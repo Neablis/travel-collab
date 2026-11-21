@@ -18,9 +18,16 @@
 // No cookie is sent, so every page is read as a signed-out visitor reads it,
 // which is the copy that is cached. Production only (`APP_ENV`): a preview or
 // staging database has nobody to keep asleep for, and the test lanes read live.
+//
+// It also runs a minute after a write clears the library's lists (a publish,
+// an unpublish, a rename, a rank change), for the same reason as at start: on
+// 2026-11-20 two morning publishes emptied the lists an hour after the
+// deploy's warm-up had filled them, and crawlers read them back one URL at a
+// time until the next morning. The minute lets a burst of edits finish, and
+// lets Next flush the clear, which it does after the writer's response.
 
 import { deployEnv } from "@/lib/deployment/env";
-import { LIBRARY_CACHE_SECONDS } from "./libraryCache";
+import { LIBRARY_CACHE_SECONDS, LISTS_CLEARED } from "./libraryCache";
 
 /** What one warm-up did, for the log line. */
 export interface WarmResult {
@@ -38,6 +45,9 @@ export const WARM_USER_AGENT = "caesura-cache-warmup";
 
 /** How often the warm-up runs again: just past an entry's lifetime, so a day's stale entries are all read again together. */
 export const REWARM_MS = (LIBRARY_CACHE_SECONDS + 10 * 60) * 1000;
+
+/** How long after a list is cleared the warm-up runs, each further clear starting the wait again. */
+export const REWARM_AFTER_CLEAR_MS = 60 * 1000;
 
 /** How long to wait for the server to answer its health check before giving up on this start's warm-up. */
 const HEALTH_WAIT_MS = 2 * 60 * 1000;
@@ -123,6 +133,10 @@ export interface WarmerDeps {
   readonly fetch: typeof fetch;
   readonly sleep: (ms: number) => Promise<void>;
   readonly every: (run: () => void, ms: number) => void;
+  /** Run once after `ms`; the returned function cancels it. */
+  readonly later: (run: () => void, ms: number) => () => void;
+  /** Call `onCleared` each time a write clears the library's lists. */
+  readonly listen: (onCleared: () => void) => void;
   readonly log: (line: string) => void;
 }
 
@@ -132,12 +146,21 @@ const defaultDeps = (): WarmerDeps => ({
   fetch,
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   every: (run, ms) => setInterval(run, ms).unref(),
+  later: (run, ms) => {
+    const timer = setTimeout(run, ms);
+    timer.unref();
+    return () => clearTimeout(timer);
+  },
+  listen: (onCleared) => {
+    (globalThis as Record<symbol, unknown>)[LISTS_CLEARED] = onCleared;
+  },
   log: (line) => console.log(line),
 });
 
 /**
  * Start the warm-up in a production server: once the server answers its
- * health check, then every `REWARM_MS`. Returns null outside production, and
+ * health check, then every `REWARM_MS`, and `REWARM_AFTER_CLEAR_MS` after a
+ * write clears the library's lists. Returns null outside production, and
  * otherwise the first run's promise, which the server's start does not wait
  * on. Never rejects: a warm-up that fails is logged and the next one tries
  * again.
@@ -145,7 +168,7 @@ const defaultDeps = (): WarmerDeps => ({
 export function startPublicPageWarmer(deps: WarmerDeps = defaultDeps()): Promise<void> | null {
   if (deps.env() !== "production") return null;
   const base = `http://127.0.0.1:${deps.port ?? "3000"}`;
-  const run = async (): Promise<void> => {
+  const warmOnce = async (): Promise<void> => {
     try {
       const result = await warmPublicPages(base, deps.fetch);
       deps.log(`[warm-up] read ${result.ok} of ${result.pages} public pages in ${result.ms} ms (${result.failed} failed)`);
@@ -153,6 +176,33 @@ export function startPublicPageWarmer(deps: WarmerDeps = defaultDeps()): Promise
       deps.log(`[warm-up] skipped: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
+  // One warm-up at a time. One asked for while another runs is run once more
+  // after it, since the running one may have read a page before the clear.
+  let running: Promise<void> | null = null;
+  let again = false;
+  const run = (): Promise<void> => {
+    if (running) {
+      again = true;
+      return running;
+    }
+    running = (async () => {
+      do {
+        again = false;
+        await warmOnce();
+      } while (again);
+      running = null;
+    })();
+    return running;
+  };
+  let cancelPending: (() => void) | null = null;
+  deps.listen(() => {
+    if (cancelPending) cancelPending();
+    else deps.log(`[warm-up] the library's lists were cleared; reading them again in ${REWARM_AFTER_CLEAR_MS / 1000} s`);
+    cancelPending = deps.later(() => {
+      cancelPending = null;
+      void run();
+    }, REWARM_AFTER_CLEAR_MS);
+  });
   return (async () => {
     if (!(await serverUp(base, deps.fetch, deps.sleep))) {
       deps.log("[warm-up] skipped: the server never answered its health check");
