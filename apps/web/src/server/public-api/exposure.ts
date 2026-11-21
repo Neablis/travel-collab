@@ -303,6 +303,11 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "Adding an authenticator app — a token could plant a factor of its own",
     reaches: [{ module: "@/server/mfa/totp" }, { module: "@/server/mfa/factors", symbols: ["addTotp"] }],
   },
+  "admin/accounts/[accountId]/mfa-reset": {
+    status: "never",
+    why: "The operator's reset — removes another person's second factor, session-only forever",
+    reaches: [{ module: "@/server/mfa/changes", symbols: ["turnOffIn", "emailSecurityChange"] }],
+  },
   "mfa/verify": {
     status: "never",
     why: "The second step of sign-in; a token is already signed in",

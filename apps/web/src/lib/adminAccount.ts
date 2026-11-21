@@ -87,4 +87,16 @@ export interface AdminAccountDetail {
     editsPerDay: number[];
     recent: AdminAccountMoment[];
   };
+  mfa: {
+    enabled: boolean;
+    factors: number;
+    resets: AdminMfaReset[];
+  };
+}
+
+/** Mirrors `AdminMfaReset`. */
+export interface AdminMfaReset {
+  at: string;
+  operator: string;
+  reason: string;
 }

@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { events, savedNotebooks, subscriptions, tripMemberships, users } from "@/server/db/schema";
+import { events, mfaResets, savedNotebooks, subscriptions, tripMemberships, userFactors, users } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { upsertUser } from "@/server/users";
 import type { TurnLedger } from "@/server/assistant/ledger";
@@ -331,5 +331,33 @@ describe("the assistant section carries no question or answer", () => {
       latencyMs: 2400,
     });
     expect(assistant.medianToolCalls).toBe(2);
+  });
+});
+
+// **M62 D15: the operator reset is listed on the page.** Each reset names the
+// operator by address and keeps the reason, newest first, and only this
+// account's; the state beside it is the account's own.
+describe("two-step sign-in on the account page", () => {
+  it("says whether it is on, counts its factors, and lists only this account's resets, newest first", async () => {
+    const id = await account();
+    const other = await account();
+    const operator = await account();
+    await db.update(users).set({ mfaEnabledAt: now }).where(eq(users.id, id));
+    await db.insert(userFactors).values({ id: randomUUID(), userId: id, kind: "totp", name: "App", sealedSecret: "s", createdAt: now });
+    await db.insert(mfaResets).values([
+      { id: randomUUID(), userId: id, operatorId: operator, reason: "Lost phone", emailConfirmation: "a@x.test", at: ago(3 * DAY) },
+      { id: randomUUID(), userId: id, operatorId: operator, reason: "Lost it again", emailConfirmation: "a@x.test", at: ago(DAY) },
+      { id: randomUUID(), userId: other, operatorId: operator, reason: "Not theirs", emailConfirmation: "b@x.test", at: ago(DAY) },
+    ]);
+
+    const { mfa } = await detailOf(id);
+    expect(mfa.enabled).toBe(true);
+    expect(mfa.factors).toBe(1);
+    expect(mfa.resets).toEqual([
+      { at: ago(DAY).toISOString(), operator: `${operator}@example.test`, reason: "Lost it again" },
+      { at: ago(3 * DAY).toISOString(), operator: `${operator}@example.test`, reason: "Lost phone" },
+    ]);
+
+    expect((await detailOf(other)).mfa).toMatchObject({ enabled: false, factors: 0 });
   });
 });

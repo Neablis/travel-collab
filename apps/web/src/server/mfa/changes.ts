@@ -114,13 +114,37 @@ function connectingAddress(request: Request): string | null {
 }
 
 /**
+ * Tells the account what changed, when, and from what kind of device. `request`
+ * is that device's; null leaves the device out, for a change made from someone
+ * else's (the operator reset, D9). Never fails the change: `sendEmail` does not
+ * throw, and an account with no deliverable address simply gets none.
+ */
+export async function emailSecurityChange(input: {
+  userId: string;
+  change: SecurityChangeKind;
+  request: Request | null;
+  now: Date;
+}): Promise<void> {
+  const [row] = await db.select({ email: users.email }).from(users).where(eq(users.id, input.userId));
+  if (!row?.email) return;
+  await sendEmail(
+    securityChangeEmail({
+      to: row.email,
+      change: input.change,
+      at: input.now,
+      client: input.request === null ? null : describeClient(input.request.headers.get("user-agent")),
+      ip: input.request === null ? null : connectingAddress(input.request),
+      securityUrl: `${deploymentOrigin()}/account?tab=security`,
+    }),
+  );
+}
+
+/**
  * Runs `apply` and the epoch bump as one transaction, then emails the account and
  * returns the proof that keeps THIS session: the bump signs out every other, and
  * this one hands the proof to NextAuth's `update` to be given a current token
- * (`authConfig.ts`; an `epoch` proof vouches for no factor).
- *
- * The email follows the commit and never fails the change: `sendEmail` does not
- * throw, and an account with no deliverable address simply gets none.
+ * (`authConfig.ts`; an `epoch` proof vouches for no factor). The email follows
+ * the commit.
  */
 export async function recordSecurityChange<T>(input: {
   userId: string;
@@ -135,19 +159,6 @@ export async function recordSecurityChange<T>(input: {
     const result = await input.apply(tx);
     return { result, epoch: await bumpSecurityEpoch(input.userId, tx) };
   });
-
-  const [row] = await db.select({ email: users.email }).from(users).where(eq(users.id, input.userId));
-  if (row?.email) {
-    await sendEmail(
-      securityChangeEmail({
-        to: row.email,
-        change: input.change,
-        at: input.now,
-        client: describeClient(input.request.headers.get("user-agent")),
-        ip: connectingAddress(input.request),
-        securityUrl: `${deploymentOrigin()}/account?tab=security`,
-      }),
-    );
-  }
+  await emailSecurityChange(input);
   return { result, proof: mintSecondFactorProof(input.userId, input.sid, "epoch", epoch, input.now) };
 }

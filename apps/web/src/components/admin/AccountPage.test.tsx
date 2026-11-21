@@ -100,6 +100,7 @@ function detail(over: { assistant?: Partial<AdminAccountDetail["assistant"]>; gr
       editsPerDay: days(0, 4),
       recent: [{ at: daysBefore(0.1), what: "Moved a stop in Japan" }],
     },
+    mfa: { enabled: true, factors: 2, resets: [] },
   };
 }
 
@@ -159,6 +160,17 @@ describe("AccountPage", () => {
     expect(screen.getByText("Moved a stop in Japan")).toBeTruthy();
     expect(screen.getByText("trial grant · plus v2")).toBeTruthy();
     expect(screen.getByText("Signed up")).toBeTruthy();
+  });
+
+  // M62 D9: the reset is reached from the account it applies to, and its
+  // dialog names that account, not another on the page.
+  it("offers the two-step reset for this account", async () => {
+    const user = userEvent.setup();
+    render(page());
+    const twoStep = screen.getByRole("complementary", { name: "Two-step sign-in" });
+    expect(within(twoStep).getByText("On · 2 factors")).toBeTruthy();
+    await user.click(within(twoStep).getByRole("button", { name: "Reset two-step sign-in" }));
+    expect(screen.getByRole("dialog", { name: "Reset two-step sign-in" }).textContent).toContain("mei@example.test");
   });
 
   // D7: the page grows no "view question" affordance. The assistant panel

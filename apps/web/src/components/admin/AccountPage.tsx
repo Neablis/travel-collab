@@ -10,6 +10,7 @@ import { Text } from "@/components/ui/text";
 import type { AdminAccountDetail, AdminAccountState, AdminAccountTurn } from "@/lib/adminAccount";
 import { cn } from "@/lib/cn";
 import { AccountGrants } from "./AccountGrants";
+import { AccountMfaReset } from "./AccountMfaReset";
 import { AccountTestMode } from "./AccountTestMode";
 import {
   CONTEXT_DANGER_TOKENS,
@@ -34,8 +35,8 @@ import { microUsdCost, microUsdMoney } from "./microUsd";
 //   * No *shared* or *started N trips* under Notebooks (D5): neither has a
 //     source until a notebook share link exists.
 //
-// A server component apart from its writes — `GrantDialog`, the grant cards
-// and the Stripe test-mode switch — which are client components because they
+// A server component apart from its writes — `GrantDialog`, the grant cards,
+// the Stripe test-mode switch and the two-step reset — which are client components because they
 // hold dialog, confirm or request state and call `/api/admin/*`.
 
 const STATE: Record<AdminAccountState, { label: string; variant: "success" | "info" | "warning" | "neutral" }> = {
@@ -224,6 +225,10 @@ export function AccountPage({
             now={now}
           />
           <AccountTestMode accountId={account.userId} initial={testMode} />
+        </Panel>
+
+        <Panel title="Two-step sign-in" aria-label="Two-step sign-in">
+          <AccountMfaReset accountId={account.userId} account={address} mfa={detail.mfa} now={now} />
         </Panel>
       </div>
     </div>
