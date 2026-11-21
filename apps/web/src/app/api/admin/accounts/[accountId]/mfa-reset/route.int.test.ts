@@ -160,7 +160,9 @@ describe("an operator's reset", () => {
     // Every session went, this one included, and support is who to tell if it was not asked for.
     expect(sent[0]!.text).not.toContain("other signed-in device");
     expect(sent[0]!.text).toContain("Every signed-in device was signed out");
-    expect(sent[0]!.text).toContain("contact Caesura support");
+    // Named, and a reply reaches it: the only button leads to settings, which cannot report a reset.
+    expect(sent[0]!.text).toContain("contact Caesura support at mitchell@demarcosoftware.com");
+    expect(sent[0]!.replyTo).toBe("mitchell@demarcosoftware.com");
   });
 
   // Two operators, or two tabs, a moment apart: both see two-step on before either commits.

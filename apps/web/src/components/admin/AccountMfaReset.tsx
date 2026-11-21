@@ -114,10 +114,11 @@ export function AccountMfaReset({
           setOpen(next);
           if (!next) setFailed(null);
         }}
-        onCloseAutoFocus={(event) => {
+        onCloseAutoFocus={() => {
           if (!landed.current) return;
           landed.current = false;
-          event.preventDefault();
+          // Nothing to prevent: a modal Radix dialog with no Trigger hands focus back
+          // to nothing, so this stands even when the re-read outlasts the exit.
           stateLine.current?.focus();
         }}
         title="Reset two-step sign-in"

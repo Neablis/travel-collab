@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -81,6 +81,26 @@ describe("AccountMfaReset", () => {
     const state = screen.getByRole("status");
     expect(state.textContent).toBe("Off");
     await waitFor(() => expect(state.matches(":focus")).toBe(true));
+  });
+
+  // In production the re-read usually outlasts the dialog's exit, so the opener is
+  // still mounted when Radix's unmount timeout runs: focus must not go back to it,
+  // or the re-read removes it and drops focus to the page.
+  it("keeps focus on the two-step state when the page re-reads only after the dialog has gone", async () => {
+    fetchMock.mockResolvedValue(json({ at: NOW }));
+    const user = userEvent.setup();
+    const { rerender } = render(<AccountMfaReset accountId="dev-mei" account="mei@gmail.com" mfa={ON} now={NOW} />);
+
+    const dialog = await openDialog(user);
+    await user.type(within(dialog).getByLabelText("Reason"), "Lost her phone");
+    await user.click(within(dialog).getByRole("checkbox", { name: /I confirmed this by email/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // Radix's unmount autofocus runs from a timeout of its own.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    rerender(<AccountMfaReset accountId="dev-mei" account="mei@gmail.com" mfa={{ ...ON, enabled: false, factors: 0 }} now={NOW} />);
+
+    expect(screen.getByRole("status").matches(":focus")).toBe(true);
   });
 
   // Disabling the focused button would drop focus to the page while the request is out.

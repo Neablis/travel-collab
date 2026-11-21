@@ -118,9 +118,16 @@ export function tripInviteEmail(input: {
 /** What `securityChangeEmail` says happened; one phrase per change, in the order a person would list them. */
 export type SecurityChangeKind = "factor-removed" | "two-step-off" | "codes-regenerated" | "operator-reset";
 
+// The contact the landing page and `security.txt` give. A reset nobody asked for
+// is reported here, not in settings, so the reset email names it and a reply reaches it.
+const SUPPORT_ADDRESS = "mitchell@demarcosoftware.com";
+
 // `advice` replaces the shared line where it would be wrong: a reset keeps no
 // session and is not undone by reviewing settings.
-const SECURITY_CHANGE_WORDING: Record<SecurityChangeKind, { subject: string; what: string; advice?: string }> = {
+const SECURITY_CHANGE_WORDING: Record<
+  SecurityChangeKind,
+  { subject: string; what: string; advice?: string; replyTo?: string }
+> = {
   "factor-removed": { subject: "A second step was removed from your account", what: "A way of signing in with two steps was removed from your account." },
   "two-step-off": { subject: "Two-step sign-in was turned off", what: "Two-step sign-in was turned off, and every passkey, authenticator app and recovery code was removed." },
   "codes-regenerated": { subject: "Your recovery codes were replaced", what: "Your recovery codes were replaced. The old ones no longer work." },
@@ -128,7 +135,8 @@ const SECURITY_CHANGE_WORDING: Record<SecurityChangeKind, { subject: string; wha
   "operator-reset": {
     subject: "Two-step sign-in was reset",
     what: "Caesura support reset two-step sign-in on your account, as asked from your email address. Every passkey, authenticator app and recovery code was removed, and two-step sign-in is off.",
-    advice: "Every signed-in device was signed out. You can add a passkey or an authenticator app again from your security settings. If you did not ask for this, contact Caesura support at once.",
+    advice: `Every signed-in device was signed out. You can add a passkey or an authenticator app again from your security settings. If you did not ask for this, contact Caesura support at ${SUPPORT_ADDRESS} at once, or reply to this email.`,
+    replyTo: SUPPORT_ADDRESS,
   },
 };
 
@@ -157,6 +165,7 @@ export function securityChangeEmail(input: {
   return {
     to: input.to,
     tag: "security-change",
+    replyTo: wording.replyTo,
     subject,
     html: layout({
       heading: escapeHtml(subject),
