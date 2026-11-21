@@ -4,7 +4,7 @@ import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 import { db } from "@/server/db/client";
 import { userFactors } from "@/server/db/schema";
-import { seal, unseal } from "@/server/secrets/sealed";
+import { MfaSecretKeyMissingError, seal, unseal } from "@/server/secrets/sealed";
 
 // Authenticator apps (M62 D2): RFC 6238, six digits, 30 seconds, SHA-1 because that
 // is what every app speaks. A code is accepted one step either side of now, to
@@ -70,7 +70,9 @@ export function confirmTotp(userId: string, ticket: string, code: string, now: D
   let opened: string;
   try {
     opened = unseal(ticket.slice(dot + 1), factorId);
-  } catch {
+  } catch (error) {
+    // A missing key is the deployment's fault, not a wrong code (`MfaSecretKeyMissingError`).
+    if (error instanceof MfaSecretKeyMissingError) throw error;
     return null;
   }
   const [owner, expires, base32] = opened.split("|");
@@ -95,7 +97,9 @@ export async function verifyTotp(userId: string, code: string, now: Date): Promi
     let secret: OTPAuth.Secret;
     try {
       secret = OTPAuth.Secret.fromBase32(unseal(row.sealed, row.id));
-    } catch {
+    } catch (error) {
+      // A missing key is the deployment's fault, not a wrong code: it must not read as one.
+      if (error instanceof MfaSecretKeyMissingError) throw error;
       // A row that will not open (the key was rotated away) is one that cannot match.
       continue;
     }

@@ -23,8 +23,7 @@ export async function POST() {
 
   const recoveryCodes = await issueRecoveryCodes(userId, now);
   const epoch = await bumpSecurityEpoch(userId);
-  // The proof's method is a label on the token's `amr`, not a claim about which
-  // factor was used: this session already holds a second factor, and any method
-  // keeps it holding one.
-  return Response.json({ recoveryCodes, proof: mintSecondFactorProof(userId, sid, "otp", epoch, now) });
+  // An `epoch` proof: this session already holds a second factor and presented none
+  // here, so it takes the new epoch and leaves its fresh-check time as it was.
+  return Response.json({ recoveryCodes, proof: mintSecondFactorProof(userId, sid, "epoch", epoch, now) });
 }

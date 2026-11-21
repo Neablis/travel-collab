@@ -8,6 +8,7 @@ import { authenticationOptions, verifyAuthentication } from "@/server/mfa/passke
 import { consumeRecoveryCode } from "@/server/mfa/recoveryCodes";
 import { mfaStateFor, mintSecondFactorProof } from "@/server/mfa/state";
 import { verifyTotp } from "@/server/mfa/totp";
+import { sealingAvailable } from "@/server/secrets/sealed";
 
 // The second step of sign-in (M62 D3a), and the fresh check inside the app. This
 // is one of the two places that reads a session that has not passed its second
@@ -45,6 +46,9 @@ export async function POST(request: Request) {
   const now = new Date();
   if (body.data.kind !== "passkey") {
     const { kind, code } = body.data;
+    // Authenticator secrets are sealed under a key; without it a code cannot be judged, and
+    // that is the deployment's fault, so it is refused before an attempt is written.
+    if (kind === "otp" && !sealingAvailable()) return Response.json({ error: "not-configured" }, { status: 503 });
     // The only way a code is tested (`attempts.ts`): five wrong ones in fifteen
     // minutes lock codes for the account, and a passkey still gets through.
     const attempt = await attemptCode(userId, now, async () =>

@@ -5,7 +5,8 @@ import { attemptCode } from "@/server/mfa/attempts";
 import { addTotp } from "@/server/mfa/factors";
 import { hasFreshCheck, mfaStateFor, mintSecondFactorProof } from "@/server/mfa/state";
 import { confirmTotp, startTotp, type ConfirmedTotp } from "@/server/mfa/totp";
-import { MfaSecretKeyMissingError } from "@/server/secrets/sealed";
+import { isUniqueViolation } from "@/server/eventStore";
+import { MfaSecretKeyMissingError, sealingAvailable } from "@/server/secrets/sealed";
 
 // Adding an authenticator app (M62 D2, D6): `start` hands back a secret to scan and
 // `confirm` takes the code the app shows. Nothing is stored until it does. As with
@@ -43,6 +44,8 @@ export async function POST(request: Request) {
   }
 
   const { ticket, code } = body.data;
+  // Before any attempt is written: with no key the code cannot be judged, so it must not count.
+  if (!sealingAvailable()) return Response.json({ error: "not-configured" }, { status: 503 });
   let confirmed: ConfirmedTotp | null = null;
   // Even here: a code typed at enrolment is a guess at a secret nobody has proved
   // they hold, so it is counted like any other (`attempts.ts`).
@@ -56,8 +59,9 @@ export async function POST(request: Request) {
   let recoveryCodes: string[] | null;
   try {
     ({ recoveryCodes } = await addTotp(userId, confirmed, now));
-  } catch {
-    // The primary key: this ticket was already confirmed.
+  } catch (error) {
+    // The primary key alone: this ticket was already confirmed. Anything else is a fault.
+    if (!isUniqueViolation(error)) throw error;
     return Response.json({ error: "already-added" }, { status: 409 });
   }
   const { epoch } = await mfaStateFor(userId);

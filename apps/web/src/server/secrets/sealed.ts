@@ -35,12 +35,23 @@ function key(): Buffer {
   return Buffer.from(hkdfSync("sha256", raw, Buffer.alloc(0), LABEL, 32));
 }
 
+/** Whether a key is set, for a route to refuse with 503 before it counts a code against a person. */
+export function sealingAvailable(): boolean {
+  try {
+    key();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * `v1.<nonce>.<tag>.<ciphertext>`, each part base64url. Throws when the key is unset.
  * `aad` is GCM additional data: it is not stored, and `unseal` fails unless it is
  * given back unchanged, so a sealed value copied onto another row stops opening.
+ * It is required, so a caller cannot seal a value unbound by forgetting it.
  */
-export function seal(plaintext: string, aad = ""): string {
+export function seal(plaintext: string, aad: string): string {
   const nonce = randomBytes(NONCE_BYTES);
   const cipher = createCipheriv("aes-256-gcm", key(), nonce, { authTagLength: TAG_BYTES });
   cipher.setAAD(Buffer.from(aad, "utf8"));
@@ -49,7 +60,7 @@ export function seal(plaintext: string, aad = ""): string {
 }
 
 /** The plaintext `seal` made this from. Throws on a missing key, a wrong key, other `aad` or any altered byte. */
-export function unseal(sealed: string, aad = ""): string {
+export function unseal(sealed: string, aad: string): string {
   const [version, nonce, tag, body, ...extra] = sealed.split(".");
   if (version !== VERSION || !nonce || !tag || body === undefined || extra.length > 0) {
     throw new Error("Not a sealed secret.");

@@ -13,40 +13,40 @@ afterEach(() => {
 describe("sealed secrets", () => {
   it("returns what was sealed, and never the plaintext in the stored form", () => {
     process.env.MFA_SECRET_KEY = KEY;
-    const sealed = seal("JBSWY3DPEHPK3PXP");
+    const sealed = seal("JBSWY3DPEHPK3PXP", "row");
     expect(sealed).not.toContain("JBSWY3DPEHPK3PXP");
-    expect(unseal(sealed)).toBe("JBSWY3DPEHPK3PXP");
+    expect(unseal(sealed, "row")).toBe("JBSWY3DPEHPK3PXP");
   });
 
   it("seals the same secret to a different string each time", () => {
     process.env.MFA_SECRET_KEY = KEY;
-    expect(seal("same")).not.toBe(seal("same"));
+    expect(seal("same", "row")).not.toBe(seal("same", "row"));
   });
 
   it("fails closed when the key is unset, blank or short", () => {
     for (const value of [undefined, "", "too-short"]) {
       if (value === undefined) delete process.env.MFA_SECRET_KEY;
       else process.env.MFA_SECRET_KEY = value;
-      expect(() => seal("x"), String(value)).toThrow(MfaSecretKeyMissingError);
+      expect(() => seal("x", "row"), String(value)).toThrow(MfaSecretKeyMissingError);
     }
   });
 
   it("refuses to unseal under another key or after a byte changed", () => {
     process.env.MFA_SECRET_KEY = KEY;
-    const sealed = seal("secret");
+    const sealed = seal("secret", "row");
     process.env.MFA_SECRET_KEY = OTHER_KEY;
-    expect(() => unseal(sealed)).toThrow();
+    expect(() => unseal(sealed, "row")).toThrow();
     process.env.MFA_SECRET_KEY = KEY;
     const [v, nonce, tag, body] = sealed.split(".");
     const flipped = Buffer.from(body!, "base64url");
     flipped[0] = flipped[0]! ^ 1;
-    expect(() => unseal([v, nonce, tag, flipped.toString("base64url")].join("."))).toThrow();
+    expect(() => unseal([v, nonce, tag, flipped.toString("base64url")].join("."), "row")).toThrow();
   });
 
   it("refuses a tag cut short, even a genuine prefix", () => {
     process.env.MFA_SECRET_KEY = KEY;
-    const [v, nonce, tag, body] = seal("secret").split(".");
+    const [v, nonce, tag, body] = seal("secret", "row").split(".");
     const cut = Buffer.from(tag!, "base64url").subarray(0, 4).toString("base64url");
-    expect(() => unseal([v, nonce, cut, body].join("."))).toThrow();
+    expect(() => unseal([v, nonce, cut, body].join("."), "row")).toThrow();
   });
 });

@@ -218,7 +218,7 @@ export interface SessionLookup {
     sid: string,
     payload: unknown,
     currentEpoch: number,
-  ): { method: "webauthn" | "otp" | "recovery"; expiresAt: number } | null;
+  ): { method: "webauthn" | "otp" | "recovery" | "epoch"; expiresAt: number } | null;
 }
 
 // A cookie minted before sessions carried an id has none. A fixed value stands in
@@ -304,9 +304,13 @@ export function createJwtCallback(lookup?: SessionLookup): NonNullable<NonNullab
     // Single use: a proof is accepted once, so one that leaks inside its two
     // minutes cannot be replayed to stretch the fresh-check window.
     if (proved && proved.expiresAt > ((token.proofExp as number | undefined) ?? 0)) {
-      token.amr = ["google", proved.method];
       token.proofExp = proved.expiresAt;
-      token.mfaAt = Date.now();
+      // An `epoch` proof presented no factor, so it neither adds one to `amr` nor
+      // restarts the fresh-check clock: chaining it would keep a stolen check fresh.
+      if (proved.method !== "epoch") {
+        token.amr = ["google", proved.method];
+        token.mfaAt = Date.now();
+      }
       token.epoch = state.epoch;
       token.mfaRequired = state.enabled;
       return token;

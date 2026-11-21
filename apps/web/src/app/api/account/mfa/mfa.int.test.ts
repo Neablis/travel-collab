@@ -466,9 +466,77 @@ describe("adding an authenticator app", () => {
     expect(res.status).toBe(400);
     expect((await mfaStateFor(id)).enabled).toBe(false);
   });
+
+  it("counts confirmation codes toward the lock, so the sixth is refused even with the right code", async () => {
+    const id = await account();
+    signedInAs(id);
+    const started = (await (await ADD_TOTP(post({ step: "start" }))).json()) as { ticket: string; secret: string };
+    for (let i = 0; i < 5; i++) {
+      expect((await ADD_TOTP(post({ step: "confirm", ticket: started.ticket, code: "000000" }))).status).toBe(400);
+    }
+    const right = codeAt(started.secret, new Date());
+    expect((await ADD_TOTP(post({ step: "confirm", ticket: started.ticket, code: right }))).status).toBe(429);
+    expect((await mfaStateFor(id)).enabled).toBe(false);
+  });
+
+  it("answers 409 to a ticket confirmed twice, and keeps one factor", async () => {
+    const id = await account();
+    signedInAs(id);
+    const started = (await (await ADD_TOTP(post({ step: "start" }))).json()) as { ticket: string; secret: string };
+    const confirm = () => ADD_TOTP(post({ step: "confirm", ticket: started.ticket, code: codeAt(started.secret, new Date()) }));
+    expect((await confirm()).status).toBe(200);
+    // The session has since been told about the proof the first confirm handed back.
+    signedInAs(id, { mfaAt: Date.now() });
+    expect((await confirm()).status).toBe(409);
+    expect(await db.select().from(userFactors).where(eq(userFactors.userId, id))).toHaveLength(1);
+  });
+
+  it("is a 503 with no key to seal the secret, at the start and at the confirm", async () => {
+    const id = await account();
+    signedInAs(id);
+    const started = (await (await ADD_TOTP(post({ step: "start" }))).json()) as { ticket: string; secret: string };
+    vi.stubEnv("MFA_SECRET_KEY", "");
+    expect((await ADD_TOTP(post({ step: "start" }))).status).toBe(503);
+    // A missing key is the deployment's fault, not a wrong code: it is not counted either.
+    for (let i = 0; i < 6; i++) {
+      expect((await ADD_TOTP(post({ step: "confirm", ticket: started.ticket, code: "000000" }))).status).toBe(503);
+    }
+    vi.unstubAllEnvs();
+    vi.stubEnv("PUBLIC_ORIGIN", ORIGIN);
+    const res = await ADD_TOTP(post({ step: "confirm", ticket: started.ticket, code: codeAt(started.secret, new Date()) }));
+    expect(res.status).toBe(200);
+  });
+
+  it("rolls the whole thing back when the codes cannot be issued: no factor, MFA off, the ticket still good", async () => {
+    const id = await account();
+    signedInAs(id);
+    const started = (await (await ADD_TOTP(post({ step: "start" }))).json()) as { ticket: string; secret: string };
+    const confirm = () => ADD_TOTP(post({ step: "confirm", ticket: started.ticket, code: codeAt(started.secret, new Date()) }));
+    current.codesFail = true;
+    try {
+      // Not a 409 "already added": that is the primary key alone.
+      await expect(confirm()).rejects.toThrow("the database went away");
+    } finally {
+      current.codesFail = false;
+    }
+    expect(await db.select().from(userFactors).where(eq(userFactors.userId, id))).toHaveLength(0);
+    expect((await mfaStateFor(id)).enabled).toBe(false);
+    expect((await confirm()).status).toBe(200);
+  });
 });
 
 describe("signing in with an authenticator code", () => {
+  it("is a 503, not a wrong code, when there is no key to open the secret, and it is not counted", async () => {
+    const { secret } = await accountWithAuthenticator();
+    await later(async (now) => {
+      vi.stubEnv("MFA_SECRET_KEY", "");
+      for (let i = 0; i < 6; i++) expect((await verifyCode("otp", codeAt(secret, now))).status).toBe(503);
+      vi.unstubAllEnvs();
+      vi.stubEnv("PUBLIC_ORIGIN", ORIGIN);
+      expect((await verifyCode("otp", codeAt(secret, now))).status).toBe(200);
+    });
+  });
+
   it("gives a proof the token callback turns into a second factor, and refuses the same code twice", async () => {
     const { secret } = await accountWithAuthenticator();
     await later(async (now) => {
@@ -525,6 +593,21 @@ describe("recovery codes", () => {
 });
 
 describe("regenerating recovery codes", () => {
+  it("hands this session its new epoch without restarting the fresh-check clock", async () => {
+    const { id } = await accountWithAuthenticator();
+    const mine = (await signIn(id))!;
+    const checkedAt = Date.now() - 9 * 60 * 1000;
+    mine.mfaAt = checkedAt;
+    signedInAs(id, { mfaAt: checkedAt, sid: mine.sid as string });
+    const before = (await mfaStateFor(id)).epoch;
+    const res = await REGENERATE();
+    // No factor was presented, so a stolen fresh check cannot be chained into a fresh one.
+    expect(await jwt({ token: mine, trigger: "update", session: (await json(res)).proof })).toMatchObject({
+      epoch: before + 1,
+      mfaAt: checkedAt,
+    });
+  });
+
   it("voids the old set and the new codes work", async () => {
     const { id, codes: old } = await accountWithAuthenticator();
     signedInAs(id, { mfaAt: Date.now() });

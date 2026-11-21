@@ -37,7 +37,11 @@ export async function bumpSecurityEpoch(userId: string, executor: Queryable = db
 // callback with whatever body the browser sends, so the callback must not believe
 // `{ method: "webauthn" }` on its own: it believes this, which only a server that
 // checked a factor could have made.
-export type SecondFactorMethod = "webauthn" | "otp" | "recovery";
+//
+// `epoch` is the one that vouches for no factor: a session that already holds a
+// second factor, and changed the account's codes, is handed the new epoch so it
+// is not signed out, and nothing else (`authConfig.ts` leaves `mfaAt` alone).
+export type SecondFactorMethod = "webauthn" | "otp" | "recovery" | "epoch";
 
 export interface SecondFactorProof {
   method: SecondFactorMethod;
@@ -86,7 +90,7 @@ export function readSecondFactorProof(
 ): { method: SecondFactorMethod; expiresAt: number } | null {
   if (typeof candidate !== "object" || candidate === null) return null;
   const { method, epoch, expiresAt, proof } = candidate as Partial<SecondFactorProof>;
-  if (method !== "webauthn" && method !== "otp" && method !== "recovery") return null;
+  if (method !== "webauthn" && method !== "otp" && method !== "recovery" && method !== "epoch") return null;
   if (typeof epoch !== "number" || typeof expiresAt !== "number" || typeof proof !== "string") return null;
   if (epoch !== currentEpoch || expiresAt < now.getTime()) return null;
   return digestsMatch(proof, digestOf(userId, sid, method, epoch, expiresAt)) ? { method, expiresAt } : null;

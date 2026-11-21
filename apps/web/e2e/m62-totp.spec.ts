@@ -68,4 +68,19 @@ test("authenticator app: enrol beside a passkey, sign in with a code", async ({ 
   await page.getByRole("textbox", { name: "Authenticator code" }).press("Enter");
   await expect(page).toHaveURL(/\/account\?tab=security/);
   await expect(page.getByRole("region", { name: "Two-step sign-in" }).getByText(/Authenticator app · used/)).toBeVisible();
+
+  // ---- the same code, a second time, from a fresh sign-in: refused ----------
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goto("/signin?callbackUrl=%2Faccount%3Ftab%3Dsecurity");
+  // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: the form's one field, as `signInAsDevUser` fills it
+  await page.fill('input[name="username"]', username);
+  await page.getByRole("button", { name: /sign in with dev login/i }).click();
+  await page.getByRole("button", { name: "Use authenticator code" }).click();
+  await page.getByRole("textbox", { name: "Authenticator code" }).fill(next);
+  await page.getByRole("textbox", { name: "Authenticator code" }).press("Enter");
+  // That step is spent (`last_used_step` only moves forward), and the person stays on the verify screen.
+  await expect(page.getByRole("alert").filter({ hasText: "That code did not work" })).toBeVisible();
+  await expect(page).toHaveURL(/\/signin\/verify/);
 });

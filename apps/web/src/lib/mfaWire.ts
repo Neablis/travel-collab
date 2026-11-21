@@ -27,7 +27,7 @@ export interface MfaStatusResponse {
  * (`server/mfa/state.ts`, `mintSecondFactorProof`).
  */
 export interface SecondFactorProofBody {
-  method: "webauthn" | "otp" | "recovery";
+  method: "webauthn" | "otp" | "recovery" | "epoch";
   epoch: number;
   expiresAt: number;
   proof: string;
