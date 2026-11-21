@@ -54,12 +54,13 @@ describe("openapi.json is derived from the declarations", () => {
     ).toBe(generated);
   });
 
-  it("declares the /api server, so a relative path an agent reads off the document resolves", async () => {
+  it("declares an absolute https /api server, so external importers (GPT Actions, Gemini) resolve it", async () => {
     const doc = JSON.parse(await generate()) as { servers?: unknown };
     // A document with no `servers` leaves an agent to guess the base URL: it
     // read /v1/discover/playbooks off the paths and got a 404, because the
-    // routes live under /api. Relative, so it works on production and previews.
-    expect(doc.servers).toEqual([{ url: "/api" }]);
+    // routes live under /api. Absolute, because an importer that fetches the
+    // document by URL (a GPT Action, Gemini) rejects a relative server.
+    expect(doc.servers).toEqual([{ url: "https://caesura.today/api" }]);
   });
 
   // **A changed document is a new version.** `info.version` stayed "1.0.0"
