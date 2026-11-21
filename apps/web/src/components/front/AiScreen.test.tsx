@@ -27,10 +27,6 @@ function servedPaths(): Set<string> {
   return out;
 }
 
-// `/security` is part 5 of M63. Until it lands the link points at a route
-// that does not exist yet; part 5 deletes this entry.
-const UPCOMING_ROUTES = new Set(["/security"]);
-
 const PROMPT_TOOLS = ["Claude", "MCP client", "ChatGPT", "Gemini", "Poppy", "script"];
 
 describe("AiScreen", () => {
@@ -84,7 +80,7 @@ describe("AiScreen", () => {
     const ids = new Set([...screen.getAllByRole("region"), ...screen.getAllByRole("heading")].map((el) => el.id));
     for (const href of hrefs) {
       const [pathname, hash] = href.split("#");
-      expect(served.has(pathname!) || UPCOMING_ROUTES.has(pathname!), href).toBe(true);
+      expect(served.has(pathname!), href).toBe(true);
       if (hash !== undefined) {
         expect(pathname, href).toBe("/developers");
         expect(ids.has(hash), href).toBe(true);
@@ -112,6 +108,16 @@ describe("AiScreen", () => {
     expect(questions.length).toBeGreaterThanOrEqual(4);
     expect(questions.length).toBeLessThanOrEqual(5);
     expect(faq.getByRole("link", { name: /security/i }).getAttribute("href")).toBe("/security");
+  });
+
+  // One place for safety (M63 D12): /ai points at /security and does not restate it.
+  it("leaves how sign-in and storage are protected to /security", () => {
+    render(<AiScreen />);
+    const text = (document.body.textContent ?? "").toLowerCase();
+    expect(text.length).toBeGreaterThan(0);
+    for (const word of ["passkey", "authenticator", "recovery code", "fingerprint", "encrypted", "vulnerab"]) {
+      expect(text, word).not.toContain(word);
+    }
   });
 
   it("says nothing about how Caesura is built", () => {

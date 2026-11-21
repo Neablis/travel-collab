@@ -19,6 +19,7 @@ import { GET as poppy } from "../../app/.well-known/poppy.json/route";
 import { GET as securityTxt } from "../../app/.well-known/security.txt/route";
 import { GET as llms } from "../../app/llms.txt/route";
 import { GET as agentsMd } from "../../app/agents.md/route";
+import { SECURITY_CONTACTS } from "@/lib/securityContacts";
 
 // The configured origin these documents link against. Stubbed, not read from
 // the request: the routes must name the deployment's public origin even when
@@ -106,6 +107,20 @@ describe("/.well-known/security.txt", () => {
     const text = await response.text();
     expect(text).toContain("Canonical: https://example.test/.well-known/security.txt");
     expect(text).not.toContain("0.0.0.0");
+  });
+
+  // M63 D13: the page is the policy, and the contacts have one home.
+  it("names /security as its Policy and takes its Contact lines from SECURITY_CONTACTS", async () => {
+    const text = await securityTxt().text();
+    expect(text.split("\n")).toContain("Policy: https://caesura.today/security");
+    expect(served("/security")).toBe(true);
+    const contacts = text.split("\n").filter((line) => line.startsWith("Contact: "));
+    expect(contacts).toEqual(SECURITY_CONTACTS.map((contact) => `Contact: ${contact.href}`));
+    expect(contacts.length).toBeGreaterThan(0);
+  });
+
+  it("keeps its Expires date", async () => {
+    expect(await securityTxt().text()).toContain("Expires: 2027-10-01T00:00:00.000Z");
   });
 });
 
@@ -204,6 +219,11 @@ describe("/agents.md", () => {
       if (tool.orScope !== undefined) expect(row, tool.name).toContain(` or \`${tool.orScope}\``);
     }
     expect(tools.some((tool) => tool.orScope !== undefined), "no tool with an orScope to check").toBe(true);
+  });
+
+  it("links /security, absolutely, to a page that exists", async () => {
+    expect((await read()).text).toContain("](https://example.test/security)");
+    expect(served("/security")).toBe(true);
   });
 
   // Signed out means outside the proxy: a path entry that reached it would

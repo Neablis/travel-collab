@@ -53,6 +53,7 @@ export function agentsMd(origin: string): string {
     `- **The REST API** (\`${at("/api/v1")}\`): the best fit for a script or a program. Every endpoint, its scope, request and response is in the [OpenAPI document](${at("/api/v1/openapi")}); [the reference](${at("/developers/reference")}) renders it for a person.`,
     `- **The API catalog** (\`${at("/.well-known/api-catalog")}\`): where to start when you were handed only the host.`,
     `- **\`${at("/llms.txt")}\`**: what Caesura is, in a page.`,
+    `- **[Security](${at("/security")})**: how a person signs in, takes access back from you, and reports a vulnerability.`,
     "",
     "## Scopes",
     "",

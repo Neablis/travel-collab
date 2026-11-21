@@ -22,10 +22,9 @@
 // does. Reachability for bots is the firewall's call, as for the api-catalog —
 // see `docs/guidelines/using-the-api.md`.
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { SECURITY_CONTACTS, SECURITY_POLICY_URL } from "@/lib/securityContacts";
 
 const REPO = "https://github.com/Neablis/travel-collab";
-/** The maintainer, so a reporter without access to the private repository has a way in. */
-const EMAIL = "mitchell@demarcosoftware.com";
 
 /** When the contacts below were last confirmed, plus under a year. */
 const EXPIRES = "2027-10-01T00:00:00.000Z";
@@ -44,11 +43,9 @@ function securityTxt(origin: string): string {
     "# Say what you did, what you expected and what happened instead, and include",
     "# the page URL and your browser.",
     "",
-    `Contact: mailto:${EMAIL}`,
-    `Contact: ${REPO}/security/advisories/new`,
-    `Contact: ${REPO}/issues/new`,
+    ...SECURITY_CONTACTS.map((contact) => `Contact: ${contact.href}`),
     `Expires: ${EXPIRES}`,
-    `Policy: ${REPO}/blob/main/SECURITY.md`,
+    `Policy: ${SECURITY_POLICY_URL}`,
     `Canonical: ${origin}/.well-known/security.txt`,
     "Preferred-Languages: en",
     "",

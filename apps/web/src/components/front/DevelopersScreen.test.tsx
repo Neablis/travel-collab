@@ -44,6 +44,7 @@ describe("DevelopersScreen", () => {
   it("links the AI page for a reader who came to see what an AI can do", () => {
     render(<DevelopersScreen tools={TOOLS} />);
     expect(screen.getByRole("link", { name: "What your AI can do in Caesura" }).getAttribute("href")).toBe("/ai");
+    expect(screen.getByRole("link", { name: "how access is protected" }).getAttribute("href")).toBe("/security");
   });
 
   it("links the reference, the OpenAPI document, the api-catalog and llms.txt", () => {

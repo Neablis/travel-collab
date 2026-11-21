@@ -149,7 +149,8 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
             as you.
           </Text>
           <Text className="text-base text-pretty">
-            Not a developer? <InlineLink href="/ai">What your AI can do in Caesura</InlineLink>.
+            Not a developer? <InlineLink href="/ai">What your AI can do in Caesura</InlineLink>, and{" "}
+            <InlineLink href="/security">how access is protected</InlineLink>.
           </Text>
           <Text variant="secondary" className="text-base text-pretty">
             A token acts as the person who made it. It holds only the scopes you give it, it always
