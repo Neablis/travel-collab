@@ -8,7 +8,7 @@ import {
   pendingAdmissionCookieOptions,
 } from "@/lib/pendingAdmission";
 import { isInternalPlaybooksPath, playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
-import { SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
+import { REQUEST_PATH_HEADER, SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
 import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@/lib/signupRef";
 
 // This file was `src/middleware.ts` until the Next 16 upgrade, which
@@ -205,7 +205,14 @@ function route(req: NextAuthRequest, own: URL): NextResponse {
     target.pathname = library;
     return NextResponse.rewrite(target);
   }
-  if (req.auth) return NextResponse.next();
+  if (req.auth) {
+    // `req.auth` is the cookie as this file can read it; the server may still
+    // refuse it (a moved security epoch), and then needs to know where the
+    // person was going (`servedForApp`).
+    const forwarded = new Headers(req.headers);
+    forwarded.set(REQUEST_PATH_HEADER, req.nextUrl.pathname + req.nextUrl.search);
+    return NextResponse.next({ request: { headers: forwarded } });
+  }
   const { pathname } = req.nextUrl;
   // M27 link 6: the invite landing is PUBLIC — it is what an invite link
   // opens for somebody with no account (SPEC §35.6), so it is served, not

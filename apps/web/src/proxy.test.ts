@@ -125,6 +125,13 @@ describe("proxy", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
+  // `servedForApp` is not told its URL, and sends a cookie the server refuses
+  // back to the page it asked for; the proxy is what tells it.
+  it("hands the page being read to the server on a signed-in request", () => {
+    const res = handle(request("/plans?checkout=cs_test_1", { session: true, hint: false }));
+    expect(res.headers.get("x-middleware-request-x-tc-path")).toBe("/plans?checkout=cs_test_1");
+  });
+
   it("serves a signed-in /plans as it is", () => {
     const res = handle(request("/plans", { session: true, hint: true }));
     expect(res.headers.get("location")).toBeNull();

@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { db } from "@/server/db/client";
+import { db, type Queryable } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { digestsMatch, keyedDigest } from "@/server/secrets/keyedDigest";
 
@@ -23,8 +23,8 @@ export async function mfaStateFor(userId: string): Promise<MfaState> {
 }
 
 /** Goes up by one and returns the new value: every token minted under the old one is now refused. */
-export async function bumpSecurityEpoch(userId: string): Promise<number> {
-  const [row] = await db
+export async function bumpSecurityEpoch(userId: string, executor: Queryable = db): Promise<number> {
+  const [row] = await executor
     .update(users)
     .set({ securityEpoch: sql`${users.securityEpoch} + 1` })
     .where(eq(users.id, userId))
