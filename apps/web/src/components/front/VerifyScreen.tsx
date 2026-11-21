@@ -39,8 +39,10 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
   const passkeyButton = useRef<HTMLButtonElement>(null);
   const switched = useRef(false);
 
-  async function ask() {
-    if (inFlight.current) return;
+  // `onArrival`: the prompt nobody tapped for. On a slow phone a tap on a code can
+  // land before it starts, and it must not be put back on the passkey it just left.
+  async function ask(onArrival = false) {
+    if (inFlight.current || (onArrival && switched.current)) return;
     inFlight.current = true;
     setMode("passkey");
     setOutcome("asking");
@@ -85,7 +87,7 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
   }, [mode]);
 
   useEffect(() => {
-    void ask();
+    void ask(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival; `ask` is re-made each render and only ever reads state through setters
   }, []);
 

@@ -250,6 +250,22 @@ describe("the one-time reveal", () => {
     expect(posts[1]).toEqual(posts[0]);
   });
 
+  it("says a 403 that is not about the check went wrong, and opens no check", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string | URL, init?: RequestInit) =>
+        init?.method === "POST" ? Response.json({ error: "forbidden" }, { status: 403 }) : Response.json({ tokens: [] }),
+      ),
+    );
+    render(<TokensSection entitled />);
+    await screen.findByTestId("tokens-section");
+    fireEvent.click(screen.getByTestId("token-new"));
+    fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Calendar" } });
+    fireEvent.click(screen.getByTestId("token-create"));
+    expect(await screen.findByTestId("tokens-error")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("posts what the form actually says", async () => {
     const posted = serve();
     render(<TokensSection entitled />);

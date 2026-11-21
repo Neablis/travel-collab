@@ -4,7 +4,7 @@ import { db, type Queryable } from "@/server/db/client";
 import { userFactors, userRecoveryCodes, users } from "@/server/db/schema";
 import type { MfaFactorView } from "@/lib/mfaWire";
 import { issueRecoveryCodes } from "./recoveryCodes";
-import { bumpSecurityEpoch } from "./state";
+import { bumpSecurityEpoch, lockAccount } from "./state";
 import type { StoredPasskey, VerifiedRegistration } from "./passkey";
 import { AUTHENTICATOR_NAME, type ConfirmedTotp } from "./totp";
 
@@ -100,7 +100,9 @@ export async function recoveryCodesLeft(userId: string): Promise<number> {
  * open sessions: their tokens say MFA is off, and only an older epoch gets them
  * refused and sent to sign in again. `mfa_enabled_at` is set by a conditional
  * UPDATE, so two first factors added at once cannot both be told they were first.
- * It runs inside the caller's transaction, with the factor's own insert.
+ * It runs inside the caller's transaction, with the factor's own insert, after the
+ * caller has taken the account's row (`lockAccount`): with MFA already on, this
+ * UPDATE matches nothing and would not wait for a Turn off in progress.
  */
 async function turnOnWithFirstFactor(tx: Queryable, userId: string, now: Date): Promise<{ recoveryCodes: string[] | null }> {
   const turnedOn = await tx
@@ -128,6 +130,7 @@ export async function addPasskey(
   now: Date,
 ): Promise<{ recoveryCodes: string[] | null }> {
   return db.transaction(async (tx) => {
+    await lockAccount(tx, userId);
     await tx.insert(userFactors).values({
       id: randomUUID(),
       userId,
@@ -152,6 +155,7 @@ export async function addPasskey(
  */
 export async function addTotp(userId: string, totp: ConfirmedTotp, now: Date): Promise<{ recoveryCodes: string[] | null }> {
   return db.transaction(async (tx) => {
+    await lockAccount(tx, userId);
     await tx.insert(userFactors).values({
       id: totp.factorId,
       userId,

@@ -84,8 +84,11 @@ function SecuritySection({ heading, headingId, children }: { heading: string; he
  *
  * `role="status"` from `Banner`, polite and not an alert: it is the page's
  * standing state, not news.
+ *
+ * `revision` remounts both lists, so they read again: Two-step sign-in's
+ * revoke-everything tick changes them from beside them (M62 D8).
  */
-function PremiumSecurity() {
+function PremiumSecurity({ revision }: { revision: number }) {
   // `null` until the plan lands, and if it never does: no prompt, and no New
   // token, while the lists and their removal carry on regardless.
   const [plan, setPlan] = useState<{ entitled: boolean; lapsed: boolean } | null>(null);
@@ -161,10 +164,10 @@ function PremiumSecurity() {
               Your plan could not be checked just now, so creating a token is unavailable. Reload to try again.
             </Text>
           ) : null}
-          <TokensSection entitled={plan?.entitled ?? null} />
+          <TokensSection key={revision} entitled={plan?.entitled ?? null} />
         </SecuritySection>
         <SecuritySection heading="Connected apps" headingId="account-apps-heading">
-          <ConnectedAppsSection />
+          <ConnectedAppsSection key={revision} />
         </SecuritySection>
       </div>
     </div>
@@ -195,6 +198,7 @@ export function AccountScreen() {
   const searchParams = useSearchParams();
   const user = useSessionUser();
   const tab = accountTabFrom(searchParams.get("tab"));
+  const [revokedTimes, setRevokedTimes] = useState(0);
 
   return (
     <PageContainer as="main" width="content">
@@ -269,9 +273,9 @@ export function AccountScreen() {
             <div className="flex flex-col gap-10">
               {/* M62: above API tokens, because it is what protects them. */}
               <SecuritySection heading="Two-step sign-in" headingId="account-two-step-heading">
-                <TwoStepSection />
+                <TwoStepSection onRevoked={() => setRevokedTimes((n) => n + 1)} />
               </SecuritySection>
-              <PremiumSecurity />
+              <PremiumSecurity revision={revokedTimes} />
             </div>
           )}
         </div>

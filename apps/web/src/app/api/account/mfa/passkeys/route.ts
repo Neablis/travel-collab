@@ -59,8 +59,11 @@ export async function POST(request: Request) {
     if (!isUniqueViolation(error)) throw error;
     return Response.json({ error: "passkey-already-registered" }, { status: 409 });
   }
-  // Registering proves the person holds the authenticator, so this session earns
-  // the second step it would otherwise be turned away for the moment MFA is on.
+  // Registering the first factor proves the person holds it, so this session earns
+  // the second step it would otherwise be turned away for the moment MFA is on. A
+  // later one gets an `epoch` proof: it restarts no fresh-check clock, or enrolling
+  // would extend the check it was let in on.
   const { epoch } = await mfaStateFor(userId);
-  return Response.json({ recoveryCodes, proof: mintSecondFactorProof(userId, sid, "webauthn", epoch, now) });
+  const method = recoveryCodes === null ? "epoch" : "webauthn";
+  return Response.json({ recoveryCodes, proof: mintSecondFactorProof(userId, sid, method, epoch, now) });
 }

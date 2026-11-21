@@ -76,8 +76,12 @@ function LockAfterControl() {
   );
 }
 
-/** Whether two-step sign-in is on, its factors and recovery codes, and adding a factor. */
-export function TwoStepSection() {
+/**
+ * Whether two-step sign-in is on, its factors and recovery codes, and adding a factor.
+ * `onRevoked` follows a revoke-everything tick that went through, so the token and
+ * connected-app lists beside it can read again.
+ */
+export function TwoStepSection({ onRevoked }: { onRevoked?: () => void } = {}) {
   // `null` until the first read lands, so the section does not flash "off" at an
   // account that has it on; `"failed"` when it never does.
   const [status, setStatus] = useState<MfaStatusResponse | "failed" | null>(null);
@@ -112,6 +116,37 @@ export function TwoStepSection() {
     refocusRename.current = id;
     setRenaming(null);
   }
+
+  // Remove and its confirm swap places with focus in one of them, the same fall
+  // to the page's start: the confirm takes it on opening, and Keep hands it back.
+  const removeButtons = useRef(new Map<string, HTMLButtonElement | null>());
+  const confirmRemoveButton = useRef<HTMLButtonElement>(null);
+  const refocusRemove = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (confirmingRemove !== null) confirmRemoveButton.current?.focus();
+    else if (refocusRemove.current !== null) removeButtons.current.get(refocusRemove.current)?.focus();
+    refocusRemove.current = null;
+  }, [confirmingRemove]);
+
+  function keepFactor(id: string) {
+    refocusRemove.current = id;
+    setConfirmingRemove(null);
+  }
+
+  // "Yes, remove" unmounts with focus in it as well, and the row's Remove stays
+  // disabled until the change settles, so focus waits for that: back to Remove if
+  // the row is still there, to Add a passkey if it is gone. A fresh check open
+  // over the section holds it until it closes.
+  const addPasskeyButton = useRef<HTMLButtonElement>(null);
+  const removeSettledFor = useRef<string | null>(null);
+  const [removeSettled, setRemoveSettled] = useState(0);
+
+  useEffect(() => {
+    if (removeSettledFor.current === null || checking !== null) return;
+    (removeButtons.current.get(removeSettledFor.current) ?? addPasskeyButton.current)?.focus();
+    removeSettledFor.current = null;
+  }, [removeSettled, checking]);
 
   const load = useCallback(async () => {
     try {
@@ -182,6 +217,8 @@ export function TwoStepSection() {
     const result = await removeFactor(factorId);
     setChanging(false);
     await settle(result, `remove:${factorId}`);
+    removeSettledFor.current = factorId;
+    setRemoveSettled((n) => n + 1);
   }
 
   async function turnOff() {
@@ -195,9 +232,8 @@ export function TwoStepSection() {
 
   // The tick on the codes sheet. The sheet has just been closed, so a failure is said here, with where else to do it.
   async function revokeEverything() {
-    if ((await revokeAllCredentials()) !== "revoked") {
-      setProblem("Tokens and connected apps could not be revoked just now. You can revoke them from the lists below.");
-    }
+    if ((await revokeAllCredentials()) === "revoked") onRevoked?.();
+    else setProblem("Tokens and connected apps could not be revoked just now. You can revoke them from the lists below.");
   }
 
   // The session cookie is one the server refuses now: the route that clears it goes on to sign-in.
@@ -283,10 +319,16 @@ export function TwoStepSection() {
                     </Button>
                     {status.factors.length === 1 ? null : confirmingRemove === factor.id ? (
                       <>
-                        <Button variant="ghost" size="sm" aria-label={`Yes, remove ${factor.name}`} onClick={() => void remove(factor.id)}>
+                        <Button
+                          ref={confirmRemoveButton}
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Yes, remove ${factor.name}`}
+                          onClick={() => void remove(factor.id)}
+                        >
                           Yes, remove
                         </Button>
-                        <Button variant="ghost" size="sm" aria-label={`Keep ${factor.name}`} onClick={() => setConfirmingRemove(null)}>
+                        <Button variant="ghost" size="sm" aria-label={`Keep ${factor.name}`} onClick={() => keepFactor(factor.id)}>
                           Keep
                         </Button>
                       </>
@@ -295,6 +337,9 @@ export function TwoStepSection() {
                         variant="ghost"
                         size="sm"
                         aria-label={`Remove ${factor.name}`}
+                        ref={(button) => {
+                          removeButtons.current.set(factor.id, button);
+                        }}
                         disabled={changing}
                         onClick={() => setConfirmingRemove(factor.id)}
                       >
@@ -345,7 +390,7 @@ export function TwoStepSection() {
         </Text>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button variant={status.enabled ? "secondary" : "primary"} pending={adding} onClick={() => void add()}>
+        <Button ref={addPasskeyButton} variant={status.enabled ? "secondary" : "primary"} pending={adding} onClick={() => void add()}>
           Add a passkey
         </Button>
         <Button variant="secondary" onClick={() => setAuthenticator(true)}>

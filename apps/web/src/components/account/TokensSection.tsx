@@ -224,7 +224,9 @@ export function TokensSection({ entitled }: { entitled: boolean | null }) {
           expiresInDays: days,
         }),
       });
-      if (res.status === 403) {
+      // By name, as on the consent page: only this 403 is one a check can clear.
+      const refusal = res.status === 403 ? ((await res.json().catch(() => null)) as { error?: unknown } | null) : null;
+      if (refusal?.error === "fresh-check-required") {
         setChecking(true);
         return;
       }
