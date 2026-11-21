@@ -270,6 +270,34 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     why: "Sign-in; a token is already signed in",
     reaches: [{ module: "@/server/auth", symbols: ["handlers", "signIn", "signOut"] }],
   },
+  // M62: the second factor guards the session, and a token is not a session.
+  // A token that could add or rename factors could take the account its owner
+  // protected with them.
+  "account/mfa/factors": {
+    status: "never",
+    why: "A token that could list factors could read how its owner signs in",
+    reaches: [{ module: "@/server/mfa/factors", symbols: ["listFactors"] }],
+  },
+  "account/mfa/factors/[factorId]": {
+    status: "never",
+    why: "Renaming a factor — a token could relabel its owner's way in",
+    reaches: [{ module: "@/server/mfa/factors", symbols: ["renameFactor"] }],
+  },
+  "account/mfa/passkeys": {
+    status: "never",
+    why: "Adding a passkey — a token could plant a factor of its own",
+    reaches: [{ module: "@/server/mfa/passkey" }, { module: "@/server/mfa/factors", symbols: ["addPasskey"] }],
+  },
+  "mfa/verify": {
+    status: "never",
+    why: "The second step of sign-in; a token is already signed in",
+    reaches: [{ module: "@/server/mfa/state", symbols: ["mintSecondFactorProof"] }],
+  },
+  "session-expired": {
+    status: "never",
+    why: "Clears a browser's refused session cookies on the way to sign-in, not data",
+    reaches: [],
+  },
   // M49 decision 8: the API takes a cover found elsewhere, not a search.
   "trips/[tripId]/cover/search": {
     status: "never",

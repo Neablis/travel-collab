@@ -29,6 +29,7 @@ export async function listFactors(userId: string): Promise<MfaFactorView[]> {
   }));
 }
 
+/** The account's passkeys with the key material a WebAuthn ceremony needs; rows missing it are skipped. */
 export async function passkeysOf(userId: string): Promise<StoredPasskey[]> {
   const rows = await db
     .select()

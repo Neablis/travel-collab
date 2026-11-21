@@ -23,6 +23,10 @@ const Step = z.discriminatedUnion("step", [
   }),
 ]);
 
+/**
+ * Checks a passkey for the current session, pending or not, and returns a proof for
+ * NextAuth's `update` to write into the cookie.
+ */
 export async function POST(request: Request) {
   const session = await authIncludingPending();
   const userId = session?.user?.id;
