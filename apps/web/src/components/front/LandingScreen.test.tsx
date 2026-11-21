@@ -152,6 +152,12 @@ describe("LandingScreen", () => {
     expect(footer.getByRole("link", { name: "Developers" }).getAttribute("href")).toBe("/developers");
   });
 
+  it("links the AI page from the footer", () => {
+    render(<LandingScreen />);
+    const footer = within(within(screen.getByTestId("desktop-landing")).getByRole("contentinfo"));
+    expect(footer.getByRole("link", { name: "AI" }).getAttribute("href")).toBe("/ai");
+  });
+
   it("ends on a footer with the contact address", () => {
     render(<LandingScreen />);
     const footer = within(within(screen.getByTestId("desktop-landing")).getByRole("contentinfo"));

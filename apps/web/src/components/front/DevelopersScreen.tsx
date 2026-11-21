@@ -148,6 +148,9 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
             <Code>/api/v1</Code> reads and changes your own trips, days, stops, notebook pages and playbooks,
             as you.
           </Text>
+          <Text className="text-base text-pretty">
+            Not a developer? <InlineLink href="/ai">What your AI can do in Caesura</InlineLink>.
+          </Text>
           <Text variant="secondary" className="text-base text-pretty">
             A token acts as the person who made it. It holds only the scopes you give it, it always
             expires, and it can never do more than you can.

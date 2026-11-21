@@ -307,5 +307,6 @@ describe("the phone front door's shell", () => {
     const footer = within(within(screen.getByTestId("phone-front-door")).getByRole("contentinfo"));
     expect(footer.getByRole("link", { name: "mitchell@demarcosoftware.com" }).getAttribute("href")).toBe("mailto:mitchell@demarcosoftware.com");
     expect(footer.getByRole("link", { name: "Developers" }).getAttribute("href")).toBe("/developers");
+    expect(footer.getByRole("link", { name: "AI" }).getAttribute("href")).toBe("/ai");
   });
 });

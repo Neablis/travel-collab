@@ -41,6 +41,11 @@ describe("DevelopersScreen", () => {
     expect(screen.getByRole("region", { name: "From nothing to a first call" }).textContent).not.toContain("—");
   });
 
+  it("links the AI page for a reader who came to see what an AI can do", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    expect(screen.getByRole("link", { name: "What your AI can do in Caesura" }).getAttribute("href")).toBe("/ai");
+  });
+
   it("links the reference, the OpenAPI document, the api-catalog and llms.txt", () => {
     render(<DevelopersScreen tools={TOOLS} />);
     const reference = within(screen.getByRole("region", { name: "The reference" }));

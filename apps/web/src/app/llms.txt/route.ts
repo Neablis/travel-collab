@@ -66,6 +66,8 @@ function llmsTxt(origin: string): string {
     "",
     `- [Agent instructions](${at("/agents.md")}): how to sign in, which surface fits which job, the scopes, the limits, the MCP tool table, and what never to do without asking the person`,
     "",
+    `- [Caesura and your AI](${at("/ai")}): what an AI tool can do in Caesura, in plain words, with a prompt to try for each tool`,
+    "",
     "## Getting a token",
     "",
     `- [Developers](${at("/developers")}): how to sign up, sign in, and mint a token — scopes, lifetime, and where the secret is shown`,

@@ -168,6 +168,11 @@ describe("/llms.txt", () => {
     expect(served("/agents.md")).toBe(true);
   });
 
+  it("links the AI page, absolutely, to a page that exists", async () => {
+    expect(links((await read()).text)).toContain("https://example.test/ai");
+    expect(served("/ai")).toBe(true);
+  });
+
   it("does not send an agent looking for an invite: anyone can sign up (M50)", async () => {
     expect((await read()).text).not.toContain("invite code");
   });

@@ -31,6 +31,11 @@ describe("sitemap.xml", () => {
     expect(urls).toContain(`${deploymentOrigin()}/`);
   });
 
+  it("lists the AI page", async () => {
+    const urls = (await sitemap()).map((entry) => entry.url);
+    expect(urls).toContain(`${deploymentOrigin()}/ai`);
+  });
+
   // M42 D1: each demo trip is a public page with no database behind it.
   // `server/demoTrip.test.ts` holds `DEMO_TRIPS` to `content/trips/`.
   it("lists the picker and every demo trip", async () => {
