@@ -5,7 +5,7 @@ import { db } from "@/server/db/client";
 import { mfaResets, users } from "@/server/db/schema";
 import { requireAdminApi } from "@/server/entitlements/requireAdmin";
 import { emailSecurityChange, turnOffIn } from "@/server/mfa/changes";
-import { bumpSecurityEpoch } from "@/server/mfa/state";
+import { bumpSecurityEpoch, lockAccount } from "@/server/mfa/state";
 
 // **Reset two-step sign-in** (M62 D9, D15): the one way back for an account that
 // lost every factor and every recovery code. The operator gives a reason and
@@ -47,9 +47,15 @@ export async function POST(request: Request, { params }: Params) {
   const email = account.email;
 
   // The account's own Turn off and its epoch bump, with the record in the same
-  // transaction, so a reset is never done without saying who did it.
+  // transaction, so a reset is never done without saying who did it. The read
+  // above can be stale by now: a second reset, or the account's own Turn off, may
+  // have landed since. So the row is taken and read again first, and a reset that
+  // finds nothing left to reset records nothing and sends nothing.
   const now = new Date();
-  await db.transaction(async (tx) => {
+  const done = await db.transaction(async (tx) => {
+    await lockAccount(tx, accountId);
+    const [current] = await tx.select({ enabledAt: users.mfaEnabledAt }).from(users).where(eq(users.id, accountId));
+    if (!current?.enabledAt) return false;
     await turnOffIn(tx, accountId);
     await tx.insert(mfaResets).values({
       id: randomUUID(),
@@ -60,7 +66,9 @@ export async function POST(request: Request, { params }: Params) {
       at: now,
     });
     await bumpSecurityEpoch(accountId, tx);
+    return true;
   });
+  if (!done) return Response.json({ error: "mfa-not-enabled" }, { status: 409 });
   await emailSecurityChange({ userId: accountId, change: "operator-reset", request: null, now });
   return Response.json({ at: now.toISOString() });
 }

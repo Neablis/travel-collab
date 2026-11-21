@@ -61,8 +61,14 @@ async function withMfa(options: { email?: string | null } = {}): Promise<string>
   return id;
 }
 
+// The operator's own device, on every request: the account's email must not name it.
+const OPERATOR_DEVICE = {
+  "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "x-forwarded-for": "203.0.113.9",
+};
+
 const reset = (accountId: string, body: unknown) =>
-  POST(new Request("http://localhost/x", { method: "POST", body: JSON.stringify(body) }), {
+  POST(new Request("http://localhost/x", { method: "POST", headers: OPERATOR_DEVICE, body: JSON.stringify(body) }), {
     params: Promise.resolve({ accountId }),
   });
 
@@ -150,6 +156,35 @@ describe("an operator's reset", () => {
     expect(sent[0]!.text).toContain("reset");
     // The operator's own browser is not the account's: the email names no device.
     expect(sent[0]!.text).not.toContain("From:");
+    expect(sent[0]!.text).not.toContain("203.0.113.9");
+    // Every session went, this one included, and support is who to tell if it was not asked for.
+    expect(sent[0]!.text).not.toContain("other signed-in device");
+    expect(sent[0]!.text).toContain("Every signed-in device was signed out");
+    expect(sent[0]!.text).toContain("contact Caesura support");
+  });
+
+  // Two operators, or two tabs, a moment apart: both see two-step on before either commits.
+  it("records and emails a reset once when two land on the same account at once", async () => {
+    currentUserId = await account({ admin: true });
+    const target = await withMfa();
+    let release!: () => void;
+    let locked!: () => void;
+    const held = new Promise<void>((resolve) => (locked = resolve));
+    const holding = db.transaction(async (tx) => {
+      await tx.select({ id: users.id }).from(users).where(eq(users.id, target)).for("update");
+      locked();
+      await new Promise<void>((resolve) => (release = resolve));
+    });
+    await held;
+    const both = Promise.all([reset(target, VALID), reset(target, VALID)]);
+    // Long enough for each to read the account and wait on its row.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    release();
+    await holding;
+
+    expect((await both).map((res) => res.status).sort()).toEqual([200, 409]);
+    expect((await stateOf(target)).resets).toBe(1);
+    expect(sent).toHaveLength(1);
   });
 
   it("answers 409 for an account with two-step sign-in off, and 404 for no account", async () => {

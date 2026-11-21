@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
@@ -47,6 +47,10 @@ export function AccountMfaReset({
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  // A reset unmounts its own opener when the page re-reads with two-step off, so
+  // the dialog hands focus to the state line instead, which then says "Off".
+  const stateLine = useRef<HTMLDivElement>(null);
+  const landed = useRef(false);
 
   async function reset() {
     setBusy(true);
@@ -64,6 +68,7 @@ export function AccountMfaReset({
         setFailed(refusalOf(res.status, typeof code === "string" ? code : null));
         return;
       }
+      landed.current = true;
       setOpen(false);
       setReason("");
       setConfirmed(false);
@@ -78,9 +83,11 @@ export function AccountMfaReset({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Text className="text-sm text-ink">
-          {mfa.enabled ? `On · ${mfa.factors} ${mfa.factors === 1 ? "factor" : "factors"}` : "Off"}
-        </Text>
+        <div ref={stateLine} tabIndex={-1} role="status">
+          <Text className="text-sm text-ink">
+            {mfa.enabled ? `On · ${mfa.factors} ${mfa.factors === 1 ? "factor" : "factors"}` : "Off"}
+          </Text>
+        </div>
         {mfa.enabled && (
           <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(true)}>
             Reset two-step sign-in
@@ -107,6 +114,12 @@ export function AccountMfaReset({
           setOpen(next);
           if (!next) setFailed(null);
         }}
+        onCloseAutoFocus={(event) => {
+          if (!landed.current) return;
+          landed.current = false;
+          event.preventDefault();
+          stateLine.current?.focus();
+        }}
         title="Reset two-step sign-in"
         description={`Removes every passkey, authenticator app and recovery code on ${account}, turns two-step sign-in off and signs out all of its sessions. The account is emailed.`}
       >
@@ -132,7 +145,14 @@ export function AccountMfaReset({
             </Text>
           )}
           <DialogFooter>
-            <Button type="submit" variant="destructive" disabled={busy || reason.trim() === "" || !confirmed}>
+            {/* Busy is announced, not `disabled`: disabling the focused button drops
+                keyboard focus to the page while the request is in flight (as `AccountTestMode`). */}
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={reason.trim() === "" || !confirmed}
+              aria-disabled={busy || undefined}
+            >
               Reset
             </Button>
           </DialogFooter>

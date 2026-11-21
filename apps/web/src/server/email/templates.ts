@@ -118,12 +118,18 @@ export function tripInviteEmail(input: {
 /** What `securityChangeEmail` says happened; one phrase per change, in the order a person would list them. */
 export type SecurityChangeKind = "factor-removed" | "two-step-off" | "codes-regenerated" | "operator-reset";
 
-const SECURITY_CHANGE_WORDING: Record<SecurityChangeKind, { subject: string; what: string }> = {
+// `advice` replaces the shared line where it would be wrong: a reset keeps no
+// session and is not undone by reviewing settings.
+const SECURITY_CHANGE_WORDING: Record<SecurityChangeKind, { subject: string; what: string; advice?: string }> = {
   "factor-removed": { subject: "A second step was removed from your account", what: "A way of signing in with two steps was removed from your account." },
   "two-step-off": { subject: "Two-step sign-in was turned off", what: "Two-step sign-in was turned off, and every passkey, authenticator app and recovery code was removed." },
   "codes-regenerated": { subject: "Your recovery codes were replaced", what: "Your recovery codes were replaced. The old ones no longer work." },
   // D9: done by an operator, after the account's own email asked for it.
-  "operator-reset": { subject: "Two-step sign-in was reset", what: "Caesura support reset two-step sign-in on your account, as asked from your email address. Every passkey, authenticator app and recovery code was removed, and two-step sign-in is off." },
+  "operator-reset": {
+    subject: "Two-step sign-in was reset",
+    what: "Caesura support reset two-step sign-in on your account, as asked from your email address. Every passkey, authenticator app and recovery code was removed, and two-step sign-in is off.",
+    advice: "Every signed-in device was signed out. You can add a passkey or an authenticator app again from your security settings. If you did not ask for this, contact Caesura support at once.",
+  },
 };
 
 /**
@@ -140,11 +146,14 @@ export function securityChangeEmail(input: {
   ip: string | null;
   securityUrl: string;
 }): Email {
-  const { subject, what } = SECURITY_CHANGE_WORDING[input.change];
+  const wording = SECURITY_CHANGE_WORDING[input.change];
+  const { subject, what } = wording;
   const when = `${input.at.toISOString().slice(0, 16).replace("T", " ")} UTC`;
   const from = [input.client, input.ip === null ? null : `IP address ${input.ip}`].filter((part) => part !== null).join(", ");
   const details = `When: ${when}${from === "" ? "" : `\nFrom: ${from}`}`;
-  const advice = "If this was you, there is nothing to do. If it was not, sign in and review your security settings now. Every other signed-in device was signed out.";
+  const advice =
+    wording.advice ??
+    "If this was you, there is nothing to do. If it was not, sign in and review your security settings now. Every other signed-in device was signed out.";
   return {
     to: input.to,
     tag: "security-change",

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -61,6 +61,46 @@ describe("AccountMfaReset", () => {
     );
     expect(refresh).toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // The opener is gone once the page re-reads with two-step off, and focus would go with it.
+  it("moves focus to the two-step state, which says Off, once a reset lands", async () => {
+    fetchMock.mockResolvedValue(json({ at: NOW }));
+    const user = userEvent.setup();
+    const { rerender } = render(<AccountMfaReset accountId="dev-mei" account="mei@gmail.com" mfa={ON} now={NOW} />);
+    refresh.mockImplementation(() =>
+      rerender(<AccountMfaReset accountId="dev-mei" account="mei@gmail.com" mfa={{ ...ON, enabled: false, factors: 0 }} now={NOW} />),
+    );
+
+    const dialog = await openDialog(user);
+    await user.type(within(dialog).getByLabelText("Reason"), "Lost her phone");
+    await user.click(within(dialog).getByRole("checkbox", { name: /I confirmed this by email/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Reset" }));
+
+    expect(screen.queryByRole("button", { name: "Reset two-step sign-in" })).toBeNull();
+    const state = screen.getByRole("status");
+    expect(state.textContent).toBe("Off");
+    await waitFor(() => expect(state.matches(":focus")).toBe(true));
+  });
+
+  // Disabling the focused button would drop focus to the page while the request is out.
+  it("keeps Reset focusable while the request is in flight, and sends it once", async () => {
+    let answer!: (res: Response) => void;
+    fetchMock.mockReturnValue(new Promise<Response>((resolve) => (answer = resolve)));
+    const user = userEvent.setup();
+    render(<AccountMfaReset accountId="dev-mei" account="mei@gmail.com" mfa={ON} now={NOW} />);
+
+    const dialog = await openDialog(user);
+    await user.type(within(dialog).getByLabelText("Reason"), "Lost her phone");
+    await user.click(within(dialog).getByRole("checkbox", { name: /I confirmed this by email/ }));
+    const confirm = within(dialog).getByRole("button", { name: "Reset" }) as HTMLButtonElement;
+    await user.click(confirm);
+    expect(confirm.disabled).toBe(false);
+    expect(confirm.getAttribute("aria-disabled")).toBe("true");
+    await user.click(confirm);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    answer(json({ error: "mfa-not-enabled" }, 409));
+    expect(await within(dialog).findByRole("alert")).toBeTruthy();
   });
 
   it("says nothing changed when the server refuses, and keeps the dialog open", async () => {
