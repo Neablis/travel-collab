@@ -64,14 +64,30 @@ describe("SecurityScreen", () => {
       "Google",
       "passkey",
       "Face ID",
-      "Touch ID",
-      "Windows Hello",
-      "Android",
+      "fingerprint",
       "authenticator app",
       "recovery codes",
     ]) {
       expect(text, word).toContain(word);
     }
+    // Only what the code shows: Caesura asks the device to verify, and names no platform it never checked.
+    for (const word of ["Windows Hello", "Android", "Touch ID"]) expect(text, word).not.toContain(word);
+  });
+
+  // The last factor cannot be removed (`removeFactorIn` refuses it), so the way out for a
+  // one-device account is Turn off, and the page must say so.
+  it("tells someone who lost their only device to turn the second step off", () => {
+    render(<SecurityScreen />);
+    const answer = screen.getByText(/Use one of your recovery codes/).textContent!;
+    expect(answer).toContain("recovery code");
+    expect(answer).toContain("only one");
+    expect(answer).toContain("turn the second step off");
+  });
+
+  it("says API tokens are on Premium", () => {
+    render(<SecurityScreen />);
+    const text = screen.getByRole("region", { name: "Taking access back" }).textContent!;
+    expect(text).toContain("Premium");
   });
 
   // A link that 404s or scrolls nowhere is worse than none.
@@ -92,6 +108,18 @@ describe("SecurityScreen", () => {
       const [pathname, hash] = href.split("#");
       expect(served.has(pathname!), href).toBe(true);
       if (hash !== undefined) expect(anchors[pathname!]?.has(hash), href).toBe(true);
+    }
+  });
+
+  // Decision 18: no GitHub anywhere, in what is read or in where a link goes.
+  it("names no GitHub in its text or in any href", () => {
+    render(<SecurityScreen />);
+    const text = (document.body.textContent ?? "").toLowerCase();
+    const hrefs = screen.getAllByRole("link").map((link) => (link.getAttribute("href") ?? "").toLowerCase());
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const word of ["github", "neablis", "issues/new", "advisories"]) {
+      expect(text, word).not.toContain(word);
+      for (const href of hrefs) expect(href, word).not.toContain(word);
     }
   });
 
@@ -141,6 +169,7 @@ describe("SecurityScreen", () => {
     render(<SecurityScreen />);
     const reporting = within(screen.getByRole("region", { name: "Reporting a vulnerability" }));
     const shown = reporting.getAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(shown).toEqual(["mailto:mitchell@demarcosoftware.com"]);
     expect(shown).toEqual(SECURITY_CONTACTS.map((contact) => contact.href));
     const contactLines = (await securityTxt().text()).split("\n").filter((line) => line.startsWith("Contact: "));
     expect(contactLines).toEqual(shown.map((href) => `Contact: ${href}`));

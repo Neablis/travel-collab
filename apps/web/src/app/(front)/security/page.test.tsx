@@ -44,6 +44,15 @@ describe("/security metadata", () => {
     expect(readFileSync(path.join(HERE, "opengraph-image.alt.txt"), "utf8").trim().length).toBeGreaterThan(0);
     expect(readFileSync(path.join(HERE, "opengraph-image.png")).length).toBeGreaterThan(0);
   });
+
+  // The picture reads "Your account, your data" over "Security at Caesura"; the alt must say the same.
+  it("describes the image it ships: the file's alt and the metadata's agree, and name no AI line the picture lacks", () => {
+    const alt = readFileSync(path.join(HERE, "opengraph-image.alt.txt"), "utf8").trim();
+    const images = metadata.openGraph?.images;
+    const first = Array.isArray(images) ? images[0] : images;
+    expect(typeof first === "object" && first !== null && "alt" in first ? first.alt : undefined).toBe(alt);
+    expect(alt).not.toContain("AI");
+  });
 });
 
 describe("/security structured data", () => {

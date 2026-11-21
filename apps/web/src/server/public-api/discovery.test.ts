@@ -116,7 +116,8 @@ describe("/.well-known/security.txt", () => {
     expect(served("/security")).toBe(true);
     const contacts = text.split("\n").filter((line) => line.startsWith("Contact: "));
     expect(contacts).toEqual(SECURITY_CONTACTS.map((contact) => `Contact: ${contact.href}`));
-    expect(contacts.length).toBeGreaterThan(0);
+    expect(contacts).toEqual(["Contact: mailto:mitchell@demarcosoftware.com"]);
+    expect(text.toLowerCase()).not.toContain("github");
   });
 
   it("keeps its Expires date", async () => {

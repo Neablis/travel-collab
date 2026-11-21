@@ -15,7 +15,7 @@ export const metadata = pageMetadata({
   title: { absolute: TITLE },
   description: DESCRIPTION,
   canonical: "/security",
-  image: { url: "/security/opengraph-image.png", alt: "Security at Caesura. Your account, your data, your AI." },
+  image: { url: "/security/opengraph-image.png", alt: "Security at Caesura. Your account, your data." },
 });
 
 // Public on purpose and static, like `/ai`: outside `proxy.ts`'s matcher,

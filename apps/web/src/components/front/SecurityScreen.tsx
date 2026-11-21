@@ -27,11 +27,11 @@ export const SECURITY_FAQ: readonly FaqEntry[] = [
   },
   {
     question: "What if I lose my phone?",
-    answer: "Use one of your recovery codes to sign in, then remove the lost device and make a new set of codes.",
+    answer: "Use one of your recovery codes to sign in, then remove the lost device. If it was your only one, turn the second step off, and turn it on again with a new device to get a new set of codes.",
   },
   {
     question: "Can I see what is connected to my account?",
-    answer: "Yes. Account, then Security, lists your tokens and every app you have connected, and you can end any of them.",
+    answer: "Yes. On the Premium plan, Account, then Security, lists your tokens and every app you have connected, and you can end any of them.",
   },
 ];
 
@@ -74,8 +74,8 @@ export function SecurityScreen() {
           </Heading>
           <Text className="text-pretty">You sign in to Caesura with Google.</Text>
           <Text className="text-pretty">
-            You can add a second step, and it is optional. A passkey lets Face ID, Touch ID, Windows Hello or
-            an Android phone confirm it is you. An authenticator app gives you a 6-digit code. When you turn
+            You can add a second step, and it is optional. A passkey lets your device confirm it is you, with
+            Face ID, a fingerprint or a PIN. An authenticator app gives you a 6-digit code. When you turn
             the second step on, you also get recovery codes, for the day you lose a device.
           </Text>
         </section>
@@ -107,7 +107,10 @@ export function SecurityScreen() {
             Taking access back
           </Heading>
           <ul className="flex flex-col gap-2.5">
-            <li>Revoke a token under Account, then Security, and it stops working.</li>
+            <li>
+              Revoke a token under Account, then Security, and it stops working. API tokens and connected apps
+              are on the Premium plan.
+            </li>
             <li>Disconnect an app in Connected apps, and it stops working immediately.</li>
             <li>
               When you turn the second step on or off, remove a passkey or an authenticator app, or make new
@@ -120,7 +123,7 @@ export function SecurityScreen() {
           <Heading level={2} id="sec-data">
             Your data
           </Heading>
-          <Text className="text-pretty">Every connection to Caesura is encrypted.</Text>
+          <Text className="text-pretty">Connections to Caesura are encrypted.</Text>
           <Text className="text-pretty">
             We keep only a fingerprint of each token, which cannot be turned back into it. The token itself is
             shown to you once, when you make it.
