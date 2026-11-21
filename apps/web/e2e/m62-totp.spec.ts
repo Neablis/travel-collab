@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import * as OTPAuth from "otpauth";
 import { expect, test } from "./fixtures/test";
 import { addVirtualAuthenticator, openAccountPage, signInAsDevUser } from "./helpers";
@@ -15,6 +16,14 @@ const codeAt = (secret: string, at: number) =>
   new OTPAuth.TOTP({ algorithm: "SHA1", digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(secret) }).generate({
     timestamp: at,
   });
+
+/**
+ * The verify screen's own passkey prompt, which it asks for from an effect on arrival.
+ * Until that request is out, its button is the server's HTML: a click is lost, or is
+ * undone when the prompt starts and puts the screen back on the passkey.
+ */
+const arrivalPrompt = (page: Page) =>
+  page.waitForRequest((r) => r.url().endsWith("/api/mfa/verify") && r.postData()?.includes('"step":"options"') === true);
 
 test("authenticator app: enrol beside a passkey, sign in with a code", async ({ page }) => {
   const username = `m62t${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
@@ -58,8 +67,10 @@ test("authenticator app: enrol beside a passkey, sign in with a code", async ({ 
   await page.goto("/signin?callbackUrl=%2Faccount%3Ftab%3Dsecurity");
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: the form's one field, as `signInAsDevUser` fills it
   await page.fill('input[name="username"]', username);
+  let prompted = arrivalPrompt(page);
   await page.getByRole("button", { name: /sign in with dev login/i }).click();
 
+  await prompted;
   await page.getByRole("button", { name: "Use authenticator code" }).click();
   // The enrolment code already spent this 30-second step, so the sign-in uses the
   // next one; the server accepts a step either side of its own clock.
@@ -76,7 +87,9 @@ test("authenticator app: enrol beside a passkey, sign in with a code", async ({ 
   await page.goto("/signin?callbackUrl=%2Faccount%3Ftab%3Dsecurity");
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: the form's one field, as `signInAsDevUser` fills it
   await page.fill('input[name="username"]', username);
+  prompted = arrivalPrompt(page);
   await page.getByRole("button", { name: /sign in with dev login/i }).click();
+  await prompted;
   await page.getByRole("button", { name: "Use authenticator code" }).click();
   await page.getByRole("textbox", { name: "Authenticator code" }).fill(next);
   await page.getByRole("textbox", { name: "Authenticator code" }).press("Enter");
