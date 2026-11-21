@@ -1,5 +1,6 @@
 import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
 import { z } from "zod";
+import type { SessionWithMfa } from "@/lib/authConfig";
 import { authIncludingPending } from "@/server/auth";
 import { passkeysOf, recordPasskeyUse } from "@/server/mfa/factors";
 import { authenticationOptions, verifyAuthentication } from "@/server/mfa/passkey";
@@ -25,7 +26,10 @@ const Step = z.discriminatedUnion("step", [
 export async function POST(request: Request) {
   const session = await authIncludingPending();
   const userId = session?.user?.id;
-  if (userId === undefined || userId === "") return Response.json({ error: "unauthenticated" }, { status: 401 });
+  // The proof is minted for this cookie's `sid` (`server/mfa/state.ts`); a token
+  // from before sids existed cannot be upgraded, so it signs in again.
+  const sid = (session as SessionWithMfa | null)?.sid;
+  if (userId === undefined || userId === "" || !sid) return Response.json({ error: "unauthenticated" }, { status: 401 });
 
   const body = Step.safeParse(await request.json().catch(() => null));
   if (!body.success) return Response.json({ error: "invalid-request" }, { status: 400 });
@@ -52,5 +56,5 @@ export async function POST(request: Request) {
   if (verified === null) return Response.json({ error: "passkey-not-verified" }, { status: 401 });
 
   await recordPasskeyUse(verified.factorId, verified.counter, now);
-  return Response.json({ proof: mintSecondFactorProof(userId, "webauthn", state.epoch, now) });
+  return Response.json({ proof: mintSecondFactorProof(userId, sid, "webauthn", state.epoch, now) });
 }

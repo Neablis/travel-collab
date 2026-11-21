@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { userRecoveryCodes } from "@/server/db/schema";
 import { keyedDigest, keyedDigestCandidates } from "@/server/secrets/keyedDigest";
@@ -26,6 +26,10 @@ const normalise = (code: string) => code.toLowerCase().replace(/[^a-z0-9]/g, "")
 export async function issueRecoveryCodes(userId: string, now: Date): Promise<string[]> {
   const codes = Array.from({ length: CODE_COUNT }, newCode);
   await db.transaction(async (tx) => {
+    // Two regenerations at once (a double click, a retry) would each delete before
+    // the other inserted, under READ COMMITTED, and leave twenty live codes. One
+    // lock per account makes the second wait and then void the first's set.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`mfa-recovery:${userId}`}))`);
     await tx.delete(userRecoveryCodes).where(eq(userRecoveryCodes.userId, userId));
     await tx.insert(userRecoveryCodes).values(
       codes.map((code) => {

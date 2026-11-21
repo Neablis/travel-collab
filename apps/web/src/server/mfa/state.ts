@@ -52,34 +52,44 @@ const PROOF_LIFETIME_MS = 2 * 60 * 1000;
 
 // Keyed under the same pepper as every issued secret, with a prefix so a proof
 // can never equal a digest of anything else this app stores.
-function digestOf(userId: string, method: string, epoch: number, expiresAt: number): string {
-  return keyedDigest(`mfa-proof|${userId}|${method}|${epoch}|${expiresAt}`).digest;
+function digestOf(userId: string, sid: string, method: string, epoch: number, expiresAt: number): string {
+  return keyedDigest(`mfa-proof|${userId}|${sid}|${method}|${epoch}|${expiresAt}`).digest;
 }
 
-/** Called by the route that just verified a factor. `now` is injected, never read here. */
+/**
+ * Called by the route that just verified a factor. `sid` is the session's own id
+ * (`token.sid`), so the proof is good for the cookie that asked and no other.
+ * `now` is injected, never read here.
+ */
 export function mintSecondFactorProof(
   userId: string,
+  sid: string,
   method: SecondFactorMethod,
   epoch: number,
   now: Date,
 ): SecondFactorProof {
   const expiresAt = now.getTime() + PROOF_LIFETIME_MS;
-  return { method, epoch, expiresAt, proof: digestOf(userId, method, epoch, expiresAt) };
+  return { method, epoch, expiresAt, proof: digestOf(userId, sid, method, epoch, expiresAt) };
 }
 
-/** The method the proof vouches for, or null for anything forged, expired, or from an older epoch. */
+/**
+ * What the proof vouches for, or null for anything forged, expired, from an older
+ * epoch or minted for another session. Single use is the caller's: it keeps the
+ * `expiresAt` it accepted and refuses one that is not later (`authConfig.ts`).
+ */
 export function readSecondFactorProof(
   userId: string,
+  sid: string,
   candidate: unknown,
   currentEpoch: number,
   now: Date,
-): SecondFactorMethod | null {
+): { method: SecondFactorMethod; expiresAt: number } | null {
   if (typeof candidate !== "object" || candidate === null) return null;
   const { method, epoch, expiresAt, proof } = candidate as Partial<SecondFactorProof>;
   if (method !== "webauthn" && method !== "otp" && method !== "recovery") return null;
   if (typeof epoch !== "number" || typeof expiresAt !== "number" || typeof proof !== "string") return null;
   if (epoch !== currentEpoch || expiresAt < now.getTime()) return null;
-  return digestsMatch(proof, digestOf(userId, method, epoch, expiresAt)) ? method : null;
+  return digestsMatch(proof, digestOf(userId, sid, method, epoch, expiresAt)) ? { method, expiresAt } : null;
 }
 
 /** How recent a check must be to add, remove or regenerate (M62 D6). */

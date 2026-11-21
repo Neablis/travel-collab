@@ -4,6 +4,7 @@ import { db } from "@/server/db/client";
 import { userFactors, users } from "@/server/db/schema";
 import type { MfaFactorView } from "@/lib/mfaWire";
 import { issueRecoveryCodes } from "./recoveryCodes";
+import { bumpSecurityEpoch } from "./state";
 import type { StoredPasskey, VerifiedRegistration } from "./passkey";
 
 /** What the Security tab lists: names and times, never a key. */
@@ -65,8 +66,10 @@ export async function recordPasskeyUse(factorId: string, counter: number, now: D
 
 /**
  * Stores the passkey. The first factor on an account turns MFA on in the same
- * breath and returns the ten recovery codes, once (M62 D6); a later one returns
- * none. `mfa_enabled_at` is set by a conditional UPDATE, so two first passkeys
+ * breath, bumps the security epoch and returns the ten recovery codes, once
+ * (M62 D6); a later one returns none. The bump is what reaches the account's other
+ * open sessions: their tokens say MFA is off, and only an older epoch gets them
+ * refused and sent to sign in again. `mfa_enabled_at` is set by a conditional UPDATE, so two first passkeys
  * registered at once cannot both be told they were first.
  *
  * A credential id already on any account fails on the unique index and throws:
@@ -93,5 +96,7 @@ export async function addPasskey(
     .set({ mfaEnabledAt: now })
     .where(and(eq(users.id, userId), isNull(users.mfaEnabledAt)))
     .returning({ id: users.id });
-  return { recoveryCodes: turnedOn.length > 0 ? await issueRecoveryCodes(userId, now) : null };
+  if (turnedOn.length === 0) return { recoveryCodes: null };
+  await bumpSecurityEpoch(userId);
+  return { recoveryCodes: await issueRecoveryCodes(userId, now) };
 }

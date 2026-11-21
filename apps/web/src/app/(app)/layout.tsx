@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/AppShell";
-import { servedForRequest } from "@/server/servedSession";
+import { servedForApp } from "@/server/servedSession";
 
 // The app's surfaces under one chrome (`AppShell`), started from what the
 // request's session serves (`server/servedSession.ts`): the reader, their plan
@@ -10,5 +10,5 @@ import { servedForRequest } from "@/server/servedSession";
 // whose live layout makes the same read and whose cached copy makes none
 // (`lib/playbooksReader.ts`).
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  return <AppShell {...await servedForRequest()}>{children}</AppShell>;
+  return <AppShell {...await servedForApp()}>{children}</AppShell>;
 }

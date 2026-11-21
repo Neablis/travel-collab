@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { userRecoveryCodes } from "@/server/db/schema";
+import { keyedDigest } from "@/server/secrets/keyedDigest";
 import { consumeRecoveryCode, issueRecoveryCodes } from "./recoveryCodes";
 
 const NOW = new Date("2026-11-20T12:00:00Z");
@@ -15,8 +16,13 @@ describe("recovery codes", () => {
     expect(new Set(codes).size).toBe(10);
     const rows = await db.select().from(userRecoveryCodes).where(eq(userRecoveryCodes.userId, user));
     expect(rows).toHaveLength(10);
+    // Each row is the keyed digest of the code as typed-and-normalised, so a
+    // store of the plaintext, dashed or not, cannot pass.
+    const stored = new Set(rows.map((r) => r.codeHash));
     for (const code of codes) {
-      expect(rows.some((r) => r.codeHash === code || r.codeHash.includes(code))).toBe(false);
+      const digest = keyedDigest(code.toLowerCase().replace(/[^a-z0-9]/g, "")).digest;
+      expect(digest).toMatch(/^[0-9a-f]{64}$/);
+      expect(stored.has(digest)).toBe(true);
     }
   });
 
@@ -49,6 +55,13 @@ describe("recovery codes", () => {
     const fresh = await issueRecoveryCodes(user, NOW);
     for (const code of old) expect(await consumeRecoveryCode(user, code, NOW)).toBe(false);
     expect(await consumeRecoveryCode(user, fresh[0]!, NOW)).toBe(true);
+    const rows = await db.select().from(userRecoveryCodes).where(eq(userRecoveryCodes.userId, user));
+    expect(rows).toHaveLength(10);
+  });
+
+  it("leaves exactly ten valid codes after two simultaneous regenerations", async () => {
+    const user = newUser();
+    await Promise.all([issueRecoveryCodes(user, NOW), issueRecoveryCodes(user, NOW)]);
     const rows = await db.select().from(userRecoveryCodes).where(eq(userRecoveryCodes.userId, user));
     expect(rows).toHaveLength(10);
   });

@@ -4,16 +4,25 @@ import { generateKeyPairSync } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { userRecoveryCodes, users } from "@/server/db/schema";
-import { createJwtCallback } from "@/lib/authConfig";
-import { mfaStateFor, readSecondFactorProof } from "@/server/mfa/state";
+import { mfaStateFor } from "@/server/mfa/state";
 import { softAuthenticator, type SoftAuthenticator } from "@/server/test-support/softAuthenticator";
 
 // Only the Auth.js wrapper is replaced, so the real `@/server/auth` runs: its
 // refusal of a half-signed-in session is one of the things under test. What the
 // session says is whatever the test sets.
-const current = vi.hoisted(() => ({ session: null as unknown }));
+const current = vi.hoisted(() => ({
+  session: null as unknown,
+  configs: [] as { callbacks?: { jwt?: unknown; signIn?: unknown } }[],
+  cookieNames: [] as string[],
+}));
 vi.mock("next-auth", () => ({
-  default: () => ({ handlers: {}, signIn: vi.fn(), signOut: vi.fn(), auth: async () => current.session }),
+  default: (config: (typeof current.configs)[number]) => {
+    current.configs.push(config);
+    return { handlers: {}, signIn: vi.fn(), signOut: vi.fn(), auth: async () => current.session };
+  },
+}));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ getAll: () => current.cookieNames.map((name) => ({ name })) }),
 }));
 
 const { GET: FACTORS } = await import("./factors/route");
@@ -21,6 +30,7 @@ const { PATCH: RENAME } = await import("./factors/[factorId]/route");
 const { POST: ADD } = await import("./passkeys/route");
 const { POST: VERIFY } = await import("../../mfa/verify/route");
 const { GET: PREFERENCES } = await import("../preferences/route");
+const { servedForApp } = await import("@/server/servedSession");
 
 const ORIGIN = "https://caesura.example";
 const ctx = { origin: ORIGIN, rpId: "caesura.example" };
@@ -38,9 +48,10 @@ interface SessionClaims {
   mfaPending?: boolean;
   mfaAt?: number;
   signedInAt?: number;
+  sid?: string;
 }
 function signedInAs(id: string, claims: SessionClaims = { signedInAt: Date.now() }) {
-  current.session = { user: { id, email: `${id}@example.test` }, ...claims };
+  current.session = { user: { id, email: `${id}@example.test` }, sid: "a-session", ...claims };
 }
 
 const post = (body: unknown) => new Request("http://localhost/x", { method: "POST", body: JSON.stringify(body) });
@@ -62,11 +73,11 @@ async function addPasskey(device: SoftAuthenticator) {
   return ADD(post({ step: "verify", ticket, response: device.attest(options as { challenge: string }, ctx) }));
 }
 
-/** The `jwt` callback `server/auth.ts` builds, over the real tables. */
-const jwt = createJwtCallback({
-  stateFor: mfaStateFor,
-  secondFactorFrom: (userId, payload, epoch) => readSecondFactorProof(userId, payload, epoch, new Date()),
-}) as unknown as (a: unknown) => Promise<Record<string, unknown> | null>;
+/** The `jwt` callback `server/auth.ts` really wires (the one whose config carries `signIn`), over the real tables. */
+const jwt = current.configs.find((c) => c.callbacks?.signIn)!.callbacks!.jwt as (
+  a: unknown,
+) => Promise<Record<string, unknown> | null>;
+const signIn = (id: string) => jwt({ token: {}, user: { id }, account: { providerAccountId: id } });
 
 /** An account with MFA on and one passkey, its session satisfied. */
 async function accountWithPasskey() {
@@ -100,7 +111,9 @@ describe("a session that has passed only Google", () => {
 describe("verifying a passkey", () => {
   it("answers with a proof the token callback turns into a second factor", async () => {
     const { id, device } = await accountWithPasskey();
-    signedInAs(id, { mfaPending: true });
+    const signedIn = (await signIn(id))!;
+    expect(signedIn.amr).toEqual(["google"]);
+    signedInAs(id, { mfaPending: true, sid: signedIn.sid as string });
     const { options, ticket } = await json(await VERIFY(post({ kind: "passkey", step: "options" })));
     const res = await VERIFY(
       post({ kind: "passkey", step: "verify", ticket, response: device.assert(options as { challenge: string }, ctx) }),
@@ -108,8 +121,6 @@ describe("verifying a passkey", () => {
     expect(res.status).toBe(200);
     const { proof } = await json(res);
 
-    const signedIn = await jwt({ token: {}, user: { id }, account: { providerAccountId: id } });
-    expect(signedIn!.amr).toEqual(["google"]);
     const updated = await jwt({ token: { ...signedIn }, trigger: "update", session: proof });
     expect(updated!.amr).toEqual(["google", "webauthn"]);
   });
@@ -127,7 +138,7 @@ describe("verifying a passkey", () => {
     expect(await json(res)).toEqual({ error: "passkey-not-verified" });
 
     // And what the browser could send NextAuth in its place is not believed either.
-    const signedIn = await jwt({ token: {}, user: { id }, account: { providerAccountId: id } });
+    const signedIn = await signIn(id);
     const invented = { method: "webauthn", epoch: 0, expiresAt: Date.now() + 60_000, proof: "0".repeat(64) };
     const updated = await jwt({ token: { ...signedIn }, trigger: "update", session: invented });
     expect(updated!.amr).toEqual(["google"]);
@@ -198,6 +209,31 @@ describe("adding a passkey", () => {
     expect((await json(await FACTORS())).factors).toHaveLength(2);
   });
 
+  it("turns two-step sign-in on by bumping the epoch, so a session minted before it is refused", async () => {
+    const id = await account();
+    const adding = (await signIn(id))!;
+    const other = (await signIn(id))!;
+    signedInAs(id, { signedInAt: Date.now(), sid: adding.sid as string });
+    const before = (await mfaStateFor(id)).epoch;
+
+    const res = await addPasskey(softAuthenticator());
+    expect(res.status).toBe(200);
+    expect((await mfaStateFor(id)).epoch).toBe(before + 1);
+    // Another open session never learned the account asks for a second factor.
+    expect(await jwt({ token: other })).toBeNull();
+    // The one that added it carries on, by the proof the route handed it.
+    const kept = await jwt({ token: adding, trigger: "update", session: (await json(res)).proof });
+    expect(kept).toMatchObject({ amr: ["google", "webauthn"], epoch: before + 1 });
+  });
+
+  it("does not bump the epoch for a second passkey", async () => {
+    const { id } = await accountWithPasskey();
+    const epoch = (await mfaStateFor(id)).epoch;
+    signedInAs(id, { mfaAt: Date.now() });
+    expect((await addPasskey(softAuthenticator())).status).toBe(200);
+    expect((await mfaStateFor(id)).epoch).toBe(epoch);
+  });
+
   it("refuses an attestation that was not made for this deployment", async () => {
     const id = await account();
     signedInAs(id);
@@ -236,5 +272,31 @@ describe("renaming a factor", () => {
     const listed = await json(await FACTORS());
     expect(listed.enabled).toBe(true);
     expect(Object.keys(listed.factors[0]!).sort()).toEqual(["createdAt", "id", "kind", "lastUsedAt", "name"]);
+  });
+});
+
+describe("an app route given a session cookie that auth() refuses", () => {
+  const sentTo = async () => {
+    try {
+      await servedForApp();
+    } catch (error) {
+      return (error as { digest?: string }).digest ?? String(error);
+    }
+    return null;
+  };
+
+  it("sends it to /signin, not to a signed-out screen", async () => {
+    current.cookieNames = ["authjs.session-token"];
+    current.session = null;
+    expect(await sentTo()).toContain("/signin");
+  });
+
+  it("serves a signed-in session, and a visitor with no cookie, as before", async () => {
+    current.cookieNames = ["authjs.session-token"];
+    signedInAs(await account());
+    expect(await sentTo()).toBeNull();
+    current.cookieNames = [];
+    current.session = null;
+    expect(await sentTo()).toBeNull();
   });
 });

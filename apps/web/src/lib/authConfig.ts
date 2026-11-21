@@ -201,8 +201,9 @@ if (isDevLoginEnabled()) {
  * `Session` plus the M62 fields. Not a contract: they are server-side reads.
  * `mfaAt` and `signedInAt` are what a fresh check is judged on (`server/mfa/state.ts`):
  * when a second factor last passed, and when Google last signed this session in.
+ * `sid` is the cookie's own id, which a second-factor proof is minted for.
  */
-export type SessionWithMfa = Session & { mfaPending?: boolean; mfaAt?: number; signedInAt?: number };
+export type SessionWithMfa = Session & { mfaPending?: boolean; mfaAt?: number; signedInAt?: number; sid?: string };
 
 /** What the `jwt` callback may ask the server about an account (M62, ADR-092). */
 export interface SessionLookup {
@@ -212,7 +213,12 @@ export interface SessionLookup {
    * The factor a NextAuth `update` payload proves, or null. The payload comes from
    * the browser, so only a server-minted proof counts (`server/mfa/state.ts`).
    */
-  secondFactorFrom(userId: string, payload: unknown, currentEpoch: number): "webauthn" | "otp" | "recovery" | null;
+  secondFactorFrom(
+    userId: string,
+    sid: string,
+    payload: unknown,
+    currentEpoch: number,
+  ): { method: "webauthn" | "otp" | "recovery"; expiresAt: number } | null;
 }
 
 /**
@@ -250,10 +256,14 @@ export function createJwtCallback(lookup?: SessionLookup): NonNullable<NonNullab
       // only one a sign-in can be. A second is added by `update`, never here.
       token.amr = ["google"];
       delete token.mfaAt;
+      delete token.proofExp;
       // Adding a first factor to an account with MFA off asks for a fresh Google
       // sign-in (M62 D6), and a token's own `iat` cannot say when that was:
       // Auth.js re-issues it on every session read.
       token.signedInAt = Date.now();
+      // This cookie's own id, which a second-factor proof is minted for: one
+      // session's proof upgrades no other, whatever the account.
+      token.sid = crypto.randomUUID();
       const state = await lookup?.stateFor(subject);
       token.epoch = state?.epoch ?? 0;
       token.mfaRequired = state?.enabled ?? false;
@@ -274,13 +284,21 @@ export function createJwtCallback(lookup?: SessionLookup): NonNullable<NonNullab
     if (!lookup) return token;
     const userId = token.userId as string | undefined;
     if (!userId) return token;
+    // Fails closed, on purpose (ADR-092 Consequences): if this read throws, Auth.js
+    // reads it as "no session" and, on its own handlers, clears the cookie. A
+    // revocation check that fell back to the token's own epoch would let a revoked
+    // session through for as long as the database was down.
     const state = await lookup.stateFor(userId);
     // Checked BEFORE the epoch: the session that just changed a factor bumped the
     // epoch under its own token, and this is how it gets a current one. The proof
     // is for this account and this epoch, so a revoked cookie cannot use it.
-    const method = trigger === "update" ? lookup.secondFactorFrom(userId, session, state.epoch) : null;
-    if (method) {
-      token.amr = ["google", method];
+    const sid = token.sid as string | undefined;
+    const proved = trigger === "update" && sid ? lookup.secondFactorFrom(userId, sid, session, state.epoch) : null;
+    // Single use: a proof is accepted once, so one that leaks inside its two
+    // minutes cannot be replayed to stretch the fresh-check window.
+    if (proved && proved.expiresAt > ((token.proofExp as number | undefined) ?? 0)) {
+      token.amr = ["google", proved.method];
+      token.proofExp = proved.expiresAt;
       token.mfaAt = Date.now();
       token.epoch = state.epoch;
       token.mfaRequired = state.enabled;
@@ -318,6 +336,9 @@ export const authConfig: NextAuthConfig = {
       session.user.id = (token.userId as string | undefined) ?? "";
       // What `proxy.ts` reads, since it can read nothing else: the account asks for
       // a second factor and this token has only passed the first.
+      // Not a secret: a proof also needs the server's pepper. The route that verifies
+      // a factor reads it here to mint the proof for this cookie.
+      (session as SessionWithMfa).sid = token.sid as string | undefined;
       (session as SessionWithMfa).mfaPending =
         token.mfaRequired === true && ((token.amr as string[] | undefined)?.length ?? 1) < 2;
       (session as SessionWithMfa).mfaAt = token.mfaAt as number | undefined;

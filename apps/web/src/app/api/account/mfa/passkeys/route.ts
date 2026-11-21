@@ -18,7 +18,8 @@ const Step = z.discriminatedUnion("step", [
 export async function POST(request: Request) {
   const session = await auth();
   const userId = session?.user?.id;
-  if (userId === undefined || userId === "") return Response.json({ error: "unauthenticated" }, { status: 401 });
+  const sid = (session as SessionWithMfa | null)?.sid;
+  if (userId === undefined || userId === "" || !sid) return Response.json({ error: "unauthenticated" }, { status: 401 });
 
   const body = Step.safeParse(await request.json().catch(() => null));
   if (!body.success) return Response.json({ error: "invalid-request" }, { status: 400 });
@@ -57,5 +58,5 @@ export async function POST(request: Request) {
   // Registering proves the person holds the authenticator, so this session earns
   // the second step it would otherwise be turned away for the moment MFA is on.
   const { epoch } = await mfaStateFor(userId);
-  return Response.json({ recoveryCodes, proof: mintSecondFactorProof(userId, "webauthn", epoch, now) });
+  return Response.json({ recoveryCodes, proof: mintSecondFactorProof(userId, sid, "webauthn", epoch, now) });
 }
