@@ -10,6 +10,7 @@ const Rename = z.object({ name: z.string().trim().min(1).max(60) });
 // Renaming is not behind the fresh check: it changes a label, never what can sign
 // in, and a passkey named after its transport ("Device passkey") is only useful
 // once the person has told two of them apart. Remove is below.
+/** Renames one of the signed-in account's factors; 404 for an id that is malformed or not theirs. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ factorId: string }> }) {
   const session = await auth();
   const userId = session?.user?.id;

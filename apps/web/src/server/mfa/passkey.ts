@@ -89,6 +89,11 @@ export interface StoredPasskey {
   transports: string[] | null;
 }
 
+/**
+ * The options a browser passes to `navigator.credentials.create`, excluding passkeys the
+ * account already has, and a ticket that binds the challenge to this user and session so
+ * `verifyRegistration` can refuse a challenge it did not issue.
+ */
 export async function registrationOptions(
   user: { id: string; label: string },
   sid: string,
@@ -165,6 +170,11 @@ export async function verifyRegistration(
   }
 }
 
+/**
+ * The options a browser passes to `navigator.credentials.get`, limited to the account's own
+ * passkeys, and a ticket that binds the challenge to this user and session for
+ * `verifyAuthentication`.
+ */
 export async function authenticationOptions(
   userId: string,
   sid: string,
