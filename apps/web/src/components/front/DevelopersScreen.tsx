@@ -51,9 +51,9 @@ function InlineLink({ href, children }: { href: string; children: React.ReactNod
 }
 
 /** An inline code span — a path, a header, a scope — in running text. */
-function Code({ children }: { children: React.ReactNode }) {
+function Code({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <DataText as="span" className="rounded-sm bg-moss px-1 py-0.5 text-ink">
+    <DataText as="span" className={cn("rounded-sm bg-moss px-1 py-0.5 text-ink", className)}>
       {children}
     </DataText>
   );
@@ -73,11 +73,15 @@ function Step({
   children: React.ReactNode;
 }) {
   return (
-    <li className="flex gap-4">
-      <DataText size="base" className="w-6 shrink-0 pt-0.5 text-right" aria-hidden>
-        {n}.
+    <li className="flex gap-3 md:gap-4">
+      <DataText
+        size="sm"
+        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand font-medium text-person-on"
+        aria-hidden
+      >
+        {n}
       </DataText>
-      <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5">
         <Heading level={level}>{title}</Heading>
         {children}
       </div>
@@ -94,14 +98,46 @@ function Pre({ children }: { children: React.ReactNode }) {
   );
 }
 
+// The same panels and section heading as `/ai` (see the note there), from the
+// walk of PR 788. Inside "Connect your AI" each tool is a paper panel of its own,
+// so six sets of steps do not run into one another.
+const sectionClass =
+  "flex scroll-mt-20 flex-col gap-5 rounded-xl border border-hairline bg-surface p-5 shadow-raised md:p-8";
+
+/** A section's h2: the landing's section size, under a short brand rule that marks where a section starts. */
+function SectionHeading({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <span aria-hidden className="h-1 w-8 rounded-full bg-brand" />
+      <Heading level={2} id={id} className="text-3xl text-pretty">
+        {children}
+      </Heading>
+    </div>
+  );
+}
+
+// The tool and scope tables: framed, a tinted head and banded rows so the eye
+// can run along one tool. On a phone three columns do not fit, so each row
+// stacks into a card of its cells; the head stays for screen readers only.
+const tableFrameClass = "overflow-x-auto rounded-lg border border-hairline bg-surface";
+const tableClass = "max-md:block";
+const theadClass = "bg-moss max-md:sr-only";
+const thClass = "px-3 py-2.5";
+const rowClass = "last:border-b-0 even:bg-paper max-md:flex max-md:flex-col max-md:gap-1.5 max-md:p-3";
+const tdClass = "px-3 py-3 max-md:p-0";
+
 /** One tool's section of "Connect your AI": the anchor is the section's own id, and its steps are three or fewer. */
 function ConnectSection({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="flex scroll-mt-20 flex-col gap-3">
-      <Heading level={3} id={`${id}-title`}>
+    <section
+      id={id}
+      aria-labelledby={`${id}-title`}
+      className="flex scroll-mt-20 flex-col gap-4 rounded-lg border border-hairline bg-paper p-4 md:p-5"
+    >
+      <Heading level={3} id={`${id}-title`} className="text-xl">
         {title}
       </Heading>
-      <ol className="flex flex-col gap-4">{children}</ol>
+      <ol className="flex flex-col gap-5">{children}</ol>
     </section>
   );
 }
@@ -135,12 +171,12 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
         }
       />
 
-      <main className="mx-auto flex w-full max-w-180 flex-1 flex-col gap-10 px-4 pt-8 pb-16 md:px-7">
-        <section className="flex flex-col gap-3">
-          <DataText size="xs" className="text-2xs tracking-widest uppercase">
+      <main className="mx-auto flex w-full max-w-200 flex-1 flex-col gap-6 px-4 pt-10 pb-16 md:gap-8 md:px-7 md:pt-14">
+        <section className="flex flex-col gap-4 pb-4 md:pb-6">
+          <DataText size="xs" className="text-2xs tracking-widest text-brand uppercase">
             Developers
           </DataText>
-          <Heading level={1} className="text-pretty">
+          <Heading level={1} className="text-4xl text-pretty">
             The Caesura API
           </Heading>
           <Text className="text-md text-pretty">
@@ -158,10 +194,8 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
           </Text>
         </section>
 
-        <section aria-labelledby="getting-started" className="flex flex-col gap-5">
-          <Heading level={2} id="getting-started">
-            From nothing to a first call
-          </Heading>
+        <section aria-labelledby="getting-started" className={sectionClass}>
+          <SectionHeading id="getting-started">From nothing to a first call</SectionHeading>
           <ol className="flex flex-col gap-6">
             <Step n={1} title="Create your account">
               <Text className="text-pretty">
@@ -217,12 +251,10 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
             anchor ids sit on the sections so `#connect-claude` scrolls to the
             whole of one. The ChatGPT and Gemini sections are written from the
             vendors' docs and await a production proof (M63 D15). */}
-        <section aria-labelledby="connect-ai" className="flex flex-col gap-6">
+        <section aria-labelledby="connect-ai" className={sectionClass}>
           <div className="flex flex-col gap-3">
-            <Heading level={2} id="connect-ai">
-              Connect your AI
-            </Heading>
-            <Text className="text-pretty">
+            <SectionHeading id="connect-ai">Connect your AI</SectionHeading>
+            <Text className="text-md text-pretty">
               An AI can plan in Caesura as you: read your trips and your library, write and publish playbooks,
               set and frame the cover photo of a playbook or a trip, and search for places. Pick the tool you use.
               Every path is the same account, and the same permissions, as you have in the app.
@@ -322,36 +354,36 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
             </Step>
           </ConnectSection>
 
-          <section aria-labelledby="mcp-tools" className="flex flex-col gap-3">
-            <Heading level={3} id="mcp-tools">
+          <section aria-labelledby="mcp-tools" className="flex flex-col gap-3 pt-2">
+            <Heading level={3} id="mcp-tools" className="text-xl">
               MCP tools
             </Heading>
             <Text variant="secondary" className="text-base text-pretty">
               What the connector offers, and the scope each tool needs. A token or a connected app that lacks the
               scope cannot use the tool.
             </Text>
-            <div className="overflow-x-auto">
-              <Table>
-                <THead>
+            <div className={tableFrameClass}>
+              <Table className={tableClass}>
+                <THead className={theadClass}>
                   <TR>
-                    <TH scope="col">Tool</TH>
-                    <TH scope="col">What it does</TH>
-                    <TH scope="col">Scope</TH>
+                    <TH scope="col" className={thClass}>Tool</TH>
+                    <TH scope="col" className={thClass}>What it does</TH>
+                    <TH scope="col" className={thClass}>Scope</TH>
                   </TR>
                 </THead>
-                <TBody>
+                <TBody className="max-md:block">
                   {tools.map((tool) => (
-                    <TR key={tool.name}>
-                      <TD className="whitespace-nowrap">
-                        <Code>{tool.name}</Code>
+                    <TR key={tool.name} className={rowClass}>
+                      <TD className={cn(tdClass, "whitespace-nowrap")}>
+                        <Code className="font-medium">{tool.name}</Code>
                       </TD>
-                      <TD className="text-pretty">{tool.description}</TD>
-                      <TD className="whitespace-nowrap">
-                        <Code>{tool.scope}</Code>
+                      <TD className={cn(tdClass, "text-sm text-pretty")}>{tool.description}</TD>
+                      <TD className={cn(tdClass, "text-sm md:w-1/4")}>
+                        <Code className="whitespace-nowrap">{tool.scope}</Code>
                         {tool.orScope === undefined ? null : (
                           <>
                             {" or "}
-                            <Code>{tool.orScope}</Code>
+                            <Code className="whitespace-nowrap">{tool.orScope}</Code>
                           </>
                         )}
                       </TD>
@@ -363,29 +395,27 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
           </section>
         </section>
 
-        <section aria-labelledby="scopes" className="flex flex-col gap-3">
-          <Heading level={2} id="scopes">
-            Scopes
-          </Heading>
+        <section aria-labelledby="scopes" className={sectionClass}>
+          <SectionHeading id="scopes">Scopes</SectionHeading>
           <Text variant="secondary" className="text-base text-pretty">
             Nothing implies anything else: <Code>trips:write</Code> does not include{" "}
             <Code>trips:read</Code>. Ask for both if you need both.
           </Text>
-          <div className="overflow-x-auto">
-            <Table>
-              <THead>
+          <div className={tableFrameClass}>
+            <Table className={tableClass}>
+              <THead className={theadClass}>
                 <TR>
-                  <TH scope="col">Scope</TH>
-                  <TH scope="col">What a token holding it may do</TH>
+                  <TH scope="col" className={thClass}>Scope</TH>
+                  <TH scope="col" className={thClass}>What a token holding it may do</TH>
                 </TR>
               </THead>
-              <TBody>
+              <TBody className="max-md:block">
                 {API_SCOPES.map((scope) => (
-                  <TR key={scope}>
-                    <TD className="whitespace-nowrap">
-                      <Code>{scope}</Code>
+                  <TR key={scope} className={rowClass}>
+                    <TD className={cn(tdClass, "whitespace-nowrap")}>
+                      <Code className="font-medium">{scope}</Code>
                     </TD>
-                    <TD className="text-pretty">{SCOPE_CATALOGUE[scope].description}</TD>
+                    <TD className={cn(tdClass, "text-sm text-pretty")}>{SCOPE_CATALOGUE[scope].description}</TD>
                   </TR>
                 ))}
               </TBody>
@@ -393,13 +423,11 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
           </div>
         </section>
 
-        <section aria-labelledby="reference" className="flex flex-col gap-3">
-          <Heading level={2} id="reference">
-            The reference
-          </Heading>
-          <ul className="flex flex-col gap-2.5">
+        <section aria-labelledby="reference" className={sectionClass}>
+          <SectionHeading id="reference">The reference</SectionHeading>
+          <ul className="grid gap-3 md:grid-cols-2">
             {REFERENCE_LINKS.map(({ href, label, note }) => (
-              <li key={href} className="flex flex-col">
+              <li key={href} className="flex flex-col gap-1 rounded-lg bg-moss p-4">
                 <InlineLink href={href}>{label}</InlineLink>
                 <Text variant="secondary">{note}</Text>
               </li>
@@ -409,7 +437,7 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
       </main>
 
       <footer className="border-t border-hairline">
-        <div className="mx-auto flex w-full max-w-180 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-6 md:px-7">
+        <div className="mx-auto flex w-full max-w-200 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-6 md:px-7">
           <Link href="/" className="text-xs text-slate">
             &larr; Caesura home
           </Link>

@@ -7,7 +7,7 @@ import { GET as securityTxt } from "../../app/.well-known/security.txt/route";
 import { SECURITY_CONTACTS } from "@/lib/securityContacts";
 import { AiScreen } from "./AiScreen";
 import { DevelopersScreen } from "./DevelopersScreen";
-import { SecurityScreen } from "./SecurityScreen";
+import { SECURITY_FAQ, SecurityScreen } from "./SecurityScreen";
 
 afterEach(cleanup);
 
@@ -82,6 +82,17 @@ describe("SecurityScreen", () => {
     expect(answer).toContain("recovery code");
     expect(answer).toContain("only one");
     expect(answer).toContain("turn the second step off");
+  });
+
+  // The walk of PR 788 asked for lists that stand out: each question is an item
+  // of one list, so a screen reader counts them and each can be set apart.
+  it("lists the FAQ as one item per question, each headed by it", () => {
+    render(<SecurityScreen />);
+    const faq = within(screen.getByRole("region", { name: "Questions" }));
+    const items = faq.getAllByRole("listitem");
+    expect(items.map((item) => within(item).getByRole("heading", { level: 3 }).textContent)).toEqual(
+      SECURITY_FAQ.map(({ question }) => question),
+    );
   });
 
   it("says API tokens are on Premium", () => {

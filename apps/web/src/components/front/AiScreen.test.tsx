@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { DevelopersScreen } from "./DevelopersScreen";
-import { AiScreen } from "./AiScreen";
+import { AI_FAQ, AiScreen } from "./AiScreen";
 import { metadata } from "@/app/(front)/ai/page";
 
 afterEach(cleanup);
@@ -110,6 +110,17 @@ describe("AiScreen", () => {
     expect(questions.length).toBeGreaterThanOrEqual(4);
     expect(questions.length).toBeLessThanOrEqual(5);
     expect(faq.getByRole("link", { name: /security/i }).getAttribute("href")).toBe("/security");
+  });
+
+  // The walk of PR 788 asked for lists that stand out: each question is an item
+  // of one list, so a screen reader counts them and each can be set apart.
+  it("lists the FAQ as one item per question, each headed by it", () => {
+    render(<AiScreen />);
+    const faq = within(screen.getByRole("region", { name: "Questions" }));
+    const items = faq.getAllByRole("listitem");
+    expect(items.map((item) => within(item).getByRole("heading", { level: 3 }).textContent)).toEqual(
+      AI_FAQ.map(({ question }) => question),
+    );
   });
 
   // One place for safety (M63 D12): /ai points at /security and does not restate it.
