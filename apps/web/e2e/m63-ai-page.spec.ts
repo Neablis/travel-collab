@@ -9,9 +9,9 @@ test.use({ storageState: { cookies: [], origins: [] } });
 const PROMPTS = [
   "Turn my Lisbon trip into a three-day playbook and publish it.",
   "Which of my trips has a day with nothing planned yet?",
-  "Find three places to eat near my hotel in Kyoto and draft a playbook day around them.",
-  "Look through my library and pick the days that suit a rainy weekend in Porto.",
-  "Read my trips and tell me what is planned for next week.",
+  "Draft a playbook day in Kyoto around three restaurants I name, and put each on the map.",
+  "Look through the library and pick the days that suit a rainy weekend in Porto.",
+  "List the cities that have published days in Caesura's library.",
   "List the names of all my trips and save them to a file.",
 ];
 

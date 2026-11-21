@@ -64,6 +64,7 @@ export const NOT_DRAWN = new Map([
   ["/developers", "M22 getting-started page for the public API — the design has no artboard for it"],
   ["/developers/reference", "M22 API reference rendered by Scalar from /api/v1/openapi.json — no artboard"],
   ["/security", "M63 plain-language security page on the shared front-door chrome — the design has no artboard for it"],
+  ["/ai", "M63 part 4: public page on what an AI tool can do in Caesura, drawn from the shared front-door chrome — no artboard"],
   ["/playbooks/city/[slug]", "SEO pass, part 5: a city's published days for crawlers — Discover's cards and grid under a heading, no artboard"],
   ["/playbooks/country/[slug]", "SEO pass, part 5: the city page over a country's days — no artboard"],
   ["/playbooks/country/[slug]/city/[citySlug]", "SEO lattice: the city page over one city's days inside its country — no artboard"],

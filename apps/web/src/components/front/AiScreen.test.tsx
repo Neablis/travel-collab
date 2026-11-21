@@ -5,6 +5,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { DevelopersScreen } from "./DevelopersScreen";
 import { AiScreen } from "./AiScreen";
+import { metadata } from "@/app/(front)/ai/page";
 
 afterEach(cleanup);
 
@@ -32,7 +33,8 @@ const PROMPT_TOOLS = ["Claude", "MCP client", "ChatGPT", "Gemini", "Poppy", "scr
 describe("AiScreen", () => {
   it("names every surface a person can reach their AI through", () => {
     render(<AiScreen />);
-    const text = screen.getByRole("main").textContent ?? "";
+    // The "Ways in" list, not the whole page: "Poppy" also names a prompt label.
+    const text = screen.getByRole("region", { name: "Ways in" }).textContent ?? "";
     for (const name of [
       "assistant",
       "MCP server",
@@ -123,8 +125,22 @@ describe("AiScreen", () => {
   it("says nothing about how Caesura is built", () => {
     render(<AiScreen />);
     const text = document.body.textContent ?? "";
-    for (const word of ["github", "repository", "Neon", "Hetzner", "Coolify", "Vercel", "Next.js", "Scalar"]) {
+    // The page metadata is public too, so the same words are barred from it.
+    const meta = `${JSON.stringify(metadata.title)} ${String(metadata.description)}`;
+    for (const word of [
+      "github",
+      "repository",
+      "Neon",
+      "Hetzner",
+      "Coolify",
+      "Vercel",
+      "Next.js",
+      "Scalar",
+      "Strict-Transport-Security",
+      "Content-Security-Policy",
+    ]) {
       expect(text.toLowerCase(), word).not.toContain(word.toLowerCase());
+      expect(meta.toLowerCase(), word).not.toContain(word.toLowerCase());
     }
     // Case-sensitive: the page names `agents.md`, the file, but never the repo's AGENTS.md.
     expect(text).not.toContain("AGENTS.md");

@@ -40,7 +40,10 @@ describe("/ai metadata", () => {
     expect(metadata.openGraph?.url).toBe("/ai");
   });
 
-  it("ships its own share image, with alt text", () => {
+  it("ships its own share image, with alt text, and points og:image at it", () => {
+    const images = metadata.openGraph?.images;
+    const first = Array.isArray(images) ? images[0] : images;
+    expect(first).toMatchObject({ url: "/ai/opengraph-image.png" });
     expect(readFileSync(path.join(HERE, "opengraph-image.alt.txt"), "utf8").trim().length).toBeGreaterThan(0);
     expect(readFileSync(path.join(HERE, "opengraph-image.png")).length).toBeGreaterThan(0);
   });
