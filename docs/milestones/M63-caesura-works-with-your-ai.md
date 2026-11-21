@@ -245,3 +245,19 @@ A first cut of the parts, for the plan to settle:
   vendor, library or repository.
 - [ ] **`/security` words:** the title, description and headline are the words Mitchell
   approved.
+
+## Evidence
+
+### Examples on production (gate box *Examples*)
+
+- **2026-11-21, Claude through the MCP server.** The orchestrating Claude Code session is connected to
+  `https://caesura.today/api/mcp` as a custom connector, signed in through Caesura's OAuth server.
+  `whoami` returned the owner's account on `premium@v2`, and `list_trips` (scope `trips:read`)
+  returned the account's trips. The same connection is the *any MCP client* case. Still to come:
+  publishing a playbook from Claude, in Mitchell's walk.
+- **2026-11-21, Poppy discovery.** `GET /.well-known/poppy.json` answered 200 `application/json`,
+  signed out.
+- **2026-11-21, a script.** `GET /api/v1/openapi` answered 200 signed out. `GET /api/v1/trips`
+  without a token answered 401. A run with a real `trips:read` token is still to be recorded, since
+  this session has no token.
+- **ChatGPT, Gemini:** Mitchell, before the gate (decision 15).
