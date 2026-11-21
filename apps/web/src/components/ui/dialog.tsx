@@ -3,6 +3,7 @@ import * as RadixDialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { Button } from "./button";
 import { Heading } from "./heading";
+import { Text } from "./text";
 import { cn } from "@/lib/cn";
 import { useLetGoOfFocusOnClose } from "@/lib/useExitPresence";
 
@@ -16,6 +17,8 @@ export function Dialog({
   open,
   onOpenChange,
   title,
+  description,
+  dismissible = true,
   size = "default",
   onCloseAutoFocus,
   children,
@@ -23,6 +26,14 @@ export function Dialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
+  /** What the dialog is for, in a line: drawn under the title and named as the dialog's description for assistive tech. */
+  description?: React.ReactNode;
+  /**
+   * `false` leaves out the Close button, for a dialog that cannot be closed yet
+   * (it ignores `onOpenChange(false)` until something is done): a Close that
+   * does nothing is a control that lies to a screen reader.
+   */
+  dismissible?: boolean;
   size?: "default" | "wide";
   /**
    * Where focus goes on close, for a dialog whose opener may be gone by then:
@@ -90,12 +101,21 @@ export function Dialog({
                 {title}
               </Heading>
             </RadixDialog.Title>
-            <RadixDialog.Close asChild>
-              <Button variant="ghost" size="icon" aria-label="Close">
-                <X className="size-4" aria-hidden />
-              </Button>
-            </RadixDialog.Close>
+            {dismissible ? (
+              <RadixDialog.Close asChild>
+                <Button variant="ghost" size="icon" aria-label="Close">
+                  <X className="size-4" aria-hidden />
+                </Button>
+              </RadixDialog.Close>
+            ) : null}
           </div>
+          {description === undefined ? null : (
+            <RadixDialog.Description asChild>
+              <Text variant="secondary" className="mb-3">
+                {description}
+              </Text>
+            </RadixDialog.Description>
+          )}
           {/* `-mx-1 px-1`, not a bare `overflow-y-auto`, for the reason
               `Sheet` records at length: overflow on one axis forces the other
               to a non-visible value, and a `w-full` control's focus ring draws

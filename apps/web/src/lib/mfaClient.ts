@@ -31,14 +31,24 @@ export async function applySecondFactorProof(proof: SecondFactorProofBody): Prom
 const cancelled = (error: unknown) =>
   error instanceof Error && (error.name === "NotAllowedError" || error.name === "AbortError");
 
-/** `passed`: the session now carries the second factor. `unavailable`: this account has no passkey to ask for. */
-export type PasskeyCheck = "passed" | "cancelled" | "refused" | "unavailable";
+/**
+ * `passed`: the session now carries the second factor. `unavailable`: this account has no passkey to ask for.
+ * `signed-out`: the server no longer knows this session (it expired, or the account's security epoch moved), so nothing here can succeed.
+ * `not-required`: two-step sign-in has since been turned off, so there is nothing to pass.
+ */
+export type PasskeyCheck = "passed" | "cancelled" | "refused" | "unavailable" | "signed-out" | "not-required";
+
+// The verify route's 401 means two things: no session behind this cookie, and a
+// passkey that did not verify. Only the first has no retry.
+const signedOut = (answer: { status: number; body: Record<string, unknown> | null }) =>
+  answer.status === 401 && answer.body?.error === "unauthenticated";
 
 /** Asks for a passkey and, when it signs, tells the session. Never throws. */
 export async function checkWithPasskey(): Promise<PasskeyCheck> {
   try {
     const asked = await post("/api/mfa/verify", { kind: "passkey", step: "options" });
-    if (asked.status === 409) return "unavailable";
+    if (signedOut(asked)) return "signed-out";
+    if (asked.status === 409) return asked.body?.error === "mfa-not-enabled" ? "not-required" : "unavailable";
     if (asked.status !== 200 || asked.body === null) return "refused";
     let response;
     try {
@@ -47,6 +57,7 @@ export async function checkWithPasskey(): Promise<PasskeyCheck> {
       return cancelled(error) ? "cancelled" : "refused";
     }
     const verified = await post("/api/mfa/verify", { kind: "passkey", step: "verify", ticket: asked.body.ticket, response });
+    if (signedOut(verified)) return "signed-out";
     if (verified.status !== 200 || verified.body === null) return "refused";
     return (await applySecondFactorProof(verified.body.proof as SecondFactorProofBody)) ? "passed" : "refused";
   } catch {
@@ -55,8 +66,12 @@ export async function checkWithPasskey(): Promise<PasskeyCheck> {
 }
 
 export type AddPasskeyResult =
-  /** `recoveryCodes` is set only for the first factor, which turned two-step sign-in on. */
-  | { status: "added"; recoveryCodes: string[] | null }
+  /**
+   * `recoveryCodes` is set only for the first factor, which turned two-step sign-in on.
+   * `signedIn` is false when the session could not be told: turning it on had already
+   * refused this session's old token, so it ends at the next page.
+   */
+  | { status: "added"; recoveryCodes: string[] | null; signedIn: boolean }
   | { status: "cancelled" }
   | { status: "fresh-check-required" }
   | { status: "failed"; reason: "already-registered" | "other" };
@@ -79,9 +94,11 @@ export async function addPasskey(): Promise<AddPasskeyResult> {
     const added = await post("/api/account/mfa/passkeys", { step: "verify", ticket: asked.body.ticket, response });
     if (added.status === 409) return { status: "failed", reason: "already-registered" };
     if (added.status !== 200 || added.body === null) return { status: "failed", reason: "other" };
-    // Turning two-step sign-in on makes this very session half signed in, until it is told.
-    await applySecondFactorProof(added.body.proof as SecondFactorProofBody);
-    return { status: "added", recoveryCodes: (added.body.recoveryCodes as string[] | null) ?? null };
+    // Turning two-step sign-in on makes this very session half signed in, until it
+    // is told. One more try: a lapse in the network here costs the session.
+    const proof = added.body.proof as SecondFactorProofBody;
+    const signedIn = (await applySecondFactorProof(proof).catch(() => false)) || (await applySecondFactorProof(proof).catch(() => false));
+    return { status: "added", recoveryCodes: (added.body.recoveryCodes as string[] | null) ?? null, signedIn };
   } catch {
     return { status: "failed", reason: "other" };
   }

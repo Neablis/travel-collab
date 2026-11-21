@@ -12,7 +12,16 @@ import { Text } from "@/components/ui/text";
 // Esc or a click outside would lose the only copy. (The revoke-everything tick
 // from D8 joins this sheet in part 4.)
 /** The recovery codes, with Download, Copy and the tick that lets Done through. */
-export function RecoveryCodesSheet({ codes, onDone }: { codes: readonly string[]; onDone: () => void }) {
+export function RecoveryCodesSheet({
+  codes,
+  onDone,
+  note,
+}: {
+  codes: readonly string[];
+  onDone: () => void;
+  /** Something the person must read before leaving, shown above the codes. */
+  note?: string;
+}) {
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState<"copied" | "failed" | null>(null);
   const text = codes.join("\n");
@@ -38,12 +47,20 @@ export function RecoveryCodesSheet({ codes, onDone }: { codes: readonly string[]
   }
 
   return (
-    <Dialog open onOpenChange={(open) => (open || !saved ? undefined : onDone())} title="Save your recovery codes">
+    // The Close button is there only once the tick lets it work (`dismissible`).
+    <Dialog
+      open
+      onOpenChange={(open) => (open || !saved ? undefined : onDone())}
+      title="Save your recovery codes"
+      dismissible={saved}
+      description="Each code works once. If you lose your passkey, a code gets you back in. They are shown only now, so keep them somewhere safe. Tick the box to close this."
+    >
       <div className="flex flex-col gap-4">
-        <Text variant="secondary">
-          Each code works once. If you lose your passkey, a code gets you back in. They are shown only now, so keep them
-          somewhere safe.
-        </Text>
+        {note === undefined ? null : (
+          <Text variant="secondary" role="alert" className="text-danger-ink">
+            {note}
+          </Text>
+        )}
         <ol aria-label="Recovery codes" className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md bg-moss p-3 font-mono text-sm text-ink">
           {codes.map((code) => (
             <li key={code}>{code}</li>

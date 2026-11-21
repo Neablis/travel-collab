@@ -37,7 +37,10 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
     const result = await checkWithPasskey();
     inFlight.current = false;
     setOutcome(result);
-    if (result === "passed") router.replace(callbackUrl);
+    if (result === "passed" || result === "not-required") router.replace(callbackUrl);
+    // Nothing on this screen can work without a session behind the cookie. The
+    // route clears it, then sends the person to sign in with where they were going.
+    else if (result === "signed-out") window.location.assign(`/api/session-expired?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   }
 
   useEffect(() => {
@@ -45,7 +48,7 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival; `ask` is re-made each render and only ever reads state through setters
   }, []);
 
-  const busy = outcome === "asking" || outcome === "passed";
+  const busy = outcome === "asking" || outcome === "passed" || outcome === "not-required" || outcome === "signed-out";
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
       <FrontDoorHeader />
