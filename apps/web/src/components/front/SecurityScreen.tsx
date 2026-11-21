@@ -125,7 +125,7 @@ export function SecurityScreen() {
           </Heading>
           <Text className="text-pretty">Connections to Caesura are encrypted.</Text>
           <Text className="text-pretty">
-            We keep only a fingerprint of each token, which cannot be turned back into it. The token itself is
+            We keep only a fingerprint of each API token and app connection, which cannot be turned back into it. The token itself is
             shown to you once, when you make it.
           </Text>
         </section>
