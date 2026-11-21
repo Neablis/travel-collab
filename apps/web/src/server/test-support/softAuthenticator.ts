@@ -20,7 +20,9 @@ export interface SoftAuthenticator {
   publicKey: string;
 }
 
-export function softAuthenticator(overrides: { key?: KeyObject } = {}): SoftAuthenticator {
+// `counterStaysZero` is what synced platform passkeys (Apple, Google) do: they
+// report a sign count of 0 forever, so the library's counter check never fires.
+export function softAuthenticator(overrides: { key?: KeyObject; counterStaysZero?: boolean } = {}): SoftAuthenticator {
   const { publicKey, privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   const signingKey = overrides.key ?? privateKey;
   const jwk = publicKey.export({ format: "jwk" });
@@ -82,7 +84,7 @@ export function softAuthenticator(overrides: { key?: KeyObject } = {}): SoftAuth
       };
     },
     assert(options, { origin, rpId }) {
-      counter.n += 1;
+      if (!overrides.counterStaysZero) counter.n += 1;
       const authData = Buffer.concat([sha256(rpId), Buffer.from([0x05]), counterBytes()]);
       const clientDataJSON = clientData("webauthn.get", options.challenge, origin);
       const signature = sign("sha256", Buffer.concat([authData, sha256(clientDataJSON)]), signingKey);

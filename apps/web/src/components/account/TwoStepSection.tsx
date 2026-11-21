@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
@@ -36,8 +36,25 @@ export function TwoStepSection() {
   const [checking, setChecking] = useState<Pending | null>(null);
   const [authenticator, setAuthenticator] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
-  const [codes, setCodes] = useState<string[] | null>(null);
+  // `signedIn: false` rides with the codes: the session could not be told that
+  // two-step sign-in is on, so it ends when the codes are put away.
+  const [codes, setCodes] = useState<{ list: string[]; signedIn: boolean } | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  // The row whose rename just ended: its input unmounts with focus in it, and focus
+  // would fall to the page's start. Each Rename button is kept to hand it back to.
+  const renameButtons = useRef(new Map<string, HTMLButtonElement | null>());
+  const refocusRename = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (renaming !== null || refocusRename.current === null) return;
+    renameButtons.current.get(refocusRename.current)?.focus();
+    refocusRename.current = null;
+  }, [renaming]);
+
+  function endRename(id: string) {
+    refocusRename.current = id;
+    setRenaming(null);
+  }
 
   const load = useCallback(async () => {
     try {
@@ -60,7 +77,8 @@ export function TwoStepSection() {
     setAdding(false);
     if (result.status === "fresh-check-required") setChecking("passkey");
     else if (result.status === "added") {
-      if (result.recoveryCodes !== null) setCodes(result.recoveryCodes);
+      if (result.recoveryCodes !== null) setCodes({ list: result.recoveryCodes, signedIn: result.signedIn });
+      else if (!result.signedIn) leaveSession();
       await load();
     } else if (result.status === "failed") {
       setProblem(
@@ -78,9 +96,14 @@ export function TwoStepSection() {
     setRegenerating(false);
     if (result.status === "fresh-check-required") setChecking("regenerate");
     else if (result.status === "regenerated") {
-      setCodes(result.recoveryCodes);
+      setCodes({ list: result.recoveryCodes, signedIn: true });
       await load();
     } else setProblem("The recovery codes could not be regenerated just now. Try again.");
+  }
+
+  // The session cookie is one the server refuses now: the route that clears it goes on to sign-in.
+  function leaveSession() {
+    window.location.assign("/api/session-expired?callbackUrl=%2Faccount%3Ftab%3Dsecurity");
   }
 
   async function rename() {
@@ -95,7 +118,7 @@ export function TwoStepSection() {
       setProblem("The name could not be changed just now. Try again.");
       return;
     }
-    setRenaming(null);
+    endRename(renaming.id);
     setProblem(null);
     await load();
   }
@@ -117,7 +140,7 @@ export function TwoStepSection() {
             <li key={factor.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border-strong p-3">
               {renaming?.id === factor.id ? (
                 <form
-                  className="flex flex-1 items-center gap-2"
+                  className="flex flex-1 flex-wrap items-center gap-2"
                   onSubmit={(event) => {
                     event.preventDefault();
                     void rename();
@@ -132,7 +155,7 @@ export function TwoStepSection() {
                   <Button type="submit" variant="primary" size="sm" disabled={renaming.name.trim() === ""}>
                     Save
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setRenaming(null)}>
+                  <Button variant="ghost" size="sm" onClick={() => endRename(factor.id)}>
                     Cancel
                   </Button>
                 </form>
@@ -148,6 +171,9 @@ export function TwoStepSection() {
                     variant="ghost"
                     size="sm"
                     aria-label={`Rename ${factor.name}`}
+                    ref={(button) => {
+                      renameButtons.current.set(factor.id, button);
+                    }}
                     onClick={() => setRenaming({ id: factor.id, name: factor.name })}
                   >
                     Rename
@@ -207,18 +233,21 @@ export function TwoStepSection() {
             setAuthenticator(false);
             setChecking("authenticator");
           }}
-          onAdded={(recoveryCodes) => {
+          onAdded={(recoveryCodes, signedIn) => {
             setAuthenticator(false);
-            if (recoveryCodes !== null) setCodes(recoveryCodes);
+            if (recoveryCodes !== null) setCodes({ list: recoveryCodes, signedIn });
+            else if (!signedIn) leaveSession();
             void load();
           }}
         />
       ) : null}
       {codes === null ? null : (
         <RecoveryCodesSheet
-          codes={codes}
+          codes={codes.list}
+          note={codes.signedIn ? undefined : "This browser could not be signed in to the new second step. Save the codes, then sign in again."}
           onDone={() => {
             setCodes(null);
+            if (!codes.signedIn) leaveSession();
           }}
         />
       )}

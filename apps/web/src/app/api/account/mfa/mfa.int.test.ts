@@ -4,7 +4,8 @@ import { generateKeyPairSync } from "node:crypto";
 import { eq } from "drizzle-orm";
 import * as OTPAuth from "otpauth";
 import { db } from "@/server/db/client";
-import { userRecoveryCodes, users } from "@/server/db/schema";
+import { userFactors, userRecoveryCodes, users } from "@/server/db/schema";
+import { passkeysOf, recordPasskeyUse } from "@/server/mfa/factors";
 import { mfaStateFor } from "@/server/mfa/state";
 import { softAuthenticator, type SoftAuthenticator } from "@/server/test-support/softAuthenticator";
 
@@ -15,6 +16,9 @@ const current = vi.hoisted(() => ({
   session: null as unknown,
   configs: [] as { callbacks?: { jwt?: unknown; signIn?: unknown } }[],
   cookieNames: [] as string[],
+  path: null as string | null,
+  // Set by a test that wants the work after the factor insert to fail.
+  codesFail: false,
 }));
 vi.mock("next-auth", () => ({
   default: (config: (typeof current.configs)[number]) => {
@@ -24,7 +28,16 @@ vi.mock("next-auth", () => ({
 }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ getAll: () => current.cookieNames.map((name) => ({ name })) }),
+  headers: async () => ({ get: () => current.path }),
 }));
+vi.mock("@/server/mfa/recoveryCodes", async (original) => {
+  const real = await original<typeof import("@/server/mfa/recoveryCodes")>();
+  return {
+    ...real,
+    issueRecoveryCodes: (...args: Parameters<typeof real.issueRecoveryCodes>) =>
+      current.codesFail ? Promise.reject(new Error("the database went away")) : real.issueRecoveryCodes(...args),
+  };
+});
 
 const { GET: FACTORS } = await import("./factors/route");
 const { PATCH: RENAME } = await import("./factors/[factorId]/route");
@@ -33,6 +46,7 @@ const { POST: ADD_TOTP } = await import("./totp/route");
 const { POST: REGENERATE } = await import("./recovery-codes/route");
 const { POST: VERIFY } = await import("../../mfa/verify/route");
 const { GET: PREFERENCES } = await import("../preferences/route");
+const { GET: SESSION_EXPIRED } = await import("../../session-expired/route");
 const { servedForApp } = await import("@/server/servedSession");
 
 const ORIGIN = "https://caesura.example";
@@ -172,6 +186,36 @@ describe("verifying a passkey", () => {
     expect(res.status).toBe(401);
   });
 
+  // Synced platform passkeys sign with a counter of 0 forever, so the library's
+  // sign-count check never fires for them: the challenge's own single use is what
+  // refuses a captured assertion.
+  describe("an authenticator whose sign count stays at zero", () => {
+    async function asked(sid: string) {
+      const id = await account();
+      const device = softAuthenticator({ counterStaysZero: true });
+      signedInAs(id);
+      expect((await addPasskey(device)).status).toBe(200);
+      signedInAs(id, { mfaPending: true, sid });
+      const { options, ticket } = await json(await VERIFY(post({ kind: "passkey", step: "options" })));
+      const response = device.assert(options as { challenge: string }, ctx);
+      return { id, ticket, response, verify: () => VERIFY(post({ kind: "passkey", step: "verify", ticket, response })) };
+    }
+
+    it("refuses the same assertion and ticket a second time", async () => {
+      const { verify } = await asked("s1");
+      expect((await verify()).status).toBe(200);
+      const replay = await verify();
+      expect(replay.status).toBe(401);
+      expect(await json(replay)).toEqual({ error: "passkey-not-verified" });
+    });
+
+    it("refuses a captured pair presented by a different session", async () => {
+      const { id, verify } = await asked("s1");
+      signedInAs(id, { mfaPending: true, sid: "s2" });
+      expect((await verify()).status).toBe(401);
+    });
+  });
+
   it("refuses an account that has no second factor turned on", async () => {
     signedInAs(await account());
     expect((await VERIFY(post({ kind: "passkey", step: "options" }))).status).toBe(409);
@@ -249,6 +293,38 @@ describe("adding a passkey", () => {
   });
 });
 
+describe("turning two-step sign-in on, when something fails halfway", () => {
+  afterEach(() => {
+    current.codesFail = false;
+  });
+
+  it("rolls the whole thing back: no orphan factor, MFA still off, and the error is not read as already-registered", async () => {
+    const id = await account();
+    signedInAs(id);
+    const before = (await mfaStateFor(id)).epoch;
+    current.codesFail = true;
+    // Not a 409 "already registered": that is for the unique index alone.
+    await expect(addPasskey(softAuthenticator())).rejects.toThrow("the database went away");
+
+    expect(await db.select().from(userFactors).where(eq(userFactors.userId, id))).toHaveLength(0);
+    expect(await mfaStateFor(id)).toEqual({ enabled: false, epoch: before });
+
+    // The same authenticator can be registered once the fault is gone.
+    current.codesFail = false;
+    const device = softAuthenticator();
+    expect((await addPasskey(device)).status).toBe(200);
+  });
+
+  it("answers 409 only for a credential another account already holds", async () => {
+    const first = await account();
+    const device = softAuthenticator();
+    signedInAs(first);
+    expect((await addPasskey(device)).status).toBe(200);
+    signedInAs(await account());
+    expect((await addPasskey(device)).status).toBe(409);
+  });
+});
+
 describe("renaming a factor", () => {
   it("renames your own, and answers 404 for anyone else's", async () => {
     const mine = await accountWithPasskey();
@@ -279,6 +355,19 @@ describe("renaming a factor", () => {
   });
 });
 
+describe("storing a passkey's sign count", () => {
+  it("never lets a lower count overwrite a higher one", async () => {
+    const { id } = await accountWithPasskey();
+    const [factor] = await passkeysOf(id);
+    const now = new Date();
+    const issuedAt = now.getTime() - 1000;
+    expect(await recordPasskeyUse(factor!.id, 9, issuedAt, now)).toBe(true);
+    // Two assertions racing: the one that read the older count finishes last.
+    expect(await recordPasskeyUse(factor!.id, 6, now.getTime() + 1, new Date(now.getTime() + 2))).toBe(false);
+    expect((await passkeysOf(id))[0]!.counter).toBe(9);
+  });
+});
+
 describe("an app route given a session cookie that auth() refuses", () => {
   const sentTo = async () => {
     try {
@@ -289,10 +378,11 @@ describe("an app route given a session cookie that auth() refuses", () => {
     return null;
   };
 
-  it("sends it to /signin, not to a signed-out screen", async () => {
+  it("sends it through the route that sheds the cookie, carrying the page it asked for", async () => {
     current.cookieNames = ["authjs.session-token"];
     current.session = null;
-    expect(await sentTo()).toContain("/signin");
+    current.path = "/trips/t1?tab=days";
+    expect(await sentTo()).toContain("/api/session-expired?callbackUrl=%2Ftrips%2Ft1%3Ftab%3Ddays");
   });
 
   it("serves a signed-in session, and a visitor with no cookie, as before", async () => {
@@ -468,5 +558,37 @@ describe("regenerating recovery codes", () => {
     expect((await mfaStateFor(id)).epoch).toBe(before + 1);
     expect(await jwt({ token: other })).toBeNull();
     expect(await jwt({ token: mine, trigger: "update", session: (await json(res)).proof })).toMatchObject({ epoch: before + 1 });
+  });
+});
+
+describe("the route a refused cookie is sent through", () => {
+  const stale = (callbackUrl = "/trips/t1") =>
+    new Request(`http://localhost/api/session-expired?callbackUrl=${encodeURIComponent(callbackUrl)}`, {
+      headers: { cookie: "authjs.session-token.0=a; authjs.session-token.1=b; __Secure-authjs.session-token=c; tc_signed_in=1; other=1" },
+    });
+  const cleared = (res: Response) =>
+    res.headers.getSetCookie().filter((line) => /Max-Age=0|Expires=Thu, 01 Jan 1970/.test(line)).map((line) => line.split("=")[0]);
+
+  it("clears every session cookie and the signed-in hint, then goes to sign-in with callbackUrl", async () => {
+    current.session = null;
+    const res = await SESSION_EXPIRED(stale());
+    expect(res.headers.get("location")).toBe("/signin?callbackUrl=%2Ftrips%2Ft1");
+    expect(cleared(res).sort()).toEqual(
+      ["__Secure-authjs.session-token", "authjs.session-token.0", "authjs.session-token.1", "tc_signed_in"].sort(),
+    );
+    expect(res.headers.getSetCookie().find((l) => l.startsWith("__Secure-"))).toMatch(/Secure/);
+  });
+
+  it("does not take a cookie from a session that is in fact live", async () => {
+    signedInAs(await account());
+    const res = await SESSION_EXPIRED(stale());
+    expect(cleared(res)).toEqual([]);
+    expect(res.headers.get("location")).toBe("/trips/t1");
+  });
+
+  it("will not send anyone off the site", async () => {
+    current.session = null;
+    const res = await SESSION_EXPIRED(stale("//evil.example"));
+    expect(res.headers.get("location")).toBe("/signin");
   });
 });

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
 
 export type CodeKind = "otp" | "recovery";
 
@@ -19,13 +20,17 @@ const FIELD: Record<CodeKind, { label: string; placeholder: string }> = {
 export function CodeEntryForm({
   kind,
   pending,
+  problem = null,
   onSubmit,
 }: {
   kind: CodeKind;
   pending: boolean;
+  /** Why the last code was refused; drawn under the field and tied to it for assistive tech. */
+  problem?: string | null;
   onSubmit: (code: string) => void;
 }) {
   const [code, setCode] = useState("");
+  const problemId = useId();
   return (
     <form
       className="flex flex-col gap-3"
@@ -36,6 +41,8 @@ export function CodeEntryForm({
     >
       <Input
         aria-label={FIELD[kind].label}
+        aria-invalid={problem !== null}
+        aria-describedby={problem === null ? undefined : problemId}
         placeholder={FIELD[kind].placeholder}
         value={code}
         // The code is a one-time secret: no suggestions, and a phone offers the SMS-style fill.
@@ -47,6 +54,11 @@ export function CodeEntryForm({
         autoFocus
         onChange={(event) => setCode(event.currentTarget.value)}
       />
+      {problem === null ? null : (
+        <Text id={problemId} variant="secondary" role="alert" className="text-danger-ink">
+          {problem}
+        </Text>
+      )}
       <Button type="submit" variant="primary" pending={pending} disabled={code.trim() === ""}>
         Verify
       </Button>

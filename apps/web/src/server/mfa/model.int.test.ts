@@ -130,6 +130,20 @@ describe("Model: a second factor, carried in the token and revoked by the epoch"
     expect(await jwt({ token: renewed! })).not.toBeNull();
   });
 
+  it("keeps a token minted before sessions had an id through the bump it caused itself", async () => {
+    const id = await account(true);
+    const old = (await signIn(id))!;
+    delete old.sid;
+    const epoch = await bumpSecurityEpoch(id);
+    const sid = (sessionOf(old) as { sid?: string }).sid;
+    const renewed = await jwt({
+      token: old,
+      trigger: "update",
+      session: mintSecondFactorProof(id, sid as string, "otp", epoch, new Date()),
+    });
+    expect(renewed).toMatchObject({ epoch, amr: ["google", "otp"] });
+  });
+
   it("does not let a proof minted for one session upgrade another of the same account", async () => {
     const id = await account(true);
     const [mine, theirs] = [(await signIn(id))!, (await signIn(id))!];

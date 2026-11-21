@@ -58,11 +58,12 @@ export async function POST(request: Request) {
   const passkeys = await passkeysOf(userId);
   if (body.data.step === "options") {
     if (passkeys.length === 0) return Response.json({ error: "no-passkey" }, { status: 409 });
-    return Response.json(await authenticationOptions(userId, passkeys, now));
+    return Response.json(await authenticationOptions(userId, sid, passkeys, now));
   }
 
   const verified = await verifyAuthentication(
     userId,
+    sid,
     passkeys,
     body.data.response as unknown as AuthenticationResponseJSON,
     body.data.ticket,
@@ -72,6 +73,10 @@ export async function POST(request: Request) {
   // the same whether the key was wrong, the account's, or the challenge stale.
   if (verified === null) return Response.json({ error: "passkey-not-verified" }, { status: 401 });
 
-  await recordPasskeyUse(verified.factorId, verified.counter, now);
+  // Also the replay check: false for a challenge already spent or a count that
+  // went down, and the proof is then not minted.
+  if (!(await recordPasskeyUse(verified.factorId, verified.counter, verified.issuedAt, now))) {
+    return Response.json({ error: "passkey-not-verified" }, { status: 401 });
+  }
   return Response.json({ proof: mintSecondFactorProof(userId, sid, "webauthn", state.epoch, now) });
 }

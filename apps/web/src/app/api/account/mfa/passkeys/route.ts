@@ -2,6 +2,7 @@ import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { z } from "zod";
 import type { SessionWithMfa } from "@/lib/authConfig";
 import { auth } from "@/server/auth";
+import { isUniqueViolation } from "@/server/eventStore";
 import { addPasskey, passkeysOf } from "@/server/mfa/factors";
 import { registrationOptions, verifyRegistration } from "@/server/mfa/passkey";
 import { hasFreshCheck, mfaStateFor, mintSecondFactorProof } from "@/server/mfa/state";
@@ -37,11 +38,12 @@ export async function POST(request: Request) {
   const existing = await passkeysOf(userId);
   if (body.data.step === "options") {
     const label = session?.user?.email ?? userId;
-    return Response.json(await registrationOptions({ id: userId, label }, existing, now));
+    return Response.json(await registrationOptions({ id: userId, label }, sid, existing, now));
   }
 
   const added = await verifyRegistration(
     userId,
+    sid,
     body.data.response as unknown as RegistrationResponseJSON,
     body.data.ticket,
     now,
@@ -51,8 +53,10 @@ export async function POST(request: Request) {
   let recoveryCodes: string[] | null;
   try {
     ({ recoveryCodes } = await addPasskey(userId, added, now));
-  } catch {
-    // The unique index on the credential id: this authenticator is already registered.
+  } catch (error) {
+    // Only the unique index on the credential id says "already registered"; the
+    // transaction has rolled back whatever else failed, and that is a 500.
+    if (!isUniqueViolation(error)) throw error;
     return Response.json({ error: "passkey-already-registered" }, { status: 409 });
   }
   // Registering proves the person holds the authenticator, so this session earns

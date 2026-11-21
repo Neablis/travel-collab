@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, eq, isNull } from "drizzle-orm";
-import { db } from "@/server/db/client";
+import { and, asc, count, eq, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { db, type Queryable } from "@/server/db/client";
 import { userFactors, userRecoveryCodes, users } from "@/server/db/schema";
 import type { MfaFactorView } from "@/lib/mfaWire";
 import { issueRecoveryCodes } from "./recoveryCodes";
@@ -60,9 +60,28 @@ export async function renameFactor(userId: string, factorId: string, name: strin
   return renamed.length > 0;
 }
 
-/** The sign count and last-used time after a passkey signed. */
-export async function recordPasskeyUse(factorId: string, counter: number, now: Date): Promise<void> {
-  await db.update(userFactors).set({ counter, lastUsedAt: now }).where(eq(userFactors.id, factorId));
+/**
+ * The sign count and last-used time after a passkey signed, in one conditional
+ * UPDATE that is also the check. False when the count would go down (two
+ * assertions racing, the later write carrying the lower count) or when the
+ * challenge was issued before the passkey's last use, which is what makes a
+ * challenge single use (`passkey.ts`, *Challenges are not stored*). Equal counts
+ * pass: a synced passkey signs 0 forever, and the library has already refused an
+ * equal count from one that keeps a count.
+ */
+export async function recordPasskeyUse(factorId: string, counter: number, issuedAt: number, now: Date): Promise<boolean> {
+  const used = await db
+    .update(userFactors)
+    .set({ counter, lastUsedAt: now })
+    .where(
+      and(
+        eq(userFactors.id, factorId),
+        lte(sql`coalesce(${userFactors.counter}, 0)`, counter),
+        or(isNull(userFactors.lastUsedAt), lt(userFactors.lastUsedAt, new Date(issuedAt))),
+      ),
+    )
+    .returning({ id: userFactors.id });
+  return used.length > 0;
 }
 
 /** Recovery codes not yet spent, for "N of 10 left". */
@@ -81,23 +100,26 @@ export async function recoveryCodesLeft(userId: string): Promise<number> {
  * open sessions: their tokens say MFA is off, and only an older epoch gets them
  * refused and sent to sign in again. `mfa_enabled_at` is set by a conditional
  * UPDATE, so two first factors added at once cannot both be told they were first.
+ * It runs inside the caller's transaction, with the factor's own insert.
  */
-async function turnOnWithFirstFactor(userId: string, now: Date): Promise<{ recoveryCodes: string[] | null }> {
-  const turnedOn = await db
+async function turnOnWithFirstFactor(tx: Queryable, userId: string, now: Date): Promise<{ recoveryCodes: string[] | null }> {
+  const turnedOn = await tx
     .update(users)
     .set({ mfaEnabledAt: now })
     .where(and(eq(users.id, userId), isNull(users.mfaEnabledAt)))
     .returning({ id: users.id });
   if (turnedOn.length === 0) return { recoveryCodes: null };
-  await bumpSecurityEpoch(userId);
-  return { recoveryCodes: await issueRecoveryCodes(userId, now) };
+  await bumpSecurityEpoch(userId, tx);
+  return { recoveryCodes: await issueRecoveryCodes(userId, now, tx) };
 }
 
 /**
  * Stores the passkey and, if it is the account's first factor, turns two-step
  * sign-in on (`turnOnWithFirstFactor`).
  *
- * A credential id already on any account fails on the unique index and throws:
+ * It is one transaction, so a failure at any step leaves no factor and MFA off,
+ * rather than a factor with no codes or codes with MFA off. A credential id
+ * already on any account fails on the unique index and throws (`isUniqueViolation`):
  * an authenticator names one credential, whoever owns it.
  */
 export async function addPasskey(
@@ -105,34 +127,40 @@ export async function addPasskey(
   passkey: VerifiedRegistration,
   now: Date,
 ): Promise<{ recoveryCodes: string[] | null }> {
-  await db.insert(userFactors).values({
-    id: randomUUID(),
-    userId,
-    kind: "passkey",
-    name: passkey.name,
-    credentialId: passkey.credentialId,
-    publicKey: passkey.publicKey,
-    counter: passkey.counter,
-    transports: passkey.transports,
-    createdAt: now,
+  return db.transaction(async (tx) => {
+    await tx.insert(userFactors).values({
+      id: randomUUID(),
+      userId,
+      kind: "passkey",
+      name: passkey.name,
+      credentialId: passkey.credentialId,
+      publicKey: passkey.publicKey,
+      counter: passkey.counter,
+      transports: passkey.transports,
+      createdAt: now,
+    });
+    return turnOnWithFirstFactor(tx, userId, now);
   });
-  return turnOnWithFirstFactor(userId, now);
 }
 
 /**
  * Stores a confirmed authenticator app, with the step its enrolment code used
- * already spent so that code cannot also sign anyone in. Throws on a repeated
- * ticket: the row id is the ticket's, so a second confirm hits the primary key.
+ * already spent so that code cannot also sign anyone in, and turns two-step
+ * sign-in on if it is the first factor, all in one transaction. Throws on a
+ * repeated ticket: the row id is the ticket's, so a second confirm hits the
+ * primary key (`isUniqueViolation`).
  */
 export async function addTotp(userId: string, totp: ConfirmedTotp, now: Date): Promise<{ recoveryCodes: string[] | null }> {
-  await db.insert(userFactors).values({
-    id: totp.factorId,
-    userId,
-    kind: "totp",
-    name: AUTHENTICATOR_NAME,
-    sealedSecret: totp.sealedSecret,
-    lastUsedStep: totp.step,
-    createdAt: now,
+  return db.transaction(async (tx) => {
+    await tx.insert(userFactors).values({
+      id: totp.factorId,
+      userId,
+      kind: "totp",
+      name: AUTHENTICATOR_NAME,
+      sealedSecret: totp.sealedSecret,
+      lastUsedStep: totp.step,
+      createdAt: now,
+    });
+    return turnOnWithFirstFactor(tx, userId, now);
   });
-  return turnOnWithFirstFactor(userId, now);
 }

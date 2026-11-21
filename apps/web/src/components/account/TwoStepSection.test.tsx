@@ -75,7 +75,7 @@ describe("TwoStepSection", () => {
     serve();
     add.mockImplementation(async () => {
       status = ON;
-      return { status: "added", recoveryCodes: CODES };
+      return { status: "added", recoveryCodes: CODES, signedIn: true };
     });
     render(<TwoStepSection />);
     await userEvent.click(await screen.findByRole("button", { name: "Add a passkey" }));
@@ -94,7 +94,7 @@ describe("TwoStepSection", () => {
   it("asks for the passkey first when two-step sign-in is on, then adds the new one", async () => {
     status = ON;
     serve();
-    add.mockResolvedValueOnce({ status: "fresh-check-required" }).mockResolvedValueOnce({ status: "added", recoveryCodes: null });
+    add.mockResolvedValueOnce({ status: "fresh-check-required" }).mockResolvedValueOnce({ status: "added", recoveryCodes: null, signedIn: true });
     check.mockResolvedValue("passed");
     render(<TwoStepSection />);
     await userEvent.click(await screen.findByRole("button", { name: "Add a passkey" }));
@@ -104,6 +104,70 @@ describe("TwoStepSection", () => {
     await waitFor(() => expect(add).toHaveBeenCalledTimes(2));
     // No codes the second time, and the dialog has gone.
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("names what the dialog is for, and its Close works", async () => {
+    status = ON;
+    serve();
+    add.mockResolvedValue({ status: "fresh-check-required" });
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
+    expect(dialog.getAttribute("aria-describedby")).not.toBeNull();
+    expect(dialog.textContent).toContain("Changing how you sign in needs your passkey first.");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("does not add a passkey after the check was closed while the prompt was up", async () => {
+    status = ON;
+    serve();
+    add.mockResolvedValue({ status: "fresh-check-required" });
+    let answer: (result: PasskeyCheck) => void = () => undefined;
+    check.mockReturnValue(new Promise<PasskeyCheck>((resolve) => (answer = resolve)));
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Use a passkey" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+    answer("passed");
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+    expect(add).toHaveBeenCalledTimes(1);
+  });
+
+  it("has no Close on the codes sheet until the tick lets it work", async () => {
+    serve();
+    add.mockImplementation(async () => {
+      status = ON;
+      return { status: "added", recoveryCodes: CODES, signedIn: true };
+    });
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey" }));
+    const sheet = await screen.findByRole("dialog", { name: "Save your recovery codes" });
+    expect(within(sheet).queryByRole("button", { name: "Close" })).toBeNull();
+    await userEvent.click(within(sheet).getByRole("checkbox", { name: "I saved these" }));
+    expect(within(sheet).getByRole("button", { name: "Close" })).toBeTruthy();
+  });
+
+  it("sends the person to sign in again, after the codes, when the session could not be told", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    serve();
+    add.mockImplementation(async () => {
+      status = ON;
+      return { status: "added", recoveryCodes: CODES, signedIn: false };
+    });
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey" }));
+    const sheet = await screen.findByRole("dialog", { name: "Save your recovery codes" });
+    expect(within(sheet).getByRole("alert").textContent).toContain("sign in again");
+    expect(assign).not.toHaveBeenCalled();
+
+    await userEvent.click(within(sheet).getByRole("checkbox", { name: "I saved these" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Done" }));
+    expect(assign).toHaveBeenCalledWith("/api/session-expired?callbackUrl=%2Faccount%3Ftab%3Dsecurity");
   });
 
   it("asks for a fresh Google sign-in instead while two-step sign-in is off", async () => {
@@ -130,6 +194,18 @@ describe("TwoStepSection", () => {
 
     expect(await screen.findByText("iPhone passkey")).toBeTruthy();
     expect(renamed).toEqual([{ url: "/api/account/mfa/factors/f1", body: { name: "iPhone passkey" } }]);
+  });
+
+  it.each(["Save", "Cancel"])("returns focus to the row's Rename button after %s", async (ending) => {
+    status = ON;
+    serve();
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Rename Device passkey" }));
+    await userEvent.click(screen.getByRole("button", { name: ending }));
+
+    const back = await screen.findByRole("button", { name: /^Rename / });
+    // `:focus` asked of the element found: the test wall bans reading `document.activeElement`.
+    await waitFor(() => expect(back.matches(":focus")).toBe(true));
   });
 
   it("says nothing when the person closes the browser's prompt, and says so when adding fails", async () => {

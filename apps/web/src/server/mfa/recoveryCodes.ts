@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { db } from "@/server/db/client";
+import { db, type Queryable } from "@/server/db/client";
 import { userRecoveryCodes } from "@/server/db/schema";
 import { keyedDigest, keyedDigestCandidates } from "@/server/secrets/keyedDigest";
 
@@ -23,9 +23,11 @@ const normalise = (code: string) => code.toLowerCase().replace(/[^a-z0-9]/g, "")
  * Ten new codes, shown to the person once; the old set is voided in the same
  * transaction, spent codes included. Only digests are stored.
  */
-export async function issueRecoveryCodes(userId: string, now: Date): Promise<string[]> {
+export async function issueRecoveryCodes(userId: string, now: Date, within: Queryable = db): Promise<string[]> {
   const codes = Array.from({ length: CODE_COUNT }, newCode);
-  await db.transaction(async (tx) => {
+  // Handed a transaction, this becomes a savepoint in it: turning two-step
+  // sign-in on issues its codes in the same unit as the factor (`addPasskey`).
+  await within.transaction(async (tx) => {
     // Two regenerations at once (a double click, a retry) would each delete before
     // the other inserted, under READ COMMITTED, and leave twenty live codes. One
     // lock per account makes the second wait and then void the first's set.

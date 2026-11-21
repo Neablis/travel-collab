@@ -30,37 +30,46 @@ export function rpId(): string {
 
 // **Challenges are not stored.** There is no table for them and no later part adds
 // a migration, so each one is sealed: the options come back with a ticket, a keyed
-// digest over this account, this ceremony, the challenge and its expiry. The
-// browser returns it with the signed response, and a challenge the server did not
-// issue, for another account or past five minutes, has no valid ticket. What this
-// does not give is single use: a captured assertion replays inside the window,
-// and only the signature counter (below) answers that, for authenticators that
-// keep one.
+// digest over this account, the session that asked, this ceremony, the challenge
+// and its expiry. The browser returns it with the signed response, and a challenge
+// the server did not issue, for another account, for another session's cookie or
+// past five minutes, has no valid ticket.
+//
+// **Single use comes from the ticket's age.** Its expiry less the lifetime is when
+// it was issued, and `recordPasskeyUse` accepts an assertion only when that is
+// later than the passkey's last use, so a captured pair is spent by its first
+// use, which moves the mark past it. This covers synced platform passkeys (Apple,
+// Google), which sign with a counter of 0 forever and so never trip the library's
+// sign-count check. The price is that a ticket asked for before another one was
+// used is spent too: two tabs asking at once, and the slower one asks again.
 const CHALLENGE_LIFETIME_MS = 5 * 60 * 1000;
 
 type Ceremony = "register" | "authenticate";
 
-function sealOf(userId: string, ceremony: Ceremony, challenge: string, expiresAt: number): string {
-  return keyedDigest(`webauthn-challenge|${userId}|${ceremony}|${challenge}|${expiresAt}`).digest;
+function sealOf(userId: string, sid: string, ceremony: Ceremony, challenge: string, expiresAt: number): string {
+  return keyedDigest(`webauthn-challenge|${userId}|${sid}|${ceremony}|${challenge}|${expiresAt}`).digest;
 }
 
-function ticketFor(userId: string, ceremony: Ceremony, challenge: string, now: Date): string {
+function ticketFor(userId: string, sid: string, ceremony: Ceremony, challenge: string, now: Date): string {
   const expiresAt = now.getTime() + CHALLENGE_LIFETIME_MS;
-  return `${expiresAt}.${sealOf(userId, ceremony, challenge, expiresAt)}`;
+  return `${expiresAt}.${sealOf(userId, sid, ceremony, challenge, expiresAt)}`;
 }
 
-/** The challenge the browser signed, if the ticket says this server issued it to this account and it has not expired. */
+/** The challenge the browser signed and when it was issued, if the ticket says this server issued it to this account and session and it has not expired. */
 function challengeFromTicket(
   userId: string,
+  sid: string,
   ceremony: Ceremony,
   signedChallenge: string,
   ticket: string,
   now: Date,
-): string | null {
+): { challenge: string; issuedAt: number } | null {
   const [expiry, seal] = ticket.split(".");
   const expiresAt = Number(expiry);
   if (!Number.isFinite(expiresAt) || seal === undefined || expiresAt < now.getTime()) return null;
-  return digestsMatch(seal, sealOf(userId, ceremony, signedChallenge, expiresAt)) ? signedChallenge : null;
+  return digestsMatch(seal, sealOf(userId, sid, ceremony, signedChallenge, expiresAt))
+    ? { challenge: signedChallenge, issuedAt: expiresAt - CHALLENGE_LIFETIME_MS }
+    : null;
 }
 
 function signedChallengeOf(response: { response: { clientDataJSON: string } }): string | null {
@@ -82,6 +91,7 @@ export interface StoredPasskey {
 
 export async function registrationOptions(
   user: { id: string; label: string },
+  sid: string,
   existing: readonly StoredPasskey[],
   now: Date,
 ): Promise<{ options: PublicKeyCredentialCreationOptionsJSON; ticket: string }> {
@@ -97,7 +107,7 @@ export async function registrationOptions(
     // Biometric unlock is the point (M62 D3a): the authenticator must verify the person.
     authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
   });
-  return { options, ticket: ticketFor(user.id, "register", options.challenge, now) };
+  return { options, ticket: ticketFor(user.id, sid, "register", options.challenge, now) };
 }
 
 export interface VerifiedRegistration {
@@ -123,18 +133,19 @@ function nameFrom(transports: readonly string[]): string {
 /** The new credential, or null for anything the ceremony refuses: a wrong challenge, origin or RP ID, an expired or foreign ticket, a malformed response. */
 export async function verifyRegistration(
   userId: string,
+  sid: string,
   response: RegistrationResponseJSON,
   ticket: string,
   now: Date,
 ): Promise<VerifiedRegistration | null> {
   const signed = signedChallengeOf(response);
   if (signed === null) return null;
-  const expectedChallenge = challengeFromTicket(userId, "register", signed, ticket, now);
-  if (expectedChallenge === null) return null;
+  const expected = challengeFromTicket(userId, sid, "register", signed, ticket, now);
+  if (expected === null) return null;
   try {
     const result = await verifyRegistrationResponse({
       response,
-      expectedChallenge,
+      expectedChallenge: expected.challenge,
       expectedOrigin: publicOrigin(),
       expectedRPID: rpId(),
       requireUserVerification: true,
@@ -156,6 +167,7 @@ export async function verifyRegistration(
 
 export async function authenticationOptions(
   userId: string,
+  sid: string,
   passkeys: readonly StoredPasskey[],
   now: Date,
 ): Promise<{ options: PublicKeyCredentialRequestOptionsJSON; ticket: string }> {
@@ -164,32 +176,34 @@ export async function authenticationOptions(
     allowCredentials: passkeys.map((p) => ({ id: p.credentialId, transports: p.transports ?? undefined })),
     userVerification: "required",
   });
-  return { options, ticket: ticketFor(userId, "authenticate", options.challenge, now) };
+  return { options, ticket: ticketFor(userId, sid, "authenticate", options.challenge, now) };
 }
 
 /**
  * The passkey that signed, with the counter to store, or null when the response
  * is not a valid assertion by one of THIS account's passkeys: forged, signed by
- * another key, for another account's credential, a stale challenge, or a
- * counter that went backwards (a cloned authenticator).
+ * another key, for another account's credential, a stale challenge or another
+ * session's, or a counter that went backwards (a cloned authenticator). `issuedAt`
+ * is for `recordPasskeyUse`, which is what makes the challenge single use.
  */
 export async function verifyAuthentication(
   userId: string,
+  sid: string,
   passkeys: readonly StoredPasskey[],
   response: AuthenticationResponseJSON,
   ticket: string,
   now: Date,
-): Promise<{ factorId: string; counter: number } | null> {
+): Promise<{ factorId: string; counter: number; issuedAt: number } | null> {
   const passkey = passkeys.find((p) => p.credentialId === response.id);
   if (passkey === undefined) return null;
   const signed = signedChallengeOf(response);
   if (signed === null) return null;
-  const expectedChallenge = challengeFromTicket(userId, "authenticate", signed, ticket, now);
-  if (expectedChallenge === null) return null;
+  const expected = challengeFromTicket(userId, sid, "authenticate", signed, ticket, now);
+  if (expected === null) return null;
   try {
     const result = await verifyAuthenticationResponse({
       response,
-      expectedChallenge,
+      expectedChallenge: expected.challenge,
       expectedOrigin: publicOrigin(),
       expectedRPID: rpId(),
       requireUserVerification: true,
@@ -201,7 +215,7 @@ export async function verifyAuthentication(
       },
     });
     if (!result.verified) return null;
-    return { factorId: passkey.id, counter: result.authenticationInfo.newCounter };
+    return { factorId: passkey.id, counter: result.authenticationInfo.newCounter, issuedAt: expected.issuedAt };
   } catch {
     return null;
   }
