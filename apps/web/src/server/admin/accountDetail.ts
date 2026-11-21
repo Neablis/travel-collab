@@ -14,8 +14,18 @@
 // not exist, so they are not fields here and the page does not draw them.
 import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { events, savedNotebooks, tripMemberships, tripSummaries } from "@/server/db/schema";
+import { alias } from "drizzle-orm/pg-core";
+import {
+  events,
+  mfaResets,
+  savedNotebooks,
+  tripMemberships,
+  tripSummaries,
+  userFactors,
+  users,
+} from "@/server/db/schema";
 import { TRAILING_WINDOW_DAYS, trailingWindowStart } from "@/server/entitlements/admin";
+import { mfaStateFor } from "@/server/mfa/state";
 import {
   adminAccountAssistant,
   adminAccountPlan,
@@ -26,6 +36,7 @@ import {
 import { describeEvent } from "./describeEvent";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const operators = alias(users, "operators");
 
 /** Everything the account page draws for one account. */
 export interface AdminAccountDetail {
@@ -44,6 +55,19 @@ export interface AdminAccountDetail {
     /** Its six newest planning events, newest first, as sentences. */
     recent: AdminAccountMoment[];
   };
+  /** Two-step sign-in (M62): whether it is on, and every operator reset, newest first (D15). */
+  mfa: {
+    enabled: boolean;
+    factors: number;
+    resets: AdminMfaReset[];
+  };
+}
+
+/** One operator reset, the operator named by address while they have one. */
+export interface AdminMfaReset {
+  at: string;
+  operator: string;
+  reason: string;
 }
 
 /** One account's page, or `null` when there is no such account. */
@@ -56,7 +80,7 @@ export async function adminAccountDetail(
   const since = trailingWindowStart(now).toISOString();
   const owns = sql`${tripSummaries.members} @> ${JSON.stringify([{ userId, role: "owner" }])}::jsonb`;
 
-  const [assistant, edits, recentEvents, owned, invited, notebooks] = await Promise.all([
+  const [assistant, edits, recentEvents, owned, invited, notebooks, mfaState, factors, resets] = await Promise.all([
     adminAccountAssistant(plan, now),
     // Bucketed in the database — a row per day it edited, not per event. `ago`
     // is `windowDayOf`'s whole 24-hour periods before `now`, taken at a JS
@@ -98,6 +122,14 @@ export async function adminAccountDetail(
       .select({ count: sql<number>`count(*)::int` })
       .from(savedNotebooks)
       .where(and(eq(savedNotebooks.ownerId, userId), isNull(savedNotebooks.deletedAt))),
+    mfaStateFor(userId),
+    db.select({ count: sql<number>`count(*)::int` }).from(userFactors).where(eq(userFactors.userId, userId)),
+    db
+      .select({ at: mfaResets.at, reason: mfaResets.reason, operatorId: mfaResets.operatorId, operatorEmail: operators.email })
+      .from(mfaResets)
+      .leftJoin(operators, eq(operators.id, mfaResets.operatorId))
+      .where(eq(mfaResets.userId, userId))
+      .orderBy(desc(mfaResets.at)),
   ]);
 
   const editsPerDay = Array.from({ length: TRAILING_WINDOW_DAYS }, () => 0);
@@ -134,6 +166,15 @@ export async function adminAccountDetail(
       recent: recentEvents.map((event) => ({
         at: new Date(event.at).toISOString(),
         what: describeEvent(event.type, event.payload, names.get(event.streamId) ?? null),
+      })),
+    },
+    mfa: {
+      enabled: mfaState.enabled,
+      factors: factors[0]?.count ?? 0,
+      resets: resets.map((reset) => ({
+        at: reset.at.toISOString(),
+        operator: reset.operatorEmail ?? reset.operatorId,
+        reason: reset.reason,
       })),
     },
   };

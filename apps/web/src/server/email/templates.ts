@@ -116,12 +116,14 @@ export function tripInviteEmail(input: {
 }
 
 /** What `securityChangeEmail` says happened; one phrase per change, in the order a person would list them. */
-export type SecurityChangeKind = "factor-removed" | "two-step-off" | "codes-regenerated";
+export type SecurityChangeKind = "factor-removed" | "two-step-off" | "codes-regenerated" | "operator-reset";
 
 const SECURITY_CHANGE_WORDING: Record<SecurityChangeKind, { subject: string; what: string }> = {
   "factor-removed": { subject: "A second step was removed from your account", what: "A way of signing in with two steps was removed from your account." },
   "two-step-off": { subject: "Two-step sign-in was turned off", what: "Two-step sign-in was turned off, and every passkey, authenticator app and recovery code was removed." },
   "codes-regenerated": { subject: "Your recovery codes were replaced", what: "Your recovery codes were replaced. The old ones no longer work." },
+  // D9: done by an operator, after the account's own email asked for it.
+  "operator-reset": { subject: "Two-step sign-in was reset", what: "Caesura support reset two-step sign-in on your account, as asked from your email address. Every passkey, authenticator app and recovery code was removed, and two-step sign-in is off." },
 };
 
 /**
