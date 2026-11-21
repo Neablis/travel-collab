@@ -271,8 +271,13 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
     reaches: [{ module: "@/server/auth", symbols: ["handlers", "signIn", "signOut"] }],
   },
   // M62: the second factor guards the session, and a token is not a session.
-  // A token that could add or rename factors could take the account its owner
-  // protected with them.
+  // A token that could add, remove or turn off factors could take the account
+  // its owner protected with them.
+  "account/mfa": {
+    status: "never",
+    why: "Turning two-step sign-in off — a token could strip its owner's second factor",
+    reaches: [{ module: "@/server/mfa/changes" }],
+  },
   "account/mfa/factors": {
     status: "never",
     why: "A token that could list factors could read how its owner signs in",
@@ -280,8 +285,8 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   },
   "account/mfa/factors/[factorId]": {
     status: "never",
-    why: "Renaming a factor — a token could relabel its owner's way in",
-    reaches: [{ module: "@/server/mfa/factors", symbols: ["renameFactor"] }],
+    why: "Renaming or removing a factor — a token could strip its owner's second factor",
+    reaches: [{ module: "@/server/mfa/changes" }, { module: "@/server/mfa/factors", symbols: ["renameFactor"] }],
   },
   "account/mfa/passkeys": {
     status: "never",
@@ -291,7 +296,7 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "account/mfa/recovery-codes": {
     status: "never",
     why: "Issuing recovery codes — a token could mint a way past its owner's second factor",
-    reaches: [{ module: "@/server/mfa/recoveryCodes" }],
+    reaches: [{ module: "@/server/mfa/recoveryCodes" }, { module: "@/server/mfa/changes", symbols: ["recordSecurityChange"] }],
   },
   "account/mfa/totp": {
     status: "never",

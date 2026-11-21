@@ -31,6 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ fa
 // *Remove* (M62 D7): behind the fresh check, refused for the last factor, and an
 // epoch bump that signs out every other session. The malformed and the foreign id
 // read as not found, as for rename.
+/** Removes one of the signed-in account's factors and returns this session's proof. 409 for the last factor, 404 for an id that is malformed or not theirs. */
 export async function DELETE(request: Request, { params }: { params: Promise<{ factorId: string }> }) {
   const session = await auth();
   const userId = session?.user?.id;
