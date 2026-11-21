@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API_SCOPES } from "@tc/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-const checkWithCode = vi.fn<(kind: "otp" | "recovery", code: string) => Promise<"passed" | "refused">>();
+const checkWithCode = vi.fn<(kind: "otp" | "recovery", code: string) => Promise<"passed" | "refused" | "signed-out">>();
 vi.mock("@/lib/mfaClient", () => ({
   checkWithCode: (kind: "otp" | "recovery", code: string) => checkWithCode(kind, code),
   checkWithPasskey: async () => "refused",
@@ -226,5 +226,42 @@ describe("ConsentScreen", () => {
 
     await vi.waitFor(() => expect(assign).toHaveBeenCalledWith("https://evil.example/cb?code=tcc_x"));
     expect(decisions).toEqual(["allow", "allow"]);
+  });
+
+  // The route also answers 403 to a cross-origin post. A check would pass, the
+  // retry would be refused again, and the person would never see why.
+  it("says a 403 that is not about the check went wrong, and opens no check", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: "cross-origin" }, { status: 403 })));
+    render(<ConsentScreen {...props()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Allow" }));
+    expect((await screen.findByRole("status")).textContent).toBe("That did not go through. Reload the page and try again.");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // A session signed out under the page (its factors changed on another device)
+  // signs in again and comes back to this app's request, not to Account.
+  it("sends a session the check finds signed out back to this page through sign-in", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) =>
+        String(url) === "/api/account/mfa/factors"
+          ? Response.json({ enabled: true, factors: [], recoveryCodesLeft: 9 })
+          : Response.json({ error: "fresh-check-required" }, { status: 403 }),
+      ),
+    );
+    checkWithCode.mockResolvedValue("signed-out");
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, pathname: "/oauth/authorize", search: "?client_id=c1&state=s" });
+    render(<ConsentScreen {...props()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Allow" }));
+
+    await userEvent.type(await screen.findByLabelText("Authenticator code"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: "Verify" }));
+
+    await vi.waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        `/api/session-expired?callbackUrl=${encodeURIComponent("/oauth/authorize?client_id=c1&state=s")}`,
+      ),
+    );
   });
 });

@@ -1,5 +1,6 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CodeCheck, PasskeyCheck } from "@/lib/mfaClient";
 
@@ -164,6 +165,25 @@ describe("VerifyScreen", () => {
       await userEvent.click(screen.getByRole("button", { name: "Use a passkey" }));
       const passkey = await screen.findByRole("button", { name: "Use a passkey" });
       await waitFor(() => expect(passkey.matches(":focus")).toBe(true));
+    });
+
+    // On a slow phone a tap can be replayed after the screen commits and before its
+    // arrival effect runs. A layout effect lands it in exactly that gap.
+    it("keeps the code field, and asks for no passkey, when the code is chosen before the arrival prompt starts", async () => {
+      function TapsBeforeArrival() {
+        useLayoutEffect(() => {
+          fireEvent.click(screen.getByRole("button", { name: "Use authenticator code" }));
+        }, []);
+        return null;
+      }
+      render(
+        <>
+          <VerifyScreen callbackUrl="/home" />
+          <TapsBeforeArrival />
+        </>,
+      );
+      expect(await screen.findByRole("textbox", { name: "Authenticator code" })).toBeDefined();
+      expect(check).not.toHaveBeenCalled();
     });
 
     it("opens on the code field when the account has no passkey to ask for", async () => {

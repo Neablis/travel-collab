@@ -22,6 +22,16 @@ export async function mfaStateFor(userId: string): Promise<MfaState> {
   return { enabled: row?.enabledAt != null, epoch: row?.epoch ?? 0 };
 }
 
+/**
+ * Takes the account's row for the rest of the transaction. Every change to the
+ * account's factors does this first, so two of them (a Turn off and an add in
+ * another tab) run one after the other. A conditional UPDATE is not enough: one
+ * whose WHERE matches nothing never waits on the row.
+ */
+export async function lockAccount(tx: Queryable, userId: string): Promise<void> {
+  await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+}
+
 /** Goes up by one and returns the new value: every token minted under the old one is now refused. */
 export async function bumpSecurityEpoch(userId: string, executor: Queryable = db): Promise<number> {
   const [row] = await executor

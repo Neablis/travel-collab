@@ -22,12 +22,15 @@ export function FreshCheckDialog({
   mfaEnabled,
   hasPasskey,
   purpose = "Changing how you sign in",
+  returnTo = "/account?tab=security",
   onChecked,
   onClose,
 }: {
   mfaEnabled: boolean;
   /** What the check is for, as the start of a sentence: "<purpose> needs a passkey first." */
   purpose?: string;
+  /** The page a sign-in this dialog sends the person through comes back to: the one the check was asked from. */
+  returnTo?: string;
   /** Whether the account holds a passkey; without one, the dialog opens on the code field. */
   hasPasskey: boolean;
   onChecked: () => void;
@@ -79,8 +82,7 @@ export function FreshCheckDialog({
     if (!open.current) return;
     setBusy(false);
     if (result === "passed") onChecked();
-    else if (result === "signed-out")
-      window.location.assign("/api/session-expired?callbackUrl=%2Faccount%3Ftab%3Dsecurity");
+    else if (result === "signed-out") window.location.assign(`/api/session-expired?callbackUrl=${encodeURIComponent(returnTo)}`);
     else if (result === "not-required") onClose();
     else
       setCodeProblem(
@@ -100,7 +102,7 @@ export function FreshCheckDialog({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={() => void signIn("google", { callbackUrl: "/account?tab=security" })}>
+          <Button variant="primary" onClick={() => void signIn("google", { callbackUrl: returnTo })}>
             Sign in with Google
           </Button>
         </DialogFooter>

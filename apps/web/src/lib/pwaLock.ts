@@ -94,6 +94,39 @@ export function recordActivity(now: number = Date.now(), storage: StorageAccess 
 }
 
 /**
+ * Drops the record of activity, on sign out. The setting is the device's, but the
+ * last activity was this person's: left behind, it would lock the next account to
+ * sign in at once, over an idle time that was never its own.
+ */
+export function forgetActivity(storage: StorageAccess = local): void {
+  try {
+    storage().removeItem(LAST_ACTIVE);
+  } catch {
+    // Unreadable storage holds no record to forget.
+  }
+}
+
+/**
+ * Hides the page before it paints when an installed app is reopened past its idle
+ * time. Inlined ahead of the app's server HTML, which would otherwise show for as
+ * long as hydration takes, until `PwaLockGate`'s layout effect covers it; the gate
+ * shows the page again (`releaseEarlyLock`) once its lock is up, or once it has
+ * decided not to lock. The same test as `isStandalone` and `isPastIdle`, which
+ * cannot run before the bundle; the keys and durations are this module's.
+ */
+export const EARLY_LOCK_SCRIPT =
+  `try{var m=${JSON.stringify(LOCK_AFTER_MS)},k=localStorage.getItem(${JSON.stringify(LOCK_AFTER)}),` +
+  `a=Number(localStorage.getItem(${JSON.stringify(LAST_ACTIVE)}));` +
+  `if((navigator.standalone===true||(typeof matchMedia==="function"&&matchMedia("(display-mode: standalone)").matches))` +
+  `&&Object.prototype.hasOwnProperty.call(m,k)&&a>0&&Date.now()-a>=m[k])` +
+  `document.documentElement.style.visibility="hidden"}catch(e){}`;
+
+/** Undoes `EARLY_LOCK_SCRIPT`; a no-op when it hid nothing. */
+export function releaseEarlyLock(): void {
+  document.documentElement.style.removeProperty("visibility");
+}
+
+/**
  * Whether the app has been idle past its setting. Never with the lock off, nor
  * with no record of activity, nor with a last activity in the future (a clock set
  * back): each would lock someone who had not walked away.

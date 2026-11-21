@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { users } from "@/server/db/schema";
+import { userFactors, users } from "@/server/db/schema";
 import type { Email } from "@/server/email/send";
-import { describeClient, recordSecurityChange } from "./changes";
+import { describeClient, recordSecurityChange, turnOffIn } from "./changes";
+import { addPasskey, addTotp } from "./factors";
 import { mfaStateFor } from "./state";
 
 // The mail provider is the only thing replaced: what the account is told is the
@@ -53,15 +55,26 @@ describe("recordSecurityChange", () => {
 
   it("emails the account what changed, when, and from what browser and address, and no place", async () => {
     const id = await account("ana@gmail.com");
-    await change(id, { "user-agent": SAFARI_ON_IPHONE, "x-forwarded-for": "203.0.113.9, 10.0.0.1" });
+    await change(id, { "user-agent": SAFARI_ON_IPHONE, "x-forwarded-for": "203.0.113.9" });
     expect(sent).toHaveLength(1);
     const [mail] = sent as [Email];
     expect(mail).toMatchObject({ to: "ana@gmail.com", tag: "security-change" });
     expect(mail.text).toContain("2026-11-21 09:30 UTC");
     expect(mail.text).toContain("Safari on iOS");
-    expect(mail.text).toContain("203.0.113.9");
-    expect(mail.text).not.toContain("10.0.0.1");
+    expect(mail.text).toContain("IP address 203.0.113.9");
     expect(mail.text).toContain("https://caesura.example/account?tab=security");
+  });
+
+  // The proxy appends the address that connected to it; anything to its left came
+  // from the client, and whoever made the change could have written it.
+  it("names the address the proxy appended, not one the client wrote, and a whole IPv6 address", async () => {
+    const id = await account("ana@gmail.com");
+    await change(id, { "x-forwarded-for": "198.51.100.7, 203.0.113.9" });
+    expect(sent[0]!.text).toContain("IP address 203.0.113.9");
+    expect(sent[0]!.text).not.toContain("198.51.100.7");
+    sent.length = 0;
+    await change(id, { "x-forwarded-for": "2001:db8:1:2:3:4:5:6" });
+    expect(sent[0]!.text).toContain("IP address 2001:db8:1:2:3:4:5:6");
   });
 
   it("leaves out the address when there is none, and sends nothing to an account with no email", async () => {
@@ -72,8 +85,10 @@ describe("recordSecurityChange", () => {
     expect(sent).toHaveLength(0);
   });
 
-  it("rolls the epoch back with the write when the write fails", async () => {
-    const id = await account("ana@gmail.com");
+  // The write is made and then the change fails: only one transaction around both
+  // takes the write back with it.
+  it("rolls the write and the epoch back together when the change fails after writing", async () => {
+    const id = await withTwoStepOn();
     const before = (await mfaStateFor(id)).epoch;
     await expect(
       recordSecurityChange({
@@ -82,13 +97,78 @@ describe("recordSecurityChange", () => {
         change: "two-step-off",
         request: new Request("http://localhost/x"),
         now: new Date(),
-        apply: async () => {
+        apply: async (tx) => {
+          await turnOffIn(tx, id);
           throw new Error("refused");
         },
       }),
     ).rejects.toThrow("refused");
-    expect((await mfaStateFor(id)).epoch).toBe(before);
+    expect(await mfaStateFor(id)).toEqual({ enabled: true, epoch: before });
     expect(sent).toHaveLength(0);
+  });
+});
+
+async function withTwoStepOn(): Promise<string> {
+  const id = await account("ana@gmail.com");
+  await db.update(users).set({ mfaEnabledAt: new Date() }).where(eq(users.id, id));
+  return id;
+}
+
+// Turn off in one tab and an add in another, at once (READ COMMITTED). Each takes
+// the account's row first, so one waits for the other rather than leaving a factor
+// stored with two-step sign-in off.
+describe("a change racing an add on the same account", () => {
+  /** Holds the account's row as a change in progress would, until the returned release. */
+  async function holding(id: string) {
+    let release!: () => void;
+    let locked!: () => void;
+    const held = new Promise<void>((resolve) => (locked = resolve));
+    const done = db.transaction(async (tx) => {
+      await tx.select({ id: users.id }).from(users).where(eq(users.id, id)).for("update");
+      locked();
+      await new Promise<void>((resolve) => (release = resolve));
+    });
+    await held;
+    return async () => {
+      release();
+      await done;
+    };
+  }
+
+  const settlesWithin = (work: Promise<unknown>, ms: number) =>
+    Promise.race([work.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms))]);
+
+  const adds = {
+    passkey: (id: string) =>
+      addPasskey(id, { credentialId: randomUUID(), publicKey: "key", counter: 0, transports: [], name: "Passkey" }, new Date()),
+    // The secret is never opened here, so any sealed string will do.
+    "authenticator app": (id: string) => addTotp(id, { factorId: randomUUID(), sealedSecret: "sealed", step: 1 }, new Date()),
+  };
+
+  // With two-step sign-in on, the add's conditional UPDATE matches no row and so
+  // never waits on its own: only taking the row first makes it.
+  for (const [kind, add] of Object.entries(adds)) {
+    it(`an add (${kind}) waits for the account's row, even when two-step sign-in is already on`, async () => {
+      const id = await withTwoStepOn();
+      const release = await holding(id);
+      const adding = add(id);
+      expect(await settlesWithin(adding, 300)).toBe(false);
+      await release();
+      expect(await adding).toEqual({ recoveryCodes: null });
+    });
+  }
+
+  it("Turn off takes the account's row before it deletes, so a factor added meanwhile goes too", async () => {
+    const id = await withTwoStepOn();
+    const release = await holding(id);
+    const turningOff = db.transaction((tx) => turnOffIn(tx, id));
+    expect(await settlesWithin(turningOff, 300)).toBe(false);
+    // Committed while Turn off waits: it must still be gone once Turn off is done.
+    await db.insert(userFactors).values({ id: randomUUID(), userId: id, kind: "passkey", name: "Added meanwhile", createdAt: new Date() });
+    await release();
+    await turningOff;
+    expect(await db.select().from(userFactors).where(eq(userFactors.userId, id))).toHaveLength(0);
+    expect((await mfaStateFor(id)).enabled).toBe(false);
   });
 });
 

@@ -130,14 +130,18 @@ describe("Model: a second factor, carried in the token and revoked by the epoch"
     expect(await jwt({ token: renewed! })).not.toBeNull();
   });
 
+  // Its next read gives it an id (`createJwtCallback`), and that is what the route
+  // making the change reads and mints the proof for.
   it("keeps a token minted before sessions had an id through the bump it caused itself", async () => {
     const id = await account(true);
     const old = (await signIn(id))!;
     delete old.sid;
+    const read = (await jwt({ token: old }))!;
+    const sid = (sessionOf(read) as { sid?: string }).sid;
+    expect(sid).toBeTruthy();
     const epoch = await bumpSecurityEpoch(id);
-    const sid = (sessionOf(old) as { sid?: string }).sid;
     const renewed = await jwt({
-      token: old,
+      token: read,
       trigger: "update",
       session: mintSecondFactorProof(id, sid as string, "otp", epoch, new Date()),
     });

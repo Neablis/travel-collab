@@ -1,8 +1,10 @@
+import { runInNewContext } from "node:vm";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Dialog } from "@/components/ui/dialog";
 import type { MfaStatusResponse } from "@/lib/mfaWire";
-import { setLockSetting, type UnlockResult } from "@/lib/pwaLock";
+import { EARLY_LOCK_SCRIPT, setLockSetting, type UnlockResult } from "@/lib/pwaLock";
 
 const unlock = vi.fn<() => Promise<UnlockResult>>();
 vi.mock("@/lib/pwaLock", async (original) => ({
@@ -46,6 +48,7 @@ afterEach(() => {
   unlock.mockReset();
   signOutMock.mockReset();
   window.localStorage.clear();
+  document.documentElement.style.removeProperty("visibility");
   status = { enabled: true, factors: [passkey], recoveryCodesLeft: 10 };
 });
 
@@ -94,6 +97,8 @@ describe("PwaLockGate", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Sign out" }));
     expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/" });
     expect(window.localStorage.getItem("ask_thread_v1:u1:home")).toBeNull();
+    // The next account to sign in here must not inherit this one's idle time.
+    expect(window.localStorage.getItem("caesura_last_active")).toBeNull();
   });
 
   it("moves focus to Unlock when it locks, and back to where it was once unlocked", async () => {
@@ -124,14 +129,37 @@ describe("PwaLockGate", () => {
     expect(lockScreen()).toBeNull();
   });
 
-  it("clears the setting instead of locking an account with no passkey left", async () => {
+  // The setting is the device's: another account that signs in here may have chosen it.
+  it("does not lock an account with no passkey, and leaves the device's setting alone", async () => {
     installed(true);
     idleFor(20 * MIN);
     status = { enabled: true, factors: [{ ...passkey, kind: "totp" }], recoveryCodesLeft: 10 };
     app();
     expect(await screen.findByRole("button", { name: "Plan a trip" })).toBeTruthy();
-    expect(lockScreen()).toBeNull();
-    expect(window.localStorage.getItem("caesura_lock_after")).toBeNull();
+    await vi.waitFor(() => expect(lockScreen()).toBeNull());
+    expect(window.localStorage.getItem("caesura_lock_after")).toBe("15m");
+  });
+
+  // Radix listens for Escape on the document in the capture phase, past `inert`.
+  it("keeps Escape at the lock from closing a dialog open under it", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    installed(true);
+    idleFor(0);
+    const onOpenChange = vi.fn();
+    render(
+      <PwaLockGate signedIn userId="u1">
+        <Dialog open onOpenChange={onOpenChange} title="Rename trip">
+          <input aria-label="Trip name" defaultValue="Lisbon in Ma" />
+        </Dialog>
+      </PwaLockGate>,
+    );
+    await screen.findByRole("dialog", { name: "Rename trip" });
+    await act(async () => {
+      vi.advanceTimersByTime(16 * MIN);
+    });
+    expect(lockScreen()).toBeTruthy();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it("watches from the moment the lock is turned on, without a relaunch", async () => {
@@ -159,5 +187,47 @@ describe("PwaLockGate", () => {
       vi.advanceTimersByTime(16 * MIN);
     });
     expect(lockScreen()).toBeTruthy();
+  });
+});
+
+describe("before the app hydrates", () => {
+  // The script as `(app)/layout.tsx` inlines it, run against this window.
+  const runEarlyLock = () =>
+    runInNewContext(EARLY_LOCK_SCRIPT, {
+      localStorage: window.localStorage,
+      navigator: window.navigator,
+      matchMedia: globalThis.matchMedia,
+      document,
+    });
+  const hidden = () => document.documentElement.style.visibility === "hidden";
+
+  it("hides an installed app reopened past its idle time, and the gate shows it once the lock is up", async () => {
+    installed(true);
+    idleFor(20 * MIN);
+    runEarlyLock();
+    expect(hidden()).toBe(true);
+    app();
+    expect(await screen.findByRole("dialog", { name: "Caesura is locked" })).toBeTruthy();
+    expect(hidden()).toBe(false);
+  });
+
+  it("hides nothing in a browser tab, within the idle time, or with the lock off", () => {
+    installed(false);
+    idleFor(20 * MIN);
+    runEarlyLock();
+    installed(true);
+    idleFor(1 * MIN);
+    runEarlyLock();
+    idleFor(20 * MIN, "off");
+    runEarlyLock();
+    expect(hidden()).toBe(false);
+  });
+
+  it("shows the page when the gate decides not to lock", () => {
+    installed(true);
+    idleFor(20 * MIN);
+    runEarlyLock();
+    app(false);
+    expect(hidden()).toBe(false);
   });
 });

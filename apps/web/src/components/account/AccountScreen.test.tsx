@@ -31,9 +31,35 @@ vi.mock("./ProfileSection", () => ({
   ),
 }));
 vi.mock("./PlanSection", () => ({ PlanSection: () => <div data-testid="plan-panel" /> }));
-vi.mock("./TokensSection", () => ({ TokensSection: () => <div data-testid="tokens-panel" /> }));
-vi.mock("./ConnectedAppsSection", () => ({ ConnectedAppsSection: () => <div data-testid="apps-panel" /> }));
-vi.mock("./TwoStepSection", () => ({ TwoStepSection: () => <div data-testid="two-step-panel" /> }));
+// The two lists count their mounts, since each reads on mount: a second mount is a second read.
+const mounts = vi.hoisted(() => ({ tokens: 0, apps: 0 }));
+vi.mock("./TokensSection", async () => {
+  const { useEffect } = await import("react");
+  return {
+    TokensSection: () => {
+      useEffect(() => void (mounts.tokens += 1), []);
+      return <div data-testid="tokens-panel" />;
+    },
+  };
+});
+vi.mock("./ConnectedAppsSection", async () => {
+  const { useEffect } = await import("react");
+  return {
+    ConnectedAppsSection: () => {
+      useEffect(() => void (mounts.apps += 1), []);
+      return <div data-testid="apps-panel" />;
+    },
+  };
+});
+vi.mock("./TwoStepSection", () => ({
+  TwoStepSection: ({ onRevoked }: { onRevoked?: () => void }) => (
+    <div data-testid="two-step-panel">
+      <button type="button" onClick={onRevoked}>
+        Revoke everything
+      </button>
+    </div>
+  ),
+}));
 
 function mount(tab?: string) {
   params = new URLSearchParams(tab === undefined ? "" : `tab=${tab}`);
@@ -149,6 +175,17 @@ describe("AccountScreen", () => {
       expect(screen.getByRole("tab", { name: "Security" }).getAttribute("aria-selected")).toBe("true");
       expect(screen.getByTestId("tokens-panel")).toBeTruthy();
       expect(screen.getByTestId("apps-panel")).toBeTruthy();
+    });
+
+    // M62 D8: the tick on the recovery-codes sheet revokes every token and app, and
+    // lists that read only on mount would still show them live until a reload.
+    it("reads the token and connected-app lists again once two-step sign-in has revoked everything", () => {
+      mounts.tokens = 0;
+      mounts.apps = 0;
+      mount("security");
+      expect(mounts).toEqual({ tokens: 1, apps: 1 });
+      fireEvent.click(screen.getByRole("button", { name: "Revoke everything" }));
+      expect(mounts).toEqual({ tokens: 2, apps: 2 });
     });
 
     it("is not on Profile", () => {

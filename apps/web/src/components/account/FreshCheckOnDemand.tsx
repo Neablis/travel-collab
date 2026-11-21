@@ -11,10 +11,13 @@ import { FreshCheckDialog } from "./FreshCheckDialog";
 /** Opens the fresh check once it knows whether the account has a passkey; `onChecked` is the cue to retry. */
 export function FreshCheckOnDemand({
   purpose,
+  returnTo,
   onChecked,
   onClose,
 }: {
   purpose: string;
+  /** Where sign-in comes back to if the check finds the session signed out (`FreshCheckDialog`). */
+  returnTo?: string;
   onChecked: () => void;
   onClose: () => void;
 }) {
@@ -32,5 +35,14 @@ export function FreshCheckOnDemand({
     };
   }, []);
   if (hasPasskey === null) return null;
-  return <FreshCheckDialog mfaEnabled hasPasskey={hasPasskey} purpose={purpose} onChecked={onChecked} onClose={onClose} />;
+  return (
+    <FreshCheckDialog
+      mfaEnabled
+      hasPasskey={hasPasskey}
+      purpose={purpose}
+      returnTo={returnTo}
+      onChecked={onChecked}
+      onClose={onClose}
+    />
+  );
 }

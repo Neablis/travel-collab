@@ -116,12 +116,14 @@ export function ConsentScreen({
         // The name too: the server refuses Allow if the app's name changed since this page showed it.
         body: JSON.stringify({ params, decision, scopes: chosen, clientName }),
       });
-      if (res.status === 403) {
+      const body = (await res.json().catch(() => null)) as { redirectTo?: unknown; error?: unknown } | null;
+      // By name: the route's other 403 (a cross-origin post) would only be refused
+      // again after the check, and the person would never see why.
+      if (res.status === 403 && body?.error === "fresh-check-required") {
         setChecking(true);
         setBusy(false);
         return;
       }
-      const body = (await res.json().catch(() => null)) as { redirectTo?: unknown } | null;
       if (res.ok && typeof body?.redirectTo === "string") {
         // Stays busy: the page is leaving.
         window.location.assign(body.redirectTo);
@@ -265,6 +267,8 @@ export function ConsentScreen({
       {checking ? (
         <FreshCheckOnDemand
           purpose="Connecting an app"
+          // Signed out under the page, the person signs in again and comes back to this app's request.
+          returnTo={`${window.location.pathname}${window.location.search}`}
           onClose={() => setChecking(false)}
           onChecked={() => {
             setChecking(false);

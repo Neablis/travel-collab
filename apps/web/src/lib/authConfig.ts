@@ -221,11 +221,8 @@ export interface SessionLookup {
   ): { method: "webauthn" | "otp" | "recovery" | "epoch"; expiresAt: number } | null;
 }
 
-// A cookie minted before sessions carried an id has none. A fixed value stands in
-// for it on both the mint and the read side, so such a session can still add a
-// second factor; a random one minted on read would disagree between the two
-// Auth.js instances. The proof it gets is no weaker for it: it is still bound to
-// the account, the epoch and the pepper, and is accepted once.
+// Empty only for a token with no account, which every route refuses anyway: a
+// signed-in token without one is given one on its next read (`createJwtCallback`).
 const sidOf = (token: Record<string, unknown>): string => (token.sid as string | undefined) ?? "";
 
 /**
@@ -288,6 +285,12 @@ export function createJwtCallback(lookup?: SessionLookup): NonNullable<NonNullab
     // deploys; the alternative — trusting an unstamped token — would leave
     // the hole open for the 30-day life of every cookie already issued.
     if (token.env !== authEnvironment()) return null;
+    // A cookie minted before sessions carried an id (M62 part 1) is given one here,
+    // or every route that binds a proof to it would refuse the session. In both
+    // instances: the proxy's re-issues the cookie on the guarded page the person is
+    // on (`/account`), so the routes that page calls read the id it stored. A copy
+    // minted by an `auth()` that cannot write the cookie lives one request.
+    if (token.userId && !token.sid) token.sid = crypto.randomUUID();
     if (!lookup) return token;
     const userId = token.userId as string | undefined;
     if (!userId) return token;
