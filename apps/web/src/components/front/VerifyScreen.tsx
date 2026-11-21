@@ -43,12 +43,14 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
   async function ask(onArrival = false) {
     if (inFlight.current || (onArrival && switched.current)) return;
     inFlight.current = true;
+    const from = mode;
     setMode("passkey");
     setOutcome("asking");
     const result = await checkWithPasskey();
     inFlight.current = false;
     setOutcome(result);
-    if (result === "unavailable") setMode("otp");
+    // Asked for from a code, it goes back to that code: the person chose it.
+    if (result === "unavailable") setMode(from === "passkey" ? "otp" : from);
     if (result === "passed" || result === "not-required") router.replace(callbackUrl);
     // Nothing on this screen can work without a session behind the cookie. The
     // route clears it, then sends the person to sign in with where they were going.
@@ -85,6 +87,9 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
 
   const busy = outcome === "asking" || outcome === "passed" || outcome === "not-required" || outcome === "signed-out";
   const hasPasskey = outcome !== "unavailable";
+  // Still "asking" with nothing in flight when a code was tapped before the arrival
+  // prompt: nobody has learned whether a passkey exists, so the lock promises none.
+  const knownPasskey = hasPasskey && outcome !== "asking";
   const codeBusy =
     codeOutcome === "checking" ||
     codeOutcome === "passed" ||
@@ -95,7 +100,7 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
     codeOutcome === "refused"
       ? "That code did not work. Try again."
       : codeOutcome === "locked"
-        ? `Too many wrong codes. Try again in 15 minutes${hasPasskey ? ", or use a passkey" : ""}.`
+        ? `Too many wrong codes. Try again in 15 minutes${knownPasskey ? ", or use a passkey" : ""}.`
         : null;
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
