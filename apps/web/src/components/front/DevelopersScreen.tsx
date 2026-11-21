@@ -5,6 +5,7 @@ import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
+import { ConnectTabs } from "@/components/front/ConnectTabs";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { cn } from "@/lib/cn";
 
@@ -145,6 +146,15 @@ function ConnectSection({ id, title, children }: { id: string; title: string; ch
   );
 }
 
+/** A short plain label over a group of connect sections. */
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <DataText size="xs" className="text-2xs tracking-widest text-brand uppercase">
+      {children}
+    </DataText>
+  );
+}
+
 /**
  * One row of the MCP tool table. Shaped like `server/mcp/toolScopes`'s
  * `McpToolScope`, which the server page fills; UI may not import server
@@ -264,26 +274,8 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
             </Text>
           </div>
 
-          <ConnectSection id="connect-claude" title="Connect Claude">
-            <Step level={4} n={1} title="Add a custom connector">
-              <Text className="text-pretty">In Claude, add a custom connector with this URL:</Text>
-              <Pre>https://caesura.today/api/mcp</Pre>
-            </Step>
-            <Step level={4} n={2} title="Sign in and allow it">
-              <Text className="text-pretty">
-                There is no token to copy. Claude sends you to Caesura to sign in and allow it, which needs the Premium plan. The page lists
-                what it asks for in the words of <InlineLink href="#scopes">the scopes below</InlineLink>, and
-                you can untick any of them. Reading starts ticked; anything that changes your data, Notebook included, starts unticked.
-              </Text>
-            </Step>
-            <Step level={4} n={3} title="Disconnect when you like">
-              <Text className="text-pretty">
-                Every app you connect is listed in <strong>Account → Security → Connected apps</strong>, where
-                Disconnect stops it at once.
-              </Text>
-            </Step>
-          </ConnectSection>
-
+          <div className="flex flex-col gap-4">
+            <GroupLabel>Any AI app</GroupLabel>
           <ConnectSection id="connect-mcp" title="Connect an MCP client">
             <Step level={4} n={1} title="Add the server">
               <Text className="text-pretty">
@@ -299,43 +291,6 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
               </Text>
             </Step>
           </ConnectSection>
-
-          <ConnectSection id="connect-chatgpt" title="Connect ChatGPT">
-            <Step level={4} n={1} title="Make a token">
-              <Text className="text-pretty">Make an API token as above, with the scopes the GPT should have. API tokens need the Premium plan.</Text>
-            </Step>
-            <Step level={4} n={2} title="Import the OpenAPI document as an Action">
-              <Text className="text-pretty">
-                In your GPT&rsquo;s configuration, add an Action and import this URL. The import needs the document&rsquo;s URL, not a
-                pasted copy of its text, because the document names its server as an absolute address:
-              </Text>
-              <Pre>https://caesura.today/api/v1/openapi</Pre>
-            </Step>
-            <Step level={4} n={3} title="Authenticate with the token">
-              <Text className="text-pretty">
-                Set the Action&rsquo;s authentication to API key, auth type Bearer, and paste the token.
-              </Text>
-            </Step>
-          </ConnectSection>
-
-          <ConnectSection id="connect-gemini" title="Connect Gemini">
-            <Step level={4} n={1} title="Make a scoped token">
-              <Text className="text-pretty">Make an API token holding only the scopes your tools need. API tokens need the Premium plan.</Text>
-            </Step>
-            <Step level={4} n={2} title="Declare functions from the OpenAPI document">
-              <Text className="text-pretty">
-                Read <InlineLink href="/api/v1/openapi">/api/v1/openapi</InlineLink> and declare each operation you
-                want as a function for Gemini&rsquo;s function calling.
-              </Text>
-            </Step>
-            <Step level={4} n={3} title="Call the API with the token">
-              <Text className="text-pretty">
-                When Gemini asks for a function, make that request yourself with <Code>Authorization: Bearer</Code>{" "}
-                and the token, and return the response to it.
-              </Text>
-            </Step>
-          </ConnectSection>
-
           <ConnectSection id="connect-poppy" title="Connect Poppy agents">
             <Step level={4} n={1} title="There is nothing to set up">
               <Text className="text-pretty">
@@ -345,6 +300,76 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
               </Text>
             </Step>
           </ConnectSection>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <GroupLabel>Your AI assistant</GroupLabel>
+            <ConnectTabs
+              idPrefix="connect"
+              aria-label="Your AI assistant"
+              clients={[
+                { value: "claude", label: "Claude", panel: (
+                <ConnectSection id="connect-claude" title="Connect Claude">
+                  <Step level={4} n={1} title="Add a custom connector">
+                    <Text className="text-pretty">In Claude, add a custom connector with this URL:</Text>
+                    <Pre>https://caesura.today/api/mcp</Pre>
+                  </Step>
+                  <Step level={4} n={2} title="Sign in and allow it">
+                    <Text className="text-pretty">
+                      There is no token to copy. Claude sends you to Caesura to sign in and allow it, which needs the Premium plan. The page lists
+                      what it asks for in the words of <InlineLink href="#scopes">the scopes below</InlineLink>, and
+                      you can untick any of them. Reading starts ticked; anything that changes your data, Notebook included, starts unticked.
+                    </Text>
+                  </Step>
+                  <Step level={4} n={3} title="Disconnect when you like">
+                    <Text className="text-pretty">
+                      Every app you connect is listed in <strong>Account → Security → Connected apps</strong>, where
+                      Disconnect stops it at once.
+                    </Text>
+                  </Step>
+                </ConnectSection>
+                ) },
+                { value: "chatgpt", label: "ChatGPT", panel: (
+                <ConnectSection id="connect-chatgpt" title="Connect ChatGPT">
+                  <Step level={4} n={1} title="Make a token">
+                    <Text className="text-pretty">Make an API token as above, with the scopes the GPT should have. API tokens need the Premium plan.</Text>
+                  </Step>
+                  <Step level={4} n={2} title="Import the OpenAPI document as an Action">
+                    <Text className="text-pretty">
+                      In your GPT&rsquo;s configuration, add an Action and import this URL. The import needs the document&rsquo;s URL, not a
+                      pasted copy of its text, because the document names its server as an absolute address:
+                    </Text>
+                    <Pre>https://caesura.today/api/v1/openapi</Pre>
+                  </Step>
+                  <Step level={4} n={3} title="Authenticate with the token">
+                    <Text className="text-pretty">
+                      Set the Action&rsquo;s authentication to API key, auth type Bearer, and paste the token.
+                    </Text>
+                  </Step>
+                </ConnectSection>
+                ) },
+                { value: "gemini", label: "Gemini", panel: (
+                <ConnectSection id="connect-gemini" title="Connect Gemini">
+                  <Step level={4} n={1} title="Make a scoped token">
+                    <Text className="text-pretty">Make an API token holding only the scopes your tools need. API tokens need the Premium plan.</Text>
+                  </Step>
+                  <Step level={4} n={2} title="Declare functions from the OpenAPI document">
+                    <Text className="text-pretty">
+                      Read <InlineLink href="/api/v1/openapi">/api/v1/openapi</InlineLink> and declare each operation you
+                      want as a function for Gemini&rsquo;s function calling.
+                    </Text>
+                  </Step>
+                  <Step level={4} n={3} title="Call the API with the token">
+                    <Text className="text-pretty">
+                      When Gemini asks for a function, make that request yourself with <Code>Authorization: Bearer</Code>{" "}
+                      and the token, and return the response to it.
+                    </Text>
+                  </Step>
+                </ConnectSection>
+                ) },
+              ]}
+            />
+          </div>
 
           <ConnectSection id="connect-script" title="Connect a script">
             <Step level={4} n={1} title="Make a token with trips:read">

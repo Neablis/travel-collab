@@ -20,16 +20,22 @@ import type { FaqEntry } from "@/lib/jsonLd";
 /** One prompt to try, the tool it is for, and the `/developers` section that connects that tool. */
 const PROMPTS = [
   {
-    tool: "Claude",
-    prompt: "Turn my Lisbon trip into a three-day playbook and publish it.",
-    href: "/developers#connect-claude",
-    link: "Connect Claude",
-  },
-  {
     tool: "MCP clients",
     prompt: "Which of my trips has a day with nothing planned yet?",
     href: "/developers#connect-mcp",
     link: "Connect an MCP client",
+  },
+  {
+    tool: "Poppy agents",
+    prompt: "List the cities that have published days in Caesura's library.",
+    href: "/developers#connect-poppy",
+    link: "Connect Poppy agents",
+  },
+  {
+    tool: "Claude",
+    prompt: "Turn my Lisbon trip into a three-day playbook and publish it.",
+    href: "/developers#connect-claude",
+    link: "Connect Claude",
   },
   {
     tool: "ChatGPT",
@@ -42,12 +48,6 @@ const PROMPTS = [
     prompt: "Look through the library and pick the days that suit a rainy weekend in Porto.",
     href: "/developers#connect-gemini",
     link: "Connect Gemini",
-  },
-  {
-    tool: "Poppy agents",
-    prompt: "List the cities that have published days in Caesura's library.",
-    href: "/developers#connect-poppy",
-    link: "Connect Poppy agents",
   },
   {
     tool: "A script",
@@ -149,10 +149,13 @@ export function AiScreen() {
           <SectionHeading id="ai-ways">Ways in</SectionHeading>
           <ul className="grid gap-3 md:grid-cols-2">
             <li className={itemClass}>
-              <strong>The assistant</strong> is built into Caesura and plans alongside you.
+              <strong>The MCP server</strong> lets Claude and other MCP apps use Caesura as you.
             </li>
             <li className={itemClass}>
-              <strong>The MCP server</strong> lets Claude and other MCP apps use Caesura as you.
+              <strong>Poppy</strong> agents find Caesura on their own.
+            </li>
+            <li className={itemClass}>
+              <strong>The assistant</strong> is built into Caesura and plans alongside you.
             </li>
             <li className={itemClass}>
               Tools that cannot sign in themselves use <strong>scoped tokens</strong>, each holding only the
@@ -168,9 +171,6 @@ export function AiScreen() {
                 reference to read
               </Link>
               .
-            </li>
-            <li className={itemClass}>
-              <strong>Poppy</strong> agents find Caesura on their own.
             </li>
             <li className={itemClass}>
               <a href="/llms.txt" className={linkClass}>

@@ -1,4 +1,5 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { API_SCOPES, SCOPE_CATALOGUE } from "@tc/contracts";
 import { DevelopersScreen, type McpToolRow } from "./DevelopersScreen";
@@ -10,7 +11,10 @@ const TOOLS: readonly McpToolRow[] = [
   { name: "fixture_brand_new", description: "Does fixture_brand_new.", scope: "library:write" },
 ];
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.location.hash = "";
+});
 
 describe("DevelopersScreen", () => {
   // The page renders `SCOPE_CATALOGUE` rather than a copy of it, so a scope
@@ -83,6 +87,57 @@ describe("DevelopersScreen", () => {
     expect(connect.textContent).toContain("Account → Security → Connected apps");
   });
 
+  // Mitchell's walk (2026-11-21): the generic ways in come first, then one tab
+  // list of the specific AI clients, then the script.
+  it("orders the connect sections: MCP, Poppy, the client tabs, then the script", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    const mcp = screen.getByRole("region", { name: "Connect an MCP client" });
+    const poppy = screen.getByRole("region", { name: "Connect Poppy agents" });
+    const tablist = screen.getByRole("tablist", { name: "Your AI assistant" });
+    const script = screen.getByRole("region", { name: "Connect a script" });
+    const before = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before(mcp, poppy)).toBe(true);
+    expect(before(poppy, tablist)).toBe(true);
+    expect(before(tablist, script)).toBe(true);
+  });
+
+  it("has a tab per client, Claude selected by default, each tab owning its panel", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    const tabs = within(screen.getByRole("tablist", { name: "Your AI assistant" })).getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual(["Claude", "ChatGPT", "Gemini"]);
+    expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual(["true", "false", "false"]);
+    expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"]);
+    const panel = screen.getByRole("tabpanel", { name: "Claude" });
+    expect(within(panel).getByRole("region", { name: "Connect Claude" })).toBeDefined();
+    expect(screen.queryByRole("tabpanel", { name: "ChatGPT" })).toBeNull();
+  });
+
+  it("moves between clients with the arrow keys and on click", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    const list = screen.getByRole("tablist", { name: "Your AI assistant" });
+    fireEvent.keyDown(list, { key: "ArrowRight" });
+    expect(screen.getByRole("tab", { name: "ChatGPT" }).getAttribute("aria-selected")).toBe("true");
+    expect(within(screen.getByRole("tabpanel", { name: "ChatGPT" })).getByRole("region", { name: "Connect ChatGPT" })).toBeDefined();
+    fireEvent.click(screen.getByRole("tab", { name: "Gemini" }));
+    expect(screen.getByRole("tabpanel", { name: "Gemini" })).toBeDefined();
+  });
+
+  it("opens the tab a URL hash names", () => {
+    window.location.hash = "#connect-gemini";
+    render(<DevelopersScreen tools={TOOLS} />);
+    expect(screen.getByRole("tab", { name: "Gemini" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  // With JavaScript off the tab buttons do nothing, so every client's steps
+  // must already be in the HTML the server sends, none of them hidden.
+  it("sends every client's steps in the server HTML, none hidden", () => {
+    const html = renderToString(<DevelopersScreen tools={TOOLS} />);
+    for (const id of ["connect-claude", "connect-chatgpt", "connect-gemini"]) expect(html).toContain(`id="${id}"`);
+    expect(html).toContain("Import the OpenAPI document as an Action");
+    expect(html).toContain("Declare functions from the OpenAPI document");
+    expect(html).not.toMatch(/\shidden(=|\s|>)/);
+  });
+
   it("has a way back home", () => {
     render(<DevelopersScreen tools={TOOLS} />);
     const footer = within(screen.getByRole("contentinfo"));
@@ -100,9 +155,9 @@ describe("DevelopersScreen", () => {
     ["connect-script", "Connect a script"],
   ])("has #%s (%s) with three steps or fewer", (id, name) => {
     render(<DevelopersScreen tools={TOOLS} />);
-    const section = screen.getByRole("region", { name });
+    const section = screen.getByRole("region", { name, hidden: true });
     expect(section.getAttribute("id")).toBe(id);
-    const steps = within(section).getAllByRole("listitem");
+    const steps = within(section).getAllByRole("listitem", { hidden: true });
     expect(steps.length).toBeGreaterThanOrEqual(1);
     expect(steps.length).toBeLessThanOrEqual(3);
   });
@@ -110,14 +165,14 @@ describe("DevelopersScreen", () => {
   // A step sits under its section's heading, not beside it.
   it("puts each connect step's heading one level below its section's", () => {
     render(<DevelopersScreen tools={TOOLS} />);
-    const section = within(screen.getByRole("region", { name: "Connect ChatGPT" }));
-    expect(section.getAllByRole("heading", { level: 3 })).toHaveLength(1);
-    expect(section.getAllByRole("heading", { level: 4 })).toHaveLength(3);
+    const section = within(screen.getByRole("region", { name: "Connect ChatGPT", hidden: true }));
+    expect(section.getAllByRole("heading", { level: 3, hidden: true })).toHaveLength(1);
+    expect(section.getAllByRole("heading", { level: 4, hidden: true })).toHaveLength(3);
   });
 
   it("tells a ChatGPT reader the import needs the document URL, and the token needs Premium", () => {
     render(<DevelopersScreen tools={TOOLS} />);
-    const section = within(screen.getByRole("region", { name: "Connect ChatGPT" }));
+    const section = within(screen.getByRole("region", { name: "Connect ChatGPT", hidden: true }));
     expect(section.getByText(/needs the document.s URL/)).toBeDefined();
     expect(section.getByText(/Premium plan/)).toBeDefined();
   });
