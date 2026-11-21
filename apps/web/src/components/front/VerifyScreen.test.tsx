@@ -42,6 +42,14 @@ describe("VerifyScreen", () => {
     expect(check).toHaveBeenCalledTimes(2);
   });
 
+  // Safari refuses a prompt that no tap started, which arrives here as "cancelled": without
+  // a word the screen looks stuck.
+  it("tells the person to tap the button when the automatic prompt was cancelled", async () => {
+    check.mockResolvedValue("cancelled");
+    render(<VerifyScreen callbackUrl="/home" />);
+    expect(await screen.findByText("Tap Use a passkey to continue.")).toBeDefined();
+  });
+
   it("says so when the passkey is refused, and stays on the screen", async () => {
     check.mockResolvedValue("refused");
     render(<VerifyScreen callbackUrl="/home" />);

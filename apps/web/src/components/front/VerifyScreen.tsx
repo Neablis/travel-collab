@@ -63,6 +63,12 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
           {outcome === "refused" ? (
             <Banner variant="danger">That passkey did not work. Try again.</Banner>
           ) : null}
+          {outcome === "cancelled" ? (
+            // Safari refuses the prompt this screen opens on its own (no tap started it) and says so as "cancelled".
+            <Text as="p" variant="secondary">
+              Tap Use a passkey to continue.
+            </Text>
+          ) : null}
           {outcome === "unavailable" ? (
             <Banner variant="danger">This account has no passkey to use.</Banner>
           ) : null}

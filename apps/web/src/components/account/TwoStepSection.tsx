@@ -62,7 +62,7 @@ export function TwoStepSection() {
     void load();
   }, [load]);
 
-  async function add() {
+  async function add(afterCheck = false) {
     setAdding(true);
     setProblem(null);
     const result = await addPasskey();
@@ -72,6 +72,9 @@ export function TwoStepSection() {
       if (result.recoveryCodes !== null) setCodes({ list: result.recoveryCodes, signedIn: result.signedIn });
       else if (!result.signedIn) leaveSession();
       await load();
+    } else if (result.status === "cancelled" && afterCheck) {
+      // Safari refuses a prompt the tap on the check did not start, and says "cancelled".
+      setProblem("Tap Add a passkey to continue.");
     } else if (result.status === "failed") {
       setProblem(
         result.reason === "already-registered"
@@ -182,7 +185,7 @@ export function TwoStepSection() {
           onClose={() => setChecking(false)}
           onChecked={() => {
             setChecking(false);
-            void add();
+            void add(true);
           }}
         />
       ) : null}
