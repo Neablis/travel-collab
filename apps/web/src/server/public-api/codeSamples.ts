@@ -4,7 +4,7 @@
  * is typed per endpoint, so a new route gets samples the day it is declared.
  */
 
-/** Where the samples point. The document's own `servers` is relative; a pasted sample cannot be. */
+/** Where the samples point, and the document's `servers`: importers (GPT Actions, Gemini) need it absolute. */
 export const SAMPLE_ORIGIN = "https://caesura.today/api";
 
 const TOKEN_PLACEHOLDER = "tc_YOUR_TOKEN";
