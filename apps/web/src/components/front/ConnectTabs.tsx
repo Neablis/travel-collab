@@ -32,6 +32,12 @@ const HASH_PREFIX = "connect-";
 // `[hidden]` with a layered `!important`, which an unlayered rule cannot beat.
 const NO_SCRIPT_CSS = "[data-connect-panel]{display:block!important}";
 
+/**
+ * Renders one client's "Connect your AI" panel at a time under underline tabs, and
+ * opens the tab a `#connect-<client>` hash names. It keeps the selection in client
+ * state so `DevelopersScreen` can stay a server component, and every panel's text
+ * is in the server HTML so a reader without JavaScript still gets all of them.
+ */
 export function ConnectTabs<T extends string>({
   clients,
   idPrefix,
