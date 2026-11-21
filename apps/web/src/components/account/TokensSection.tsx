@@ -24,6 +24,7 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { ToggleChip } from "@/components/ui/toggle-chip";
 import { fetchTrips } from "@/lib/apiClient";
+import { FreshCheckOnDemand } from "./FreshCheckOnDemand";
 
 // **The Tokens section in Account settings** (M22 Phase 3).
 //
@@ -174,6 +175,10 @@ export function TokensSection({ entitled }: { entitled: boolean | null }) {
   // `revealed` becomes null and nothing equals it.
   const [copiedFor, setCopiedFor] = useState<ApiTokenCreated | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Create token answered 403: two-step sign-in is on and no second factor has passed
+  // lately (M62 D8). The form stays as it is while the check is open, and passing it
+  // sends the same request again.
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -219,6 +224,12 @@ export function TokensSection({ entitled }: { entitled: boolean | null }) {
           expiresInDays: days,
         }),
       });
+      // By name, as on the consent page: only this 403 is one a check can clear.
+      const refusal = res.status === 403 ? ((await res.json().catch(() => null)) as { error?: unknown } | null) : null;
+      if (refusal?.error === "fresh-check-required") {
+        setChecking(true);
+        return;
+      }
       if (!res.ok) {
         // **Three answers, because they need three different actions** — and
         // the first version of this had two, so a server that could not mint at
@@ -684,6 +695,16 @@ export function TokensSection({ entitled }: { entitled: boolean | null }) {
             </Button>
           </div>
         </div>
+      ) : null}
+      {checking ? (
+        <FreshCheckOnDemand
+          purpose="Creating a token"
+          onClose={() => setChecking(false)}
+          onChecked={() => {
+            setChecking(false);
+            void create();
+          }}
+        />
       ) : null}
     </section>
   );

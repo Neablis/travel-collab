@@ -31,7 +31,7 @@ export type Email = {
   /** Where a reply goes — the inviter, for an invite. Omitted when unknown. */
   replyTo?: string | null;
   /** Which touchpoint this is, for the log line and Resend's own tagging. */
-  tag: "welcome" | "trip-invite";
+  tag: "welcome" | "trip-invite" | "security-change";
 };
 
 export type SendOutcome =

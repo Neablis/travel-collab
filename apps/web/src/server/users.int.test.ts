@@ -122,6 +122,9 @@ describe("users repository", () => {
       planId: "free",
       planVersion: 1,
       isAdmin: false,
+      // M62's columns: a first sign-in has no second factor and has revoked nothing.
+      mfaEnabledAt: null,
+      securityEpoch: 0,
       // M47's column: a held plan from sign-in is not from a test checkout.
       planLivemode: true,
       // M47's switch: a first sign-in buys live. On would hand every new

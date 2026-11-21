@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tripInviteEmail, welcomeEmail } from "./templates";
+import { securityChangeEmail, tripInviteEmail, welcomeEmail } from "./templates";
 
 describe("tripInviteEmail", () => {
   const base = {
@@ -56,5 +56,38 @@ describe("welcomeEmail", () => {
   it("escapes the name", () => {
     const mail = welcomeEmail({ to: "a@gmail.com", name: "<script>x</script>", appUrl: "https://caesura.today" });
     expect(mail.html).not.toContain("<script>");
+  });
+});
+
+describe("securityChangeEmail", () => {
+  const base = {
+    to: "ana@gmail.com",
+    change: "two-step-off" as const,
+    at: new Date("2026-11-21T09:30:00.000Z"),
+    client: "Safari on iOS",
+    ip: "203.0.113.9",
+    securityUrl: "https://caesura.today/account?tab=security",
+  };
+
+  it("says what changed, when, and from where, and links the security settings", () => {
+    const mail = securityChangeEmail(base);
+    expect(mail.tag).toBe("security-change");
+    expect(mail.subject).toBe("Two-step sign-in was turned off");
+    expect(mail.text).toContain("When: 2026-11-21 09:30 UTC");
+    expect(mail.text).toContain("From: Safari on iOS, IP address 203.0.113.9");
+    expect(mail.html).toContain('href="https://caesura.today/account?tab=security"');
+  });
+
+  it("leaves the From line out when neither the browser nor the address is known", () => {
+    expect(securityChangeEmail({ ...base, client: null, ip: null }).text).not.toContain("From:");
+  });
+
+  it("has its own wording for each change", () => {
+    expect(securityChangeEmail({ ...base, change: "codes-regenerated" }).subject).toBe("Your recovery codes were replaced");
+    expect(securityChangeEmail({ ...base, change: "factor-removed" }).subject).toBe("A second step was removed from your account");
+  });
+
+  it("escapes a user-agent-derived string", () => {
+    expect(securityChangeEmail({ ...base, client: "<script>x</script>" }).html).not.toContain("<script>");
   });
 });

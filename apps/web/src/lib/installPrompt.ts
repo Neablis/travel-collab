@@ -68,6 +68,17 @@ export const EARLY_INSTALL_LISTENER =
   'addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__caesuraInstallEvent=e});';
 
 /**
+ * The installed app, not a tab: the one answer both the install menu and the
+ * installed app's lock (`PwaLockGate`) read. iOS's home-screen app is not a
+ * display-mode match on every version; `navigator.standalone` is the one it has
+ * always had. jsdom does not always ship `matchMedia` (useIsPhone's guard).
+ */
+export function isStandalone(win: Window): boolean {
+  if ((win.navigator as Navigator & { standalone?: boolean }).standalone === true) return true;
+  return typeof win.matchMedia === "function" && win.matchMedia("(display-mode: standalone)").matches;
+}
+
+/**
  * The install state for one window. A factory, so a test can hand it a window
  * of its own; the app holds one, through `installPromptStore()`.
  */
@@ -78,7 +89,7 @@ export function createInstallPrompt(win: Window): InstallPrompt {
   let installed = false;
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((listener) => listener());
-  // jsdom does not always ship `matchMedia` (useIsPhone's guard).
+  // Only to hear the display mode change; `isStandalone` asks for itself.
   const standaloneQuery = typeof win.matchMedia === "function" ? win.matchMedia("(display-mode: standalone)") : null;
   const ios = isIosSafari(win.navigator);
 
@@ -98,10 +109,7 @@ export function createInstallPrompt(win: Window): InstallPrompt {
 
   return {
     route() {
-      // iOS's home-screen app is not a display-mode match on every version;
-      // `navigator.standalone` is the one it has always had.
-      const standalone = (win.navigator as Navigator & { standalone?: boolean }).standalone === true;
-      if (installed || standalone || standaloneQuery?.matches === true) return null;
+      if (installed || isStandalone(win)) return null;
       if (deferred !== null) return "prompt";
       return ios ? "ios" : null;
     },

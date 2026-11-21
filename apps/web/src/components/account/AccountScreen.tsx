@@ -17,6 +17,7 @@ import { ProfileSection } from "./ProfileSection";
 import { PlanSection } from "./PlanSection";
 import { TokensSection } from "./TokensSection";
 import { ConnectedAppsSection } from "./ConnectedAppsSection";
+import { TwoStepSection } from "./TwoStepSection";
 import { Text } from "@/components/ui/text";
 import type { AccountPlanChoice, AccountPlanState } from "@/lib/accountPlan";
 import { HOME_PATH } from "@/lib/homePath";
@@ -42,8 +43,8 @@ import { clearSignedInHint } from "@/lib/sessionHint";
 // **Security holds API tokens and Connected apps** (M55 part 6). They were
 // sub-views reached by quiet links at the foot of Profile (SPEC §35.4, M27
 // D7; M55 D10), and Mitchell found them buried there. The tab is the place
-// for whatever else secures an account later (MFA), beside `PremiumSecurity`
-// rather than inside it.
+// for whatever else secures an account, beside `PremiumSecurity` rather than
+// inside it: M62's *Two-step sign-in* is that, above them.
 const TABS = [
   { value: "profile", label: "Profile" },
   { value: "plan", label: "Plan & usage" },
@@ -83,8 +84,11 @@ function SecuritySection({ heading, headingId, children }: { heading: string; he
  *
  * `role="status"` from `Banner`, polite and not an alert: it is the page's
  * standing state, not news.
+ *
+ * `revision` remounts both lists, so they read again: Two-step sign-in's
+ * revoke-everything tick changes them from beside them (M62 D8).
  */
-function PremiumSecurity() {
+function PremiumSecurity({ revision }: { revision: number }) {
   // `null` until the plan lands, and if it never does: no prompt, and no New
   // token, while the lists and their removal carry on regardless.
   const [plan, setPlan] = useState<{ entitled: boolean; lapsed: boolean } | null>(null);
@@ -160,10 +164,10 @@ function PremiumSecurity() {
               Your plan could not be checked just now, so creating a token is unavailable. Reload to try again.
             </Text>
           ) : null}
-          <TokensSection entitled={plan?.entitled ?? null} />
+          <TokensSection key={revision} entitled={plan?.entitled ?? null} />
         </SecuritySection>
         <SecuritySection heading="Connected apps" headingId="account-apps-heading">
-          <ConnectedAppsSection />
+          <ConnectedAppsSection key={revision} />
         </SecuritySection>
       </div>
     </div>
@@ -194,6 +198,7 @@ export function AccountScreen() {
   const searchParams = useSearchParams();
   const user = useSessionUser();
   const tab = accountTabFrom(searchParams.get("tab"));
+  const [revokedTimes, setRevokedTimes] = useState(0);
 
   return (
     <PageContainer as="main" width="content">
@@ -264,7 +269,15 @@ export function AccountScreen() {
             />
           )}
           {tab === "plan" && <PlanSection />}
-          {tab === "security" && <PremiumSecurity />}
+          {tab === "security" && (
+            <div className="flex flex-col gap-10">
+              {/* M62: above API tokens, because it is what protects them. */}
+              <SecuritySection heading="Two-step sign-in" headingId="account-two-step-heading">
+                <TwoStepSection onRevoked={() => setRevokedTimes((n) => n + 1)} />
+              </SecuritySection>
+              <PremiumSecurity revision={revokedTimes} />
+            </div>
+          )}
         </div>
 
         {/* **Sign out, on the phone only, below the tabs** — and this is the

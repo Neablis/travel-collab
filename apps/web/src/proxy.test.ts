@@ -117,6 +117,21 @@ describe("proxy", () => {
     expect(res.headers.get("location")).toBe("https://caesura.test/signin?callbackUrl=%2Faccount%3Ftab%3Dbilling");
   });
 
+  // `/admin` is 404 for anyone who is not an operator, signed out included
+  // (`requireAdmin.ts`); a sign-in redirect would confirm the console exists.
+  it("answers a signed-out /admin with a 404, not a sign-in redirect", () => {
+    const res = handle(request("/admin", { session: false, hint: false }));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  // `servedForApp` is not told its URL, and sends a cookie the server refuses
+  // back to the page it asked for; the proxy is what tells it.
+  it("hands the page being read to the server on a signed-in request", () => {
+    const res = handle(request("/plans?checkout=cs_test_1", { session: true, hint: false }));
+    expect(res.headers.get("x-middleware-request-x-tc-path")).toBe("/plans?checkout=cs_test_1");
+  });
+
   it("serves a signed-in /plans as it is", () => {
     const res = handle(request("/plans", { session: true, hint: true }));
     expect(res.headers.get("location")).toBeNull();

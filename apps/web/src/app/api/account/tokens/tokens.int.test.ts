@@ -6,14 +6,19 @@
 // last test asserts the separation directly.
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
+import { db } from "@/server/db/client";
+import { users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
 import { issueGrant, allGrantsFor, revokeGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
 
 let currentUserId: string | null = null;
+// What the session says about its second factor; empty for the account that has none.
+let claims: { mfaAt?: number; signedInAt?: number } = {};
 vi.mock("@/server/auth", () => ({
-  auth: vi.fn(async () => (currentUserId === null ? null : { user: { id: currentUserId } })),
+  auth: vi.fn(async () => (currentUserId === null ? null : { user: { id: currentUserId }, ...claims })),
 }));
 
 const { GET: LIST, POST: CREATE } = await import("./route");
@@ -50,6 +55,39 @@ const post = (body: unknown) =>
   });
 
 const valid = { name: "Calendar sync", scopes: ["trips:read"], tripIds: null, expiresInDays: 90 };
+
+describe("creating a token while two-step sign-in is on", () => {
+  async function accountWithMfa(): Promise<string> {
+    const id = await entitled();
+    await db.update(users).set({ mfaEnabledAt: new Date() }).where(eq(users.id, id));
+    return id;
+  }
+
+  it("is refused with 403 and no token without a second factor in the last ten minutes", async () => {
+    currentUserId = await accountWithMfa();
+    claims = { signedInAt: Date.now() };
+    const res = await CREATE(post(valid));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "fresh-check-required" });
+    expect((await (await LIST()).json()).tokens).toHaveLength(0);
+
+    claims = { mfaAt: Date.now() - 11 * 60 * 1000 };
+    expect((await CREATE(post(valid))).status).toBe(403);
+  });
+
+  it("goes through once a second factor has passed within ten minutes", async () => {
+    currentUserId = await accountWithMfa();
+    claims = { mfaAt: Date.now() - 60 * 1000 };
+    expect((await CREATE(post(valid))).status).toBe(201);
+    claims = {};
+  });
+
+  it("is not asked of an account with two-step sign-in off", async () => {
+    currentUserId = await entitled();
+    claims = {};
+    expect((await CREATE(post(valid))).status).toBe(201);
+  });
+});
 
 describe("creating a token", () => {
   it("returns the secret exactly once, with the token beside it", async () => {

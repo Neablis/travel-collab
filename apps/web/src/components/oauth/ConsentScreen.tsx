@@ -11,6 +11,7 @@ import { CheckboxField } from "@/components/ui/checkbox";
 import { Heading } from "@/components/ui/heading";
 import { PageContainer } from "@/components/ui/page-container";
 import { Text } from "@/components/ui/text";
+import { FreshCheckOnDemand } from "@/components/account/FreshCheckOnDemand";
 
 // **The consent page is the defence** (ADR-083 §6). Registration is open, so
 // anyone can show a person this screen under any name. What it can say for
@@ -100,6 +101,9 @@ export function ConsentScreen({
   const showNoneHint = entitled && noneChosen;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Allow answered 403: two-step sign-in is on and no second factor has passed lately
+  // (M62 D8). Passing the check sends the same Allow again.
+  const [checking, setChecking] = useState(false);
 
   async function decide(decision: "allow" | "deny") {
     setBusy(true);
@@ -112,7 +116,14 @@ export function ConsentScreen({
         // The name too: the server refuses Allow if the app's name changed since this page showed it.
         body: JSON.stringify({ params, decision, scopes: chosen, clientName }),
       });
-      const body = (await res.json().catch(() => null)) as { redirectTo?: unknown } | null;
+      const body = (await res.json().catch(() => null)) as { redirectTo?: unknown; error?: unknown } | null;
+      // By name: the route's other 403 (a cross-origin post) would only be refused
+      // again after the check, and the person would never see why.
+      if (res.status === 403 && body?.error === "fresh-check-required") {
+        setChecking(true);
+        setBusy(false);
+        return;
+      }
       if (res.ok && typeof body?.redirectTo === "string") {
         // Stays busy: the page is leaving.
         window.location.assign(body.redirectTo);
@@ -253,6 +264,18 @@ export function ConsentScreen({
           </div>
         </div>
       </Card>
+      {checking ? (
+        <FreshCheckOnDemand
+          purpose="Connecting an app"
+          // Signed out under the page, the person signs in again and comes back to this app's request.
+          returnTo={`${window.location.pathname}${window.location.search}`}
+          onClose={() => setChecking(false)}
+          onChecked={() => {
+            setChecking(false);
+            void decide("allow");
+          }}
+        />
+      ) : null}
     </PageContainer>
   );
 }

@@ -4,8 +4,6 @@ import { useMemo, useState } from "react";
 import type { AvatarKey, PersonColor } from "@tc/contracts";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
-import { forgetAskConversationsOf } from "@/lib/askOwnership";
 import { Popover } from "@/components/ui/popover";
 import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -21,7 +19,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { useInstallApp } from "@/components/install/InstallApp";
 import { GetTheAppButton } from "@/components/install/GetTheAppButton";
 import { HOME_PATH } from "@/lib/homePath";
-import { clearSignedInHint } from "@/lib/sessionHint";
+import { signOutHere } from "@/lib/signOutHere";
 
 // Handoff `…dc.html:97`: the 30px round avatar sits between Tailwind's h-7
 // (28px) and h-8 (32px) steps — same computed-geometry escape hatch as
@@ -461,19 +459,7 @@ function AccountMenuFor({
       avatar={preferences.avatar}
       // The colour trips show, chosen or derived; slate only while unknown.
       color={color}
-      // To the landing at `/`. This used to be `/welcome`, because `/` was
-      // Home for a signed-in request and `signOut`'s navigation could outrun
-      // the Set-Cookie that clears the session (`GET /` answered Home in 4 of
-      // 16 runs of e2e/m15-front-door.spec.ts on Next 16). Since ADR-078 `/`
-      // is a static page with no session check, so there is nothing left to
-      // race — provided the signed-in hint goes first, or the landing's script
-      // would send the visitor to `/home`, and from there to sign in.
-      // What this account asked on this browser goes with it (PR 426 review).
-      onSignOut={() => {
-        if (user.id) forgetAskConversationsOf(user.id);
-        clearSignedInHint();
-        void signOut({ callbackUrl: "/" });
-      }}
+      onSignOut={() => signOutHere(user.id)}
       demoResetEnabled={demoResetEnabled}
       onResetDemoData={demoResetEnabled ? handleResetDemoData : undefined}
     />

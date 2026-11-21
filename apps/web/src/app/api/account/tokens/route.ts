@@ -1,6 +1,8 @@
 import { ApiTokenCreateInput } from "@tc/contracts";
 import { auth } from "@/server/auth";
+import type { SessionWithMfa } from "@/lib/authConfig";
 import { listTokens, mintToken } from "@/server/api-tokens";
+import { needsFreshSecondFactor } from "@/server/mfa/state";
 
 // **Managing tokens is a SESSION-ONLY surface, and that is a security decision
 // rather than an oversight** (M22 Phase 3).
@@ -34,6 +36,12 @@ export async function POST(request: Request) {
   const session = await auth();
   const userId = session?.user?.id;
   if (userId === undefined) return Response.json({ error: "unauthenticated" }, { status: 401 });
+  // A token is a standing credential, so minting one asks for a second factor
+  // within ten minutes while two-step sign-in is on (M62 D8). Listing and revoking
+  // do not: they only ever reduce what can get in.
+  if (await needsFreshSecondFactor(userId, session as SessionWithMfa, new Date())) {
+    return Response.json({ error: "fresh-check-required" }, { status: 403 });
+  }
 
   const body = ApiTokenCreateInput.safeParse(await request.json().catch(() => null));
   if (!body.success) {
