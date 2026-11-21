@@ -32,6 +32,35 @@ describe("codeSamplesFor", () => {
   });
 });
 
+describe("codeSamplesFor parameters", () => {
+  it("writes a required query parameter, with its schema's example, and leaves out an optional one", () => {
+    const query = {
+      type: "object",
+      required: ["q"],
+      properties: { q: { type: "string", example: "Lisbon" }, limit: { type: "integer" } },
+    };
+    const [curl, js, py] = codeSamplesFor({ method: "GET", url: "/v1/geocode", query });
+    expect(curl!.source).toContain("'https://caesura.today/api/v1/geocode?q=Lisbon'");
+    expect(js!.source).toContain('fetch("https://caesura.today/api/v1/geocode?q=Lisbon"');
+    expect(py!.source).toContain('"https://caesura.today/api/v1/geocode?q=Lisbon"');
+    expect(curl!.source).not.toContain("limit");
+  });
+
+  it("replaces a path parameter with a named placeholder in every language", () => {
+    const samples = codeSamplesFor({ method: "GET", url: "/v1/trips/{tripId}/days/{dayId}" });
+    for (const sample of samples) {
+      expect(sample.source).toContain("/v1/trips/YOUR_TRIP_ID/days/YOUR_DAY_ID");
+      expect(sample.source).not.toContain("{tripId}");
+    }
+  });
+
+  it("escapes a single quote in the curl body so the shell string stays closed", () => {
+    const body = { type: "object", required: ["name"], properties: { name: { type: "string", example: "Mum's trip" } } };
+    const [curl] = codeSamplesFor({ method: "POST", url: "/v1/trips", body });
+    expect(curl!.source).toContain(`"name": "Mum'\\''s trip"`);
+  });
+});
+
 describe("exampleOf", () => {
   it("prefers a declared example, then default, then the type", () => {
     expect(exampleOf({ type: "string", example: "x", default: "y" })).toBe("x");
