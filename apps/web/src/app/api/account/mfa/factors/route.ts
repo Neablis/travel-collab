@@ -7,6 +7,7 @@ import { mfaStateFor } from "@/server/mfa/state";
 // it is on, and the factors by name. Session-only, like every `/api/account/*`
 // route. Whether an add is allowed this minute is not answered here: the add
 // route says so itself, before it asks the authenticator for anything.
+/** The signed-in account's two-step status: on or off, its factors by name, and recovery codes left. */
 export async function GET() {
   const session = await auth();
   const userId = session?.user?.id;

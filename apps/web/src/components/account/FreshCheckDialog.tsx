@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
-import { CodeEntryForm, type CodeKind } from "@/components/front/CodeEntryForm";
+import { CodeEntryForm, type CodeKind } from "@/components/account/CodeEntryForm";
 import { checkWithCode, checkWithPasskey } from "@/lib/mfaClient";
 
 // The fresh check that adding a factor asks for (M62 D6): a second factor within

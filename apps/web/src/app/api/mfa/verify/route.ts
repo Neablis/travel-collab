@@ -35,6 +35,11 @@ const Step = z.union([
   z.strictObject({ kind: z.enum(["otp", "recovery"]), code: z.string().min(1).max(64) }),
 ]);
 
+/**
+ * Checks a second factor (passkey, authenticator code or recovery code) for the current
+ * session, pending or not, and returns a proof for NextAuth's `update` to write into the cookie.
+ * A passkey with `purpose: "unlock"` only confirms the person and mints nothing.
+ */
 export async function POST(request: Request) {
   const session = await authIncludingPending();
   const userId = session?.user?.id;
