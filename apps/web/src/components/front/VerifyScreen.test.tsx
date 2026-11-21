@@ -120,6 +120,32 @@ describe("VerifyScreen", () => {
       expect(screen.getByRole("button", { name: "Use a passkey" })).toBeDefined();
     });
 
+    it("ties the refusal to the field, so a screen reader reads it with the field", async () => {
+      checkCode.mockResolvedValue("refused");
+      const field = await openCodeField("Authenticator code", "Use authenticator code");
+      await userEvent.type(field, "000000{Enter}");
+      const problem = await screen.findByText("That code did not work. Try again.");
+      expect(field.getAttribute("aria-describedby")).toBe(problem.id);
+      expect(field.getAttribute("aria-invalid")).toBe("true");
+    });
+
+    it("leaves through the cookie-clearing route when a code finds no session, as the passkey does", async () => {
+      const assign = vi.fn();
+      vi.stubGlobal("location", { ...window.location, assign });
+      checkCode.mockResolvedValue("signed-out");
+      const field = await openCodeField("Authenticator code", "Use authenticator code");
+      await userEvent.type(field, "123456{Enter}");
+      await waitFor(() => expect(assign).toHaveBeenCalledWith("/api/session-expired?callbackUrl=%2Ftrips%2Fabc"));
+      expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("moves focus to the passkey button when the person goes back to the passkey", async () => {
+      await openCodeField("Authenticator code", "Use authenticator code");
+      await userEvent.click(screen.getByRole("button", { name: "Use a passkey" }));
+      const passkey = await screen.findByRole("button", { name: "Use a passkey" });
+      await waitFor(() => expect(passkey.matches(":focus")).toBe(true));
+    });
+
     it("opens on the code field when the account has no passkey to ask for", async () => {
       check.mockResolvedValue("unavailable");
       render(<VerifyScreen callbackUrl="/home" />);

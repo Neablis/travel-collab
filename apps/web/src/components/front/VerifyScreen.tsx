@@ -32,6 +32,11 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
   // The ref, not the state, is what stops a second prompt: React runs an effect
   // twice in development, and two prompts at once is one the browser refuses.
   const inFlight = useRef(false);
+  // Choosing a method unmounts the button that had focus, which would drop it to the
+  // page's start. A code field takes focus itself (`autoFocus`); the passkey view's
+  // own button is handed it here. Not on arrival: the screen starts on the prompt.
+  const passkeyButton = useRef<HTMLButtonElement>(null);
+  const switched = useRef(false);
 
   async function ask() {
     if (inFlight.current) return;
@@ -45,20 +50,31 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
     if (result === "passed" || result === "not-required") router.replace(callbackUrl);
     // Nothing on this screen can work without a session behind the cookie. The
     // route clears it, then sends the person to sign in with where they were going.
-    else if (result === "signed-out") window.location.assign(`/api/session-expired?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    else if (result === "signed-out") leaveSession();
+  }
+
+  function leaveSession() {
+    window.location.assign(`/api/session-expired?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   }
 
   async function submitCode(kind: CodeKind, code: string) {
     setCodeOutcome("checking");
     const result = await checkWithCode(kind, code);
     setCodeOutcome(result);
-    if (result === "passed") router.replace(callbackUrl);
+    // The same exits as the passkey's: neither has a retry.
+    if (result === "passed" || result === "not-required") router.replace(callbackUrl);
+    else if (result === "signed-out") leaveSession();
   }
 
   function chooseCode(kind: CodeKind) {
     setCodeOutcome(null);
+    switched.current = true;
     setMode(kind);
   }
+
+  useEffect(() => {
+    if (switched.current && mode === "passkey") passkeyButton.current?.focus();
+  }, [mode]);
 
   useEffect(() => {
     void ask();
@@ -67,7 +83,18 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
 
   const busy = outcome === "asking" || outcome === "passed" || outcome === "not-required" || outcome === "signed-out";
   const hasPasskey = outcome !== "unavailable";
-  const codeBusy = codeOutcome === "checking" || codeOutcome === "passed";
+  const codeBusy =
+    codeOutcome === "checking" ||
+    codeOutcome === "passed" ||
+    codeOutcome === "not-required" ||
+    codeOutcome === "signed-out";
+  // Drawn under the field it is about, which names it (`CodeEntryForm`).
+  const codeProblem =
+    codeOutcome === "refused"
+      ? "That code did not work. Try again."
+      : codeOutcome === "locked"
+        ? `Too many wrong codes. Try again in 15 minutes${hasPasskey ? ", or use a passkey" : ""}.`
+        : null;
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
       <FrontDoorHeader />
@@ -82,38 +109,46 @@ export function VerifyScreen({ callbackUrl }: { callbackUrl: string }) {
           {mode === "passkey" && outcome === "refused" ? (
             <Banner variant="danger">That passkey did not work. Try again.</Banner>
           ) : null}
-          {mode !== "passkey" && codeOutcome === "refused" ? (
-            <Banner variant="danger">That code did not work. Try again.</Banner>
-          ) : null}
-          {mode !== "passkey" && codeOutcome === "locked" ? (
-            <Banner variant="danger">
-              Too many wrong codes. Try again in 15 minutes{hasPasskey ? ", or use a passkey" : ""}.
-            </Banner>
-          ) : null}
-          <Card raised className="flex flex-col gap-3.5">
-            {mode === "passkey" ? (
-              <Button type="button" variant="primary" pending={busy} onClick={() => void ask()}>
-                Use a passkey
-              </Button>
-            ) : (
-              <CodeEntryForm key={mode} kind={mode} pending={codeBusy} onSubmit={(code) => void submitCode(mode, code)} />
-            )}
-            <div className="flex flex-col gap-1">
-              {mode !== "passkey" && hasPasskey ? (
-                <Button type="button" variant="ghost" size="sm" onClick={() => void ask()}>
+          <Card raised>
+            <div className="flex flex-col gap-3.5">
+              {mode === "passkey" ? (
+                <Button ref={passkeyButton} type="button" variant="primary" pending={busy} onClick={() => void ask()}>
                   Use a passkey
                 </Button>
-              ) : null}
-              {mode !== "otp" ? (
-                <Button type="button" variant="ghost" size="sm" onClick={() => chooseCode("otp")}>
-                  Use authenticator code
-                </Button>
-              ) : null}
-              {mode !== "recovery" ? (
-                <Button type="button" variant="ghost" size="sm" onClick={() => chooseCode("recovery")}>
-                  Use a recovery code
-                </Button>
-              ) : null}
+              ) : (
+                <CodeEntryForm
+                  key={mode}
+                  kind={mode}
+                  pending={codeBusy}
+                  problem={codeProblem}
+                  onSubmit={(code) => void submitCode(mode, code)}
+                />
+              )}
+              <div className="flex flex-col gap-1">
+                {mode !== "passkey" && hasPasskey ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      switched.current = true;
+                      void ask();
+                    }}
+                  >
+                    Use a passkey
+                  </Button>
+                ) : null}
+                {mode !== "otp" ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => chooseCode("otp")}>
+                    Use authenticator code
+                  </Button>
+                ) : null}
+                {mode !== "recovery" ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => chooseCode("recovery")}>
+                    Use a recovery code
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </Card>
           <Button

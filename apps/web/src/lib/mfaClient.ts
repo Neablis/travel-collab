@@ -104,13 +104,18 @@ export async function addPasskey(): Promise<AddPasskeyResult> {
   }
 }
 
-/** `locked`: five wrong codes in fifteen minutes (M62 D13); a passkey still works. */
-export type CodeCheck = "passed" | "refused" | "locked";
+/**
+ * `locked`: five wrong codes in fifteen minutes (M62 D13); a passkey still works.
+ * `signed-out` and `not-required` are the passkey check's own (`PasskeyCheck`).
+ */
+export type CodeCheck = "passed" | "refused" | "locked" | "signed-out" | "not-required";
 
 /** Checks a typed authenticator or recovery code and, when it is right, tells the session. Never throws. */
 export async function checkWithCode(kind: "otp" | "recovery", code: string): Promise<CodeCheck> {
   try {
     const verified = await post("/api/mfa/verify", { kind, code });
+    if (signedOut(verified)) return "signed-out";
+    if (verified.status === 409 && verified.body?.error === "mfa-not-enabled") return "not-required";
     if (verified.status === 429) return "locked";
     if (verified.status !== 200 || verified.body === null) return "refused";
     return (await applySecondFactorProof(verified.body.proof as SecondFactorProofBody)) ? "passed" : "refused";
@@ -146,8 +151,10 @@ export async function startAuthenticator(): Promise<StartAuthenticatorResult> {
 }
 
 export type ConfirmAuthenticatorResult =
-  /** `recoveryCodes` is set only for the first factor, which turned two-step sign-in on. */
-  | { status: "added"; recoveryCodes: string[] | null }
+  /** `recoveryCodes` is set only for the first factor; `signedIn` is as for a passkey (`AddPasskeyResult`). */
+  | { status: "added"; recoveryCodes: string[] | null; signedIn: boolean }
+  /** The ticket outlives the check by nothing: ten minutes after it, the confirm asks for the check again. */
+  | { status: "fresh-check-required" }
   | { status: "wrong-code" }
   | { status: "locked" }
   | { status: "failed" };
@@ -156,11 +163,13 @@ export type ConfirmAuthenticatorResult =
 export async function confirmAuthenticator(ticket: string, code: string): Promise<ConfirmAuthenticatorResult> {
   try {
     const added = await post("/api/account/mfa/totp", { step: "confirm", ticket, code });
+    if (added.status === 403) return { status: "fresh-check-required" };
     if (added.status === 400) return { status: "wrong-code" };
     if (added.status === 429) return { status: "locked" };
     if (added.status !== 200 || added.body === null) return { status: "failed" };
-    await applySecondFactorProof(added.body.proof as SecondFactorProofBody);
-    return { status: "added", recoveryCodes: (added.body.recoveryCodes as string[] | null) ?? null };
+    const proof = added.body.proof as SecondFactorProofBody;
+    const signedIn = (await applySecondFactorProof(proof).catch(() => false)) || (await applySecondFactorProof(proof).catch(() => false));
+    return { status: "added", recoveryCodes: (added.body.recoveryCodes as string[] | null) ?? null, signedIn };
   } catch {
     return { status: "failed" };
   }

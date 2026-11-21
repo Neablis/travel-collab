@@ -226,7 +226,7 @@ describe("TwoStepSection", () => {
     startApp.mockResolvedValue({ status: "started", start: { ticket: "t1", secret: "JBSWY3DPEHPK3PXP", qr: "data:image/png;base64,AAAA" } });
     confirmApp.mockImplementation(async () => {
       status = { enabled: true, factors: [{ ...phone, name: "Authenticator app", kind: "totp" }], recoveryCodesLeft: 10 };
-      return { status: "added", recoveryCodes: CODES };
+      return { status: "added", recoveryCodes: CODES, signedIn: true };
     });
     render(<TwoStepSection />);
     await userEvent.click(await screen.findByRole("button", { name: "Add an authenticator app" }));
@@ -265,12 +265,46 @@ describe("TwoStepSection", () => {
     render(<TwoStepSection />);
     expect(await screen.findByText("Recovery codes: 9 of 10 left")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+    await userEvent.click(screen.getByRole("button", { name: "Regenerate codes" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
     await userEvent.click(within(dialog).getByRole("button", { name: "Use a passkey" }));
     const sheet = await screen.findByRole("dialog", { name: "Save your recovery codes" });
     expect(within(sheet).getAllByRole("listitem")).toHaveLength(10);
     expect(regenerate).toHaveBeenCalledTimes(2);
+  });
+
+  it("says the old codes are voided and waits for a second click before regenerating", async () => {
+    status = ON;
+    serve();
+    regenerate.mockResolvedValue({ status: "regenerated", recoveryCodes: CODES });
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Regenerate" }));
+    expect(screen.getByText("This voids your current codes.")).toBeTruthy();
+    expect(regenerate).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Keep current codes" }));
+    expect(regenerate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Regenerate" })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+    await userEvent.click(screen.getByRole("button", { name: "Regenerate codes" }));
+    expect(await screen.findByRole("dialog", { name: "Save your recovery codes" })).toBeTruthy();
+    expect(regenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves focus to the passkey button when the check goes back to the passkey", async () => {
+    status = ON;
+    serve();
+    regenerate.mockResolvedValue({ status: "fresh-check-required" });
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Regenerate" }));
+    await userEvent.click(screen.getByRole("button", { name: "Regenerate codes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Use authenticator code" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Use a passkey" }));
+    const passkey = within(dialog).getByRole("button", { name: "Use a passkey" });
+    await waitFor(() => expect(passkey.matches(":focus")).toBe(true));
   });
 
   it("does not show the recovery codes line while two-step sign-in is off", async () => {
@@ -286,6 +320,7 @@ describe("TwoStepSection", () => {
     regenerate.mockResolvedValue({ status: "fresh-check-required" });
     render(<TwoStepSection />);
     await userEvent.click(await screen.findByRole("button", { name: "Regenerate" }));
+    await userEvent.click(screen.getByRole("button", { name: "Regenerate codes" }));
     const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
     expect(within(dialog).getByRole("textbox", { name: "Authenticator code" })).toBeTruthy();
     expect(within(dialog).queryByRole("button", { name: "Use a passkey" })).toBeNull();

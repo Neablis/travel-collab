@@ -16,9 +16,9 @@ export function AddAuthenticatorDialog({
   onFreshCheckRequired,
   onClose,
 }: {
-  /** `recoveryCodes` is set only when this was the first factor and so turned two-step sign-in on. */
-  onAdded: (recoveryCodes: string[] | null) => void;
-  /** The route wants a fresh second-factor check before it hands out a secret. */
+  /** `recoveryCodes` is set only when this was the first factor and so turned two-step sign-in on; `signedIn` is false when the session could not be told. */
+  onAdded: (recoveryCodes: string[] | null, signedIn: boolean) => void;
+  /** The route wants a fresh second-factor check, before it hands out a secret or when the code is confirmed. */
   onFreshCheckRequired: () => void;
   onClose: () => void;
 }) {
@@ -47,7 +47,8 @@ export function AddAuthenticatorDialog({
     setProblem(null);
     const result = await confirmAuthenticator(start.ticket, code);
     setChecking(false);
-    if (result.status === "added") onAdded(result.recoveryCodes);
+    if (result.status === "added") onAdded(result.recoveryCodes, result.signedIn);
+    else if (result.status === "fresh-check-required") onFreshCheckRequired();
     else if (result.status === "wrong-code") setProblem("That code did not work. Check your app and try again.");
     else if (result.status === "locked") setProblem("Too many wrong codes. Try again in 15 minutes.");
     else setProblem("The authenticator app could not be added just now. Try again.");
@@ -69,7 +70,7 @@ export function AddAuthenticatorDialog({
               code it shows.
             </Text>
             {/* eslint-disable-next-line @next/next/no-img-element -- a data URL drawn by the server; next/image has nothing to optimise */}
-            <img src={start.qr} alt="QR code for your authenticator app" width={240} height={240} className="self-center rounded-md bg-white" />
+            <img src={start.qr} alt="QR code for your authenticator app" width={240} height={240} className="self-center rounded-md bg-surface" />
             <div className="flex flex-col gap-1">
               <Button variant="ghost" size="sm" className="self-start" aria-expanded={showSecret} onClick={() => setShowSecret((v) => !v)}>
                 Can&rsquo;t scan?
@@ -80,12 +81,7 @@ export function AddAuthenticatorDialog({
                 </Text>
               ) : null}
             </div>
-            <CodeEntryForm kind="otp" pending={checking} onSubmit={(code) => void confirm(code)} />
-            {problem === null ? null : (
-              <Text variant="secondary" role="alert" className="text-danger-ink">
-                {problem}
-              </Text>
-            )}
+            <CodeEntryForm kind="otp" pending={checking} problem={problem} onSubmit={(code) => void confirm(code)} />
           </>
         )}
       </div>

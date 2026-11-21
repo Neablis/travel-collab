@@ -44,12 +44,12 @@ export function FreshCheckDialog({
     };
   }, []);
   // Choosing a method unmounts the button that had focus, which would drop it to the
-  // page's start. A code field takes focus itself (`autoFocus`); the passkey view has
-  // no field, so the container does.
-  const body = useRef<HTMLDivElement>(null);
+  // page's start. A code field takes focus itself (`autoFocus`); the passkey view's
+  // own button is handed it here.
+  const passkeyButton = useRef<HTMLButtonElement>(null);
   const switched = useRef(false);
   useEffect(() => {
-    if (switched.current && code === null) body.current?.focus();
+    if (switched.current && code === null) passkeyButton.current?.focus();
   }, [code]);
 
   async function check() {
@@ -76,7 +76,13 @@ export function FreshCheckDialog({
     if (!open.current) return;
     setBusy(false);
     if (result === "passed") onChecked();
-    else setCodeProblem(result === "locked" ? "Too many wrong codes. Try again in 15 minutes." : "That code did not work. Try again.");
+    else if (result === "signed-out")
+      window.location.assign("/api/session-expired?callbackUrl=%2Faccount%3Ftab%3Dsecurity");
+    else if (result === "not-required") onClose();
+    else
+      setCodeProblem(
+        result === "locked" ? "Too many wrong codes. Try again in 15 minutes." : "That code did not work. Try again.",
+      );
   }
 
   if (!mfaEnabled) {
@@ -105,7 +111,7 @@ export function FreshCheckDialog({
       title="Confirm it’s you"
       description={`Changing how you sign in needs ${code === null ? "your passkey" : "a code"} first. It stays good for ten minutes.`}
     >
-      <div ref={body} tabIndex={-1} className="flex flex-col gap-3 outline-none">
+      <div className="flex flex-col gap-3">
         {code === null ? null : (
           <CodeEntryForm
             key={code}
@@ -143,7 +149,7 @@ export function FreshCheckDialog({
           Cancel
         </Button>
         {code === null ? (
-          <Button variant="primary" pending={busy} onClick={() => void check()}>
+          <Button ref={passkeyButton} variant="primary" pending={busy} onClick={() => void check()}>
             Use a passkey
           </Button>
         ) : null}

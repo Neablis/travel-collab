@@ -36,6 +36,8 @@ export function TwoStepSection() {
   const [checking, setChecking] = useState<Pending | null>(null);
   const [authenticator, setAuthenticator] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  // One click would void the ten codes in the person's drawer and show a new set once.
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
   // `signedIn: false` rides with the codes: the session could not be told that
   // two-step sign-in is on, so it ends when the codes are put away.
   const [codes, setCodes] = useState<{ list: string[]; signedIn: boolean } | null>(null);
@@ -90,6 +92,7 @@ export function TwoStepSection() {
   }
 
   async function regenerate() {
+    setConfirmingRegenerate(false);
     setRegenerating(true);
     setProblem(null);
     const result = await regenerateRecoveryCodes();
@@ -194,9 +197,23 @@ export function TwoStepSection() {
           <span aria-hidden className="text-slate">
             ·
           </span>
-          <Button variant="ghost" size="sm" pending={regenerating} onClick={() => void regenerate()}>
-            Regenerate
-          </Button>
+          {confirmingRegenerate ? (
+            <>
+              <Text as="span" variant="secondary">
+                This voids your current codes.
+              </Text>
+              <Button variant="ghost" size="sm" onClick={() => void regenerate()}>
+                Regenerate codes
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmingRegenerate(false)}>
+                Keep current codes
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" size="sm" pending={regenerating} onClick={() => setConfirmingRegenerate(true)}>
+              Regenerate
+            </Button>
+          )}
         </div>
       ) : null}
       {problem === null ? null : (
