@@ -77,6 +77,7 @@ export const NOT_DRAWN = new Map([
   ["/n/[token]", "M58 part 3: a public notebook page, read-only, rendered with the signed-in notebook's blocks — the design has no artboard for it"],
   ["/demo", "the picker, M42 D1, has no artboard"],
   ["/oauth/authorize", "M55 part 2: the OAuth consent page, a card of the design system's primitives — no artboard"],
+  ["/signin/verify", "M62 part 2: the second-factor step after sign-in, the sign-in card's chrome around a passkey or a code — no artboard"],
 ]);
 
 /** Every route in the app, as a Next.js path with its groups stripped. */

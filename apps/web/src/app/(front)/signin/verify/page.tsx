@@ -12,6 +12,7 @@ export const metadata = pageMetadata({
   robots: NOINDEX,
 });
 
+/** The sign-in second-step screen, handed a `callbackUrl` already narrowed to a same-site path. */
 export default async function VerifyPage({
   searchParams,
 }: {

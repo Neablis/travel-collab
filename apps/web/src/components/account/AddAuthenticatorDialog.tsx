@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
-import { CodeEntryForm } from "@/components/front/CodeEntryForm";
+import { CodeEntryForm } from "@/components/account/CodeEntryForm";
 import { confirmAuthenticator, startAuthenticator, type AuthenticatorStart } from "@/lib/mfaClient";
 
 // Adding an authenticator app (M62 D2): scan the QR code, or type the secret from
