@@ -234,3 +234,25 @@ the database will not sleep, the server log says which reads it was. A bot that
 ignores `robots.txt` still reaches them; if the log shows that, the next step is
 serving the signed-out lists from one cached copy of the library, not one entry
 per URL.
+
+## Amendment — 2026-11-21: the warm-up runs again after a list is cleared
+
+The day after the query URLs were closed, Neon slept about two hours in 24, nearly all of it
+after 6 PM. Two Playbooks went public that morning, an hour after the deploy's warm-up, and
+each publish clears `library`: every place, tag and Discover list at once. Crawlers then read
+those lists back one URL at a time, and the database had three minutes of sleep between 8 AM
+and 6 PM.
+
+So a clear that takes `library` or `discover-rank` out also tells the warm-up, which reads the
+whole sitemap again a minute later (`REWARM_AFTER_CLEAR_MS`). Each further clear in that
+minute starts the wait again, so a run of edits costs one warm-up; one asked for while a
+warm-up runs is run once more after it, since the running one may have read a page before the
+clear. The minute also covers Next flushing the clear after the writer's response. A clear of
+one day's own tags (an add) does not count: that is one page and one read on its next visit.
+
+The two meet on `globalThis` (`LISTS_CLEARED`), not through a module both import: Next bundles
+`instrumentation.ts`, which starts the warm-up, apart from the routes that clear, so they need
+not share one copy of `libraryCache.ts`. A clear with nothing listening (outside production,
+or before the warm-up has started) does nothing more than it did. The log shows
+`[warm-up] the library's lists were cleared; reading them again in 60 s`, then the usual
+`[warm-up] read <ok> of <n> public pages`.

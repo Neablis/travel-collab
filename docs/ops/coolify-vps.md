@@ -142,7 +142,9 @@ POST" on v4.7.5), then `GET /api/v1/deployments/<deployment uuid>` until its
 
 Once the new container answers its health check it reads every page in its own
 sitemap, signed out, to fill the library's cache before crawlers ask (ADR-063, amendment
-2026-11-19), and again once a day. Its log shows `[warm-up] read <ok> of <n> public pages`
+2026-11-19), again once a day, and again a minute after a publish, unpublish, rename or rank
+change clears the library's lists (amendment 2026-11-21, logged as `[warm-up] the library's
+lists were cleared; reading them again in 60 s`). Its log shows `[warm-up] read <ok> of <n> public pages`
 a few minutes after the deploy, or `[warm-up] skipped: <why>`. After that, each
 library read that still reaches Postgres logs `[library] cache miss: <what was read>`
 (2026-11-20): a steady run of them is what keeps Neon awake, and the key names the
