@@ -7,7 +7,7 @@ import { pageMetadata } from "@/lib/siteMetadata";
 // M63 static-copy PROPOSAL: the build drafts the words and Mitchell approves
 // them at the gate. `absolute`, because the working title leads with the brand
 // and the layout's "%s — Caesura" template would push it past 60 characters.
-const TITLE = "Caesura works with your AI: Claude, ChatGPT, Gemini";
+const TITLE = "Caesura: the AI trip planner for Claude, ChatGPT, Gemini";
 const DESCRIPTION =
   "Ask Claude, ChatGPT, Gemini or another AI tool to plan in Caesura for you. You choose what it may do, and you can disconnect it any time.";
 
@@ -15,7 +15,10 @@ export const metadata = pageMetadata({
   title: { absolute: TITLE },
   description: DESCRIPTION,
   canonical: "/ai",
-  image: { url: "/ai/opengraph-image.png", alt: "Caesura works with your AI. Claude, ChatGPT, Gemini and agents." },
+  // A fixed path under public/, not the file convention: in the (front) group Next
+  // serves the convention's image at a hashed URL, and the unhashed one this tag
+  // named was a 404.
+  image: { url: "/og/ai.png", alt: "Caesura works with your AI. Claude, ChatGPT, Gemini and agents." },
 });
 
 // Public on purpose and static, like `/developers`: outside `proxy.ts`'s

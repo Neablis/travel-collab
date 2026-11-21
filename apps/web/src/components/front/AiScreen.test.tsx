@@ -17,8 +17,10 @@ function servedPaths(): Set<string> {
   const walk = (dir: string, segments: string[]): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.isDirectory()) {
-        const group = entry.name.startsWith("(") && entry.name.endsWith(")");
-        walk(path.join(dir, entry.name), group ? segments : [...segments, entry.name]);
+        // `[copy]` and `live` are the library's two renderings of one URL tree
+        // (the proxy picks by session), not segments a visitor types.
+        const hidden = (entry.name.startsWith("(") && entry.name.endsWith(")")) || entry.name === "[copy]" || entry.name === "live";
+        walk(path.join(dir, entry.name), hidden ? segments : [...segments, entry.name]);
       } else if (entry.name === "route.ts" || entry.name === "page.tsx") {
         out.add(`/${segments.join("/")}`);
       }
@@ -44,9 +46,47 @@ describe("AiScreen", () => {
       "llms.txt",
       "agents.md",
       "Connected apps",
+      "API tokens",
     ]) {
       expect(text, name).toContain(name);
     }
+  });
+
+  // The external review of PR 788: a token-based tool (ChatGPT, Gemini, a script)
+  // is listed under API tokens, not Connected apps, so naming only the second
+  // sent a person to a list their tool is not on.
+  it("names API tokens next to Connected apps, in the safety line too", () => {
+    render(<AiScreen />);
+    expect(screen.getByRole("region", { name: "Safe by design" }).textContent).toContain("API tokens");
+  });
+
+  it("links the playbook library for a reader who wants to see what a playbook is", () => {
+    render(<AiScreen />);
+    expect(screen.getByRole("link", { name: /playbook/i }).getAttribute("href")).toBe("/playbooks");
+  });
+
+  // ConsentScreen ticks every read scope and no write scope, Notebook's included.
+  it("says reading starts ticked and anything that changes your data, Notebook included, starts unticked", () => {
+    render(<AiScreen />);
+    const faq = screen.getByRole("region", { name: "Questions" }).textContent ?? "";
+    expect(faq).toContain("Reading starts ticked; anything that changes your data, Notebook included, starts unticked");
+    expect(faq).not.toContain("switched off");
+  });
+
+  // Decision 1's target phrases, said once in plain words near the top. The
+  // title, H1 and this sentence are words Mitchell approves on the preview.
+  it("says what Caesura is, in the words people search, near the top and with no em dash", () => {
+    render(<AiScreen />);
+    const h1 = screen.getByRole("heading", { level: 1 });
+    expect(h1.textContent).toContain("AI trip planner");
+    const top = h1.parentElement?.textContent ?? "";
+    for (const phrase of ["Claude trip planning", "trip planner MCP server", "travel planning API"]) {
+      expect(top, phrase).toContain(phrase);
+    }
+    expect(top).not.toContain("—");
+    const title = metadata.title as { absolute: string };
+    expect(title.absolute).toContain("AI trip planner");
+    expect(title.absolute).not.toContain("—");
   });
 
   it("has exactly one h1", () => {

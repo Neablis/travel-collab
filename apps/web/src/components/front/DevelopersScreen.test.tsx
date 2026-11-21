@@ -41,6 +41,20 @@ describe("DevelopersScreen", () => {
     expect(screen.getByRole("region", { name: "From nothing to a first call" }).textContent).not.toContain("—");
   });
 
+  // `public-api/route.ts` adds `details` only to an error that has some.
+  it("shows the error envelope with details on some errors only", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    const steps = screen.getByRole("region", { name: "From nothing to a first call" }).textContent ?? "";
+    expect(steps).toContain('{ "error": { "code", "message" } }, with details on some errors');
+  });
+
+  // ConsentScreen ticks every read scope and no write scope, Notebook's included.
+  it("says reading starts ticked and anything that changes your data, Notebook included, starts unticked", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    const claude = screen.getByRole("region", { name: "Connect Claude" }).textContent ?? "";
+    expect(claude).toContain("Reading starts ticked; anything that changes your data, Notebook included, starts unticked");
+  });
+
   it("links the AI page for a reader who came to see what an AI can do", () => {
     render(<DevelopersScreen tools={TOOLS} />);
     expect(screen.getByRole("link", { name: "What your AI can do in Caesura" }).getAttribute("href")).toBe("/ai");

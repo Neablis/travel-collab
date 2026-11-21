@@ -15,7 +15,10 @@ export const metadata = pageMetadata({
   title: { absolute: TITLE },
   description: DESCRIPTION,
   canonical: "/security",
-  image: { url: "/security/opengraph-image.png", alt: "Security at Caesura. Your account, your data." },
+  // A fixed path under public/, not the file convention: in the (front) group Next
+  // serves the convention's image at a hashed URL, and the unhashed one this tag
+  // named was a 404.
+  image: { url: "/og/security.png", alt: "Security at Caesura. Your account, your data." },
 });
 
 // Public on purpose and static, like `/ai`: outside `proxy.ts`'s matcher,

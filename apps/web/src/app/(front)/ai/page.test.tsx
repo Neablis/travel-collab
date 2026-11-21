@@ -21,7 +21,8 @@ afterEach(() => {
   jsonLd.mockReset();
 });
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
+// Out of the Next file convention on purpose: in the (front) group the convention serves a hashed URL, and the unhashed one 404s.
+const PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../public");
 
 describe("/ai metadata", () => {
   it("keeps the title to 60 characters and the description to 160", () => {
@@ -40,12 +41,11 @@ describe("/ai metadata", () => {
     expect(metadata.openGraph?.url).toBe("/ai");
   });
 
-  it("ships its own share image, with alt text, and points og:image at it", () => {
+  it("ships its own share image from public/, with alt text, and points og:image at it", () => {
     const images = metadata.openGraph?.images;
     const first = Array.isArray(images) ? images[0] : images;
-    expect(first).toMatchObject({ url: "/ai/opengraph-image.png" });
-    expect(readFileSync(path.join(HERE, "opengraph-image.alt.txt"), "utf8").trim().length).toBeGreaterThan(0);
-    expect(readFileSync(path.join(HERE, "opengraph-image.png")).length).toBeGreaterThan(0);
+    expect(first).toMatchObject({ url: "/og/ai.png", alt: expect.stringMatching(/\S/) });
+    expect(readFileSync(path.join(PUBLIC, "og/ai.png")).length).toBeGreaterThan(0);
   });
 });
 

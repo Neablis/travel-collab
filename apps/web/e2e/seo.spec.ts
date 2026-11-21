@@ -531,3 +531,39 @@ test("a country page lists its days as one ItemList of absolute URLs", async ({ 
     await Promise.all(ids.map((id) => forget(page, id)));
   }
 });
+
+// A page's `og:image` is the card a chat app or a feed shows. `/ai` and
+// `/security` once pointed it at a file-convention path that Next serves hashed
+// in the (front) group, so the tag was well formed and its URL answered 404.
+// Only fetching what the tag names catches that.
+for (const route of ["/", "/ai", "/security", "/developers"]) {
+  test(`${route} names an og:image that answers 200 as an image`, async ({ browser }) => {
+    const visitor = await stranger(browser);
+    try {
+      const html = await (await visitor.request.get(route)).text();
+      const content = /<meta property="og:image" content="([^"]*)"/.exec(html)?.[1];
+      expect(content, "an og:image tag").toBeDefined();
+      // Absolute on the deployment's origin; the test server answers the same path.
+      const image = await visitor.request.get(new URL(content!, "http://localhost").pathname);
+      expect(image.status()).toBe(200);
+      expect(image.headers()["content-type"]).toContain("image/");
+    } finally {
+      await visitor.context().close();
+    }
+  });
+}
+
+test("/developers carries WebPage structured data, like /ai and /security", async ({ browser }) => {
+  const visitor = await stranger(browser);
+  try {
+    const html = await (await visitor.request.get("/developers")).text();
+    const page = ldJson(html).find((n) => (n as { "@type": string })["@type"] === "WebPage") as
+      | { url: string; name: string }
+      | undefined;
+    expect(page, "a WebPage node").toBeDefined();
+    expect(new URL(page!.url).pathname).toBe("/developers");
+    expect(page!.name).toBe("Build on Caesura: the trip planning API");
+  } finally {
+    await visitor.context().close();
+  }
+});

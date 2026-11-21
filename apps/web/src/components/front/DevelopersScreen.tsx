@@ -239,8 +239,8 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
               <Text variant="secondary" className="text-pretty">
                 Collections take <Code>?limit=</Code> (1–200) and an opaque <Code>?cursor=</Code>; read{" "}
                 <Code>nextCursor</Code> until it is <Code>null</Code>. Every error is{" "}
-                <Code>{`{ "error": { "code", "message", "details" } }`}</Code>. Read the{" "}
-                <Code>code</Code>.
+                <Code>{`{ "error": { "code", "message" } }`}</Code>, with <Code>details</Code> on some errors.
+                Read the <Code>code</Code>.
               </Text>
             </Step>
           </ol>
@@ -250,7 +250,7 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
             URL, written out: this page is static, and the connector a person
             adds is production's whichever deploy they read this on. Premium is
             the same `api.tokens` entitlement (D6); the consent page ticks every
-            scope but the two `notebook:` ones (D5, `ConsentScreen.tsx`). The
+            `:read` scope and no write scope, Notebook's included (D5, `ConsentScreen.tsx`). The
             anchor ids sit on the sections so `#connect-claude` scrolls to the
             whole of one. The ChatGPT and Gemini sections are written from the
             vendors' docs and await a production proof (M63 D15). */}
@@ -273,7 +273,7 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
               <Text className="text-pretty">
                 There is no token to copy. Claude sends you to Caesura to sign in and allow it, which needs the Premium plan. The page lists
                 what it asks for in the words of <InlineLink href="#scopes">the scopes below</InlineLink>, and
-                you can untick any of them. Notebook access starts unticked.
+                you can untick any of them. Reading starts ticked; anything that changes your data, Notebook included, starts unticked.
               </Text>
             </Step>
             <Step level={4} n={3} title="Disconnect when you like">

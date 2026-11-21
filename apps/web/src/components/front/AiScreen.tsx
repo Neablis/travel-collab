@@ -78,7 +78,7 @@ export const AI_FAQ: readonly FaqEntry[] = [
   {
     question: "What can an agent not do?",
     answer:
-      "Anything you cannot do yourself, or anything you did not give it permission for. Notebook access starts switched off, and it stops the moment you disconnect the tool.",
+      "Anything you cannot do yourself, or anything you did not give it permission for. Reading starts ticked; anything that changes your data, Notebook included, starts unticked. Access stops the moment you disconnect the tool.",
   },
 ];
 
@@ -128,8 +128,12 @@ export function AiScreen() {
             Caesura and AI
           </DataText>
           <Heading level={1} className="text-4xl text-pretty">
-            Caesura works with your AI
+            An AI trip planner that works with Claude, ChatGPT and Gemini
           </Heading>
+          <Text className="text-md text-pretty">
+            Caesura is a trip planner that works with the AI you already use. Claude trip planning runs through
+            its trip planner MCP server, and its travel planning API is open to agents and scripts.
+          </Text>
           <Text className="text-md text-pretty">
             Ask Claude, ChatGPT, Gemini or another AI tool to plan in Caesura for you. It can read your trips
             and your library, write and publish playbooks, set the cover photo of a playbook or a trip, and
@@ -178,8 +182,17 @@ export function AiScreen() {
               </a>{" "}
               are plain-text guides written for an AI to read first.
             </li>
+            <li className={itemClass}>
+              <strong>Playbooks</strong> are real days from real trips, which your AI can read and publish.{" "}
+              <Link href="/playbooks" className={linkClass}>
+                Browse the playbooks
+              </Link>
+              .
+            </li>
             <li className={cn(itemClass, "md:col-span-2")}>
-              <strong>Connected apps</strong>, under Account and Security, lists every tool you have connected.
+              Under Account and Security, <strong>Connected apps</strong> lists the tools you signed in to, and{" "}
+              <strong>API tokens</strong> lists the tokens you made for the rest, such as ChatGPT, Gemini and
+              scripts.
             </li>
           </ul>
         </section>
@@ -207,7 +220,7 @@ export function AiScreen() {
           <SectionHeading id="ai-safe">Safe by design</SectionHeading>
           <Text className="text-md text-pretty">
             An AI tool can never do more than you can. You choose what it may do, and you can disconnect it at
-            any time in Connected apps.
+            any time: in Connected apps, or by revoking its token under API tokens.
           </Text>
         </section>
 

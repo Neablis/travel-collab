@@ -21,7 +21,8 @@ afterEach(() => {
   jsonLd.mockReset();
 });
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
+// Out of the Next file convention on purpose: in the (front) group the convention serves a hashed URL, and the unhashed one 404s.
+const PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../public");
 
 describe("/security metadata", () => {
   it("keeps the title to 60 characters and the description to 160", () => {
@@ -40,17 +41,19 @@ describe("/security metadata", () => {
     expect(metadata.openGraph?.url).toBe("/security");
   });
 
-  it("ships its own share image, with alt text", () => {
-    expect(readFileSync(path.join(HERE, "opengraph-image.alt.txt"), "utf8").trim().length).toBeGreaterThan(0);
-    expect(readFileSync(path.join(HERE, "opengraph-image.png")).length).toBeGreaterThan(0);
+  it("ships its own share image from public/, with alt text, and points og:image at it", () => {
+    const images = metadata.openGraph?.images;
+    const first = Array.isArray(images) ? images[0] : images;
+    expect(first).toMatchObject({ url: "/og/security.png", alt: expect.stringMatching(/\S/) });
+    expect(readFileSync(path.join(PUBLIC, "og/security.png")).length).toBeGreaterThan(0);
   });
 
   // The picture reads "Your account, your data" over "Security at Caesura"; the alt must say the same.
-  it("describes the image it ships: the file's alt and the metadata's agree, and name no AI line the picture lacks", () => {
-    const alt = readFileSync(path.join(HERE, "opengraph-image.alt.txt"), "utf8").trim();
+  it("describes the image it ships, and names no AI line the picture lacks", () => {
     const images = metadata.openGraph?.images;
     const first = Array.isArray(images) ? images[0] : images;
-    expect(typeof first === "object" && first !== null && "alt" in first ? first.alt : undefined).toBe(alt);
+    const alt = typeof first === "object" && first !== null && "alt" in first ? String(first.alt) : "";
+    expect(alt).toBe("Security at Caesura. Your account, your data.");
     expect(alt).not.toContain("AI");
   });
 });

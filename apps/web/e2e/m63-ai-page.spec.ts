@@ -24,3 +24,10 @@ test("/ai answers HTML with one h1 and every prompt visible", async ({ page }) =
     await expect(page.getByText(prompt, { exact: true })).toBeVisible();
   }
 });
+
+test("/ai says what Caesura is, in the words people search, in the server HTML", async ({ page }) => {
+  await page.goto("/ai");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("AI trip planner");
+  await expect(page.getByText("trip planner MCP server")).toBeVisible();
+  await expect(page.getByRole("link", { name: /playbook/i })).toHaveAttribute("href", "/playbooks");
+});

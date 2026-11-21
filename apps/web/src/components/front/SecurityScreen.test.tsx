@@ -172,7 +172,7 @@ describe("SecurityScreen", () => {
   it("says a token is stored as a fingerprint that cannot be turned back into it", () => {
     render(<SecurityScreen />);
     const data = screen.getByRole("region", { name: "Your data" });
-    expect(data.textContent).toContain("fingerprint of each API token and app connection");
+    expect(data.textContent).toContain("fingerprint of each API token and of each app connection\u2019s tokens");
     expect(data.textContent).toContain("cannot be turned back");
   });
 
