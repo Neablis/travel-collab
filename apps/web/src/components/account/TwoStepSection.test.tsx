@@ -490,3 +490,41 @@ describe("TwoStepSection", () => {
     });
   });
 });
+
+// The installed app's lock setting (M62 D3b, D16): per device, and only where it
+// can work, which is the installed app with a passkey to open it.
+describe("Lock after inactivity", () => {
+  function installed(standalone: boolean) {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: standalone && query === "(display-mode: standalone)" }));
+  }
+  afterEach(() => window.localStorage.clear());
+
+  it("is offered in the installed app beside a passkey, and stores the choice on this device", async () => {
+    status = ON;
+    serve();
+    installed(true);
+    render(<TwoStepSection />);
+    const select = await screen.findByRole("combobox", { name: "Lock after inactivity" });
+    expect((select as HTMLSelectElement).value).toBe("off");
+    await userEvent.selectOptions(select, "1 hour");
+    expect(window.localStorage.getItem("caesura_lock_after")).toBe("1h");
+  });
+
+  it("is not offered in a browser tab", async () => {
+    status = ON;
+    serve();
+    installed(false);
+    render(<TwoStepSection />);
+    await screen.findByRole("button", { name: "Regenerate" });
+    expect(screen.queryByRole("combobox", { name: "Lock after inactivity" })).toBeNull();
+  });
+
+  it("is not offered without a passkey, since nothing else can open the lock", async () => {
+    status = { enabled: true, factors: [{ ...phone, kind: "totp" }], recoveryCodesLeft: 10 };
+    serve();
+    installed(true);
+    render(<TwoStepSection />);
+    await screen.findByRole("button", { name: "Regenerate" });
+    expect(screen.queryByRole("combobox", { name: "Lock after inactivity" })).toBeNull();
+  });
+});

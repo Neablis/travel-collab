@@ -22,6 +22,10 @@ const Step = z.union([
   z.object({
     kind: z.literal("passkey"),
     step: z.literal("verify"),
+    // The installed app's lock (M62 D3b): a passkey proves the person is back, and
+    // the session is left as it was. Only a passkey: a code typed on a lock screen
+    // is one more place to guess it.
+    purpose: z.literal("unlock").optional(),
     ticket: z.string().min(1),
     response: z.record(z.string(), z.unknown()),
   }),
@@ -82,5 +86,8 @@ export async function POST(request: Request) {
   if (!(await recordPasskeyUse(verified.factorId, verified.counter, verified.issuedAt, now))) {
     return Response.json({ error: "passkey-not-verified" }, { status: 401 });
   }
+  // No proof, so nothing reaches the token: `mfaAt` stays put and the fresh-check
+  // clock (D7) is not restarted by a tap on a lock screen.
+  if (body.data.purpose === "unlock") return Response.json({ unlocked: true });
   return Response.json({ proof: mintSecondFactorProof(userId, sid, "webauthn", state.epoch, now) });
 }

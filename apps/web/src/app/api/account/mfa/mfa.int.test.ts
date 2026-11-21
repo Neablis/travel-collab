@@ -227,6 +227,43 @@ describe("verifying a passkey", () => {
   });
 });
 
+// The PWA lock (M62 D3b) asks for a passkey over a session that has already
+// passed. Clearing it must leave that session exactly as it was: no proof, so
+// nothing the browser could hand the token callback to move `mfaAt` and restart
+// the fresh-check clock (D7) for a tap on a lock screen.
+describe("unlocking the installed app with a passkey", () => {
+  async function unlock(device: SoftAuthenticator, response?: unknown) {
+    const { options, ticket } = await json(await VERIFY(post({ kind: "passkey", step: "options" })));
+    return VERIFY(
+      post({
+        kind: "passkey",
+        step: "verify",
+        purpose: "unlock",
+        ticket,
+        response: response ?? device.assert(options as { challenge: string }, ctx),
+      }),
+    );
+  }
+
+  it("succeeds on an assertion and mints no proof, so the session and its mfaAt stay as they were", async () => {
+    const { id, device } = await accountWithPasskey();
+    const before = await mfaStateFor(id);
+    const res = await unlock(device);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ unlocked: true });
+    expect(await mfaStateFor(id)).toEqual(before);
+  });
+
+  it("refuses another account's passkey", async () => {
+    const mine = await accountWithPasskey();
+    const theirs = await accountWithPasskey();
+    signedInAs(mine.id);
+    const res = await unlock(theirs.device);
+    expect(res.status).toBe(401);
+    expect(await json(res)).toEqual({ error: "passkey-not-verified" });
+  });
+});
+
 describe("adding a passkey", () => {
   it("needs a fresh Google sign-in while two-step sign-in is off", async () => {
     signedInAs(await account(), { signedInAt: Date.now() - 11 * 60 * 1000 });

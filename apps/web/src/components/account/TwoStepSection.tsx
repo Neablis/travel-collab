@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Text } from "@/components/ui/text";
 import { formatRelativeInstant } from "@/lib/formatDate";
 import {
@@ -14,6 +16,7 @@ import {
   type ChangeResult,
 } from "@/lib/mfaClient";
 import type { MfaFactorView, MfaStatusResponse } from "@/lib/mfaWire";
+import { isStandalone, lockSetting, setLockSetting, type LockAfter } from "@/lib/pwaLock";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { AddAuthenticatorDialog } from "./AddAuthenticatorDialog";
 import { FreshCheckDialog } from "./FreshCheckDialog";
@@ -33,6 +36,44 @@ const KIND_LABEL: Record<MfaFactorView["kind"], string> = { passkey: "Passkey", 
 
 const lastUsed = (factor: MfaFactorView) =>
   factor.lastUsedAt === null ? "never used" : `used ${formatRelativeInstant(factor.lastUsedAt) ?? "recently"}`;
+
+const LOCK_AFTER_LABEL: Record<LockAfter, string> = { off: "Off", "15m": "15 minutes", "1h": "1 hour", "1d": "1 day" };
+
+/**
+ * *Lock after inactivity* (M62 D3b, D16): this device's setting for the installed
+ * app's lock (`PwaLockGate`). Read after mount, since the server knows neither
+ * the display mode nor this browser's storage.
+ */
+function LockAfterControl() {
+  const [setting, setSetting] = useState<LockAfter | null>(null);
+  useEffect(() => {
+    if (isStandalone(window)) setSetting(lockSetting());
+  }, []);
+  if (setting === null) return null;
+  return (
+    <FormField
+      id="lock-after"
+      label="Lock after inactivity"
+      hint="On this device only. Your passkey opens the app again and you stay signed in: a privacy convenience, not extra security."
+    >
+      <NativeSelect
+        id="lock-after"
+        className="self-start"
+        value={setting}
+        onChange={(event) => {
+          const next = event.currentTarget.value as LockAfter;
+          if (setLockSetting(next)) setSetting(next);
+        }}
+      >
+        {(Object.keys(LOCK_AFTER_LABEL) as LockAfter[]).map((value) => (
+          <option key={value} value={value}>
+            {LOCK_AFTER_LABEL[value]}
+          </option>
+        ))}
+      </NativeSelect>
+    </FormField>
+  );
+}
 
 /** Whether two-step sign-in is on, its factors and recovery codes, and adding a factor. */
 export function TwoStepSection() {
@@ -295,6 +336,8 @@ export function TwoStepSection() {
           )}
         </div>
       ) : null}
+      {/* Only beside a passkey: it is the one thing that can open the lock (D16). */}
+      {status.enabled && status.factors.some((f) => f.kind === "passkey") ? <LockAfterControl /> : null}
       {problem === null ? null : (
         <Text variant="secondary" role="alert" className="text-danger-ink">
           {problem}
