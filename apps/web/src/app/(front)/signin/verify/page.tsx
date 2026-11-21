@@ -6,6 +6,7 @@ import { Heading } from "@/components/ui/heading";
 
 // M62 part 1 (ADR-092): a placeholder, so the proxy's redirect for an account that
 // asks for a second factor lands somewhere. Part 2 replaces it with the real screen.
+/** The second-step placeholder: a heading and a sign-out, until part 2's screen. */
 export default function VerifyPage() {
   return (
     <main>
