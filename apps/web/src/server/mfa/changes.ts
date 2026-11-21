@@ -4,8 +4,7 @@ import { apiTokens, oauthGrants, userFactors, userRecoveryCodes, users } from "@
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { sendEmail } from "@/server/email/send";
 import { securityChangeEmail, type SecurityChangeKind } from "@/server/email/templates";
-import { clientIp } from "@/server/og/limit";
-import { bumpSecurityEpoch, mintSecondFactorProof, type SecondFactorProof } from "./state";
+import { bumpSecurityEpoch, lockAccount, mintSecondFactorProof, type SecondFactorProof } from "./state";
 
 // Every change to how an account is entered after it is on (M62 D7): Remove, Turn
 // off and Regenerate. Each runs its own write and the epoch bump in ONE
@@ -28,7 +27,7 @@ export class ChangeRefused extends Error {
  * first, so two removals at once cannot each see another factor still standing.
  */
 export async function removeFactorIn(tx: Queryable, userId: string, factorId: string): Promise<void> {
-  await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+  await lockAccount(tx, userId);
   const mine = and(eq(userFactors.id, factorId), eq(userFactors.userId, userId));
   const [target] = await tx.select({ id: userFactors.id }).from(userFactors).where(mine);
   if (target === undefined) throw new ChangeRefused("not-found");
@@ -37,8 +36,13 @@ export async function removeFactorIn(tx: Queryable, userId: string, factorId: st
   await tx.delete(userFactors).where(mine);
 }
 
-/** Every factor and every recovery code, and two-step sign-in off. */
+/**
+ * Every factor and every recovery code, and two-step sign-in off. The row is taken
+ * before the deletes, so a factor another tab is adding lands before them (and
+ * goes) or after them (and turns two-step sign-in on again), never in between.
+ */
 export async function turnOffIn(tx: Queryable, userId: string): Promise<void> {
+  await lockAccount(tx, userId);
   await tx.delete(userFactors).where(eq(userFactors.userId, userId));
   await tx.delete(userRecoveryCodes).where(eq(userRecoveryCodes.userId, userId));
   await tx.update(users).set({ mfaEnabledAt: null }).where(eq(users.id, userId));
@@ -99,6 +103,17 @@ export function describeClient(userAgent: string | null): string | null {
 }
 
 /**
+ * The address that connected to the proxy: the LAST `X-Forwarded-For` hop, which
+ * the proxy appends itself, then `X-Real-IP`. Not `clientIp`'s first hop: a client
+ * can write that one, and this line matters most when someone else made the
+ * change. Whole, not a limiter's IPv6 /64, so the email says what the proxy saw.
+ */
+function connectingAddress(request: Request): string | null {
+  const hop = request.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim();
+  return hop || request.headers.get("x-real-ip")?.trim() || null;
+}
+
+/**
  * Runs `apply` and the epoch bump as one transaction, then emails the account and
  * returns the proof that keeps THIS session: the bump signs out every other, and
  * this one hands the proof to NextAuth's `update` to be given a current token
@@ -123,14 +138,13 @@ export async function recordSecurityChange<T>(input: {
 
   const [row] = await db.select({ email: users.email }).from(users).where(eq(users.id, input.userId));
   if (row?.email) {
-    const ip = clientIp(input.request);
     await sendEmail(
       securityChangeEmail({
         to: row.email,
         change: input.change,
         at: input.now,
         client: describeClient(input.request.headers.get("user-agent")),
-        ip: ip === "unknown" ? null : ip,
+        ip: connectingAddress(input.request),
         securityUrl: `${deploymentOrigin()}/account?tab=security`,
       }),
     );

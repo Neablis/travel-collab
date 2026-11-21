@@ -369,6 +369,19 @@ describe("TwoStepSection", () => {
       await waitFor(() => expect(screen.queryByText("Authenticator app")).toBeNull());
     });
 
+    // Remove unmounts with focus in it, and so does Keep: without a hand-off a
+    // keyboard user's next Tab starts again from the top of the page.
+    it("moves focus to the confirm when Remove opens it, and back to Remove when Keep closes it", async () => {
+      status = TWO;
+      serve();
+      render(<TwoStepSection />);
+      (await screen.findByRole("button", { name: "Remove Authenticator app" })).focus();
+      await userEvent.keyboard("{Enter}");
+      expect(screen.getByRole("button", { name: "Yes, remove Authenticator app" }).matches(":focus")).toBe(true);
+      await userEvent.click(screen.getByRole("button", { name: "Keep Authenticator app" }));
+      expect(screen.getByRole("button", { name: "Remove Authenticator app" }).matches(":focus")).toBe(true);
+    });
+
     it("opens the fresh check when Remove is refused for want of one, and removes once it passes", async () => {
       status = TWO;
       serve();
@@ -447,27 +460,41 @@ describe("TwoStepSection", () => {
   });
 
   describe("the revoke-everything tick", () => {
-    async function turnOnAndReachSheet() {
+    async function turnOnAndReachSheet(onRevoked?: () => void) {
       status = OFF;
       serve();
       add.mockImplementation(async () => {
         status = ON;
         return { status: "added", recoveryCodes: CODES, signedIn: true };
       });
-      render(<TwoStepSection />);
+      render(<TwoStepSection onRevoked={onRevoked} />);
       await userEvent.click(await screen.findByRole("button", { name: "Add a passkey" }));
       return screen.findByRole("dialog", { name: "Save your recovery codes" });
     }
 
     it("is unticked, and ticking it revokes every token and connected app when Done is pressed", async () => {
       revokeAll.mockResolvedValue("revoked");
-      const sheet = await turnOnAndReachSheet();
+      const onRevoked = vi.fn();
+      const sheet = await turnOnAndReachSheet(onRevoked);
       const tick = within(sheet).getByRole("checkbox", { name: /Also revoke all tokens and connected apps/ });
       expect((tick as HTMLInputElement).checked).toBe(false);
       await userEvent.click(tick);
       await userEvent.click(within(sheet).getByRole("checkbox", { name: "I saved these" }));
       await userEvent.click(within(sheet).getByRole("button", { name: "Done" }));
       await waitFor(() => expect(revokeAll).toHaveBeenCalledTimes(1));
+      // What tells the token and connected-app lists to read again.
+      await waitFor(() => expect(onRevoked).toHaveBeenCalledTimes(1));
+    });
+
+    it("does not tell the lists anything changed when the revoke fails", async () => {
+      revokeAll.mockResolvedValue("failed");
+      const onRevoked = vi.fn();
+      const sheet = await turnOnAndReachSheet(onRevoked);
+      await userEvent.click(within(sheet).getByRole("checkbox", { name: /Also revoke all tokens and connected apps/ }));
+      await userEvent.click(within(sheet).getByRole("checkbox", { name: "I saved these" }));
+      await userEvent.click(within(sheet).getByRole("button", { name: "Done" }));
+      expect(await screen.findByRole("alert")).toBeTruthy();
+      expect(onRevoked).not.toHaveBeenCalled();
     });
 
     it("revokes nothing when left unticked", async () => {

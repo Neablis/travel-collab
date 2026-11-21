@@ -5,6 +5,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import * as OTPAuth from "otpauth";
 import { db } from "@/server/db/client";
 import { apiTokens, oauthGrants, userFactors, userRecoveryCodes, users } from "@/server/db/schema";
+import type { Email } from "@/server/email/send";
+import { authConfig } from "@/lib/authConfig";
 import { passkeysOf, recordPasskeyUse } from "@/server/mfa/factors";
 import { mfaStateFor } from "@/server/mfa/state";
 import { softAuthenticator, type SoftAuthenticator } from "@/server/test-support/softAuthenticator";
@@ -19,6 +21,14 @@ const current = vi.hoisted(() => ({
   path: null as string | null,
   // Set by a test that wants the work after the factor insert to fail.
   codesFail: false,
+  // What the account was emailed; the mail provider is never reached.
+  sent: [] as Email[],
+}));
+vi.mock("@/server/email/send", () => ({
+  sendEmail: async (email: Email) => {
+    current.sent.push(email);
+    return { sent: true, id: null };
+  },
 }));
 vi.mock("next-auth", () => ({
   default: (config: (typeof current.configs)[number]) => {
@@ -52,13 +62,16 @@ const { servedForApp } = await import("@/server/servedSession");
 
 const ORIGIN = "https://caesura.example";
 const ctx = { origin: ORIGIN, rpId: "caesura.example" };
-beforeEach(() => vi.stubEnv("PUBLIC_ORIGIN", ORIGIN));
+beforeEach(() => {
+  vi.stubEnv("PUBLIC_ORIGIN", ORIGIN);
+  current.sent.length = 0;
+});
 afterEach(() => vi.unstubAllEnvs());
 
 async function account(): Promise<string> {
   const id = `dev-${randomUUID()}`;
   const now = new Date().toISOString();
-  await db.insert(users).values({ id, createdAt: now, updatedAt: now });
+  await db.insert(users).values({ id, email: `${id}@example.test`, createdAt: now, updatedAt: now });
   return id;
 }
 
@@ -649,6 +662,52 @@ describe("regenerating recovery codes", () => {
   });
 });
 
+describe("adding a factor once two-step sign-in is on", () => {
+  // The add vouches for the new factor, not for the person: a session holding a
+  // nine-minute-old check must not get ten more minutes by enrolling one.
+  it("hands this session a proof that does not restart the fresh-check clock, for a passkey or an app", async () => {
+    for (const add of [() => addPasskey(softAuthenticator()), async () => (await addAuthenticator()).res]) {
+      const { id } = await accountWithPasskey();
+      const mine = (await signIn(id))!;
+      const checkedAt = Date.now() - 9 * 60 * 1000;
+      Object.assign(mine, { amr: ["google", "webauthn"], mfaAt: checkedAt });
+      signedInAs(id, { mfaAt: checkedAt, sid: mine.sid as string });
+      const res = await add();
+      expect(res.status).toBe(200);
+      expect(await jwt({ token: { ...mine }, trigger: "update", session: (await json(res)).proof })).toMatchObject({
+        amr: ["google", "webauthn"],
+        mfaAt: checkedAt,
+      });
+    }
+  });
+});
+
+// A cookie minted before part 1 deployed carries no `sid`, and every route that
+// mints a proof needs one to bind it to.
+describe("a session cookie from before sessions carried an id", () => {
+  it("is given a real one on its next read, and can add a factor with it", async () => {
+    const { id } = await accountWithPasskey();
+    const legacy = (await signIn(id))!;
+    delete legacy.sid;
+    Object.assign(legacy, { amr: ["google", "webauthn"], mfaAt: Date.now() });
+
+    const read = (await jwt({ token: { ...legacy } }))!;
+    expect(read.sid).toEqual(expect.any(String));
+    expect(read.sid).not.toBe("");
+    const session = (authConfig.callbacks!.session as unknown as (a: unknown) => { sid?: string })({
+      session: { user: {} },
+      token: read,
+    });
+    expect(session.sid).toBe(read.sid);
+
+    signedInAs(id, { mfaAt: Date.now(), sid: session.sid! });
+    const { res } = await addAuthenticator();
+    expect(res.status).toBe(200);
+    const proof = (await json(res)).proof as { expiresAt: number };
+    expect(await jwt({ token: { ...read }, trigger: "update", session: proof })).toMatchObject({ proofExp: proof.expiresAt });
+  });
+});
+
 /** An account with a passkey and an authenticator app, and two sessions on it: the one acting, and another. */
 async function accountWithTwoFactors() {
   const { id, device } = await accountWithPasskey();
@@ -730,6 +789,21 @@ describe("turning two-step sign-in off", () => {
 
     signedInAs(await account(), { mfaAt: Date.now() });
     expect((await TURN_OFF(change())).status).toBe(409);
+  });
+});
+
+describe("what the account is told", () => {
+  it("is one email per change, naming it: Remove, Regenerate and Turn off", async () => {
+    const { id, factors } = await accountWithTwoFactors();
+    current.sent.length = 0;
+    expect((await remove(factors[0]!.id)).status).toBe(200);
+    expect((await REGENERATE(change())).status).toBe(200);
+    expect((await TURN_OFF(change())).status).toBe(200);
+    expect(current.sent.map((mail) => [mail.to, mail.subject])).toEqual([
+      [`${id}@example.test`, "A second step was removed from your account"],
+      [`${id}@example.test`, "Your recovery codes were replaced"],
+      [`${id}@example.test`, "Two-step sign-in was turned off"],
+    ]);
   });
 });
 

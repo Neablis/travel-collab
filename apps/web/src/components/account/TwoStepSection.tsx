@@ -34,8 +34,12 @@ const KIND_LABEL: Record<MfaFactorView["kind"], string> = { passkey: "Passkey", 
 const lastUsed = (factor: MfaFactorView) =>
   factor.lastUsedAt === null ? "never used" : `used ${formatRelativeInstant(factor.lastUsedAt) ?? "recently"}`;
 
-/** Whether two-step sign-in is on, its factors and recovery codes, and adding a factor. */
-export function TwoStepSection() {
+/**
+ * Whether two-step sign-in is on, its factors and recovery codes, and adding a factor.
+ * `onRevoked` follows a revoke-everything tick that went through, so the token and
+ * connected-app lists beside it can read again.
+ */
+export function TwoStepSection({ onRevoked }: { onRevoked?: () => void } = {}) {
   // `null` until the first read lands, so the section does not flash "off" at an
   // account that has it on; `"failed"` when it never does.
   const [status, setStatus] = useState<MfaStatusResponse | "failed" | null>(null);
@@ -69,6 +73,23 @@ export function TwoStepSection() {
   function endRename(id: string) {
     refocusRename.current = id;
     setRenaming(null);
+  }
+
+  // Remove and its confirm swap places with focus in one of them, the same fall
+  // to the page's start: the confirm takes it on opening, and Keep hands it back.
+  const removeButtons = useRef(new Map<string, HTMLButtonElement | null>());
+  const confirmRemoveButton = useRef<HTMLButtonElement>(null);
+  const refocusRemove = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (confirmingRemove !== null) confirmRemoveButton.current?.focus();
+    else if (refocusRemove.current !== null) removeButtons.current.get(refocusRemove.current)?.focus();
+    refocusRemove.current = null;
+  }, [confirmingRemove]);
+
+  function keepFactor(id: string) {
+    refocusRemove.current = id;
+    setConfirmingRemove(null);
   }
 
   const load = useCallback(async () => {
@@ -153,9 +174,8 @@ export function TwoStepSection() {
 
   // The tick on the codes sheet. The sheet has just been closed, so a failure is said here, with where else to do it.
   async function revokeEverything() {
-    if ((await revokeAllCredentials()) !== "revoked") {
-      setProblem("Tokens and connected apps could not be revoked just now. You can revoke them from the lists below.");
-    }
+    if ((await revokeAllCredentials()) === "revoked") onRevoked?.();
+    else setProblem("Tokens and connected apps could not be revoked just now. You can revoke them from the lists below.");
   }
 
   // The session cookie is one the server refuses now: the route that clears it goes on to sign-in.
@@ -241,10 +261,16 @@ export function TwoStepSection() {
                     </Button>
                     {status.factors.length === 1 ? null : confirmingRemove === factor.id ? (
                       <>
-                        <Button variant="ghost" size="sm" aria-label={`Yes, remove ${factor.name}`} onClick={() => void remove(factor.id)}>
+                        <Button
+                          ref={confirmRemoveButton}
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Yes, remove ${factor.name}`}
+                          onClick={() => void remove(factor.id)}
+                        >
                           Yes, remove
                         </Button>
-                        <Button variant="ghost" size="sm" aria-label={`Keep ${factor.name}`} onClick={() => setConfirmingRemove(null)}>
+                        <Button variant="ghost" size="sm" aria-label={`Keep ${factor.name}`} onClick={() => keepFactor(factor.id)}>
                           Keep
                         </Button>
                       </>
@@ -253,6 +279,9 @@ export function TwoStepSection() {
                         variant="ghost"
                         size="sm"
                         aria-label={`Remove ${factor.name}`}
+                        ref={(button) => {
+                          removeButtons.current.set(factor.id, button);
+                        }}
                         disabled={changing}
                         onClick={() => setConfirmingRemove(factor.id)}
                       >

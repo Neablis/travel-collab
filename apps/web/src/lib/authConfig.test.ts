@@ -461,6 +461,17 @@ describe("the second-factor claims", () => {
     expect(claimed).toMatchObject({ amr: ["google"] });
   });
 
+  // The proxy's copy re-issues the cookie on the page the person is on, so it is
+  // the one that stores the id the routes that page calls will read.
+  it("gives a token minted before sessions carried an id a real one, in either copy, and keeps one it has", async () => {
+    for (const jwt of [await callback(), await callback(lookupWith({ enabled: false, epoch: 0 }))]) {
+      const given = await jwt({ token: fresh({}) });
+      expect(given!.sid).toEqual(expect.any(String));
+      expect(given!.sid).not.toBe("");
+      expect(await jwt({ token: fresh({ sid: "s1" }) })).toMatchObject({ sid: "s1" });
+    }
+  });
+
   it("with no database behind it, trusts the token it was handed", async () => {
     const jwt = await callback();
     expect(await jwt({ token: fresh({ epoch: 0, amr: ["google"] }) })).toMatchObject({ amr: ["google"] });

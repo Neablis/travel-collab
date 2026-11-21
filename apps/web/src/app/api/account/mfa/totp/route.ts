@@ -64,6 +64,9 @@ export async function POST(request: Request) {
     if (!isUniqueViolation(error)) throw error;
     return Response.json({ error: "already-added" }, { status: 409 });
   }
+  // Only the first factor earns this session its second step. A later one gets an
+  // `epoch` proof, which restarts no fresh-check clock: enrolling must not extend a check.
   const { epoch } = await mfaStateFor(userId);
-  return Response.json({ recoveryCodes, proof: mintSecondFactorProof(userId, sid, "otp", epoch, now) });
+  const method = recoveryCodes === null ? "epoch" : "otp";
+  return Response.json({ recoveryCodes, proof: mintSecondFactorProof(userId, sid, method, epoch, now) });
 }
