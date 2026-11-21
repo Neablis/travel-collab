@@ -31,8 +31,22 @@ import { HOME_PATH } from "@/lib/homePath";
 // elsewhere, to neutralise it later — this is a parser-differential guard,
 // not a currently-exploitable-bug fix, so don't "simplify" it away as
 // redundant with the `//` check above; it isn't the same check.
+//
+// Review 2 of M62 part 2: a tab or newline is stripped by a browser before it
+// parses a URL, so "/<TAB>/evil.example" passed every check above and, in a
+// `Location` header (api/session-expired), resolved to https://evil.example/.
+// Any control character is refused, and the last check resolves the value as a
+// browser would and keeps it only if it stays on the origin it was resolved against.
+const SAME_ORIGIN_BASE = "https://same-origin.invalid";
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
+
 export function safeCallbackUrl(raw: string | null): string {
   if (raw === null) return HOME_PATH;
-  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return HOME_PATH;
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || CONTROL_CHARACTER.test(raw)) return HOME_PATH;
+  try {
+    if (new URL(raw, SAME_ORIGIN_BASE).origin !== SAME_ORIGIN_BASE) return HOME_PATH;
+  } catch {
+    return HOME_PATH;
+  }
   return raw;
 }

@@ -106,6 +106,19 @@ describe("TwoStepSection", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  // Safari refuses the create() that follows the check, since the tap was on the check.
+  it("tells the person to tap again when the add that follows the check is cancelled", async () => {
+    status = ON;
+    serve();
+    add.mockResolvedValueOnce({ status: "fresh-check-required" }).mockResolvedValueOnce({ status: "cancelled" });
+    check.mockResolvedValue("passed");
+    render(<TwoStepSection />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirm it’s you" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Use a passkey" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Tap Add a passkey to continue.");
+  });
+
   it("names what the dialog is for, and its Close works", async () => {
     status = ON;
     serve();
