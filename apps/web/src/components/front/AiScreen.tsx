@@ -32,19 +32,19 @@ const PROMPTS = [
   },
   {
     tool: "ChatGPT",
-    prompt: "Find three places to eat near my hotel in Kyoto and draft a playbook day around them.",
+    prompt: "Draft a playbook day in Kyoto around three restaurants I name, and put each on the map.",
     href: "/developers#connect-chatgpt",
     link: "Connect ChatGPT",
   },
   {
     tool: "Gemini",
-    prompt: "Look through my library and pick the days that suit a rainy weekend in Porto.",
+    prompt: "Look through the library and pick the days that suit a rainy weekend in Porto.",
     href: "/developers#connect-gemini",
     link: "Connect Gemini",
   },
   {
     tool: "Poppy agents",
-    prompt: "Read my trips and tell me what is planned for next week.",
+    prompt: "List the cities that have published days in Caesura's library.",
     href: "/developers#connect-poppy",
     link: "Connect Poppy agents",
   },
