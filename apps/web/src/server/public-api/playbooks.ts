@@ -303,6 +303,8 @@ export const getPlaybookDef: ResourceDef = {
   summary: "Get a Playbook — yours, or anyone's published one — every day and stop in order",
   description: PLAYBOOK_SHAPE_DOC,
   scope: "library:read",
+  // `current:read` carries the library wholesale, as on the Playbook list.
+  orScope: "current:read",
   response: Playbook,
   handle: async (ctx) => {
     const day = await readableSavedDay(playbookId(ctx), ctx.actor.userId);
@@ -369,6 +371,8 @@ export const patchPlaybookDef: ResourceDef = {
 export const exportPlaybookDef: ResourceDef = {
   summary: "Download a Playbook — yours, or anyone's published one — as a content-bundle file you can re-import",
   scope: "library:read",
+  // `current:read` carries the library wholesale, as on the Playbook list.
+  orScope: "current:read",
   response: PlaybookExportBundle,
   responseHeaders: {
     "Content-Disposition": "Names the download. The filename is the Playbook's name, slugified.",

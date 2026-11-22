@@ -45,6 +45,9 @@ const { PATCH: PATCH_STOP } = await import("@/app/api/v1/trips/[tripId]/activiti
 const { PATCH: EDIT_PAGE, DELETE: DELETE_PAGE } = await import("@/app/api/v1/trips/[tripId]/pages/[pageId]/route");
 const { POST: CREATE_PLAYBOOK } = await import("@/app/api/v1/playbooks/route");
 const { GET: COVER_GET } = await import("@/app/api/v1/playbooks/[playbookId]/cover/route");
+const { GET: GET_PLAYBOOK } = await import("@/app/api/v1/playbooks/[playbookId]/route");
+const { GET: EXPORT_PLAYBOOK } = await import("@/app/api/v1/playbooks/[playbookId]/export/route");
+const { GET: GET_SAVED_DAY } = await import("@/app/api/v1/library/[savedDayId]/route");
 const { GET: DISCOVER } = await import("@/app/api/v1/discover/playbooks/route");
 const { GET: ACCOUNT } = await import("@/app/api/v1/account/route");
 const { GET: GEOCODE } = await import("@/app/api/v1/geocode/route");
@@ -214,7 +217,7 @@ describe("current:read — the forced filter", () => {
     await expectNotFound(await LIST_SHARES(req(readSecret), P({ tripId: planning })));
   });
 
-  it("reads a playbook's cover with current:read", async () => {
+  it("reads a playbook, its export, its saved day and its cover with current:read", async () => {
     const librarySecret = await tokenFor(owner, ["library:read", "library:write"]);
     const created = await CREATE_PLAYBOOK(
       req(
@@ -248,6 +251,20 @@ describe("current:read — the forced filter", () => {
     const got = await COVER_GET(req(readSecret), P({ playbookId }));
     expect(got.status).toBe(200);
     expect((await got.json()).cover).toBeNull();
+
+    // The consent copy grants "your saved-days library and Playbooks", so a
+    // single Playbook, its file and the saved day under it are readable too —
+    // not only the lists (the scope-copy fix after PR 788's review).
+    const playbook = await GET_PLAYBOOK(req(readSecret), P({ playbookId }));
+    expect(playbook.status).toBe(200);
+    expect((await playbook.json()).playbookId).toBe(playbookId);
+
+    const file = await EXPORT_PLAYBOOK(req(readSecret), P({ playbookId }));
+    expect(file.status).toBe(200);
+
+    const savedDay = await GET_SAVED_DAY(req(readSecret), P({ savedDayId: playbookId }));
+    expect(savedDay.status).toBe(200);
+    expect((await savedDay.json()).savedDayId).toBe(playbookId);
   });
 
   it("reads the library, Discover and account wholesale", async () => {

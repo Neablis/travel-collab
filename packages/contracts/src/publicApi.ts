@@ -105,17 +105,17 @@ export const SCOPE_CATALOGUE: Readonly<Record<ApiScope, ApiScopeDescription>> = 
   "trips:read": {
     title: "Read trips",
     description:
-      "See your trips, their days and stops, costs, history, and existing share links. Reading or listing any of your trips needs this scope; without it, your trips stay hidden, though public Discover playbooks can still be browsed.",
+      "See your trips, their days and stops, costs, history, and existing share links. Reading or listing your trips needs this scope, though current:read also reads the trips under way now or starting within three days; without either, your trips stay hidden, though public Discover playbooks can still be browsed.",
   },
   "trips:write": {
     title: "Change trips",
     description:
-      "Create, change and delete trips, days and stops; undo, redo and revert. Creating or changing a trip needs this scope; without it, trips can only be read.",
+      "Create, change and delete trips, days and stops; undo, redo and revert. Creating or changing a trip needs this scope, though current:write also changes the days and stops of a trip under way now or starting within three days; without either, trips can only be read.",
   },
   "notebook:read": {
     title: "Read the Notebook",
     description:
-      "Read the Notebook pages on a trip. Opening a Notebook page needs this scope; without it, trip tasks still work but Notebook content stays hidden.",
+      "Read the Notebook pages on a trip. Opening a Notebook page needs this scope, though current:read also opens the pages on a trip under way now or starting within three days; without either, trip tasks still work but Notebook content stays hidden.",
   },
   "notebook:write": {
     title: "Write the Notebook",
@@ -125,7 +125,7 @@ export const SCOPE_CATALOGUE: Readonly<Record<ApiScope, ApiScopeDescription>> = 
   "library:read": {
     title: "Read your library",
     description:
-      "Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks. Reading your saved days or your Playbooks needs this scope; without it, trip tasks still work, and only published Playbooks can be browsed.",
+      "Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks. Reading your saved days or your Playbooks needs this scope or current:read; without either, trip tasks still work, and only published Playbooks can be browsed.",
   },
   "library:write": {
     title: "Change your library",
@@ -140,14 +140,14 @@ export const SCOPE_CATALOGUE: Readonly<Record<ApiScope, ApiScopeDescription>> = 
   "account:read": {
     title: "Read your account",
     description:
-      "See who you are and what plan you hold. Checking your account or plan needs this scope; without it, trip and library tasks still work.",
+      "See who you are and what plan you hold. Checking your account or plan needs this scope or current:read; without either, trip and library tasks still work.",
   },
   // Honest about the spend (Mitchell, 2026-09-30): it reads nothing of yours,
   // but every lookup costs a geocoding budget everyone shares.
   "places:read": {
     title: "Search places",
     description:
-      "Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day. Finding a place by name needs this scope; without it, stops can still be added with coordinates, but not found by name.",
+      "Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day. Finding a place by name outside a trip needs this scope, while a trip's own place search takes trips:write instead; without either, stops can still be added with coordinates, but not found by name.",
   },
   // **The narrow pair** (Mitchell, 2026-11-15): an agent that only needs the
   // trip a person is on should not also read every planned and past trip. A
@@ -164,7 +164,7 @@ export const SCOPE_CATALOGUE: Readonly<Record<ApiScope, ApiScopeDescription>> = 
   "current:write": {
     title: "Change current trips",
     description:
-      "Change the days and stops of the trips under way now or starting within three days, and undo, redo or revert those changes. Changing a current trip needs this scope or trips:write; without either, current trips can only be read.",
+      "Change the days and stops of the trips under way now or starting within three days, and undo, redo or revert those changes. Those changes need this scope or trips:write, while editing the trip itself (its name, dates or cover, or deleting or restoring it) still needs trips:write; without either, current trips can only be read.",
   },
 });
 
