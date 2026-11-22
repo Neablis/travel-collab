@@ -18,6 +18,7 @@
   | 2026-11-01 | 41352389671 | 124985237121, `test / e2e (1/2)` | `85c6202`, same branch |
   | 2026-11-10 | 42758239323 attempt 1 | 129637582293, `test / e2e (1/2)` | `7838c65`, PR 716 |
   | 2026-11-11 | 43037550861 attempt 4 | 130706775704, `test / e2e (1/2)` | `9748638`, PR 717 |
+  | 2026-11-22 | 44972067186 | 137053836393, `test / e2e (1/2)` | `2a04d2c`, PR 788 (M63 part 5) |
 
   In each, the failure annotation is this test alone (`1 failed`, 214 passed). Run 41352389671's
   other shard, job 124985237068, failed a different spec (`m16-mobile-assistant.spec.ts:478`); that
