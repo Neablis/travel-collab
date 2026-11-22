@@ -145,6 +145,7 @@ export function SecurityScreen() {
           <Text className="text-md text-pretty">
             Found something exploitable? Tell us privately, and please do not open a public issue for it.
           </Text>
+          <Text className="text-pretty">Anything served from caesura.today is in scope; preview sites are not.</Text>
           <ul className="flex flex-wrap gap-2.5">
             {SECURITY_CONTACTS.map((contact) => (
               <li key={contact.href}>
@@ -154,6 +155,10 @@ export function SecurityScreen() {
               </li>
             ))}
           </ul>
+          <Text className="text-pretty">
+            There is no SLA and no bounty &mdash; this is one maintainer&rsquo;s project. Expect a first response
+            in days, not hours.
+          </Text>
         </section>
 
         <section aria-labelledby="sec-faq" className={sectionClass}>

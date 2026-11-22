@@ -176,6 +176,16 @@ describe("SecurityScreen", () => {
     expect(data.textContent).toContain("cannot be turned back");
   });
 
+  // Mitchell, 2026-11-22: a reporter should know before writing what is in scope and
+  // what reply to expect, as SECURITY.md tells them.
+  it("says what is in scope and that there is no SLA or bounty", () => {
+    render(<SecurityScreen />);
+    const text = screen.getByRole("region", { name: "Reporting a vulnerability" }).textContent!;
+    expect(text).toContain("Anything served from caesura.today is in scope; preview sites are not.");
+    expect(text).toContain("There is no SLA and no bounty");
+    expect(text).toContain("Expect a first response in days, not hours.");
+  });
+
   it("shows the same contacts as security.txt, and no others", async () => {
     render(<SecurityScreen />);
     const reporting = within(screen.getByRole("region", { name: "Reporting a vulnerability" }));
