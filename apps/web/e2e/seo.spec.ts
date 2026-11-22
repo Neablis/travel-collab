@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
-import { BASE_URL } from "../src/config";
 import { DATABASE_URL } from "../src/server/config";
 import { expect, test } from "./fixtures/test";
 import { forget, publishedDay, stranger } from "./helpers";
@@ -544,12 +543,18 @@ for (const route of ["/", "/ai", "/security", "/developers"]) {
       const html = await (await visitor.request.get(route)).text();
       const images = [...html.matchAll(/<meta property="og:image" content="([^"]*)"/g)].map((m) => m[1]!);
       expect(images.length, "an og:image tag").toBeGreaterThan(0);
+      // The origin the page declares for itself. `metadataBase` bakes it in at
+      // build time, before the harness picks its port, so BASE_URL cannot stand in.
+      const canonical = /<link rel="canonical" href="([^"]*)"/.exec(html)?.[1];
+      expect(canonical, "a canonical link").toBeDefined();
       for (const content of images) {
-        // Absolute, on the site's own origin: a relative URL is read against the
+        // Absolute, on the page's own origin: a relative URL is read against the
         // reader's page, not ours.
         expect(content).toMatch(/^https?:\/\//);
-        expect(new URL(content).origin).toBe(new URL(BASE_URL).origin);
-        const image = await visitor.request.get(content);
+        expect(new URL(content).origin).toBe(new URL(canonical!).origin);
+        // Fetched by path against the server under test, whatever origin the tag names.
+        const { pathname, search } = new URL(content);
+        const image = await visitor.request.get(pathname + search);
         expect(image.status()).toBe(200);
         expect(image.headers()["content-type"]).toContain("image/");
       }
