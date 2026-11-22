@@ -216,38 +216,38 @@ A first cut of the parts, for the plan to settle:
   its example, and no tool without one is named.
 - [ ] **Connect your AI:** `/developers` has one anchored section per proven tool, `/ai` links
   each tool to its section, and `#connect-claude` still resolves (unit test over the links).
-- [ ] **MCP tool scopes:** `/developers` lists every MCP tool with the scope it needs, generated
+- [x] **MCP tool scopes:** `/developers` lists every MCP tool with the scope it needs, generated
   from `tools.ts`, which a test proves by adding a tool in a fixture.
 - [ ] **Code samples:** every endpoint in the OpenAPI document carries `x-codeSamples` and
   `/developers/reference` shows them, or the part is recorded as cut because Scalar does not
   render them.
-- [ ] **`/agents.md`:** it answers 200 as `text/markdown` signed out, its scopes are
+- [x] **`/agents.md`:** it answers 200 as `text/markdown` signed out, its scopes are
   `SCOPE_CATALOGUE`, and `llms.txt` and the api-catalog link it (unit tests).
-- [ ] **Surfaces:** the page names the assistant, the MCP server, scoped tokens, the public API,
+- [x] **Surfaces:** the page names the assistant, the MCP server, scoped tokens, the public API,
   Poppy, `llms.txt`, `agents.md` and Connected apps, and every link on it reaches a route that
   exists (unit test).
-- [ ] **One scope table:** `/ai` links to `/developers#scopes` and has no scope table of its own.
+- [x] **One scope table:** `/ai` links to `/developers#scopes` and has no scope table of its own.
 - [ ] **Search:** the page is in the production sitemap with a canonical, an `og:url`, a title
   of 60 characters or fewer, a description of 160 or fewer, and `FAQPage` JSON-LD that matches
   the visible questions.
-- [ ] **Signed out:** with JavaScript off, `/ai` answers HTML with one `<h1>` and every prompt
+- [x] **Signed out:** with JavaScript off, `/ai` answers HTML with one `<h1>` and every prompt
   (`test:e2e:ci-like`, or CI on the PR).
 - [ ] **Words:** the title, description and headline are the words Mitchell approved.
-- [ ] **No development details:** neither the page nor `/agents.md` mentions the repository,
+- [x] **No development details:** neither the page nor `/agents.md` mentions the repository,
   its `AGENTS.md` or how Caesura is built.
 - [ ] **[walk]** Mitchell runs `/ai` through Google's Rich Results Test with no errors, and
   follows the Claude example from `/ai`, through `/developers#connect-claude`, to a published playbook.
 - [ ] **`/security` claims:** every statement on `/security` has a recorded check on production,
   and the page names no certification Caesura does not hold.
-- [ ] **One place for safety:** `/ai`'s safety answer links to `/security` and does not repeat
+- [x] **One place for safety:** `/ai`'s safety answer links to `/security` and does not repeat
   it, and every link on `/security` reaches a route or anchor that exists (unit test).
-- [ ] **Reporting:** `/security`'s reporting section and `/.well-known/security.txt` read their
+- [x] **Reporting:** `/security`'s reporting section and `/.well-known/security.txt` read their
   contacts from one constant, and `security.txt` carries a `Policy:` line naming `/security`
   (unit tests).
 - [ ] **`/security` search and signed out:** in the production sitemap with a canonical, an
   `og:url`, a title of 60 characters or fewer and a description of 160 or fewer; with JavaScript
   off it answers HTML with one `<h1>` (`test:e2e:ci-like`, or CI on the PR).
-- [ ] **No build details on `/security`:** it names no response header, hosting or database
+- [x] **No build details on `/security`:** it names no response header, hosting or database
   vendor, library or repository.
 - [ ] **`/security` words:** the title, description and headline are the words Mitchell
   approved.
@@ -271,6 +271,61 @@ A first cut of the parts, for the plan to settle:
   and Poppy end to end (connector to a working Caesura session). Recorded here as his word, not a
   run captured by this session.
 - **ChatGPT, Gemini:** Mitchell, before the gate (decision 15).
+
+### Code and CI at 21d4f01c, the top of the stack (gate boxes *MCP tool scopes*, */agents.md*, *Surfaces*, *One scope table*, *Signed out*, *No development details*, *One place for safety*, *Reporting*, *No build details on /security*)
+
+Every check on PR 788 at `21d4f01c` is green: `ci-ok`, lint, typecheck, unit, integration, scripts
+and both e2e shards. Unit, integration and e2e:
+https://github.com/Neablis/travel-collab/actions/runs/44964864293 (unit job 137031516998, e2e jobs
+137031517048 and 137031517059). Paths are under `apps/web/`.
+
+- **MCP tool scopes.** `src/server/mcp/toolScopes.test.ts:23-32` adds a fixture tool and its scope
+  appears in the rows with no second list to edit. `src/components/front/DevelopersScreen.test.tsx:212-221`
+  renders one row per tool given, with its scope, including a tool no page edit knows about
+  (`:9-12`). `src/app/(front)/developers/page.tsx:3,30` passes `TOOL_SCOPES`, which
+  `src/app/api/mcp/tools.ts:226` builds from `TOOLS` with `mcpToolScopes`.
+- **`/agents.md`.** `src/server/public-api/discovery.test.ts:203-208` answers 200 as
+  `text/markdown; charset=utf-8` and lists every scope; `:233-240` shows no path entry of the proxy
+  matcher reaches it, so it is served signed out. The scope text is built from `SCOPE_CATALOGUE` at
+  `src/app/api/mcp/agentsMd.ts:29` (the test pins the scope names, the source line pins the
+  catalogue). `llms.txt` links it at `discovery.test.ts:182-185` and the api-catalog at `:85-89`.
+- **Surfaces.** `src/components/front/AiScreen.test.tsx:39-56` names the assistant, MCP server,
+  scoped tokens, public API, Poppy, `llms.txt`, `agents.md` and Connected apps. `:121-141` checks
+  every internal link reaches a served route, and every `#anchor` is one `/developers` renders.
+- **One scope table.** `AiScreen.test.tsx:143-147`: no table on `/ai`, and a link to
+  `/developers#scopes`.
+- **Signed out.** `e2e/m63-ai-page.spec.ts:18-26` with JavaScript off and no session: status 200,
+  one `h1`, and each of the six prompts visible. `AiScreen.test.tsx:102-105` also holds one `h1`.
+- **No development details.** `/ai`: `AiScreen.test.tsx:186-208`, page text and metadata, bars the
+  repository, hosts, framework and headers, and `AGENTS.md`. `/agents.md`:
+  `discovery.test.ts:244-252` bars the same words.
+- **One place for safety.** `AiScreen.test.tsx:156-163` answers in one line with a link to
+  `/security`, and `:177-184` bars the sign-in and storage detail that `/security` owns.
+  `src/components/front/SecurityScreen.test.tsx:105-123` checks every link on `/security` reaches a
+  served route or an anchor the target renders.
+- **Reporting.** `SecurityScreen.test.tsx:179-187` shows the page's contacts equal
+  `SECURITY_CONTACTS` and the `Contact:` lines of `security.txt`. `discovery.test.ts:113-121`
+  checks `Policy: https://caesura.today/security` and that `/security` is a served route.
+- **No build details on `/security`.** `SecurityScreen.test.tsx:147-170` bars response headers
+  (`strict-transport-security`, `content-security-policy`, `hsts`, `csp`), hosting and database
+  vendors, libraries and `repository`; `:126-135` bars GitHub in text and hrefs. A grep of
+  `SecurityScreen.tsx`, `security/page.tsx` and `securityContacts.ts` for the same words, plus
+  Postgres, AWS and similar, finds only comments.
+
+Left unticked, with what is proven:
+
+- **Search** and **`/security` search and signed out:** everything except the production sitemap is
+  proven. `src/app/(front)/ai/page.test.tsx:28-42` (title at most 60, description at most 160,
+  canonical, `og:url`) and `:53-64` (`FAQPage` questions equal the visible ones);
+  `src/app/(front)/security/page.test.tsx:28-42` and `:62-73` for `/security`;
+  `e2e/m63-security-page.spec.ts:8-16` (200, `text/html`, one `h1`, JavaScript off).
+  `src/app/sitemap.test.ts:36-42` lists both pages on the deployment origin only. The
+  production-sitemap clause waits for the merge.
+- **Connect your AI:** the links, the six anchors and the `#connect-claude` anchor are proven
+  (`AiScreen.test.tsx:107-141`, `DevelopersScreen.test.tsx:173-187`), but "per proven tool" depends on
+  the *Examples* box, and ChatGPT and Gemini have no recorded run yet.
+- **Examples, Words, `/security` words, `/security` claims, Code samples, [walk]:** need Mitchell or
+  production, or the preview.
 
 ### `/security` claims on production (gate box *Security claims*)
 
