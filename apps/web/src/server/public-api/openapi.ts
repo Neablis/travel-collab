@@ -4,6 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 import { API_SCOPES, PageNode, SCOPE_CATALOGUE } from "@tc/contracts";
 import { DECLARED, MAX_PAGE_LIMIT, type DeclaredHandler, type MethodDef } from "./route";
+import { SAMPLE_ORIGIN, codeSamplesFor } from "./codeSamples";
 import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
 
 // **The reference docs, derived — never written twice** (Decision 9).
@@ -39,8 +40,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "2.10.0";
-export const API_FINGERPRINT = "c7981f594997270b750264b8007090aeccaa0b5d8a45cca15c233bfa9d9b4c9c";
+export const API_VERSION = "2.11.0";
+export const API_FINGERPRINT = "66c2a670f77ad32932ad73bddd523bace083a65ea4a22e9f9a9cbf685e5bf149";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -443,6 +444,13 @@ export function buildOpenApi(
       paths[url] ??= {};
       paths[url]![method.toLowerCase()] = {
         summary: def.summary,
+        // Generated, never typed: Scalar draws these in place of its own snippet.
+        "x-codeSamples": codeSamplesFor({
+          method,
+          url,
+          body: def.body === undefined ? undefined : schemaOf(def.body),
+          query: def.query === undefined ? undefined : schemaOf(def.query),
+        }),
         description: [
           def.signedOut === true
             ? `${scopeLine} when called with a token; a Personal Agent's Poppy Session alone, with no token, may also read it.`
@@ -509,7 +517,7 @@ export function buildOpenApi(
         ...API_SCOPES.map((scope) => `- \`${scope}\` — ${SCOPE_CATALOGUE[scope].description}`),
       ].join("\n"),
     },
-    servers: [{ url: "/api" }],
+    servers: [{ url: SAMPLE_ORIGIN }],
     paths,
     components: {
       securitySchemes: {

@@ -27,6 +27,8 @@ const STATIC_PATHS = [
   "/playbooks",
   "/demo",
   ...DEMO_TRIPS.map(({ slug }) => demoPath(slug)),
+  "/ai",
+  "/security",
   "/developers",
   "/developers/reference",
 ];

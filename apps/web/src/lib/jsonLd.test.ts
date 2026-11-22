@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayDescription } from "./playbooksPreview";
-import { breadcrumbJsonLd, countryCityPageCrumbs, dayJsonLd, linkItemListJsonLd, organizationJsonLd, placeItemListJsonLd, placePageCrumbs, serializeJsonLd, tagPageCrumbs, webSiteJsonLd } from "./jsonLd";
+import { breadcrumbJsonLd, countryCityPageCrumbs, dayJsonLd, faqPageJsonLd, linkItemListJsonLd, organizationJsonLd, placeItemListJsonLd, placePageCrumbs, serializeJsonLd, softwareApplicationJsonLd, tagPageCrumbs, webPageJsonLd, webSiteJsonLd } from "./jsonLd";
 
 const ORIGIN = "https://caesura.today";
 const DAY = {
@@ -284,5 +284,31 @@ describe("serializeJsonLd", () => {
     const out = serializeJsonLd({ "@context": "https://schema.org", "@type": "Thing", name: "a <!-- b" });
     expect(out).not.toContain("<!--");
     expect(JSON.parse(out).name).toBe("a <!-- b");
+  });
+});
+
+describe("page structured data", () => {
+  it("a WebPage names its own URL and is about a SoftwareApplication", () => {
+    const app = softwareApplicationJsonLd(ORIGIN);
+    expect(app).toMatchObject({ "@type": "SoftwareApplication", name: "Caesura", url: ORIGIN });
+    expect(webPageJsonLd({ origin: ORIGIN, path: "/ai", name: "AI", description: "About AI." })).toMatchObject({
+      "@type": "WebPage",
+      url: `${ORIGIN}/ai`,
+      name: "AI",
+      description: "About AI.",
+      about: { "@type": "SoftwareApplication", name: "Caesura" },
+    });
+  });
+
+  it("a FAQPage lists each question with its accepted answer, in order", () => {
+    const faq = faqPageJsonLd([
+      { question: "One?", answer: "Yes." },
+      { question: "Two?", answer: "No." },
+    ]);
+    expect(faq).toMatchObject({ "@type": "FAQPage" });
+    expect(faq.mainEntity).toEqual([
+      { "@type": "Question", name: "One?", acceptedAnswer: { "@type": "Answer", text: "Yes." } },
+      { "@type": "Question", name: "Two?", acceptedAnswer: { "@type": "Answer", text: "No." } },
+    ]);
   });
 });

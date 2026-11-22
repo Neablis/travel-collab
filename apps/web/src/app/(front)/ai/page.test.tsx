@@ -1,0 +1,65 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { JsonLdNode } from "@/lib/jsonLd";
+
+// The page's JSON-LD, captured as data rather than parsed out of a script tag.
+const jsonLd = vi.fn<(data: JsonLdNode | JsonLdNode[]) => void>();
+vi.mock("@/components/JsonLd", () => ({
+  JsonLd: ({ data }: { data: JsonLdNode | JsonLdNode[] }) => {
+    jsonLd(data);
+    return null;
+  },
+}));
+
+import AiPage, { metadata } from "./page";
+
+afterEach(() => {
+  cleanup();
+  jsonLd.mockReset();
+});
+
+// Out of the Next file convention on purpose: in the (front) group the convention serves a hashed URL, and the unhashed one 404s.
+const PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../public");
+
+describe("/ai metadata", () => {
+  it("keeps the title to 60 characters and the description to 160", () => {
+    const title =
+      typeof metadata.title === "object" && metadata.title !== null && "absolute" in metadata.title
+        ? metadata.title.absolute
+        : String(metadata.title);
+    expect(title.length).toBeGreaterThan(0);
+    expect(title.length).toBeLessThanOrEqual(60);
+    expect(String(metadata.description).length).toBeGreaterThan(0);
+    expect(String(metadata.description).length).toBeLessThanOrEqual(160);
+  });
+
+  it("has a canonical and an og:url for /ai", () => {
+    expect(metadata.alternates?.canonical).toBe("/ai");
+    expect(metadata.openGraph?.url).toBe("/ai");
+  });
+
+  it("ships its own share image from public/, with alt text, and points og:image at it", () => {
+    const images = metadata.openGraph?.images;
+    const first = Array.isArray(images) ? images[0] : images;
+    expect(first).toMatchObject({ url: "/og/ai.png", alt: expect.stringMatching(/\S/) });
+    expect(readFileSync(path.join(PUBLIC, "og/ai.png")).length).toBeGreaterThan(0);
+  });
+});
+
+describe("/ai structured data", () => {
+  it("is a WebPage about a SoftwareApplication, plus a FAQPage whose questions are the visible ones", () => {
+    render(<AiPage />);
+    const nodes = jsonLd.mock.calls[0]![0] as JsonLdNode[];
+    expect(nodes.map((node) => node["@type"])).toEqual(["WebPage", "FAQPage"]);
+    expect(nodes[0]).toMatchObject({ about: { "@type": "SoftwareApplication" } });
+
+    const visible = within(screen.getByRole("region", { name: "Questions" }))
+      .getAllByRole("heading", { level: 3 })
+      .map((h) => h.textContent);
+    const marked = (nodes[1]!.mainEntity as { name: string }[]).map((q) => q.name);
+    expect(marked).toEqual(visible);
+  });
+});

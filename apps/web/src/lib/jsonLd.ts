@@ -43,6 +43,49 @@ export function webSiteJsonLd(origin: string): JsonLdNode {
   return { "@context": CONTEXT, "@type": "WebSite", name: SITE_NAME, url: origin, description: SITE_DESCRIPTION };
 }
 
+/** Caesura as a `SoftwareApplication`: the thing an explainer page is about. */
+export function softwareApplicationJsonLd(origin: string): JsonLdNode {
+  return {
+    "@type": "SoftwareApplication",
+    name: SITE_NAME,
+    url: origin,
+    applicationCategory: "TravelApplication",
+    operatingSystem: "Web",
+  };
+}
+
+/** A static page as a `WebPage` about Caesura the application, at its own URL. */
+export function webPageJsonLd(input: { origin: string; path: string; name: string; description: string }): JsonLdNode {
+  return {
+    "@context": CONTEXT,
+    "@type": "WebPage",
+    name: input.name,
+    description: input.description,
+    url: `${input.origin}${input.path}`,
+    about: softwareApplicationJsonLd(input.origin),
+  };
+}
+
+/** A visible question and its answer. */
+export type FaqEntry = { question: string; answer: string };
+
+/**
+ * A `FAQPage` from the questions a page shows. Google only honours FAQ markup
+ * for questions a visitor can read, so the page builds this from the same
+ * array it renders.
+ */
+export function faqPageJsonLd(entries: readonly FaqEntry[]): JsonLdNode {
+  return {
+    "@context": CONTEXT,
+    "@type": "FAQPage",
+    mainEntity: entries.map((entry) => ({
+      "@type": "Question",
+      name: entry.question,
+      acceptedAnswer: { "@type": "Answer", text: entry.answer },
+    })),
+  };
+}
+
 /**
  * A shared day as a `TouristTrip` whose itinerary lists its stops, and the
  * `BreadcrumbList` above it.
