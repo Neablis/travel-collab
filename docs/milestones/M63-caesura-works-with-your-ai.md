@@ -245,7 +245,7 @@ A first cut of the parts, for the plan to settle:
   Poppy, `llms.txt`, `agents.md` and Connected apps, and every link on it reaches a route that
   exists (unit test).
 - [x] **One scope table:** `/ai` links to `/developers#scopes` and has no scope table of its own.
-- [ ] **Search:** the page is in the production sitemap with a canonical, an `og:url`, a title
+- [x] **Search:** the page is in the production sitemap with a canonical, an `og:url`, a title
   of 60 characters or fewer, a description of 160 or fewer, and `FAQPage` JSON-LD that matches
   the visible questions.
 - [x] **Signed out:** with JavaScript off, `/ai` answers HTML with one `<h1>` and every prompt
@@ -262,7 +262,7 @@ A first cut of the parts, for the plan to settle:
 - [x] **Reporting:** `/security`'s reporting section and `/.well-known/security.txt` read their
   contacts from one constant, and `security.txt` carries a `Policy:` line naming `/security`
   (unit tests).
-- [ ] **`/security` search and signed out:** in the production sitemap with a canonical, an
+- [x] **`/security` search and signed out:** in the production sitemap with a canonical, an
   `og:url`, a title of 60 characters or fewer and a description of 160 or fewer; with JavaScript
   off it answers HTML with one `<h1>` (`test:e2e:ci-like`, or CI on the PR).
 - [x] **No build details on `/security`:** it names no response header, hosting or database
@@ -339,15 +339,14 @@ https://github.com/Neablis/travel-collab/actions/runs/44964864293 (unit job 1370
   `SecurityScreen.tsx`, `security/page.tsx` and `securityContacts.ts` for the same words, plus
   Postgres, AWS and similar, finds only comments.
 
-Left unticked, with what is proven:
+Search boxes, with what is proven (both ticked 2026-11-22 once the production sitemap listed the two pages):
 
-- **Search** and **`/security` search and signed out:** everything except the production sitemap is
-  proven. `src/app/(front)/ai/page.test.tsx:28-42` (title at most 60, description at most 160,
+- **Search** and **`/security` search and signed out:** `src/app/(front)/ai/page.test.tsx:28-42` (title at most 60, description at most 160,
   canonical, `og:url`) and `:53-64` (`FAQPage` questions equal the visible ones);
   `src/app/(front)/security/page.test.tsx:28-42` and `:62-73` for `/security`;
   `e2e/m63-security-page.spec.ts:8-16` (200, `text/html`, one `h1`, JavaScript off).
   `src/app/sitemap.test.ts:36-42` lists both pages on the deployment origin only. The
-  production-sitemap clause was checked after the merge and failed on the edge-cached file (see *Search on production*).
+  production-sitemap clause failed on the edge-cached file after the merge and passed after the purge (see *Search on production*).
 - **`/security` claims:** checked on production 2026-11-22 and ticked (see the evidence below).
 
 *Examples* and *Connect your AI* were ticked 2026-11-22 once ChatGPT was cut and the Gemini CLI and
@@ -416,7 +415,15 @@ Fetched with `curl` from `https://caesura.today` on `ded937e`.
   URLs, both `<loc>https://caesura.today/ai</loc>` and `<loc>https://caesura.today/security</loc>`
   present, as `src/app/sitemap.ts` and `sitemap.test.ts:36-42` say. A request with `Cache-Control: no-cache`
   still returned `HIT`, so a crawler gets the old file until the edge copy is purged or expires (about
-  01:33Z on 2026-11-23). Both boxes stay unticked until `https://caesura.today/sitemap.xml` itself lists the two pages.
+  01:33Z on 2026-11-23). Both boxes stayed unticked until `https://caesura.today/sitemap.xml` itself listed the two pages.
+- **The sitemap clause passes after the purge.** Cloudflare had served a pre-merge copy of the sitemap
+  (`s-maxage=86400` plus `stale-while-revalidate=86400`) until Mitchell purged its cache for `/sitemap.xml`
+  on 2026-11-22. Then `curl -s https://caesura.today/sitemap.xml` (`cf-cache-status: MISS`,
+  `last-modified: Sun, 22 Nov 2026 05:04:40 GMT`) contained `<loc>https://caesura.today/ai</loc>` and
+  `<loc>https://caesura.today/security</loc>`. Re-fetched by the closing session at 05:05:15Z the same day:
+  200, `last-modified: Sun, 22 Nov 2026 05:04:40 GMT`, `cf-cache-status: HIT` (the edge now holds the
+  post-purge file), and both `<loc>` lines present. Both boxes ticked. A follow-up task was suggested to
+  shorten that cache or purge it on deploy; until then a new page can be missing from the sitemap for up to a day.
 
 ### Words, code samples and walk on the PR 788 preview (gate boxes *Words*, */security words*, *Code samples*, *[walk]*)
 
@@ -444,3 +451,123 @@ Mitchell, 2026-11-22, in the orchestrator session, on the PR 788 preview at 1edd
 - **[walk].** "Walk worked fine": Rich Results Test on `/ai` with no errors, the Claude example from
   `/ai` through `/developers#connect-claude` to a published playbook, and the five tabs at phone
   width.
+
+## Retro — written 2026-11-22 (18 of 18 boxes ticked)
+
+### What went well
+- **Every clause has a recorded production check.** The last two boxes closed on 2026-11-22 once
+  `https://caesura.today/sitemap.xml` listed `/ai` and `/security` (*Search on production*). The rest were ticked with a
+  cited run, commit, or file and line, and Mitchell's walk and word approvals are quoted in *Evidence*.
+- **The scope changes were decided, not drifted into.** ChatGPT (Business plan) and Gemini (CLI only) could not be proven on free
+  tiers, so decision 20 cut ChatGPT, turned Gemini into the Gemini CLI and named Muse, and the words were re-approved on the
+  preview at a321529. Nothing on the page claims a tool that has no recorded production run.
+- **Cost per line was well under target.** $3.65 per 1,000 lines added this session (target under 20), 3634 lines across 44 files in
+  5 parts. No builder averaged over 89k context.
+
+### What could be better
+- **`docs/STATUS.md` was over its surface-size headroom on `main` from M62's close** and was fixed only on part 5, so marking the lower
+  parts ready turned PR 787 red. It was fixed by cherry-picking 5f19212 to part 1 and merging up. The headroom check belongs
+  at the start of a milestone, on `main`, before any part is marked ready.
+- **Agents committing to `ccr-8a6d904d-vhaiet` while it was checked out in the main checkout left a stale index that looked
+  like a revert, three times.** A part-0 commit from a subagent should run in its own worktree.
+- **A parallel session duplicated the STATUS fix**, and one implementer was stopped before pushing. Two sessions were given the same ask
+  without either seeing the other.
+- **KI-20261111-b recurred** (run 44972067186), and cost a triage subagent pass. It is open with that run added.
+- **Cloudflare served a day-old sitemap after the deploy until Mitchell purged it.** The sitemap sends `s-maxage=86400` plus
+  `stale-while-revalidate=86400`, so a new page can be missing from it for up to a day after a deploy. A follow-up task was suggested to
+  shorten that cache or purge on deploy.
+- **The orchestrator's share of spend was 44.5% this session and 37% in the previous one**, against a target of under 15% (see below).
+
+### Leftovers
+- Shorten the sitemap cache, or purge `/sitemap.xml` on deploy: a suggested task, not yet filed. Mitchell's call.
+- KI-20261111-b (e2e palette add-trip-from-home dialog not found): open, recurred in run 44972067186.
+- ChatGPT as a connect-your-AI tool: cut by decision 20; returns only when it can be proven on production.
+
+## Spend
+
+<!-- session-metrics:milestone v1 -->
+
+11 agents, 281 API calls, 4.15M units, $13.26 recorded. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | ≈ $ | Share |
+|---|---|---|---|---|---|---|---|
+| `orchestrator` | 1 | 80 | 182k | 247k | 1.85M | $5.90 | 44.5% |
+| `phase-implementer` | 4 | 103 | 74k | 125k | 1.06M | $3.37 | 25.4% |
+| `general-purpose` | 3 | 27 | 108k | 138k | 662k | $2.12 | 16.0% |
+| `part-reviewer` | 3 | 71 | 50k | 86k | 587k | $1.87 | 14.1% |
+
+**Costliest agents**
+
+| Agent (description) | Type | Calls | Avg context | Peak context | Units | ≈ $ |
+|---|---|---|---|---|---|---|
+| Cut ChatGPT, make Gemini tab Gemini CLI | `phase-implementer` | 71 | 89k | 125k | 775k | $2.47 |
+| Tick evidence-backed M63 gate boxes | `general-purpose` | 18 | 119k | 138k | 372k | $1.19 |
+| Review ChatGPT cut, Gemini CLI, Muse | `part-reviewer` | 24 | 63k | 86k | 251k | $0.80 |
+| Review /security lines on part 5 | `part-reviewer` | 21 | 47k | 64k | 173k | $0.55 |
+| Review STATUS trim on part 1 + merge-up | `part-reviewer` | 26 | 39k | 52k | 163k | $0.52 |
+| Part 0: record Gemini, Muse, decision 20 | `general-purpose` | 5 | 88k | 96k | 154k | $0.49 |
+| Record Mitchell's gate answers on part 0 | `general-purpose` | 4 | 83k | 90k | 136k | $0.44 |
+| Part 5: two minor review fixes | `phase-implementer` | 16 | 42k | 49k | 124k | $0.40 |
+| Add scope + SLA lines to /security | `phase-implementer` | 9 | 41k | 47k | 90k | $0.29 |
+| Fix STATUS.md headroom on part 1, merge up | `phase-implementer` | 7 | 35k | 37k | 67k | $0.22 |
+
+**Orchestrator turns, by what started them**
+
+| What started the turn | Turns | Units | ≈ $ | Share of orchestrator | Idle |
+|---|---|---|---|---|---|
+| GitHub / trigger notification | 0 | 0 | $0.00 | 0.0% | 0 of 0 (0 units) |
+| Subagent report | 8 | 464k | $1.48 | 25.1% | – |
+| Subagent finished | 6 | 727k | $2.32 | 39.4% | – |
+| Harness | 3 | 0 | $0.00 | 0.0% | – |
+| Human | 8 | 655k | $2.09 | 35.5% | – |
+| Other (unrecognised frame) | 0 | 0 | $0.00 | 0.0% | – |
+
+**Follow-ups and cache re-writes**
+
+| Measure | Count | Tokens |
+|---|---|---|
+| `SendMessage` calls by the orchestrator | 1 | – |
+| Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
+| Full cache re-writes in subagents | 0 | 0 |
+| — directly after a coordinator message | 0 | 0 |
+
+**Guard hooks**
+
+| Hook | deny | note |
+|---|---|---|
+| `implementer-brief-check` | 1 | 0 |
+
+**Targets**
+
+| Target | Result | Measured |
+|---|---|---|
+| Orchestrator share of units < 15% | missed | 44.5% |
+| No phase-implementer averaging > 250k context | met | worst 89k |
+| GitHub wakes per merged part < 5 | met | 0 / 5 = 0.0 |
+| Dollars per 1k lines added < 20 | met | $3.65 |
+| Coordinator-message re-writes <= 2 | met | 0 |
+
+### All sessions
+
+Three sessions have recorded totals, summing to 12.48M units.
+
+- **This close session** (2fbc60ba): its generated block is the block above, unchanged.
+- **Previous orchestrator session** (2026-11-21 22:25Z to 2026-11-22 00:35Z): 9 agents, 174 API calls, 2.66M units. By agent type:
+  `general-purpose` 2 (haiku CI triage) 1.22M; `orchestrator` 970k, peak context 197k; `phase-implementer` 3, 320k;
+  `part-reviewer` 3, 151k. The orchestrator's share was 37%. `implementer-brief-check` denied 1.
+- **An earlier session**: 19 agents, 5.67M units.
+
+The other 19-agent session (12 `phase-implementer`, 6 `part-reviewer`, 1 triage) and the helper session that ran the STATUS.md
+headroom fix have no recorded totals, so the 12.48M is a floor, not the milestone's cost.
+
+
+### Spend against the last milestone
+
+- Orchestrator's share of the spend: target under 15%, **missed** at 44.5% this session and 37% in the previous one. M62 missed it too
+  (session 2 at 10.9% met, close session at 34.5% missed). Cause: the close handled many relayed asks and fix rounds (ChatGPT, Gemini and Muse, the
+  `/security` lines, the STATUS headroom, stale-index cleanups) in the orchestrator's own context instead of one brief per ask.
+- Dollars per 1,000 lines added: target under 20, **met** at $3.65 this session (M62: not measured), on 3634 lines across 44 files in 5 parts.
+- A builder's average context: target none over 250k, met (worst 89k, M62 worst 55k in the close session).
+- GitHub wakes per merged part: met, 0 of 5. Coordinator-message re-writes: met, 0.
