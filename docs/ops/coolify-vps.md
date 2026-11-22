@@ -148,7 +148,10 @@ lists were cleared; reading them again in 60 s`). Its log shows `[warm-up] read 
 a few minutes after the deploy, or `[warm-up] skipped: <why>`. After that, each
 library read that still reaches Postgres logs `[library] cache miss: <what was read>`
 (2026-11-20): a steady run of them is what keeps Neon awake, and the key names the
-page kind, filter or page number a crawler asked for.
+page kind, filter or page number a crawler asked for. Since 2026-11-22 a stranger's lists come
+from one entry, `snapshot`, so its misses should be one after each deploy or clear; a
+`library snapshot too large to cache` line means the library outgrew one entry and the lists
+are back to one read per URL (ADR-063, amendment 2026-11-22).
 
 By hand: Actions → *deploy-production* → Run workflow on `main` (migrates, then
 deploys the head). The dashboard's Redeploy and redeploying an older deployment

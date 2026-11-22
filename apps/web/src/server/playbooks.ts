@@ -4,7 +4,6 @@ import { SavedDayVisibility } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
   DISCOVER_PAGE_SIZE,
-  inBudgetBand,
   LENGTH_BAND_RANGE,
   lengthBandOf,
   RATING_FLOOR_MIN,
@@ -30,6 +29,15 @@ import { LIBRARY_TAG, libraryCached } from "./libraryCache";
 import { SAVED_DAY_COVER_JOIN, SAVED_DAY_COVER_JSON } from "./savedDayCovers";
 import { withProxySrc } from "./coverRows";
 import { isoOf, toDiscoverDay, type DiscoverRow, type OwnerNames } from "./discoverDay";
+import {
+  CANDIDATE_LIMIT,
+  keeps,
+  pageOfPublishedDays,
+  publishedDaysQuery,
+  summarizeDiscover,
+  type LibraryEntry,
+  type PublishedDaysFilter,
+} from "./librarySnapshot";
 import { parseSavedDayColumns } from "./savedDayRow";
 
 // The public library's three read surfaces (M11b links 5, 7 and 8): Discover's
@@ -48,21 +56,6 @@ import { parseSavedDayColumns } from "./savedDayRow";
 // predicate below is on a real column, and the only thing done with `stops` is
 // to parse it whole and derive the card's facts in application code — which is
 // reading a value, not querying into one.
-
-/**
- * How many ranked rows the database is asked for before the application-side
- * filters run.
- *
- * A day's total cost is a sum over its priced stops (`savedDayFacts`), so it
- * cannot be a SQL predicate without querying into the jsonb ADR-029 says is a
- * value. It is therefore applied to a bounded window of already-ranked
- * candidates, and the response says so (`truncated`) rather than reporting a
- * filtered count that silently means "of the first 200".
- */
-const CANDIDATE_LIMIT = 200;
-
-/** How many sibling / "busy right now" chips a row carries. Matches `cities.ts`. */
-const SIBLING_LIMIT = 12;
 
 export type DiscoverQuery = {
   /** The cities asked for. Empty is a browse, not a search for nothing. */
@@ -283,7 +276,14 @@ function scopePredicate(scope: DiscoverScope, readerId: string | null): SQL {
   return sql`(${isPublic} or d.owner_id = ${readerId})`;
 }
 
-/** Everything except the ranking and the limit — shared by both queries. */
+/**
+ * Everything except the ranking and the limit — shared by both queries.
+ *
+ * Spelled a second time for a stranger in `librarySnapshot.ts`'s `matches`,
+ * which works their lists out of one cached copy of the library (ADR-063,
+ * 2026-11-22). Change one and change the other: `librarySnapshot.int.test.ts`
+ * holds them to one answer.
+ */
 function matchPredicate(query: DiscoverQuery): SQL {
   // `sql.param`, not a bare `${array}`: drizzle FLATTENS a JS array in a
   // template hole into one placeholder per element, so `['Kyoto']` arrives as
@@ -393,94 +393,9 @@ function orderBy(sort: DiscoverSort): SQL {
     newest: sql`coalesce(d.published_at, d.created_at) desc`,
   }[sort];
   // `d.id` last so a page is stable when everything above it ties.
+  // `librarySnapshot.ts`'s `compareBy` is this order again, for a stranger's
+  // lists; `librarySnapshot.int.test.ts` holds the two to one order.
   return sql`matched_count desc, ${then}, d.id asc`;
-}
-
-/**
- * Whether a card answers what the query asks after the read: the budget band
- * and the tag, which are both worked out from the stops.
- */
-function keeps(query: Pick<DiscoverQuery, "budget" | "tag">, day: DiscoverDay): boolean {
-  const tag = query.tag ?? "any";
-  return inBudgetBand(query.budget, day.totalCost?.amountMinor ?? null) && (tag === "any" || day.namedTags.includes(tag));
-}
-
-/**
- * Cities in the RESULT SET that the query did NOT ask for, with counts —
- * §15's sibling chips.
- *
- * **Counted here, in application code, over the same in-band days the cards are
- * drawn from — not by a `group by` over `matchPredicate`.** That was the shape
- * until 2026-09-02 and it could not carry the budget band: a day's total is a
- * sum over its priced stops (`savedDayFacts`) and ADR-029 makes `stops` a value
- * that is never queried into, so the band is applied to the candidate window
- * after the rows come back. A chip counted in SQL therefore counted the whole
- * match while the page below it showed the band — with `Under $200` on, a chip
- * read `Osaka · 3` above a page holding one card (KI-2026-08-31). Two counts of
- * two different sets, and the one on screen was the wrong one. One array now
- * feeds both, so they cannot disagree again.
- *
- * What the number means, stated because the row's shape invites a wrong reading:
- * **"days in these results that also touch this city"**, NOT "days tapping this
- * chip would add". City matching is containment (`d.cities_folded && ARRAY[...]`), so
- * adding a city WIDENS the match — tapping a chip can only ever return at least
- * this many days, never fewer. `DiscoverScreen` labels the row "Also in these
- * results" for that reason.
- *
- * Counted over every in-band candidate rather than over the 24 that fit on the
- * page — the original deliberate choice, and the one part of this the band bug
- * never touched. What bounds it now is `CANDIDATE_LIMIT`, the same window the
- * band itself runs over, and `truncated` is already the response's word for
- * "that window was full".
- *
- * With an empty query there is nothing to subtract and this is the *"busy right
- * now"* row instead — the busiest cities among the ranked candidates. One
- * derivation serves both, which is why there is no second "popular cities"
- * endpoint.
- */
-function siblingCities(days: DiscoverDay[], queryCities: string[]): CityMatch[] {
-  // By `cityKey`, the rule the SQL matched on (KI-2026-10-05-d): "Osaka" and
-  // "osaka" are one chip, and no chip is a spelling of a city already asked
-  // for. The chip is spelled the way the first day to carry it spells it —
-  // `days` is in ranked order, so that is stable for a given result.
-  const asked = new Set(queryCities.map(cityKey));
-  const counts = new Map<string, { city: string; days: number }>();
-  for (const day of days) {
-    // A `Set` of keys so a day is counted once per city even if it carries two
-    // spellings of one — a chip that counted one day twice would be the same
-    // class of lie this function was rewritten to stop telling.
-    const seen = new Set<string>();
-    for (const city of day.cities) {
-      const key = cityKey(city);
-      if (asked.has(key) || seen.has(key)) continue;
-      seen.add(key);
-      const chip = counts.get(key);
-      if (chip === undefined) counts.set(key, { city, days: 1 });
-      else chip.days += 1;
-    }
-  }
-  return [...counts.values()]
-    // UTF-16 code-unit order on the tiebreak, not `localeCompare`: this
-    // replaced an `order by days desc, city asc` whose collation came from the
-    // database, so pinning it to something that does not vary with a locale
-    // keeps the row identical between a developer's machine, CI and production.
-    // That determinism is the whole requirement and `<`/`>` meets it exactly.
-    //
-    // It is NOT codepoint order, which is what this comment claimed until
-    // CodeRabbit read it (PR #123). JS `<` compares code units, so an
-    // astral-plane character — U+10000 and up, encoded as a surrogate pair
-    // starting in D800 — sorts BEFORE U+E000-U+FFFF. `city` is free text
-    // (`z.string().min(1).max(200)`), so that input is reachable rather than
-    // impossible, and it is still left alone on purpose: the difference is the
-    // order of at most SIBLING_LIMIT chips in one row, both orders are stable
-    // on every machine, and neither is alphabetical to a reader anyway. A
-    // codepoint comparator would buy a distinction nobody can perceive and
-    // cost an allocating comparison plus a test to hold it in place.
-    //
-    // Do not reach for `localeCompare` to "fix" this. Varying with the locale
-    // is the bug the sort replaced.
-    .sort((a, b) => b.days - a.days || (a.city < b.city ? -1 : a.city > b.city ? 1 : 0))
-    .slice(0, SIBLING_LIMIT);
 }
 
 /**
@@ -527,6 +442,46 @@ export async function sitemapDays(): Promise<SitemapDay[]> {
     name: String(row.name),
     publishedAt: isoOf(row.published_at),
   }));
+}
+
+/**
+ * **Every published day as `librarySnapshot.ts` reads the library**: one row
+ * each, with its card and the columns the predicates and the ranking read
+ * (ADR-063, amended 2026-11-22). What a stranger's Discover and the place,
+ * tag, length and author pages are worked out of, once a day, rather than one
+ * query per URL. Published, not deleted, not moderated: the rows a reader
+ * with no account could be shown, whatever they asked.
+ *
+ * Each card is read with no cities asked for and no reader. The two things a
+ * query changes on a card, its matched cities and whether it is the reader's,
+ * `librarySnapshot.ts` sets per query.
+ */
+export async function readLibrarySnapshot(): Promise<LibraryEntry[]> {
+  const pageTags = await globalPageTags();
+  const rows = await db.execute<DiscoverRow & { cities_folded: string[]; countries: string[]; score: unknown }>(sql`
+    select ${discoverColumns}, 0 as matched_count, d.cities_folded, d.countries, r.score
+    from saved_days d ${SAVED_DAY_COVER_JOIN} ${SAVED_DAY_RANK_JOIN}
+    where d.visibility = ${SavedDayVisibility.enum.public}
+      ${notDeleted}
+      ${notModerated}
+  `);
+  return rows.rows.map((row) => {
+    const publishedAt = isoOf(row.published_at);
+    return {
+      id: String(row.id),
+      card: discoverCard(row, [], null, pageTags),
+      ownerId: row.owner_id,
+      citiesFolded: [...row.cities_folded],
+      countries: [...row.countries],
+      dayCount: Number(row.day_count),
+      adds: Number(row.adds),
+      rating: row.rating === null ? null : Number(row.rating),
+      reviewCount: Number(row.review_count),
+      score: row.score === null || row.score === undefined ? null : Number(row.score),
+      createdAt: Date.parse(isoOf(row.created_at) ?? new Date(0).toISOString()),
+      publishedAt: publishedAt === null ? null : Date.parse(publishedAt),
+    };
+  });
 }
 
 /**
@@ -624,64 +579,13 @@ export async function discoverDays(query: DiscoverQuery, after: string | null = 
   // filters, not the window's. It rides on the query that already runs rather
   // than being a second one: the ranking already has to visit every matching
   // row to sort them, so the count costs no extra round trip and no extra scan.
-  const windowFull = rows.rows.length === CANDIDATE_LIMIT;
-
-  const candidates = [...rows.rows]
-    .map((row) => discoverCard(row, query.cities, query.readerId, pageTags))
-    .filter((day): day is DiscoverDay => day !== null);
-
-  // The one currency every matched day agrees on, or null. Decided over the
-  // candidates rather than the page so the budget control does not appear and
-  // disappear as you scroll. See `BudgetBand` for why a mixed set hides it
-  // rather than comparing numbers that are not comparable.
-  const currencies = new Set(
-    candidates.map((d) => d.totalCost?.currency).filter((c): c is string => c !== undefined),
-  );
-  const budgetCurrency = currencies.size === 1 ? [...currencies][0]! : null;
-
-  const filtered = candidates.filter((day) => keeps(query, day));
-  const askedAfterRead = query.budget !== "any" || (query.tag ?? "any") !== "any";
-  const days = page.slice(0, DISCOVER_PAGE_SIZE);
-  const nextCursor = page.length > DISCOVER_PAGE_SIZE ? days.at(-1)!.savedDayId : null;
-
-  return {
-    days,
-    nextCursor,
-    // `filtered`, not `candidates` and not the page: the chips describe the set
-    // the cards come from, band included. See `siblingCities`.
-    siblings: siblingCities(filtered, query.cities),
-    budgetCurrency,
-    // Unfiltered on purpose — see `sharedPlaybookCount` on the response. It answers
-    // "is there a library at all", which is what decides whether the
-    // leaderboard link has anything to rank, and no filter on this query may
-    // change that answer.
+  return summarizeDiscover({
+    query,
+    window: rows.rows.map((row) => discoverCard(row, query.cities, query.readerId, pageTags)),
+    totalCount: Number(rows.rows[0]?.total_count ?? 0),
+    page,
     sharedPlaybookCount: await publishedPlaybookCount(),
-    // BOTH caps, not just the candidate window: a query matching 25 to 199
-    // days used to return 24 cards flagged as the complete set (CodeRabbit,
-    // PR 102). Discover pages by `nextCursor` since M42; the profile day list
-    // is this same function, unpaged, and says the same thing there by
-    // comparing its card count against `playbooksShared`.
-    truncated: windowFull || filtered.length > DISCOVER_PAGE_SIZE,
-    // What the results sentence states (KI-2026-09-23-h). Inside the window
-    // `filtered` IS the whole match — band and tag applied, unreadable rows
-    // dropped — so it is exact and agrees with the pages to the day. Past the
-    // window the SQL total is used, minus the rows this read could not parse;
-    // that is exact only with no band or tag on, since neither can be a
-    // predicate. With one on past the window, what is known is a floor, and it
-    // says so: the window's matches, or this page's cards and one more when
-    // there is a next page, whichever is more, so "10+" never heads 24 cards.
-    ...(!windowFull
-      ? { matchCount: filtered.length, matchCountExact: true }
-      : !askedAfterRead
-        ? {
-            matchCount: Number(rows.rows[0]!.total_count) - (rows.rows.length - candidates.length),
-            matchCountExact: true,
-          }
-        : {
-            matchCount: Math.max(filtered.length, days.length + (nextCursor === null ? 0 : 1)),
-            matchCountExact: false,
-          }),
-  };
+  });
 }
 
 /** What a Discover request asks for, before the reader is known. */
@@ -1362,38 +1266,10 @@ export async function publishedCountryCityPages(): Promise<CountryCityPage[]> {
  * holds `orderBy` and `rankKeys` to one order; every page is top.
  */
 export async function publishedDaysPage(
-  filter: {
-    cities?: string[];
-    countries?: string[];
-    authorId?: string;
-    tag?: DescribedTag;
-    /** Discover's length band, as its own SQL predicate: a length page. */
-    length?: LengthBand;
-    sort?: DiscoverSort;
-    /**
-     * Additionally require the day to touch one of these city spellings —
-     * the AND half of a country×city page, since `matchPredicate` ORs its
-     * places: `countries` alone would list every day in the country, not the
-     * city's days in it. The count side (`publishedCountryCityPages`, and the
-     * country×city tag counts) applies the same membership test, so the two
-     * cannot disagree.
-     */
-    citiesWithin?: string[];
-  },
+  filter: PublishedDaysFilter,
   page: { limit: number; offset: number },
 ): Promise<{ days: DiscoverDay[]; total: number }> {
-  const query: DiscoverQuery = {
-    cities: filter.cities ?? [],
-    countries: filter.countries ?? [],
-    authorId: filter.authorId ?? null,
-    scope: "everyone",
-    sort: filter.sort ?? "top",
-    budget: "any",
-    length: filter.length ?? "any",
-    tag: filter.tag ?? "any",
-    publishedOnly: true,
-    readerId: null,
-  };
+  const query = publishedDaysQuery(filter);
   // Every match is read and paged here, not by `limit`/`offset`: a row
   // `toDiscoverDay` cannot read, or whose description does not name the tag,
   // is dropped, and counting rows in SQL would then disagree with the cards
@@ -1405,15 +1281,9 @@ export async function publishedDaysPage(
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
   `);
-  const within = filter.citiesWithin === undefined ? null : new Set(filter.citiesWithin);
   // One lattice read for the whole page, so every card agrees on which chips
   // link — shared with the tag pages' nav through the cache.
   const pageTags = await globalPageTags();
-  const readable = [...rows.rows]
-    .map((row) => discoverCard(row, query.cities, null, pageTags))
-    .filter(
-      (day): day is DiscoverDay =>
-        day !== null && keeps(query, day) && (within === null || day.cities.some((city) => within.has(city))),
-    );
-  return { days: readable.slice(page.offset, page.offset + page.limit), total: readable.length };
+  const cards = rows.rows.map((row) => discoverCard(row, query.cities, null, pageTags));
+  return pageOfPublishedDays(cards, query, filter.citiesWithin, page);
 }

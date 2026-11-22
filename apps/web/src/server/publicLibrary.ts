@@ -3,6 +3,7 @@ import type { DiscoverResponse, PublicAuthor } from "@/lib/playbooks";
 import { slugify } from "@/lib/playbookUrls";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { DISCOVER_RANK_TAG, LIBRARY_CACHE_SECONDS, LIBRARY_TAG, authorTag, dayTag, libraryCached } from "./libraryCache";
+import { discoverFromSnapshot, publishedDaysFromSnapshot, type LibraryEntry } from "./librarySnapshot";
 import * as live from "./playbooks";
 import { getSavedDayCover } from "./savedDayCovers";
 import { schedulePinBackfill } from "./savedDayPinBackfill";
@@ -95,19 +96,65 @@ export async function dayPageView(
   };
 }
 
+// **A stranger's lists are worked out of one entry, not cached one per URL**
+// (2026-11-22). Discover, and the place, tag, length and author pages, were
+// each an entry per search, cursor and `?page=N`, and a crawler walking them
+// found a key nobody had asked for almost every time: a database read for
+// each, a few a minute through the night, so Neon never slept. The snapshot is
+// every published day in one entry, and any of those URLs is a filter over it
+// (`librarySnapshot.ts`), read once a day or after a list is cleared.
+
 /**
- * Discover for one reader. A reader with no account is cached per search; a
- * signed-in one is read live, since *Yours* and *Saved* are theirs alone.
+ * The largest snapshot kept, measured as Next measures a data-cache entry: the
+ * value as JSON, inside a JSON envelope. Next refuses an entry over 2 MB with
+ * a warning and stores nothing, which would turn every list back into a read;
+ * this leaves room for the envelope.
  */
-export function discoverFor(input: live.DiscoverInput, readerId: string | null): Promise<DiscoverResponse> {
-  if (readerId !== null) return live.discoverFor(input, readerId);
-  // Spelled field by field so one search is one key, whatever order the
-  // caller built it in. Scope is Everyone for anyone signed out.
+export const SNAPSHOT_MAX_BYTES = 1_800_000;
+
+/**
+ * Every published day for the lists, or null when the library has outgrown
+ * one cache entry and the lists fall back to an entry per URL.
+ */
+type LibrarySnapshot = { entries: LibraryEntry[] | null };
+
+/** The library read whole, as the snapshot keeps it. */
+async function readSnapshot(): Promise<LibrarySnapshot> {
+  const entries = await live.readLibrarySnapshot();
+  const bytes = JSON.stringify(JSON.stringify(entries)).length;
+  if (bytes <= SNAPSHOT_MAX_BYTES) return { entries };
+  // Kept as a small "too big" rather than thrown or left uncached, so the
+  // fallback is decided once a day and not by a read per request.
+  console.error("library snapshot too large to cache; lists read per URL", { bytes, days: entries.length });
+  return { entries: null };
+}
+
+/**
+ * The snapshot, under both list tags: publish and unpublish clear
+ * `LIBRARY_TAG` and never the rank tag, so a day that left the library must
+ * drop out through the first; the daily rank rewrite clears only the second.
+ */
+function librarySnapshot(): Promise<LibrarySnapshot> {
+  return libraryCached(["snapshot"], [LIBRARY_TAG, DISCOVER_RANK_TAG], readSnapshot);
+}
+
+/** A stranger's Discover search, spelled field by field so one search is one key, whatever order the caller built it in. */
+function strangersSearch(input: live.DiscoverInput): live.DiscoverInput & { after: string | null } {
+  // Scope is Everyone for anyone signed out.
   const { cities, countries = [], sort, budget, length, rating = "any", tag = "any", after = null } = input;
-  const search = { cities, countries, sort, budget, length, rating, tag, after, scope: "everyone" as const };
-  // Both tags: unpublish clears `LIBRARY_TAG` and never the rank tag, so a day
-  // that left the library must drop out through the first; the hourly rank
-  // rewrite clears only the second.
+  return { cities, countries, sort, budget, length, rating, tag, after, scope: "everyone" as const };
+}
+
+/**
+ * Discover for one reader. A reader with no account is answered from the
+ * snapshot; a signed-in one is read live, since *Yours* and *Saved* are theirs
+ * alone.
+ */
+export async function discoverFor(input: live.DiscoverInput, readerId: string | null): Promise<DiscoverResponse> {
+  if (readerId !== null) return live.discoverFor(input, readerId);
+  const search = strangersSearch(input);
+  const { entries } = await librarySnapshot();
+  if (entries !== null) return discoverFromSnapshot(entries, { ...search, authorId: null }, search.after);
   return libraryCached(["discover", JSON.stringify(search)], [LIBRARY_TAG, DISCOVER_RANK_TAG], () =>
     live.discoverFor(search, null),
   );
@@ -174,12 +221,14 @@ export async function lengthPageFor(
   );
 }
 
-/** One page of a place's or an author's published days: `playbooks.ts`'s `publishedDaysPage`, cached. */
-export function publishedDaysPage(
+/** One page of a place's or an author's published days: `playbooks.ts`'s `publishedDaysPage`, from the snapshot. */
+export async function publishedDaysPage(
   filter: Parameters<typeof live.publishedDaysPage>[0],
   page: Parameters<typeof live.publishedDaysPage>[1],
 ): ReturnType<typeof live.publishedDaysPage> {
-  // The rank tag too: these pages list by `top`, which the hourly rewrite moves.
+  const { entries } = await librarySnapshot();
+  if (entries !== null) return publishedDaysFromSnapshot(entries, filter, page);
+  // The rank tag too: these pages list by `top`, which the daily rewrite moves.
   const tags =
     filter.authorId === undefined
       ? [LIBRARY_TAG, DISCOVER_RANK_TAG]
