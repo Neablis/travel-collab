@@ -174,6 +174,10 @@ Each *Recommendation* below is now the decision.
     everywhere*. `security.txt` and `/security` both keep only the security email, still read from
     one constant. `security.txt`'s `Expires` does not change, and it gains its `Policy:` line.
 
+19. **`/security` carries `SECURITY.md`'s scope and no-SLA/no-bounty lines, answered 2026-11-22.**
+    Mitchell, in chat, after walking the PR 788 preview: the page also carries `SECURITY.md`'s scope
+    line and its no-SLA, no-bounty line. Part 5 is adding them.
+
 ## Scope
 
 A first cut of the parts, for the plan to settle:
@@ -218,7 +222,7 @@ A first cut of the parts, for the plan to settle:
   each tool to its section, and `#connect-claude` still resolves (unit test over the links).
 - [x] **MCP tool scopes:** `/developers` lists every MCP tool with the scope it needs, generated
   from `tools.ts`, which a test proves by adding a tool in a fixture.
-- [ ] **Code samples:** every endpoint in the OpenAPI document carries `x-codeSamples` and
+- [x] **Code samples:** every endpoint in the OpenAPI document carries `x-codeSamples` and
   `/developers/reference` shows them, or the part is recorded as cut because Scalar does not
   render them.
 - [x] **`/agents.md`:** it answers 200 as `text/markdown` signed out, its scopes are
@@ -232,10 +236,10 @@ A first cut of the parts, for the plan to settle:
   the visible questions.
 - [x] **Signed out:** with JavaScript off, `/ai` answers HTML with one `<h1>` and every prompt
   (`test:e2e:ci-like`, or CI on the PR).
-- [ ] **Words:** the title, description and headline are the words Mitchell approved.
+- [x] **Words:** the title, description and headline are the words Mitchell approved.
 - [x] **No development details:** neither the page nor `/agents.md` mentions the repository,
   its `AGENTS.md` or how Caesura is built.
-- [ ] **[walk]** Mitchell runs `/ai` through Google's Rich Results Test with no errors, and
+- [x] **[walk]** Mitchell runs `/ai` through Google's Rich Results Test with no errors, and
   follows the Claude example from `/ai`, through `/developers#connect-claude`, to a published playbook.
 - [ ] **`/security` claims:** every statement on `/security` has a recorded check on production,
   and the page names no certification Caesura does not hold.
@@ -249,7 +253,7 @@ A first cut of the parts, for the plan to settle:
   off it answers HTML with one `<h1>` (`test:e2e:ci-like`, or CI on the PR).
 - [x] **No build details on `/security`:** it names no response header, hosting or database
   vendor, library or repository.
-- [ ] **`/security` words:** the title, description and headline are the words Mitchell
+- [x] **`/security` words:** the title, description and headline are the words Mitchell
   approved.
 
 ## Evidence
@@ -324,10 +328,34 @@ Left unticked, with what is proven:
 - **Connect your AI:** the links, the six anchors and the `#connect-claude` anchor are proven
   (`AiScreen.test.tsx:107-141`, `DevelopersScreen.test.tsx:173-187`), but "per proven tool" depends on
   the *Examples* box, and ChatGPT and Gemini have no recorded run yet.
-- **Examples, Words, `/security` words, `/security` claims, Code samples, [walk]:** need Mitchell or
-  production, or the preview.
+- **Examples:** waits on Mitchell's production test of ChatGPT and Gemini (decision 15); no tool
+  without a recorded run may be named.
+- **`/security` claims:** left unticked for now; the page gains `SECURITY.md`'s scope and
+  no-SLA/no-bounty lines (decision 19), and their check is still to be recorded.
+- **ChatGPT and Gemini** wait on Mitchell's production test. Until it is recorded, *Examples* and
+  *Connect your AI* stay unticked, and the /ai words below would change if either is cut.
 
 ### `/security` claims on production (gate box *Security claims*)
 
 - **2026-11-21, Mitchell.** Checked the claims in PR 788's "Claims to check on production" table
   and confirmed them: "Confirmed and good".
+
+### Words, code samples and walk on the PR 788 preview (gate boxes *Words*, */security words*, *Code samples*, *[walk]*)
+
+Mitchell, 2026-11-22, in the orchestrator session, on the PR 788 preview at 1eddf2f
+(https://788.preview.caesura.today, the same tree as 21d4f01c).
+
+- **Words.** Approved as shown on the preview: `/ai` title "Caesura: the AI trip planner for Claude,
+  ChatGPT, Gemini", description "Ask Claude, ChatGPT, Gemini or another AI tool to plan in Caesura for
+  you. You choose what it may do, and you can disconnect it any time.", headline "An AI trip planner
+  that works with Claude, ChatGPT and Gemini"; and on `/developers` the labels "Any AI app" and "Pick
+  your tool". These `/ai` words name ChatGPT and Gemini, so they would change if decision 15 cuts
+  either.
+- **`/security` words.** Approved as shown: title "Security at Caesura: your account, your data, your
+  AI", description "How you sign in to Caesura, what an AI tool can do for you, how to take access
+  back, and how to report a vulnerability.", headline "Security at Caesura".
+- **Code samples.** "Code samples work": he saw `x-codeSamples` rendered on the preview's
+  `/developers/reference`.
+- **[walk].** "Walk worked fine": Rich Results Test on `/ai` with no errors, the Claude example from
+  `/ai` through `/developers#connect-claude` to a published playbook, and the five tabs at phone
+  width.
