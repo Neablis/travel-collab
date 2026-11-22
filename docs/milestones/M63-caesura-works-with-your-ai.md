@@ -55,7 +55,8 @@ Each *Recommendation* below is now the decision.
 1. **The URL and the words it targets.** *Recommendation:* `/ai`, short and written for a person
    who is not a developer, titled *"Caesura works with
    your AI: Claude, ChatGPT, Gemini and agents"* (the build proposes the final words, and Mitchell
-   approves them, as in M50 and M53). It targets *AI trip planner*, *trip planner MCP server*,
+   approves them, as in M50 and M53) *(amended 2026-11-22: ChatGPT cut by decision 20, the approved
+   title is now "Caesura: the AI trip planner for Claude and Gemini")*. It targets *AI trip planner*, *trip planner MCP server*,
    *Claude trip planning* and *travel planning API for agents*. It is in the sitemap, linked from
    the landing's footer, `/developers`, and `/llms.txt`.
 2. **What "agents.md" is here.** There is no public `agents.md` today. Checked 2026-11-20:
@@ -80,9 +81,10 @@ Each *Recommendation* below is now the decision.
    - **Claude Code, Cursor or any MCP client**: the same URL in its MCP config.
    - **ChatGPT**: through its MCP connector support, if it signs in to our OAuth server.
      Otherwise through a GPT action on the OpenAPI document. Part 1 finds out which and the
-     page says only what works.
+     page says only what works. *(Cut by decision 20.)*
    - **Gemini**: function calling over the OpenAPI document with a scoped token (M60 D12 found
-     no public sign that Gemini is a Poppy client).
+     no public sign that Gemini is a Poppy client). *(Amended by decision 20: it is the Gemini CLI
+     over MCP.)*
    - **Meta's Muse and other Poppy agents**: they discover `poppy.json` and need no setup.
    - **A script**: `curl` with a `trips:read` token, to show how small a scope can be.
    An example that cannot be shown working is cut, not described.
@@ -95,7 +97,8 @@ Each *Recommendation* below is now the decision.
 5. **Structured data.** *Recommendation:* `WebPage` with `about` the `SoftwareApplication`, and
    an `FAQPage` block for the four or five questions the page answers (*Does Caesura work with
    Claude? With ChatGPT? Is my data safe with an AI tool? What can an agent not do?*). The FAQ is
-   only marked up if it is visible on the page.
+   only marked up if it is visible on the page. *(Amended 2026-11-22: the ChatGPT question is cut
+   by decision 20 and a "Does Caesura work with Gemini?" question replaces it.)*
 6. **How the examples stay true.** *Recommendation:* setup steps are written once, on
    `/developers`. `/ai` links to them and never restates them. The MCP tool table and the
    per-endpoint code samples are generated from code (`tools.ts`, the OpenAPI route
@@ -107,7 +110,7 @@ Each *Recommendation* below is now the decision.
    cached, has its own OG image, and stays inside M53's title and description limits.
 8. **The split: each fact lives in one place.** *Recommendation:*
    - **`/developers` holds the how-to.** *Connect Claude* becomes **Connect your AI**, with one
-     anchored section per tool from decision 3 (`#connect-claude`, `#connect-chatgpt`, and so on).
+     anchored section per tool from decision 3 (`#connect-claude`, `#connect-chatgpt`, and so on; *`#connect-chatgpt` cut by decision 20*).
      The existing `#connect-claude` anchor keeps working. The token path, the scope table and the
      reference links stay as they are, above it, because agents arriving from `/llms.txt` need
      them first. `/developers`' title and description, approved in M53, do not change.
@@ -162,7 +165,7 @@ Each *Recommendation* below is now the decision.
 15. **ChatGPT and Gemini are built, and Mitchell proves them.** Their sections are written from each
     vendor's docs; Mitchell runs each on production before the gate, and any he cannot get working is
     removed on the top part before it merges. Claude, an MCP client, Poppy discovery and the `curl`
-    script are proven from the orchestrating session.
+    script are proven from the orchestrating session. *(Applied by decision 20, 2026-11-22.)*
 16. **Five parts, not eight.** Each page ships with its own search pieces; proving the examples is
     evidence in part 0, not a code part.
 17. **The words are approved on the preview at the gate.** Builders draft from the working titles
@@ -177,6 +180,17 @@ Each *Recommendation* below is now the decision.
 19. **`/security` carries `SECURITY.md`'s scope and no-SLA/no-bounty lines, answered 2026-11-22.**
     Mitchell, in chat, after walking the PR 788 preview: the page also carries `SECURITY.md`'s scope
     line and its no-SLA, no-bounty line. Part 5 is adding them.
+
+20. **ChatGPT cut, Gemini becomes the Gemini CLI, Poppy is named Muse (applies decision 15),
+    answered 2026-11-22.** Mitchell, in the orchestrator session: ChatGPT custom connectors need a
+    Business plan, and Gemini's need the Gemini CLI. He could not test ChatGPT on a free tier, so
+    per decision 15 ChatGPT was **cut** on part 5 (PR 788 commit a321529) and is named nowhere.
+    The Gemini tab became the Gemini CLI over MCP (`~/.gemini/settings.json` with `httpUrl`
+    `https://caesura.today/api/mcp`, then `/mcp auth caesura`), anchor `#connect-gemini` kept.
+    He asked to name Meta's Muse on the Poppy tab: tab "Muse", section "Connect Meta's Muse",
+    anchor `#connect-poppy` kept. His words on proof: "I've used muse with caesura a bunch, it works
+    really well since it discovers and uses poppy natively." Tab order is now Claude, Gemini CLI,
+    Muse, Script.
 
 ## Scope
 
@@ -216,9 +230,9 @@ A first cut of the parts, for the plan to settle:
 
 ## Exit gate
 
-- [ ] **Examples:** every AI tool `/ai` or `/developers` names has a recorded production run of
+- [x] **Examples:** every AI tool `/ai` or `/developers` names has a recorded production run of
   its example, and no tool without one is named.
-- [ ] **Connect your AI:** `/developers` has one anchored section per proven tool, `/ai` links
+- [x] **Connect your AI:** `/developers` has one anchored section per proven tool, `/ai` links
   each tool to its section, and `#connect-claude` still resolves (unit test over the links).
 - [x] **MCP tool scopes:** `/developers` lists every MCP tool with the scope it needs, generated
   from `tools.ts`, which a test proves by adding a tool in a fixture.
@@ -274,7 +288,16 @@ A first cut of the parts, for the plan to settle:
   production and they work: a script with a real `trips:read` token, Claude publishing a playbook,
   and Poppy end to end (connector to a working Caesura session). Recorded here as his word, not a
   run captured by this session.
-- **ChatGPT, Gemini:** Mitchell, before the gate (decision 15).
+- **2026-11-22, Gemini CLI.** Mitchell confirmed it on production: "Confirmed Gemini cli". Recorded
+  as his word (decision 20).
+- **2026-11-22, Muse.** Mitchell, by repeated use: "I've used muse with caesura a bunch, it works
+  really well since it discovers and uses poppy natively." Recorded as his word (decision 20).
+- **ChatGPT:** named nowhere. Cut by decision 20 on part 5 (PR 788 a321529); `AiScreen.test.tsx:189`
+  and `DevelopersScreen.test.tsx:167` assert its absence.
+- **Summary for the *Examples* box.** Claude, the MCP client, Poppy discovery and the script were
+  proven from the orchestrating session (the 2026-11-21 entries above); the Gemini CLI and Muse by
+  Mitchell, as recorded here. Every tool `/ai` and `/developers` name has a recorded run, and the
+  one without (ChatGPT) is not named.
 
 ### Code and CI at 21d4f01c, the top of the stack (gate boxes *MCP tool scopes*, */agents.md*, *Surfaces*, *One scope table*, *Signed out*, *No development details*, *One place for safety*, *Reporting*, *No build details on /security*)
 
@@ -325,15 +348,13 @@ Left unticked, with what is proven:
   `e2e/m63-security-page.spec.ts:8-16` (200, `text/html`, one `h1`, JavaScript off).
   `src/app/sitemap.test.ts:36-42` lists both pages on the deployment origin only. The
   production-sitemap clause waits for the merge.
-- **Connect your AI:** the links, the six anchors and the `#connect-claude` anchor are proven
-  (`AiScreen.test.tsx:107-141`, `DevelopersScreen.test.tsx:173-187`), but "per proven tool" depends on
-  the *Examples* box, and ChatGPT and Gemini have no recorded run yet.
-- **Examples:** waits on Mitchell's production test of ChatGPT and Gemini (decision 15); no tool
-  without a recorded run may be named.
-- **`/security` claims:** left unticked for now; the page gains `SECURITY.md`'s scope and
-  no-SLA/no-bounty lines (decision 19), and their check is still to be recorded.
-- **ChatGPT and Gemini** wait on Mitchell's production test. Until it is recorded, *Examples* and
-  *Connect your AI* stay unticked, and the /ai words below would change if either is cut.
+- **`/security` claims:** needs a production check after the merge; the page gained `SECURITY.md`'s
+  scope and no-SLA/no-bounty lines (decision 19), and that check is still to be recorded.
+
+*Examples* and *Connect your AI* were ticked 2026-11-22 once ChatGPT was cut and the Gemini CLI and
+Muse were proven (decision 20). *Connect your AI*: the links, the anchors and the `#connect-claude`
+anchor are proven by `AiScreen.test.tsx:107-141` and `DevelopersScreen.test.tsx:173-187`, now one
+section per proven tool (Claude, Gemini CLI, Muse, Script).
 
 ### `/security` claims on production (gate box *Security claims*)
 
@@ -349,8 +370,15 @@ Mitchell, 2026-11-22, in the orchestrator session, on the PR 788 preview at 1edd
   ChatGPT, Gemini", description "Ask Claude, ChatGPT, Gemini or another AI tool to plan in Caesura for
   you. You choose what it may do, and you can disconnect it any time.", headline "An AI trip planner
   that works with Claude, ChatGPT and Gemini"; and on `/developers` the labels "Any AI app" and "Pick
-  your tool". These `/ai` words name ChatGPT and Gemini, so they would change if decision 15 cuts
-  either.
+  your tool". *Re-approved 2026-11-22, on the preview at a321529, after decision 20 cut ChatGPT, so
+  the earlier note that these words would change if decision 15 cut either is resolved.* The new
+  `/ai` words: title "Caesura: the AI trip planner for Claude and Gemini", description "Ask Claude,
+  Gemini or another AI tool to plan in Caesura for you. You choose what it may do, and you can
+  disconnect it any time.", headline "An AI trip planner that works with Claude and Gemini", tab
+  labels "Gemini CLI" and "Muse", and a new FAQ "Does Caesura work with Gemini?": "Yes. Add Caesura
+  to the Gemini CLI as an MCP server, sign in, and choose what it may do." Mitchell was asked to
+  approve them and replied "clean and finish this up and then let's merge", so approval is recorded
+  as given by proceeding, not as a separate "approved".
 - **`/security` words.** Approved as shown: title "Security at Caesura: your account, your data, your
   AI", description "How you sign in to Caesura, what an AI tool can do for you, how to take access
   back, and how to report a vulnerability.", headline "Security at Caesura".
