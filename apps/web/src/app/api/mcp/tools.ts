@@ -12,6 +12,7 @@ import { GET as getTrip } from "@/app/api/v1/trips/[tripId]/route";
 import { GET as listTrips } from "@/app/api/v1/trips/route";
 import { withPublicUrl } from "@/server/mcp/publishUrl";
 import type { McpTool } from "@/server/mcp/tools";
+import { mcpToolScopes } from "@/server/mcp/toolScopes";
 
 // **The connector's tools: each one row naming the v1 handler it adapts**
 // (ADR-083 §8, M55 D2 and D4). A tool owns its name, its words for a model and
@@ -220,3 +221,6 @@ export const TOOLS: readonly McpTool[] = [
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   },
 ];
+
+/** The tool table the developers page and `/agents.md` draw: each tool with the scope its handler declares. */
+export const TOOL_SCOPES = mcpToolScopes(TOOLS);

@@ -27,6 +27,8 @@ export function GET(_request?: Request) {
         anchor: `${origin}/api/v1`,
         "service-desc": [{ href: `${origin}/api/v1/openapi`, type: "application/json" }],
         "service-doc": [{ href: `${origin}/developers/reference`, type: "text/html" }],
+        // the IANA `describedby` relation: how an agent should behave on this API, beside what it is.
+        describedby: [{ href: `${origin}/agents.md`, type: "text/markdown" }],
       },
     ],
   };

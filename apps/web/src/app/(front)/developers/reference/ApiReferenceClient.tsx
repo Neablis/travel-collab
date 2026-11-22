@@ -21,11 +21,11 @@ import "@scalar/api-reference-react/style.css";
 // - No `proxyUrl`. The request runner calls this origin, which needs no proxy;
 //   a proxy would route a caller's bearer token through Scalar's servers.
 //
-// `servers` exists because the document has none and its paths are `/v1/...`:
-// without it the runner and every generated snippet would send
-// `<origin>/v1/account`, a 404. The document itself stays as it is — adding a
-// `servers` entry there moves `API_FINGERPRINT` and is a contract change of
-// its own.
+// `servers` is set here although the document now names one (`openapi.ts`, the
+// production origin): the runner and every generated snippet must call *this*
+// deployment, so a preview does not send a caller's token to production. The
+// document itself stays as it is — changing its `servers` moves `API_FINGERPRINT`
+// and is a contract change of its own.
 //
 // **Zod 4 inside Scalar probes for `eval`, and the probe is a CSP violation.**
 // Its first parse runs `Function("")` in a try/catch to decide whether it may

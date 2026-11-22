@@ -1,8 +1,7 @@
 // **RFC 9116 `GET /.well-known/security.txt`.** Where a researcher or a
 // scanner looks to find out how to report a vulnerability. It says what
-// `SECURITY.md` says, in the format they expect: exploitable findings go to the
-// maintainer's email or a private GitHub security advisory, everything else to
-// GitHub Issues.
+// `/security` says, in the format they expect: the contacts are `SECURITY_CONTACTS`
+// (the security email), the same list the page shows.
 //
 // **`Expires` is a fixed date, on purpose.** RFC 9116 makes it required and
 // recommends under a year out, so a file whose contacts went stale stops being
@@ -22,10 +21,7 @@
 // does. Reachability for bots is the firewall's call, as for the api-catalog —
 // see `docs/guidelines/using-the-api.md`.
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
-
-const REPO = "https://github.com/Neablis/travel-collab";
-/** The maintainer, so a reporter without access to the private repository has a way in. */
-const EMAIL = "mitchell@demarcosoftware.com";
+import { SECURITY_CONTACTS, SECURITY_POLICY_URL } from "@/lib/securityContacts";
 
 /** When the contacts below were last confirmed, plus under a year. */
 const EXPIRES = "2027-10-01T00:00:00.000Z";
@@ -35,20 +31,12 @@ function securityTxt(origin: string): string {
   return [
     "# Caesura (travel-collab) security contact.",
     "#",
-    "# Found something exploitable? Report it privately: email the maintainer (the",
-    "# first Contact below) or, with access to the repository, open a GitHub",
-    "# security advisory (the second). Do not open a public issue for it.",
-    "#",
-    "# Found a bug that is not a security problem? File a GitHub issue:",
-    `#   ${REPO}/issues/new`,
-    "# Say what you did, what you expected and what happened instead, and include",
-    "# the page URL and your browser.",
+    "# Found something exploitable? Report it privately to the Contact below.",
+    "# Do not open a public issue for it.",
     "",
-    `Contact: mailto:${EMAIL}`,
-    `Contact: ${REPO}/security/advisories/new`,
-    `Contact: ${REPO}/issues/new`,
+    ...SECURITY_CONTACTS.map((contact) => `Contact: ${contact.href}`),
     `Expires: ${EXPIRES}`,
-    `Policy: ${REPO}/blob/main/SECURITY.md`,
+    `Policy: ${SECURITY_POLICY_URL}`,
     `Canonical: ${origin}/.well-known/security.txt`,
     "Preferred-Languages: en",
     "",

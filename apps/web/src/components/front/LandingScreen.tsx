@@ -165,6 +165,14 @@ export function LandingScreen() {
             Developers
           </Link>
           <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+          <Link href="/ai" className="text-xs text-slate">
+            AI
+          </Link>
+          <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+          <Link href="/security" className="text-xs text-slate">
+            Security
+          </Link>
+          <Text as="span" variant="muted" aria-hidden>&middot;</Text>
           <a href="mailto:mitchell@demarcosoftware.com" className="text-xs text-slate">
             mitchell@demarcosoftware.com
           </a>
