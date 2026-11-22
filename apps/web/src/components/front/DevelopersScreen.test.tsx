@@ -151,7 +151,9 @@ describe("DevelopersScreen", () => {
     const html = renderToString(<DevelopersScreen tools={TOOLS} />);
     for (const id of ["connect-claude", "connect-gemini", "connect-poppy", "connect-script"]) expect(html).toContain(`id="${id}"`);
     expect(html).toContain("/mcp auth caesura");
-    expect(html).toContain("trips:read");
+    // Scoped to the Script region: `trips:read` alone also matches the scope table.
+    const script = html.slice(html.indexOf(`id="connect-script"`)).split("</section>")[0];
+    expect(script).toContain("Make a token with trips:read");
     expect(html.match(/<div[^>]*role="tabpanel"[^>]*>/g)?.map((tag) => /class="[^"]*\bhidden\b/.test(tag))).toEqual([
       false,
       true,
