@@ -33,7 +33,8 @@ function servedPaths(): Set<string> {
   return out;
 }
 
-const PROMPT_TOOLS = ["MCP client", "Claude", "ChatGPT", "Gemini", "Poppy", "script"];
+// `/developers`' tab order, then the generic MCP client.
+const PROMPT_TOOLS = ["Claude", "Gemini CLI", "Muse", "script", "MCP client"];
 
 describe("AiScreen", () => {
   it("names every surface a person can reach their AI through", () => {
@@ -62,7 +63,7 @@ describe("AiScreen", () => {
     expect(items[1]!.textContent).toContain("Poppy");
   });
 
-  // The external review of PR 788: a token-based tool (ChatGPT, Gemini, a script)
+  // The external review of PR 788: a token-based tool (a script, say)
   // is listed under API tokens, not Connected apps, so naming only the second
   // sent a person to a list their tool is not on.
   it("names API tokens next to Connected apps, in the safety line too", () => {
@@ -104,7 +105,7 @@ describe("AiScreen", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
-  it("gives one prompt per tool, each linking to its connect section, the generic ways first", () => {
+  it("gives one prompt per tool, each linking to its connect section, in the tab order", () => {
     render(<AiScreen />);
     const prompts = within(screen.getByRole("region", { name: "Try asking" }));
     const items = prompts.getAllByRole("listitem");
@@ -113,7 +114,7 @@ describe("AiScreen", () => {
       const link = within(items[i]!).getByRole("link", { name: new RegExp(tool, "i") });
       expect(link.getAttribute("href"), tool).toMatch(/^\/developers#connect-[a-z]+$/);
     }
-    expect(within(items[1]!).getByText("Turn my Lisbon trip into a three-day playbook and publish it.")).toBeDefined();
+    expect(within(items[0]!).getByText("Turn my Lisbon trip into a three-day playbook and publish it.")).toBeDefined();
   });
 
   // Every internal link goes to a page that exists, or to an anchor the
@@ -181,6 +182,16 @@ describe("AiScreen", () => {
     for (const word of ["passkey", "authenticator", "recovery code", "fingerprint", "encrypted", "vulnerab"]) {
       expect(text, word).not.toContain(word);
     }
+  });
+
+  // M63 D15 (Mitchell, 2026-11-22): ChatGPT was cut. The FAQ is the source of
+  // the FAQPage JSON-LD, so it is read here as well as the page and its metadata.
+  it("names no ChatGPT in its text, its links, its metadata or its FAQ", () => {
+    render(<AiScreen />);
+    expect(document.body.textContent).toContain("Gemini");
+    expect(document.body.innerHTML).not.toMatch(/chatgpt/i);
+    expect(JSON.stringify(metadata)).not.toMatch(/chatgpt/i);
+    expect(JSON.stringify(AI_FAQ)).not.toMatch(/chatgpt/i);
   });
 
   it("says nothing about how Caesura is built", () => {

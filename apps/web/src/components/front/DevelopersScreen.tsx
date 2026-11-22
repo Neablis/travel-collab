@@ -262,8 +262,9 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
             the same `api.tokens` entitlement (D6); the consent page ticks every
             `:read` scope and no write scope, Notebook's included (D5, `ConsentScreen.tsx`). The
             anchor ids sit on the sections so `#connect-claude` scrolls to the
-            whole of one. The ChatGPT and Gemini sections are written from the
-            vendors' docs and await a production proof (M63 D15). */}
+            whole of one. A vendor gets a tab only once it is proven against
+            production, so Gemini is its CLI, which takes a remote MCP server
+            (M63 D15). */}
         <section aria-labelledby="connect-ai" className={sectionClass}>
           <div className="flex flex-col gap-3">
             <SectionHeading id="connect-ai">Connect your AI</SectionHeading>
@@ -320,51 +321,35 @@ export function DevelopersScreen({ tools }: { tools: readonly McpToolRow[] }) {
                   </Step>
                 </ConnectSection>
                 ) },
-                { value: "chatgpt", label: "ChatGPT", panel: (
-                <ConnectSection id="connect-chatgpt" title="Connect ChatGPT">
-                  <Step level={4} n={1} title="Make a token">
-                    <Text className="text-pretty">Make an API token as above, with the scopes the GPT should have. API tokens need the Premium plan.</Text>
-                  </Step>
-                  <Step level={4} n={2} title="Import the OpenAPI document as an Action">
+                { value: "gemini", label: "Gemini CLI", panel: (
+                <ConnectSection id="connect-gemini" title="Connect the Gemini CLI">
+                  <Step level={4} n={1} title="Add the server">
                     <Text className="text-pretty">
-                      In your GPT&rsquo;s configuration, add an Action and import this URL. The import needs the document&rsquo;s URL, not a
-                      pasted copy of its text, because the document names its server as an absolute address:
+                      In <Code>~/.gemini/settings.json</Code>, add Caesura as a remote MCP server:
                     </Text>
-                    <Pre>https://caesura.today/api/v1/openapi</Pre>
+                    <Pre>{`{ "mcpServers": { "caesura": { "httpUrl": "https://caesura.today/api/mcp" } } }`}</Pre>
                   </Step>
-                  <Step level={4} n={3} title="Authenticate with the token">
+                  <Step level={4} n={2} title="Sign in and allow it">
                     <Text className="text-pretty">
-                      Set the Action&rsquo;s authentication to API key, auth type Bearer, and paste the token.
+                      In the CLI, run <Code>/mcp auth caesura</Code>. It sends you to Caesura to sign in and allow it,
+                      which needs the Premium plan, on the same consent page as Claude&rsquo;s.
                     </Text>
                   </Step>
-                </ConnectSection>
-                ) },
-                { value: "gemini", label: "Gemini", panel: (
-                <ConnectSection id="connect-gemini" title="Connect Gemini">
-                  <Step level={4} n={1} title="Make a scoped token">
-                    <Text className="text-pretty">Make an API token holding only the scopes your tools need. API tokens need the Premium plan.</Text>
-                  </Step>
-                  <Step level={4} n={2} title="Declare functions from the OpenAPI document">
+                  <Step level={4} n={3} title="Ask it something">
                     <Text className="text-pretty">
-                      Read <InlineLink href="/api/v1/openapi">/api/v1/openapi</InlineLink> and declare each operation you
-                      want as a function for Gemini&rsquo;s function calling.
-                    </Text>
-                  </Step>
-                  <Step level={4} n={3} title="Call the API with the token">
-                    <Text className="text-pretty">
-                      When Gemini asks for a function, make that request yourself with <Code>Authorization: Bearer</Code>{" "}
-                      and the token, and return the response to it.
+                      Try &ldquo;list my Caesura trips&rdquo;. The tools it can use are listed{" "}
+                      <InlineLink href="#mcp-tools">below</InlineLink>.
                     </Text>
                   </Step>
                 </ConnectSection>
                 ) },
-                { value: "poppy", label: "Poppy", panel: (
-                <ConnectSection id="connect-poppy" title="Connect Poppy agents">
+                { value: "poppy", label: "Muse", panel: (
+                <ConnectSection id="connect-poppy" title="Connect Meta&rsquo;s Muse">
                   <Step level={4} n={1} title="There is nothing to set up">
                     <Text className="text-pretty">
-                      A Poppy agent discovers{" "}
-                      <InlineLink href="/.well-known/poppy.json">/.well-known/poppy.json</InlineLink> on its own and takes it
-                      from there.
+                      Meta&rsquo;s Muse, and any agent that speaks the Poppy protocol, finds Caesura on its own through{" "}
+                      <InlineLink href="/.well-known/poppy.json">/.well-known/poppy.json</InlineLink>. There is nothing to
+                      set up.
                     </Text>
                   </Step>
                 </ConnectSection>

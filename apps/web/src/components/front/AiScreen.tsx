@@ -17,14 +17,11 @@ import type { FaqEntry } from "@/lib/jsonLd";
 // Static and signed out, like `/developers`: outside `proxy.ts`'s matcher, no
 // session, no fetch, no client component beyond the shared shell.
 
-/** One prompt to try, the tool it is for, and the `/developers` section that connects that tool. */
+/**
+ * One prompt to try, the tool it is for, and the `/developers` section that connects that tool,
+ * in `/developers`' tab order (Claude, Gemini CLI, Muse, Script), then any other MCP client.
+ */
 const PROMPTS = [
-  {
-    tool: "MCP clients",
-    prompt: "Which of my trips has a day with nothing planned yet?",
-    href: "/developers#connect-mcp",
-    link: "Connect an MCP client",
-  },
   {
     tool: "Claude",
     prompt: "Turn my Lisbon trip into a three-day playbook and publish it.",
@@ -32,28 +29,28 @@ const PROMPTS = [
     link: "Connect Claude",
   },
   {
-    tool: "ChatGPT",
-    prompt: "Draft a playbook day in Kyoto around three restaurants I name, and put each on the map.",
-    href: "/developers#connect-chatgpt",
-    link: "Connect ChatGPT",
-  },
-  {
-    tool: "Gemini",
+    tool: "Gemini CLI",
     prompt: "Look through the library and pick the days that suit a rainy weekend in Porto.",
     href: "/developers#connect-gemini",
-    link: "Connect Gemini",
+    link: "Connect the Gemini CLI",
   },
   {
-    tool: "Poppy agents",
+    tool: "Muse and other Poppy agents",
     prompt: "List the cities that have published days in Caesura's library.",
     href: "/developers#connect-poppy",
-    link: "Connect Poppy agents",
+    link: "Connect Meta’s Muse",
   },
   {
     tool: "A script",
     prompt: "List the names of all my trips and save them to a file.",
     href: "/developers#connect-script",
     link: "Connect a script",
+  },
+  {
+    tool: "MCP clients",
+    prompt: "Which of my trips has a day with nothing planned yet?",
+    href: "/developers#connect-mcp",
+    link: "Connect an MCP client",
   },
 ] as const;
 
@@ -68,8 +65,8 @@ export const AI_FAQ: readonly FaqEntry[] = [
       "Yes. Add Caesura to Claude as a connector, sign in, and choose what it may do. Any other app that speaks MCP connects the same way.",
   },
   {
-    question: "Does Caesura work with ChatGPT?",
-    answer: "Yes. A GPT you build can call Caesura with a token you make, holding only the permissions you choose.",
+    question: "Does Caesura work with Gemini?",
+    answer: "Yes. Add Caesura to the Gemini CLI as an MCP server, sign in, and choose what it may do.",
   },
   {
     question: "Is my data safe with an AI tool?",
@@ -128,14 +125,14 @@ export function AiScreen() {
             Caesura and AI
           </DataText>
           <Heading level={1} className="text-4xl text-pretty">
-            An AI trip planner that works with Claude, ChatGPT and Gemini
+            An AI trip planner that works with Claude and Gemini
           </Heading>
           <Text className="text-md text-pretty">
             Caesura is a trip planner that works with the AI you already use. Claude trip planning runs through
             its trip planner MCP server, and its travel planning API is open to agents and scripts.
           </Text>
           <Text className="text-md text-pretty">
-            Ask Claude, ChatGPT, Gemini or another AI tool to plan in Caesura for you. It can read your trips
+            Ask Claude, Gemini or another AI tool to plan in Caesura for you. It can read your trips
             and your library, write and publish playbooks, set the cover photo of a playbook or a trip, and
             search for places, all as you.
           </Text>
@@ -152,7 +149,7 @@ export function AiScreen() {
               <strong>The MCP server</strong> lets Claude and other MCP apps use Caesura as you.
             </li>
             <li className={itemClass}>
-              <strong>Poppy</strong> agents find Caesura on their own.
+              <strong>Muse</strong> and other Poppy agents find Caesura on their own.
             </li>
             <li className={itemClass}>
               <strong>The assistant</strong> is built into Caesura and plans alongside you.
@@ -191,8 +188,7 @@ export function AiScreen() {
             </li>
             <li className={cn(itemClass, "md:col-span-2")}>
               Under Account and Security, <strong>Connected apps</strong> lists the tools you signed in to, and{" "}
-              <strong>API tokens</strong> lists the tokens you made for the rest, such as ChatGPT, Gemini and
-              scripts.
+              <strong>API tokens</strong> lists the tokens you made for the rest, such as scripts.
             </li>
           </ul>
         </section>

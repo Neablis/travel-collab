@@ -89,40 +89,40 @@ describe("DevelopersScreen", () => {
 
   // Mitchell's walk (2026-11-21): the MCP section stands alone as the generic
   // way, then one tab list holds every specific tool, Poppy and the script too.
-  it("puts the MCP section before one tab list that holds Poppy and the script", () => {
+  it("puts the MCP section before one tab list that holds Muse and the script", () => {
     render(<DevelopersScreen tools={TOOLS} />);
     const mcp = screen.getByRole("region", { name: "Connect an MCP client" });
     const tablist = screen.getByRole("tablist", { name: "Pick your tool" });
     expect(Boolean(mcp.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
-    for (const name of ["Poppy", "Script"]) expect(within(tablist).getByRole("tab", { name })).toBeDefined();
+    for (const name of ["Muse", "Script"]) expect(within(tablist).getByRole("tab", { name })).toBeDefined();
   });
 
   it("has a tab per tool, Claude selected by default, each tab owning its panel", () => {
     render(<DevelopersScreen tools={TOOLS} />);
     const tabs = within(screen.getByRole("tablist", { name: "Pick your tool" })).getAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Claude", "ChatGPT", "Gemini", "Poppy", "Script"]);
-    expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false", "false"]);
-    expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1", "-1"]);
+    expect(tabs.map((t) => t.textContent)).toEqual(["Claude", "Gemini CLI", "Muse", "Script"]);
+    expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false"]);
+    expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1"]);
     const panel = screen.getByRole("tabpanel", { name: "Claude" });
     expect(within(panel).getByRole("region", { name: "Connect Claude" })).toBeDefined();
     // Only the selected tab points at its panel; the others' panels are
     // hidden by a class jsdom does not style, so they cannot be told by role.
-    expect(tabs.map((t) => t.getAttribute("aria-controls"))).toEqual(["connect-panel-claude", null, null, null, null]);
+    expect(tabs.map((t) => t.getAttribute("aria-controls"))).toEqual(["connect-panel-claude", null, null, null]);
   });
 
   it("moves between clients with the arrow keys and on click", () => {
     render(<DevelopersScreen tools={TOOLS} />);
     const list = screen.getByRole("tablist", { name: "Pick your tool" });
     fireEvent.keyDown(list, { key: "ArrowRight" });
-    expect(screen.getByRole("tab", { name: "ChatGPT" }).getAttribute("aria-selected")).toBe("true");
-    expect(within(screen.getByRole("tabpanel", { name: "ChatGPT" })).getByRole("region", { name: "Connect ChatGPT" })).toBeDefined();
-    fireEvent.click(screen.getByRole("tab", { name: "Gemini" }));
-    expect(screen.getByRole("tabpanel", { name: "Gemini" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Gemini CLI" }).getAttribute("aria-selected")).toBe("true");
+    expect(within(screen.getByRole("tabpanel", { name: "Gemini CLI" })).getByRole("region", { name: "Connect the Gemini CLI" })).toBeDefined();
+    fireEvent.click(screen.getByRole("tab", { name: "Muse" }));
+    expect(screen.getByRole("tabpanel", { name: "Muse" })).toBeDefined();
   });
 
   it.each([
-    ["connect-gemini", "Gemini"],
-    ["connect-poppy", "Poppy"],
+    ["connect-gemini", "Gemini CLI"],
+    ["connect-poppy", "Muse"],
     ["connect-script", "Script"],
   ])("opens the tab the hash #%s names", (hash, tab) => {
     window.location.hash = `#${hash}`;
@@ -133,15 +133,15 @@ describe("DevelopersScreen", () => {
   // A link to the hash already in the URL fires no `hashchange`, so after
   // switching tabs by hand, following it again must still open its tab.
   it("opens a tab again when a link to the hash already in the URL is clicked", () => {
-    window.location.hash = "#connect-chatgpt";
+    window.location.hash = "#connect-gemini";
     render(<DevelopersScreen tools={TOOLS} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Gemini" }));
-    expect(screen.getByRole("tab", { name: "Gemini" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(screen.getByRole("tab", { name: "Muse" }));
+    expect(screen.getByRole("tab", { name: "Muse" }).getAttribute("aria-selected")).toBe("true");
     const link = document.body.appendChild(document.createElement("a"));
-    link.href = "#connect-chatgpt";
+    link.href = "#connect-gemini";
     fireEvent.click(link);
     link.remove();
-    expect(screen.getByRole("tab", { name: "ChatGPT" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: "Gemini CLI" }).getAttribute("aria-selected")).toBe("true");
   });
 
   // With JavaScript off the tab buttons do nothing, so every client's steps
@@ -149,17 +149,45 @@ describe("DevelopersScreen", () => {
   // there (no flash for a JS visitor) and a noscript rule shows them again.
   it("sends every client's steps in the server HTML, the non-default ones hidden and un-hidden by noscript", () => {
     const html = renderToString(<DevelopersScreen tools={TOOLS} />);
-    for (const id of ["connect-claude", "connect-chatgpt", "connect-gemini", "connect-poppy", "connect-script"]) expect(html).toContain(`id="${id}"`);
-    expect(html).toContain("Import the OpenAPI document as an Action");
-    expect(html).toContain("Declare functions from the OpenAPI document");
+    for (const id of ["connect-claude", "connect-gemini", "connect-poppy", "connect-script"]) expect(html).toContain(`id="${id}"`);
+    expect(html).toContain("/mcp auth caesura");
+    expect(html).toContain("trips:read");
     expect(html.match(/<div[^>]*role="tabpanel"[^>]*>/g)?.map((tag) => /class="[^"]*\bhidden\b/.test(tag))).toEqual([
       false,
       true,
       true,
       true,
-      true,
     ]);
     expect(html).toMatch(/<noscript><style>[^<]*\{display:block!important\}<\/style><\/noscript>/);
+  });
+
+  // M63 D15 (Mitchell, 2026-11-22): ChatGPT's custom connectors need a Business
+  // plan, so it could not be proven and was cut. The server HTML holds every
+  // panel, hidden ones included, so a leftover tab, step or href shows here.
+  it("names no ChatGPT anywhere, in text or in a link", () => {
+    const html = renderToString(<DevelopersScreen tools={TOOLS} />);
+    expect(html).toContain("connect-claude");
+    expect(html).not.toMatch(/chatgpt/i);
+  });
+
+  it("connects the Gemini CLI over MCP, by its settings.json httpUrl", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    const section = screen.getByRole("region", { name: "Connect the Gemini CLI", hidden: true });
+    expect(section.getAttribute("id")).toBe("connect-gemini");
+    expect(section.textContent).toContain("~/.gemini/settings.json");
+    expect(section.textContent).toContain(`"httpUrl": "https://caesura.today/api/mcp"`);
+    expect(section.textContent).toContain("/mcp auth caesura");
+    expect(section.textContent).toContain("Premium plan");
+  });
+
+  // Mitchell, 2026-11-22: the Poppy tab names the agent people know, Meta's
+  // Muse, while its anchor stays `connect-poppy` so links already out still land.
+  it("names Meta's Muse on the Poppy tab, under the anchor it always had", () => {
+    render(<DevelopersScreen tools={TOOLS} />);
+    expect(within(screen.getByRole("tablist", { name: "Pick your tool" })).getByRole("tab", { name: "Muse" })).toBeDefined();
+    const section = screen.getByRole("region", { name: "Connect Meta’s Muse", hidden: true });
+    expect(section.getAttribute("id")).toBe("connect-poppy");
+    expect(section.textContent).toContain("any agent that speaks the Poppy protocol");
   });
 
   it("has a way back home", () => {
@@ -173,9 +201,8 @@ describe("DevelopersScreen", () => {
   it.each([
     ["connect-claude", "Connect Claude"],
     ["connect-mcp", "Connect an MCP client"],
-    ["connect-chatgpt", "Connect ChatGPT"],
-    ["connect-gemini", "Connect Gemini"],
-    ["connect-poppy", "Connect Poppy agents"],
+    ["connect-gemini", "Connect the Gemini CLI"],
+    ["connect-poppy", "Connect Meta’s Muse"],
     ["connect-script", "Connect a script"],
   ])("has #%s (%s) with three steps or fewer", (id, name) => {
     render(<DevelopersScreen tools={TOOLS} />);
@@ -189,21 +216,14 @@ describe("DevelopersScreen", () => {
   // A step sits under its section's heading, not beside it.
   it("puts each connect step's heading one level below its section's", () => {
     render(<DevelopersScreen tools={TOOLS} />);
-    const section = within(screen.getByRole("region", { name: "Connect ChatGPT", hidden: true }));
+    const section = within(screen.getByRole("region", { name: "Connect the Gemini CLI", hidden: true }));
     expect(section.getAllByRole("heading", { level: 3, hidden: true })).toHaveLength(1);
     expect(section.getAllByRole("heading", { level: 4, hidden: true })).toHaveLength(3);
   });
 
-  it("tells a ChatGPT reader the import needs the document URL, and the token needs Premium", () => {
+  it("points the script and Muse sections at their real endpoints", () => {
     render(<DevelopersScreen tools={TOOLS} />);
-    const section = within(screen.getByRole("region", { name: "Connect ChatGPT", hidden: true }));
-    expect(section.getByText(/needs the document.s URL/)).toBeDefined();
-    expect(section.getByText(/Premium plan/)).toBeDefined();
-  });
-
-  it("points the script and Poppy sections at their real endpoints", () => {
-    render(<DevelopersScreen tools={TOOLS} />);
-    expect(within(screen.getByRole("region", { name: "Connect Poppy agents" })).getByText("/.well-known/poppy.json")).toBeDefined();
+    expect(within(screen.getByRole("region", { name: "Connect Meta’s Muse" })).getByText("/.well-known/poppy.json")).toBeDefined();
     expect(screen.getByRole("region", { name: "Connect a script" }).textContent).toContain("trips:read");
   });
 
