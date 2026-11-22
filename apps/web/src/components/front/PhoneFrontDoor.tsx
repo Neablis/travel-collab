@@ -282,6 +282,14 @@ export function PhoneFrontDoor() {
         <Link href="/developers" className="text-xs text-slate">
           Developers
         </Link>
+        <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+        <Link href="/ai" className="text-xs text-slate">
+          AI
+        </Link>
+        <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+        <Link href="/security" className="text-xs text-slate">
+          Security
+        </Link>
         <a href="mailto:mitchell@demarcosoftware.com" className="w-full text-xs text-slate">
           mitchell@demarcosoftware.com
         </a>

@@ -98,7 +98,7 @@ test("sitemap.xml lists the static routes and published days, never a private on
     const xml = await response.text();
     // Each demo trip is a public page with no database behind it (M42 D1).
     const demos = ["/demo/japan", "/demo/dolomites-winter", "/demo/iceland-ring-road", "/demo/northern-spain", "/demo/thailand-andaman"];
-    for (const path of ["/", "/playbooks", "/demo", ...demos, "/developers", "/developers/reference"]) {
+    for (const path of ["/", "/playbooks", "/demo", ...demos, "/developers", "/developers/reference", "/ai"]) {
       expect(xml).toMatch(new RegExp(`<loc>[^<]*${path}</loc>`));
     }
     // By its slugged URL, the one the day page answers 200 on: a bare id
@@ -529,5 +529,52 @@ test("a country page lists its days as one ItemList of absolute URLs", async ({ 
     await visitor.context().close();
   } finally {
     await Promise.all(ids.map((id) => forget(page, id)));
+  }
+});
+
+// A page's `og:image` is the card a chat app or a feed shows. `/ai` and
+// `/security` once pointed it at a file-convention path that Next serves hashed
+// in the (front) group, so the tag was well formed and its URL answered 404.
+// Only fetching what the tag names catches that.
+for (const route of ["/", "/ai", "/security", "/developers"]) {
+  test(`${route} names an og:image that answers 200 as an image`, async ({ browser }) => {
+    const visitor = await stranger(browser);
+    try {
+      const html = await (await visitor.request.get(route)).text();
+      const images = [...html.matchAll(/<meta property="og:image" content="([^"]*)"/g)].map((m) => m[1]!);
+      expect(images.length, "an og:image tag").toBeGreaterThan(0);
+      // The origin the page declares for itself. `metadataBase` bakes it in at
+      // build time, before the harness picks its port, so BASE_URL cannot stand in.
+      const canonical = /<link rel="canonical" href="([^"]*)"/.exec(html)?.[1];
+      expect(canonical, "a canonical link").toBeDefined();
+      for (const content of images) {
+        // Absolute, on the page's own origin: a relative URL is read against the
+        // reader's page, not ours.
+        expect(content).toMatch(/^https?:\/\//);
+        expect(new URL(content).origin).toBe(new URL(canonical!).origin);
+        // Fetched by path against the server under test, whatever origin the tag names.
+        const { pathname, search } = new URL(content);
+        const image = await visitor.request.get(pathname + search);
+        expect(image.status()).toBe(200);
+        expect(image.headers()["content-type"]).toContain("image/");
+      }
+    } finally {
+      await visitor.context().close();
+    }
+  });
+}
+
+test("/developers carries WebPage structured data, like /ai and /security", async ({ browser }) => {
+  const visitor = await stranger(browser);
+  try {
+    const html = await (await visitor.request.get("/developers")).text();
+    const page = ldJson(html).find((n) => (n as { "@type": string })["@type"] === "WebPage") as
+      | { url: string; name: string }
+      | undefined;
+    expect(page, "a WebPage node").toBeDefined();
+    expect(new URL(page!.url).pathname).toBe("/developers");
+    expect(page!.name).toBe("Build on Caesura: the trip planning API");
+  } finally {
+    await visitor.context().close();
   }
 });
