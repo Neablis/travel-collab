@@ -255,7 +255,7 @@ A first cut of the parts, for the plan to settle:
   its `AGENTS.md` or how Caesura is built.
 - [x] **[walk]** Mitchell runs `/ai` through Google's Rich Results Test with no errors, and
   follows the Claude example from `/ai`, through `/developers#connect-claude`, to a published playbook.
-- [ ] **`/security` claims:** every statement on `/security` has a recorded check on production,
+- [x] **`/security` claims:** every statement on `/security` has a recorded check on production,
   and the page names no certification Caesura does not hold.
 - [x] **One place for safety:** `/ai`'s safety answer links to `/security` and does not repeat
   it, and every link on `/security` reaches a route or anchor that exists (unit test).
@@ -348,8 +348,7 @@ Left unticked, with what is proven:
   `e2e/m63-security-page.spec.ts:8-16` (200, `text/html`, one `h1`, JavaScript off).
   `src/app/sitemap.test.ts:36-42` lists both pages on the deployment origin only. The
   production-sitemap clause waits for the merge.
-- **`/security` claims:** needs a production check after the merge; the page gained `SECURITY.md`'s
-  scope and no-SLA/no-bounty lines (decision 19), and that check is still to be recorded.
+- **`/security` claims:** checked on production 2026-11-22 and ticked (see the evidence below).
 
 *Examples* and *Connect your AI* were ticked 2026-11-22 once ChatGPT was cut and the Gemini CLI and
 Muse were proven (decision 20). *Connect your AI*: the links, the anchors and the `#connect-claude`
@@ -360,6 +359,64 @@ section per proven tool (Claude, Gemini CLI, Muse, Script).
 
 - **2026-11-21, Mitchell.** Checked the claims in PR 788's "Claims to check on production" table
   and confirmed them: "Confirmed and good".
+- **2026-11-22, after the merge (PR 788 as ded937e; `https://caesura.today/api/health` reports
+  `ded937ece6e8aa70de6cd06756937d78683a90dc`; `deploy-production` run 44983638699 success).** Fetched
+  `https://caesura.today/security` with `curl` (200, `text/html; charset=utf-8`) and compared the page
+  text with each claim. Every sentence below appears verbatim, and the page names no SOC 2, ISO 27001,
+  certification, GDPR, HIPAA or "compliant" (searched case-insensitively), no GitHub, and no header name:
+  - "You sign in to Caesura with Google." `https://caesura.today/signin` offers "Continue with Google".
+  - "You can add a second step, and it is optional."
+  - "A passkey lets your device confirm it is you, with Face ID, a fingerprint or a PIN."
+  - "An authenticator app gives you a 6-digit code."
+  - "When you turn the second step on, you also get recovery codes, for the day you lose a device."
+  - "An AI tool or a token acts as you, holds only the permissions you give it, and can never do more
+    than you can."
+  - "Revoke a token under Account, then Security, and it stops working."
+  - "API tokens and connected apps are on the Premium plan." (and the FAQ's "On the Premium plan")
+  - "Disconnect an app in Connected apps, and it stops working immediately."
+  - "When you turn the second step on or off, remove a passkey or an authenticator app, or make new
+    recovery codes, every other device you are signed in on is signed out."
+  - "Connections to Caesura are encrypted." `curl -sI https://caesura.today` returns
+    `strict-transport-security: max-age=63072000`, and `curl -sI http://caesura.today` returns 301 to
+    `https://caesura.today/`.
+  - "We keep only a fingerprint of each API token and of each app connection's tokens, which cannot be
+    turned back into them." and "The token itself is shown to you once, when you make it."
+  - The three FAQ answers (second factor optional; lost phone and recovery codes; seeing what is
+    connected).
+  The account-behaviour claims (the ones needing a signed-in account) rest on Mitchell's 2026-11-21
+  confirmation above; this check re-proves only that each still appears as written, so the page has not
+  drifted from what he confirmed.
+- **Decision 19's two new lines, 2026-11-22.**
+  - "Anything served from caesura.today is in scope; preview sites are not." `SECURITY.md`, *Scope*, says
+    the same: "Anything served from the production deployment is in scope. Preview deployments are not".
+    Same policy, in the reader's words (production is `caesura.today`).
+  - "There is no SLA and no bounty — this is one maintainer's project. Expect a first response in days,
+    not hours." Identical to `SECURITY.md`'s *Reporting a vulnerability*, word for word.
+  - The page's email (Cloudflare obfuscates the address in the HTML; decoded) is
+    `mitchell@demarcosoftware.com`, the one `Contact:` line of `https://caesura.today/.well-known/security.txt`
+    (`Expires: 2027-10-01T00:00:00.000Z`, `Policy: https://caesura.today/security`) and the address in
+    `SECURITY.md`.
+
+### Search on production, 2026-11-22 (gate boxes *Search*, */security search*)
+
+Fetched with `curl` from `https://caesura.today` on `ded937e`.
+
+- **`/ai`** answers 200 `text/html`; canonical `https://caesura.today/ai`; `og:url` the same; title "Caesura:
+  the AI trip planner for Claude and Gemini" (50 characters); description 128 characters; one `<h1>`;
+  `WebPage` and `FAQPage` JSON-LD whose four questions (*Does Caesura work with Claude?*, *with Gemini?*,
+  *Is my data safe with an AI tool?*, *What can an agent not do?*) all appear in the visible text.
+- **`/security`** answers 200 `text/html`; canonical and `og:url` `https://caesura.today/security`; title 53
+  characters; description 119 characters; one `<h1>`; `WebPage` and `FAQPage` JSON-LD with three
+  questions, all of them the visible ones.
+- **The sitemap clause fails today.** `https://caesura.today/sitemap.xml` lists 445 URLs and neither
+  `/ai` nor `/security`. It is Cloudflare's copy: `cf-cache-status: HIT`, `age: 10964`,
+  `last-modified: Sun, 22 Nov 2026 01:33:21 GMT`, which is before the merge, with
+  `cache-control: public, max-age=14400, s-maxage=86400, stale-while-revalidate=86400`. The same path with
+  a cache-busting query (`/sitemap.xml?cb=<time>`, `cf-cache-status: MISS`) is the origin's answer: 447
+  URLs, both `<loc>https://caesura.today/ai</loc>` and `<loc>https://caesura.today/security</loc>`
+  present, as `src/app/sitemap.ts` and `sitemap.test.ts:36-42` say. A request with `Cache-Control: no-cache`
+  still returned `HIT`, so a crawler gets the old file until the edge copy is purged or expires (about
+  01:33Z on 2026-11-23). Both boxes stay unticked until `https://caesura.today/sitemap.xml` itself lists the two pages.
 
 ### Words, code samples and walk on the PR 788 preview (gate boxes *Words*, */security words*, *Code samples*, *[walk]*)
 
