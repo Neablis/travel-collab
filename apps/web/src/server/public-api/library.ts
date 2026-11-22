@@ -202,6 +202,8 @@ export function savedDayItem(words: {
     GET: {
       summary: words.summaries.get,
       scope: "library:read",
+      // `current:read` carries the library wholesale, as on the list above.
+      orScope: "current:read",
       response: LibraryDay,
       handle: async (ctx) => {
         const day = await getSavedDay(id(ctx), ctx.actor.userId);

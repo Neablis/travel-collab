@@ -12,6 +12,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { API_SCOPES, type ApiScope, SCOPE_CATALOGUE } from "@tc/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
   API_FINGERPRINT,
@@ -317,6 +318,70 @@ describe("openapi.json is derived from the declarations", () => {
         if (url === "/v1/discover/playbooks" && method === "get") continue;
         expect(operation.security.some((requirement) => Object.keys(requirement).length === 0), `${method} ${url}`).toBe(false);
       }
+    }
+  });
+});
+
+// **The scope copy is the contract a person grants against**, and it is
+// rendered on /developers, the consent screen, the token form and this
+// document. An external review of PR 788 found it promising more than the
+// routes delivered, in both directions: `current:read` "covers your Playbooks"
+// while one Playbook's GET refused it, and `trips:read` "needed" when
+// `current:read` also served. These read the scopes off the generated
+// document — the declarations themselves — so a route that gains or loses an
+// alternative scope fails here until the sentence a person reads agrees.
+describe("SCOPE_CATALOGUE agrees with what the routes accept", () => {
+  type Operation = { security: Record<string, string[]>[] };
+
+  async function operations(): Promise<{ op: string; url: string; scopes: ApiScope[] }[]> {
+    const doc = JSON.parse(await generate()) as { paths: Record<string, Record<string, Operation>> };
+    const out = [];
+    for (const [url, methods] of Object.entries(doc.paths)) {
+      for (const [method, operation] of Object.entries(methods)) {
+        // In declaration order: the endpoint's `scope`, then its `orScope`.
+        const scopes = operation.security.flatMap((requirement) => requirement["bearerAuth"] ?? []) as ApiScope[];
+        out.push({ op: `${method.toUpperCase()} ${url}`, url, scopes });
+      }
+    }
+    return out;
+  }
+
+  it("names the alternative scope in the description of every scope it stands in for", async () => {
+    for (const { op, scopes } of await operations()) {
+      const [scope, orScope] = scopes;
+      if (scope === undefined || orScope === undefined) continue;
+      expect(SCOPE_CATALOGUE[scope].description, `${op}: ${scope} should name ${orScope}`).toContain(orScope);
+    }
+  });
+
+  it("backs every \"this scope or …\" in the copy with an endpoint that accepts either", async () => {
+    const ops = await operations();
+    for (const scope of API_SCOPES) {
+      for (const [, other] of SCOPE_CATALOGUE[scope].description.matchAll(/this scope or ([a-z]+:[a-z]+)/g)) {
+        const backed = ops.some(({ scopes }) => scopes.includes(scope) && scopes.includes(other as ApiScope));
+        expect(backed, `${scope} says "this scope or ${other}", but no endpoint accepts both`).toBe(true);
+      }
+    }
+  });
+
+  it("lets current:read read everywhere its copy says it does: the library, the account and a current trip's Notebook", async () => {
+    for (const { op, scopes } of await operations()) {
+      if (!scopes.some((s) => s === "library:read" || s === "account:read" || s === "notebook:read")) continue;
+      expect(scopes, op).toContain("current:read");
+    }
+  });
+
+  it("accepts current:write only for days, stops and undo, redo or revert, as its copy says", async () => {
+    for (const { op, url, scopes } of await operations()) {
+      if (!scopes.includes("current:write")) continue;
+      expect(url, op).toMatch(/^\/v1\/trips\/\{tripId\}\/(days|activities|history)(\/|$)/);
+    }
+  });
+
+  it("asks for places:read only outside a trip, as its copy says", async () => {
+    for (const { op, url, scopes } of await operations()) {
+      if (!scopes.includes("places:read")) continue;
+      expect(url, op).not.toMatch(/^\/v1\/trips\//);
     }
   });
 });
