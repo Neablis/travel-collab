@@ -347,7 +347,7 @@ Left unticked, with what is proven:
   `src/app/(front)/security/page.test.tsx:28-42` and `:62-73` for `/security`;
   `e2e/m63-security-page.spec.ts:8-16` (200, `text/html`, one `h1`, JavaScript off).
   `src/app/sitemap.test.ts:36-42` lists both pages on the deployment origin only. The
-  production-sitemap clause waits for the merge.
+  production-sitemap clause was checked after the merge and failed on the edge-cached file (see *Search on production*).
 - **`/security` claims:** checked on production 2026-11-22 and ticked (see the evidence below).
 
 *Examples* and *Connect your AI* were ticked 2026-11-22 once ChatGPT was cut and the Gemini CLI and
