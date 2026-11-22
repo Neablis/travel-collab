@@ -1,6 +1,6 @@
 # M63 — Two pages say Caesura is AI first, and safe to hand to your AI
 
-**Status (2026-11-20): proposed, not scoped.** Minted by Mitchell the same day: *"adding a SEO page
+**Status (2026-11-21): scoped and started.** Plan: `docs/plans/2026-11-21-M63-caesura-works-with-your-ai.md`, five parts as one stack, tracked by part 0 on `ccr-8a6d904d-vhaiet`. *(Was: proposed 2026-11-20.)* Minted by Mitchell the same day: *"adding a SEO page
 about how caesura is a AI first tool, document all the AI tools we have like mcp, fine scoped
 tokens, the api, agents.md, poppy, and give examples how caesura is a partner to your favorite ai
 tools."* Placed **after M62, ahead of M53**, by Mitchell the same day (see `docs/milestones/README.md`,
@@ -55,7 +55,8 @@ Each *Recommendation* below is now the decision.
 1. **The URL and the words it targets.** *Recommendation:* `/ai`, short and written for a person
    who is not a developer, titled *"Caesura works with
    your AI: Claude, ChatGPT, Gemini and agents"* (the build proposes the final words, and Mitchell
-   approves them, as in M50 and M53). It targets *AI trip planner*, *trip planner MCP server*,
+   approves them, as in M50 and M53) *(amended 2026-11-22: ChatGPT cut by decision 20, the approved
+   title is now "Caesura: the AI trip planner for Claude and Gemini")*. It targets *AI trip planner*, *trip planner MCP server*,
    *Claude trip planning* and *travel planning API for agents*. It is in the sitemap, linked from
    the landing's footer, `/developers`, and `/llms.txt`.
 2. **What "agents.md" is here.** There is no public `agents.md` today. Checked 2026-11-20:
@@ -80,9 +81,10 @@ Each *Recommendation* below is now the decision.
    - **Claude Code, Cursor or any MCP client**: the same URL in its MCP config.
    - **ChatGPT**: through its MCP connector support, if it signs in to our OAuth server.
      Otherwise through a GPT action on the OpenAPI document. Part 1 finds out which and the
-     page says only what works.
+     page says only what works. *(Cut by decision 20.)*
    - **Gemini**: function calling over the OpenAPI document with a scoped token (M60 D12 found
-     no public sign that Gemini is a Poppy client).
+     no public sign that Gemini is a Poppy client). *(Amended by decision 20: it is the Gemini CLI
+     over MCP.)*
    - **Meta's Muse and other Poppy agents**: they discover `poppy.json` and need no setup.
    - **A script**: `curl` with a `trips:read` token, to show how small a scope can be.
    An example that cannot be shown working is cut, not described.
@@ -95,7 +97,8 @@ Each *Recommendation* below is now the decision.
 5. **Structured data.** *Recommendation:* `WebPage` with `about` the `SoftwareApplication`, and
    an `FAQPage` block for the four or five questions the page answers (*Does Caesura work with
    Claude? With ChatGPT? Is my data safe with an AI tool? What can an agent not do?*). The FAQ is
-   only marked up if it is visible on the page.
+   only marked up if it is visible on the page. *(Amended 2026-11-22: the ChatGPT question is cut
+   by decision 20 and a "Does Caesura work with Gemini?" question replaces it.)*
 6. **How the examples stay true.** *Recommendation:* setup steps are written once, on
    `/developers`. `/ai` links to them and never restates them. The MCP tool table and the
    per-endpoint code samples are generated from code (`tools.ts`, the OpenAPI route
@@ -107,7 +110,7 @@ Each *Recommendation* below is now the decision.
    cached, has its own OG image, and stays inside M53's title and description limits.
 8. **The split: each fact lives in one place.** *Recommendation:*
    - **`/developers` holds the how-to.** *Connect Claude* becomes **Connect your AI**, with one
-     anchored section per tool from decision 3 (`#connect-claude`, `#connect-chatgpt`, and so on).
+     anchored section per tool from decision 3 (`#connect-claude`, `#connect-chatgpt`, and so on; *`#connect-chatgpt` cut by decision 20*).
      The existing `#connect-claude` anchor keeps working. The token path, the scope table and the
      reference links stay as they are, above it, because agents arriving from `/llms.txt` need
      them first. `/developers`' title and description, approved in M53, do not change.
@@ -157,6 +160,38 @@ Each *Recommendation* below is now the decision.
     limits. Structured data is `WebPage` with an `FAQPage` block only for questions visible on
     the page.
 
+### Plan questions, answered 2026-11-21 (Mitchell)
+
+15. **ChatGPT and Gemini are built, and Mitchell proves them.** Their sections are written from each
+    vendor's docs; Mitchell runs each on production before the gate, and any he cannot get working is
+    removed on the top part before it merges. Claude, an MCP client, Poppy discovery and the `curl`
+    script are proven from the orchestrating session. *(Applied by decision 20, 2026-11-22.)*
+16. **Five parts, not eight.** Each page ships with its own search pieces; proving the examples is
+    evidence in part 0, not a code part.
+17. **The words are approved on the preview at the gate.** Builders draft from the working titles
+    in decisions 1 and 14.
+
+18. **No GitHub contacts anywhere (amends decision 13), answered 2026-11-21.** Part 5's review found
+    that `security.txt`'s GitHub advisory and issues links, reused on `/security`, put the
+    repository in the page's links and revealed that it is private. Mitchell: *drop GitHub
+    everywhere*. `security.txt` and `/security` both keep only the security email, still read from
+    one constant. `security.txt`'s `Expires` does not change, and it gains its `Policy:` line.
+
+19. **`/security` carries `SECURITY.md`'s scope and no-SLA/no-bounty lines, answered 2026-11-22.**
+    Mitchell, in chat, after walking the PR 788 preview: the page also carries `SECURITY.md`'s scope
+    line and its no-SLA, no-bounty line. Part 5 is adding them.
+
+20. **ChatGPT cut, Gemini becomes the Gemini CLI, Poppy is named Muse (applies decision 15),
+    answered 2026-11-22.** Mitchell, in the orchestrator session: ChatGPT custom connectors need a
+    Business plan, and Gemini's need the Gemini CLI. He could not test ChatGPT on a free tier, so
+    per decision 15 ChatGPT was **cut** on part 5 (PR 788 commit a321529) and is named nowhere.
+    The Gemini tab became the Gemini CLI over MCP (`~/.gemini/settings.json` with `httpUrl`
+    `https://caesura.today/api/mcp`, then `/mcp auth caesura`), anchor `#connect-gemini` kept.
+    He asked to name Meta's Muse on the Poppy tab: tab "Muse", section "Connect Meta's Muse",
+    anchor `#connect-poppy` kept. His words on proof: "I've used muse with caesura a bunch, it works
+    really well since it discovers and uses poppy natively." Tab order is now Claude, Gemini CLI,
+    Muse, Script.
+
 ## Scope
 
 A first cut of the parts, for the plan to settle:
@@ -195,42 +230,344 @@ A first cut of the parts, for the plan to settle:
 
 ## Exit gate
 
-- [ ] **Examples:** every AI tool `/ai` or `/developers` names has a recorded production run of
+- [x] **Examples:** every AI tool `/ai` or `/developers` names has a recorded production run of
   its example, and no tool without one is named.
-- [ ] **Connect your AI:** `/developers` has one anchored section per proven tool, `/ai` links
+- [x] **Connect your AI:** `/developers` has one anchored section per proven tool, `/ai` links
   each tool to its section, and `#connect-claude` still resolves (unit test over the links).
-- [ ] **MCP tool scopes:** `/developers` lists every MCP tool with the scope it needs, generated
+- [x] **MCP tool scopes:** `/developers` lists every MCP tool with the scope it needs, generated
   from `tools.ts`, which a test proves by adding a tool in a fixture.
-- [ ] **Code samples:** every endpoint in the OpenAPI document carries `x-codeSamples` and
+- [x] **Code samples:** every endpoint in the OpenAPI document carries `x-codeSamples` and
   `/developers/reference` shows them, or the part is recorded as cut because Scalar does not
   render them.
-- [ ] **`/agents.md`:** it answers 200 as `text/markdown` signed out, its scopes are
+- [x] **`/agents.md`:** it answers 200 as `text/markdown` signed out, its scopes are
   `SCOPE_CATALOGUE`, and `llms.txt` and the api-catalog link it (unit tests).
-- [ ] **Surfaces:** the page names the assistant, the MCP server, scoped tokens, the public API,
+- [x] **Surfaces:** the page names the assistant, the MCP server, scoped tokens, the public API,
   Poppy, `llms.txt`, `agents.md` and Connected apps, and every link on it reaches a route that
   exists (unit test).
-- [ ] **One scope table:** `/ai` links to `/developers#scopes` and has no scope table of its own.
-- [ ] **Search:** the page is in the production sitemap with a canonical, an `og:url`, a title
+- [x] **One scope table:** `/ai` links to `/developers#scopes` and has no scope table of its own.
+- [x] **Search:** the page is in the production sitemap with a canonical, an `og:url`, a title
   of 60 characters or fewer, a description of 160 or fewer, and `FAQPage` JSON-LD that matches
   the visible questions.
-- [ ] **Signed out:** with JavaScript off, `/ai` answers HTML with one `<h1>` and every prompt
+- [x] **Signed out:** with JavaScript off, `/ai` answers HTML with one `<h1>` and every prompt
   (`test:e2e:ci-like`, or CI on the PR).
-- [ ] **Words:** the title, description and headline are the words Mitchell approved.
-- [ ] **No development details:** neither the page nor `/agents.md` mentions the repository,
+- [x] **Words:** the title, description and headline are the words Mitchell approved.
+- [x] **No development details:** neither the page nor `/agents.md` mentions the repository,
   its `AGENTS.md` or how Caesura is built.
-- [ ] **[walk]** Mitchell runs `/ai` through Google's Rich Results Test with no errors, and
+- [x] **[walk]** Mitchell runs `/ai` through Google's Rich Results Test with no errors, and
   follows the Claude example from `/ai`, through `/developers#connect-claude`, to a published playbook.
-- [ ] **`/security` claims:** every statement on `/security` has a recorded check on production,
+- [x] **`/security` claims:** every statement on `/security` has a recorded check on production,
   and the page names no certification Caesura does not hold.
-- [ ] **One place for safety:** `/ai`'s safety answer links to `/security` and does not repeat
+- [x] **One place for safety:** `/ai`'s safety answer links to `/security` and does not repeat
   it, and every link on `/security` reaches a route or anchor that exists (unit test).
-- [ ] **Reporting:** `/security`'s reporting section and `/.well-known/security.txt` read their
+- [x] **Reporting:** `/security`'s reporting section and `/.well-known/security.txt` read their
   contacts from one constant, and `security.txt` carries a `Policy:` line naming `/security`
   (unit tests).
-- [ ] **`/security` search and signed out:** in the production sitemap with a canonical, an
+- [x] **`/security` search and signed out:** in the production sitemap with a canonical, an
   `og:url`, a title of 60 characters or fewer and a description of 160 or fewer; with JavaScript
   off it answers HTML with one `<h1>` (`test:e2e:ci-like`, or CI on the PR).
-- [ ] **No build details on `/security`:** it names no response header, hosting or database
+- [x] **No build details on `/security`:** it names no response header, hosting or database
   vendor, library or repository.
-- [ ] **`/security` words:** the title, description and headline are the words Mitchell
+- [x] **`/security` words:** the title, description and headline are the words Mitchell
   approved.
+
+## Evidence
+
+### Examples on production (gate box *Examples*)
+
+- **2026-11-21, Claude through the MCP server.** The orchestrating Claude Code session is connected to
+  `https://caesura.today/api/mcp` as a custom connector, signed in through Caesura's OAuth server.
+  `whoami` returned the owner's account on `premium@v2`, and `list_trips` (scope `trips:read`)
+  returned the account's trips. The same connection is the *any MCP client* case. Still to come:
+  publishing a playbook from Claude, in Mitchell's walk.
+- **2026-11-21, Poppy discovery.** `GET /.well-known/poppy.json` answered 200 `application/json`,
+  signed out.
+- **2026-11-21, a script.** `GET /api/v1/openapi` answered 200 signed out. `GET /api/v1/trips`
+  without a token answered 401. A run with a real `trips:read` token is still to be recorded, since
+  this session has no token.
+- **2026-11-21, Mitchell's confirmation.** Mitchell confirmed he has run all three before on
+  production and they work: a script with a real `trips:read` token, Claude publishing a playbook,
+  and Poppy end to end (connector to a working Caesura session). Recorded here as his word, not a
+  run captured by this session.
+- **2026-11-22, Gemini CLI.** Mitchell confirmed it on production: "Confirmed Gemini cli". Recorded
+  as his word (decision 20).
+- **2026-11-22, Muse.** Mitchell, by repeated use: "I've used muse with caesura a bunch, it works
+  really well since it discovers and uses poppy natively." Recorded as his word (decision 20).
+- **ChatGPT:** named nowhere. Cut by decision 20 on part 5 (PR 788 a321529); `AiScreen.test.tsx:189`
+  and `DevelopersScreen.test.tsx:167` assert its absence.
+- **Summary for the *Examples* box.** Claude, the MCP client, Poppy discovery and the script were
+  proven from the orchestrating session (the 2026-11-21 entries above); the Gemini CLI and Muse by
+  Mitchell, as recorded here. Every tool `/ai` and `/developers` name has a recorded run, and the
+  one without (ChatGPT) is not named.
+
+### Code and CI at 21d4f01c, the top of the stack (gate boxes *MCP tool scopes*, */agents.md*, *Surfaces*, *One scope table*, *Signed out*, *No development details*, *One place for safety*, *Reporting*, *No build details on /security*)
+
+Every check on PR 788 at `21d4f01c` is green: `ci-ok`, lint, typecheck, unit, integration, scripts
+and both e2e shards. Unit, integration and e2e:
+https://github.com/Neablis/travel-collab/actions/runs/44964864293 (unit job 137031516998, e2e jobs
+137031517048 and 137031517059). Paths are under `apps/web/`.
+
+- **MCP tool scopes.** `src/server/mcp/toolScopes.test.ts:23-32` adds a fixture tool and its scope
+  appears in the rows with no second list to edit. `src/components/front/DevelopersScreen.test.tsx:212-221`
+  renders one row per tool given, with its scope, including a tool no page edit knows about
+  (`:9-12`). `src/app/(front)/developers/page.tsx:3,30` passes `TOOL_SCOPES`, which
+  `src/app/api/mcp/tools.ts:226` builds from `TOOLS` with `mcpToolScopes`.
+- **`/agents.md`.** `src/server/public-api/discovery.test.ts:203-208` answers 200 as
+  `text/markdown; charset=utf-8` and lists every scope; `:233-240` shows no path entry of the proxy
+  matcher reaches it, so it is served signed out. The scope text is built from `SCOPE_CATALOGUE` at
+  `src/app/api/mcp/agentsMd.ts:29` (the test pins the scope names, the source line pins the
+  catalogue). `llms.txt` links it at `discovery.test.ts:182-185` and the api-catalog at `:85-89`.
+- **Surfaces.** `src/components/front/AiScreen.test.tsx:39-56` names the assistant, MCP server,
+  scoped tokens, public API, Poppy, `llms.txt`, `agents.md` and Connected apps. `:121-141` checks
+  every internal link reaches a served route, and every `#anchor` is one `/developers` renders.
+- **One scope table.** `AiScreen.test.tsx:143-147`: no table on `/ai`, and a link to
+  `/developers#scopes`.
+- **Signed out.** `e2e/m63-ai-page.spec.ts:18-26` with JavaScript off and no session: status 200,
+  one `h1`, and each of the six prompts visible. `AiScreen.test.tsx:102-105` also holds one `h1`.
+- **No development details.** `/ai`: `AiScreen.test.tsx:186-208`, page text and metadata, bars the
+  repository, hosts, framework and headers, and `AGENTS.md`. `/agents.md`:
+  `discovery.test.ts:244-252` bars the same words.
+- **One place for safety.** `AiScreen.test.tsx:156-163` answers in one line with a link to
+  `/security`, and `:177-184` bars the sign-in and storage detail that `/security` owns.
+  `src/components/front/SecurityScreen.test.tsx:105-123` checks every link on `/security` reaches a
+  served route or an anchor the target renders.
+- **Reporting.** `SecurityScreen.test.tsx:179-187` shows the page's contacts equal
+  `SECURITY_CONTACTS` and the `Contact:` lines of `security.txt`. `discovery.test.ts:113-121`
+  checks `Policy: https://caesura.today/security` and that `/security` is a served route.
+- **No build details on `/security`.** `SecurityScreen.test.tsx:147-170` bars response headers
+  (`strict-transport-security`, `content-security-policy`, `hsts`, `csp`), hosting and database
+  vendors, libraries and `repository`; `:126-135` bars GitHub in text and hrefs. A grep of
+  `SecurityScreen.tsx`, `security/page.tsx` and `securityContacts.ts` for the same words, plus
+  Postgres, AWS and similar, finds only comments.
+
+Search boxes, with what is proven (both ticked 2026-11-22 once the production sitemap listed the two pages):
+
+- **Search** and **`/security` search and signed out:** `src/app/(front)/ai/page.test.tsx:28-42` (title at most 60, description at most 160,
+  canonical, `og:url`) and `:53-64` (`FAQPage` questions equal the visible ones);
+  `src/app/(front)/security/page.test.tsx:28-42` and `:62-73` for `/security`;
+  `e2e/m63-security-page.spec.ts:8-16` (200, `text/html`, one `h1`, JavaScript off).
+  `src/app/sitemap.test.ts:36-42` lists both pages on the deployment origin only. The
+  production-sitemap clause failed on the edge-cached file after the merge and passed after the purge (see *Search on production*).
+- **`/security` claims:** checked on production 2026-11-22 and ticked (see the evidence below).
+
+*Examples* and *Connect your AI* were ticked 2026-11-22 once ChatGPT was cut and the Gemini CLI and
+Muse were proven (decision 20). *Connect your AI*: the links, the anchors and the `#connect-claude`
+anchor are proven by `AiScreen.test.tsx:107-141` and `DevelopersScreen.test.tsx:173-187`, now one
+section per proven tool (Claude, Gemini CLI, Muse, Script).
+
+### `/security` claims on production (gate box *Security claims*)
+
+- **2026-11-21, Mitchell.** Checked the claims in PR 788's "Claims to check on production" table
+  and confirmed them: "Confirmed and good".
+- **2026-11-22, after the merge (PR 788 as ded937e; `https://caesura.today/api/health` reports
+  `ded937ece6e8aa70de6cd06756937d78683a90dc`; `deploy-production` run 44983638699 success).** Fetched
+  `https://caesura.today/security` with `curl` (200, `text/html; charset=utf-8`) and compared the page
+  text with each claim. Every sentence below appears verbatim, and the page names no SOC 2, ISO 27001,
+  certification, GDPR, HIPAA or "compliant" (searched case-insensitively), no GitHub, and no header name:
+  - "You sign in to Caesura with Google." `https://caesura.today/signin` offers "Continue with Google".
+  - "You can add a second step, and it is optional."
+  - "A passkey lets your device confirm it is you, with Face ID, a fingerprint or a PIN."
+  - "An authenticator app gives you a 6-digit code."
+  - "When you turn the second step on, you also get recovery codes, for the day you lose a device."
+  - "An AI tool or a token acts as you, holds only the permissions you give it, and can never do more
+    than you can."
+  - "Revoke a token under Account, then Security, and it stops working."
+  - "API tokens and connected apps are on the Premium plan." (and the FAQ's "On the Premium plan")
+  - "Disconnect an app in Connected apps, and it stops working immediately."
+  - "When you turn the second step on or off, remove a passkey or an authenticator app, or make new
+    recovery codes, every other device you are signed in on is signed out."
+  - "Connections to Caesura are encrypted." `curl -sI https://caesura.today` returns
+    `strict-transport-security: max-age=63072000`, and `curl -sI http://caesura.today` returns 301 to
+    `https://caesura.today/`.
+  - "We keep only a fingerprint of each API token and of each app connection's tokens, which cannot be
+    turned back into them." and "The token itself is shown to you once, when you make it."
+  - The three FAQ answers (second factor optional; lost phone and recovery codes; seeing what is
+    connected).
+  The account-behaviour claims (the ones needing a signed-in account) rest on Mitchell's 2026-11-21
+  confirmation above; this check re-proves only that each still appears as written, so the page has not
+  drifted from what he confirmed.
+- **Decision 19's two new lines, 2026-11-22.**
+  - "Anything served from caesura.today is in scope; preview sites are not." `SECURITY.md`, *Scope*, says
+    the same: "Anything served from the production deployment is in scope. Preview deployments are not".
+    Same policy, in the reader's words (production is `caesura.today`).
+  - "There is no SLA and no bounty — this is one maintainer's project. Expect a first response in days,
+    not hours." Identical to `SECURITY.md`'s *Reporting a vulnerability*, word for word.
+  - The page's email (Cloudflare obfuscates the address in the HTML; decoded) is
+    `mitchell@demarcosoftware.com`, the one `Contact:` line of `https://caesura.today/.well-known/security.txt`
+    (`Expires: 2027-10-01T00:00:00.000Z`, `Policy: https://caesura.today/security`) and the address in
+    `SECURITY.md`.
+
+### Search on production, 2026-11-22 (gate boxes *Search*, */security search*)
+
+Fetched with `curl` from `https://caesura.today` on `ded937e`.
+
+- **`/ai`** answers 200 `text/html`; canonical `https://caesura.today/ai`; `og:url` the same; title "Caesura:
+  the AI trip planner for Claude and Gemini" (50 characters); description 128 characters; one `<h1>`;
+  `WebPage` and `FAQPage` JSON-LD whose four questions (*Does Caesura work with Claude?*, *with Gemini?*,
+  *Is my data safe with an AI tool?*, *What can an agent not do?*) all appear in the visible text.
+- **`/security`** answers 200 `text/html`; canonical and `og:url` `https://caesura.today/security`; title 53
+  characters; description 119 characters; one `<h1>`; `WebPage` and `FAQPage` JSON-LD with three
+  questions, all of them the visible ones.
+- **The sitemap clause fails today.** `https://caesura.today/sitemap.xml` lists 445 URLs and neither
+  `/ai` nor `/security`. It is Cloudflare's copy: `cf-cache-status: HIT`, `age: 10964`,
+  `last-modified: Sun, 22 Nov 2026 01:33:21 GMT`, which is before the merge, with
+  `cache-control: public, max-age=14400, s-maxage=86400, stale-while-revalidate=86400`. The same path with
+  a cache-busting query (`/sitemap.xml?cb=<time>`, `cf-cache-status: MISS`) is the origin's answer: 447
+  URLs, both `<loc>https://caesura.today/ai</loc>` and `<loc>https://caesura.today/security</loc>`
+  present, as `src/app/sitemap.ts` and `sitemap.test.ts:36-42` say. A request with `Cache-Control: no-cache`
+  still returned `HIT`, so a crawler gets the old file until the edge copy is purged or expires (about
+  01:33Z on 2026-11-23). Both boxes stayed unticked until `https://caesura.today/sitemap.xml` itself listed the two pages.
+- **The sitemap clause passes after the purge.** Cloudflare had served a pre-merge copy of the sitemap
+  (`s-maxage=86400` plus `stale-while-revalidate=86400`) until Mitchell purged its cache for `/sitemap.xml`
+  on 2026-11-22. Then `curl -s https://caesura.today/sitemap.xml` (`cf-cache-status: MISS`,
+  `last-modified: Sun, 22 Nov 2026 05:04:40 GMT`) contained `<loc>https://caesura.today/ai</loc>` and
+  `<loc>https://caesura.today/security</loc>`. Re-fetched by the closing session at 05:05:15Z the same day:
+  200, `last-modified: Sun, 22 Nov 2026 05:04:40 GMT`, `cf-cache-status: HIT` (the edge now holds the
+  post-purge file), and both `<loc>` lines present. Both boxes ticked. A follow-up task was suggested to
+  shorten that cache or purge it on deploy; until then a new page can be missing from the sitemap for up to a day.
+
+### Words, code samples and walk on the PR 788 preview (gate boxes *Words*, */security words*, *Code samples*, *[walk]*)
+
+Mitchell, 2026-11-22, in the orchestrator session, on the PR 788 preview at 1eddf2f
+(https://788.preview.caesura.today, the same tree as 21d4f01c).
+
+- **Words.** Approved as shown on the preview: `/ai` title "Caesura: the AI trip planner for Claude,
+  ChatGPT, Gemini", description "Ask Claude, ChatGPT, Gemini or another AI tool to plan in Caesura for
+  you. You choose what it may do, and you can disconnect it any time.", headline "An AI trip planner
+  that works with Claude, ChatGPT and Gemini"; and on `/developers` the labels "Any AI app" and "Pick
+  your tool". *Re-approved 2026-11-22, on the preview at a321529, after decision 20 cut ChatGPT, so
+  the earlier note that these words would change if decision 15 cut either is resolved.* The new
+  `/ai` words: title "Caesura: the AI trip planner for Claude and Gemini", description "Ask Claude,
+  Gemini or another AI tool to plan in Caesura for you. You choose what it may do, and you can
+  disconnect it any time.", headline "An AI trip planner that works with Claude and Gemini", tab
+  labels "Gemini CLI" and "Muse", and a new FAQ "Does Caesura work with Gemini?": "Yes. Add Caesura
+  to the Gemini CLI as an MCP server, sign in, and choose what it may do." Mitchell was asked to
+  approve them and replied "clean and finish this up and then let's merge", so approval is recorded
+  as given by proceeding, not as a separate "approved".
+- **`/security` words.** Approved as shown: title "Security at Caesura: your account, your data, your
+  AI", description "How you sign in to Caesura, what an AI tool can do for you, how to take access
+  back, and how to report a vulnerability.", headline "Security at Caesura".
+- **Code samples.** "Code samples work": he saw `x-codeSamples` rendered on the preview's
+  `/developers/reference`.
+- **[walk].** "Walk worked fine": Rich Results Test on `/ai` with no errors, the Claude example from
+  `/ai` through `/developers#connect-claude` to a published playbook, and the five tabs at phone
+  width.
+
+## Retro — written 2026-11-22 (18 of 18 boxes ticked)
+
+### What went well
+- **Every clause has a recorded production check.** The last two boxes closed on 2026-11-22 once
+  `https://caesura.today/sitemap.xml` listed `/ai` and `/security` (*Search on production*). The rest were ticked with a
+  cited run, commit, or file and line, and Mitchell's walk and word approvals are quoted in *Evidence*.
+- **The scope changes were decided, not drifted into.** ChatGPT (Business plan) and Gemini (CLI only) could not be proven on free
+  tiers, so decision 20 cut ChatGPT, turned Gemini into the Gemini CLI and named Muse, and the words were re-approved on the
+  preview at a321529. Nothing on the page claims a tool that has no recorded production run.
+- **Cost per line was well under target.** $3.65 per 1,000 lines added this session (target under 20), 3634 lines across 44 files in
+  5 parts. No builder averaged over 89k context.
+
+### What could be better
+- **`docs/STATUS.md` was over its surface-size headroom on `main` from M62's close** and was fixed only on part 5, so marking the lower
+  parts ready turned PR 787 red. It was fixed by cherry-picking 5f19212 to part 1 and merging up. The headroom check belongs
+  at the start of a milestone, on `main`, before any part is marked ready.
+- **Agents committing to `ccr-8a6d904d-vhaiet` while it was checked out in the main checkout left a stale index that looked
+  like a revert, three times.** A part-0 commit from a subagent should run in its own worktree.
+- **A parallel session duplicated the STATUS fix**, and one implementer was stopped before pushing. Two sessions were given the same ask
+  without either seeing the other.
+- **KI-20261111-b recurred** (run 44972067186), and cost a triage subagent pass. It is open with that run added.
+- **Cloudflare served a day-old sitemap after the deploy until Mitchell purged it.** The sitemap sends `s-maxage=86400` plus
+  `stale-while-revalidate=86400`, so a new page can be missing from it for up to a day after a deploy. A follow-up task was suggested to
+  shorten that cache or purge on deploy.
+- **The orchestrator's share of spend was 44.5% this session and 37% in the previous one**, against a target of under 15% (see below).
+
+### Leftovers
+- Shorten the sitemap cache, or purge `/sitemap.xml` on deploy: a suggested task, not yet filed. Mitchell's call.
+- KI-20261111-b (e2e palette add-trip-from-home dialog not found): open, recurred in run 44972067186.
+- ChatGPT as a connect-your-AI tool: cut by decision 20; returns only when it can be proven on production.
+
+## Spend
+
+<!-- session-metrics:milestone v1 -->
+
+11 agents, 281 API calls, 4.15M units, $13.26 recorded. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | ≈ $ | Share |
+|---|---|---|---|---|---|---|---|
+| `orchestrator` | 1 | 80 | 182k | 247k | 1.85M | $5.90 | 44.5% |
+| `phase-implementer` | 4 | 103 | 74k | 125k | 1.06M | $3.37 | 25.4% |
+| `general-purpose` | 3 | 27 | 108k | 138k | 662k | $2.12 | 16.0% |
+| `part-reviewer` | 3 | 71 | 50k | 86k | 587k | $1.87 | 14.1% |
+
+**Costliest agents**
+
+| Agent (description) | Type | Calls | Avg context | Peak context | Units | ≈ $ |
+|---|---|---|---|---|---|---|
+| Cut ChatGPT, make Gemini tab Gemini CLI | `phase-implementer` | 71 | 89k | 125k | 775k | $2.47 |
+| Tick evidence-backed M63 gate boxes | `general-purpose` | 18 | 119k | 138k | 372k | $1.19 |
+| Review ChatGPT cut, Gemini CLI, Muse | `part-reviewer` | 24 | 63k | 86k | 251k | $0.80 |
+| Review /security lines on part 5 | `part-reviewer` | 21 | 47k | 64k | 173k | $0.55 |
+| Review STATUS trim on part 1 + merge-up | `part-reviewer` | 26 | 39k | 52k | 163k | $0.52 |
+| Part 0: record Gemini, Muse, decision 20 | `general-purpose` | 5 | 88k | 96k | 154k | $0.49 |
+| Record Mitchell's gate answers on part 0 | `general-purpose` | 4 | 83k | 90k | 136k | $0.44 |
+| Part 5: two minor review fixes | `phase-implementer` | 16 | 42k | 49k | 124k | $0.40 |
+| Add scope + SLA lines to /security | `phase-implementer` | 9 | 41k | 47k | 90k | $0.29 |
+| Fix STATUS.md headroom on part 1, merge up | `phase-implementer` | 7 | 35k | 37k | 67k | $0.22 |
+
+**Orchestrator turns, by what started them**
+
+| What started the turn | Turns | Units | ≈ $ | Share of orchestrator | Idle |
+|---|---|---|---|---|---|
+| GitHub / trigger notification | 0 | 0 | $0.00 | 0.0% | 0 of 0 (0 units) |
+| Subagent report | 8 | 464k | $1.48 | 25.1% | – |
+| Subagent finished | 6 | 727k | $2.32 | 39.4% | – |
+| Harness | 3 | 0 | $0.00 | 0.0% | – |
+| Human | 8 | 655k | $2.09 | 35.5% | – |
+| Other (unrecognised frame) | 0 | 0 | $0.00 | 0.0% | – |
+
+**Follow-ups and cache re-writes**
+
+| Measure | Count | Tokens |
+|---|---|---|
+| `SendMessage` calls by the orchestrator | 1 | – |
+| Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
+| Full cache re-writes in subagents | 0 | 0 |
+| — directly after a coordinator message | 0 | 0 |
+
+**Guard hooks**
+
+| Hook | deny | note |
+|---|---|---|
+| `implementer-brief-check` | 1 | 0 |
+
+**Targets**
+
+| Target | Result | Measured |
+|---|---|---|
+| Orchestrator share of units < 15% | missed | 44.5% |
+| No phase-implementer averaging > 250k context | met | worst 89k |
+| GitHub wakes per merged part < 5 | met | 0 / 5 = 0.0 |
+| Dollars per 1k lines added < 20 | met | $3.65 |
+| Coordinator-message re-writes <= 2 | met | 0 |
+
+### All sessions
+
+Three sessions have recorded totals, summing to 12.48M units.
+
+- **This close session** (2fbc60ba): its generated block is the block above, unchanged.
+- **Previous orchestrator session** (2026-11-21 22:25Z to 2026-11-22 00:35Z): 9 agents, 174 API calls, 2.66M units. By agent type:
+  `general-purpose` 2 (haiku CI triage) 1.22M; `orchestrator` 970k, peak context 197k; `phase-implementer` 3, 320k;
+  `part-reviewer` 3, 151k. The orchestrator's share was 37%. `implementer-brief-check` denied 1.
+- **An earlier session**: 19 agents, 5.67M units.
+
+The other 19-agent session (12 `phase-implementer`, 6 `part-reviewer`, 1 triage) and the helper session that ran the STATUS.md
+headroom fix have no recorded totals, so the 12.48M is a floor, not the milestone's cost.
+
+
+### Spend against the last milestone
+
+- Orchestrator's share of the spend: target under 15%, **missed** at 44.5% this session and 37% in the previous one. M62 missed it too
+  (session 2 at 10.9% met, close session at 34.5% missed). Cause: the close handled many relayed asks and fix rounds (ChatGPT, Gemini and Muse, the
+  `/security` lines, the STATUS headroom, stale-index cleanups) in the orchestrator's own context instead of one brief per ask.
+- Dollars per 1,000 lines added: target under 20, **met** at $3.65 this session (M62: not measured), on 3634 lines across 44 files in 5 parts.
+- A builder's average context: target none over 250k, met (worst 89k, M62 worst 55k in the close session).
+- GitHub wakes per merged part: met, 0 of 5. Coordinator-message re-writes: met, 0.
