@@ -256,3 +256,38 @@ not share one copy of `libraryCache.ts`. A clear with nothing listening (outside
 or before the warm-up has started) does nothing more than it did. The log shows
 `[warm-up] the library's lists were cleared; reading them again in 60 s`, then the usual
 `[warm-up] read <ok> of <n> public pages`.
+
+## Amendment — 2026-11-22: a stranger's lists come from one copy of the library
+
+With the warm-up running again after each clear, Neon slept about four hours in 24, but
+overnight it still woke every few minutes. The table counters showed what woke it: list reads,
+about three a minute while it was awake, with no signed-in request beside them. The warm-up
+fills the sitemap's URLs, and every list URL it does not know (a Discover filter, a cursor, a
+place page's `?page=N`) was an entry of its own, so each one a crawler found was a read. The
+20th amendment's last step, held in reserve then, is this one.
+
+`publicLibrary.ts` now keeps **one entry, `snapshot`, holding every published day**: its
+Discover card, read with no cities asked for and no reader, and the columns the predicates
+and the ranking read (`cities_folded`, `countries`, `day_count`, the counters, the rank score,
+the two timestamps). A signed-out Discover and every place, tag, length and author page are
+worked out of it in memory (`librarySnapshot.ts`), so a URL nobody has asked for before costs
+no read. It hangs from `library` and `discover-rank`, as Discover's entries did, and is read
+again by the warm-up after a clear like the rest.
+
+- **One spelling of the ranking in SQL, one in TypeScript.** `librarySnapshot.ts` spells
+  `matchPredicate`, `matchedCount` and `orderBy` again for a reader with no account; the steps
+  after the read (`keeps`, `siblingCities`, the window's counts, the offset page) are shared.
+  `librarySnapshot.int.test.ts` holds the two to one answer, card for card, over every sort,
+  several places and bands, every page by cursor and by offset, against a library built to tie
+  and to fold.
+- **A cursor that names no day in the library is no cursor.** The SQL ranks from a private or
+  deleted day's keys; only a hand-made URL carries one, and page one costs no read.
+- **An author's list lags their adds by up to a day**, like every other list. It used to hang
+  from the author's tag, which an add clears.
+- **The size is capped.** Next stores nothing over 2 MB in its data cache, and an entry it
+  refuses would make every list a read again. The snapshot is measured as Next measures it;
+  over `SNAPSHOT_MAX_BYTES` (1.8 MB) it is kept as "too big", logged
+  (`library snapshot too large to cache; lists read per URL`), and the lists fall back to an
+  entry per URL as before. At 256 days it is estimated at about 0.6 MB.
+- The JSON API under `/api/playbooks`, a signed-in reader's Discover and the public API still
+  read live.
