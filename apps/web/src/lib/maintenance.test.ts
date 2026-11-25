@@ -14,7 +14,7 @@ describe("maintenance mode", () => {
     expect(isMaintenance()).toBe(true);
   });
 
-  it.each(["/api/v1/trips", "/api/mcp", "/api/cron/embed-days", "/.well-known/oauth-authorization-server", "/oauth/authorize"])(
+  it.each(["/api", "/.well-known/oauth-authorization-server", "/oauth/authorize"])(
     "answers %s with 503 JSON, Retry-After and noindex",
     async (path) => {
       const res = maintenanceResponse(path);

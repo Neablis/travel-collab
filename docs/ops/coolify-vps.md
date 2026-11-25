@@ -245,12 +245,16 @@ Pages answer 503 with the notice, `Retry-After: 600` and `noindex`; `/.well-know
 every request body), so maintenance does not stop API writes: at the cutover those
 stop by making Neon's application role read-only
 (`ALTER ROLE <app role> SET default_transaction_read_only = on`, then end its open
-sessions; set it back to `off` first on rollback; cutover runbook step 2). `/api/health`
+sessions; set it back to `off` first on rollback; cutover runbook step 2). Until
+then, and after, API, MCP, cron and sign-in requests still run and fail on the
+read-only database, so clients see a server error (likely 500, no `Retry-After`),
+not a 503. `/api/health`
 stays 200 and adds `"maintenance":true`, so Coolify's rollout and the
 container healthcheck keep passing. The notice reads no database. Used for the cutover to the new box;
-`scripts/compare-databases.mjs <url-a> <url-b>` compares the two databases
+`COMPARE_DB_A=<url> COMPARE_DB_B=<url> node scripts/compare-databases.mjs` compares the two databases
 before and after (read-only, one snapshot per side; exits 1 on any
-difference, 2 if it could not compare). Expect equality only with maintenance
+difference, 2 if it could not compare). It checks table row counts, migrations,
+the `vector` extension and the HNSW index, not row contents or sequences. Expect equality only with maintenance
 on: a live source keeps taking writes after the dump.
 
 ## Plausible

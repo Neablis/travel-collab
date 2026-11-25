@@ -6,14 +6,20 @@
 // it could not compare (bad usage, an unreachable or half-restored side): that
 // is not a verdict on the copy, and must not read as one.
 //
-//   node scripts/compare-databases.mjs <connection-string-a> <connection-string-b>
+//   COMPARE_DB_A=<connection-string> COMPARE_DB_B=<connection-string> node scripts/compare-databases.mjs
+//
+// The strings come from the environment, not argv, which `ps` and shell
+// history would show with the password in it.
 //
 // Read-only: each side runs in one REPEATABLE READ, READ ONLY transaction, so
 // a mistyped URL cannot change anything and every count on a side comes from
 // the same moment. The two sides are still read at different moments, so a
 // database that keeps taking writes (the live source) will differ from its
-// copy: expect equality only with maintenance mode on. Row counts are exact (`count(*)`), which is fine at
-// this database's size and is the point: an estimate could not prove the copy.
+// copy: expect equality only with maintenance mode on. Row counts are exact
+// (`count(*)`), so a table that lost or gained a row shows. What a match proves
+// is shape and volume only: not row contents (an updated or corrupted row keeps
+// its count), not sequences, not indexes other than the HNSW one, not other
+// extensions or constraints.
 
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -81,9 +87,9 @@ async function snapshotOf(Client, url) {
 }
 
 async function main() {
-  const [urlA, urlB] = process.argv.slice(2);
+  const { COMPARE_DB_A: urlA, COMPARE_DB_B: urlB } = process.env;
   if (!urlA || !urlB) {
-    console.error("usage: node scripts/compare-databases.mjs <connection-string-a> <connection-string-b>");
+    console.error("usage: COMPARE_DB_A=<connection-string> COMPARE_DB_B=<connection-string> node scripts/compare-databases.mjs");
     process.exit(2);
   }
   // `pg` is the web app's dependency, not the root's.

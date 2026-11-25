@@ -58,7 +58,17 @@ test("a snapshot reads in one repeatable-read, read-only transaction", async () 
 test("a database that cannot be reached exits 2, not 1", () => {
   const script = fileURLToPath(new URL("../compare-databases.mjs", import.meta.url));
   const dead = "postgres://nobody@127.0.0.1:1/none";
-  const run = spawnSync(process.execPath, [script, dead, dead], { encoding: "utf8" });
+  const env = { ...process.env, COMPARE_DB_A: dead, COMPARE_DB_B: dead };
+  const run = spawnSync(process.execPath, [script], { encoding: "utf8", env });
   assert.equal(run.status, 2);
-  assert.match(run.stderr, /could not compare/);
+  // Not just the prefix: a `pg` that fails to resolve also exits 2 with it.
+  assert.match(run.stderr, /could not compare: .*ECONNREFUSED/);
+});
+
+test("with no connection strings it exits 2 with usage", () => {
+  const script = fileURLToPath(new URL("../compare-databases.mjs", import.meta.url));
+  const env = { ...process.env, COMPARE_DB_A: "", COMPARE_DB_B: "" };
+  const run = spawnSync(process.execPath, [script], { encoding: "utf8", env });
+  assert.equal(run.status, 2);
+  assert.match(run.stderr, /COMPARE_DB_A/);
 });

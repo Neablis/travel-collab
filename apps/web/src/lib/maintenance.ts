@@ -12,8 +12,9 @@
 const RETRY_AFTER_SECONDS = "600";
 
 // Routes a machine calls through the proxy: the discovery documents and OAuth's
-// own pages. `/api` stays in the pattern, but the proxy never sends it here. A browser would be shown a page
-// for a JSON client that cannot read one.
+// own pages, which get JSON because a browser page is no use to a JSON client.
+// `api` is listed only for the bare `/api`: the proxy's matcher never sends
+// `/api/...` here.
 const MACHINE_PATH = /^\/(?:api|\.well-known|oauth)(?:\/|$)/;
 
 // Read per request, never at load: Next builds this file once and the variable
