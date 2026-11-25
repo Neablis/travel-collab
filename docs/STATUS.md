@@ -54,7 +54,7 @@ took that as a waiver, and nobody has opened preview or production in a browser.
 close M61 --confirm` has run (TODO.md row ticked). Production was down for about 8 minutes after
 the merge, because the code deployed before `0076` was applied (inferred, not traced); no known
 issue exists for that ordering yet. Part 0 is PR 722 (`ccr-229c0104-j14ya5`, prose only), waiting
-for Mitchell to merge. The current-milestone markers still say M59.
+for Mitchell to merge.
 
 **Next action:**
 0000. **M63:** Mitchell merges PR 783 (part 0, prose only; every code part is on `main` in `ded937e`, so no lower draft is open and no migration is due). Then remove the orchestrator's `tc-orchestrator` guard file. Optional: file the task to shorten the sitemap cache or purge it on deploy.
