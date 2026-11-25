@@ -81,10 +81,10 @@ Facts the parts share (the survey, 2026-11-24):
 
 | File | Entry point | Change | Test |
 |---|---|---|---|
-| `lib/maintenance.ts` **New** | `isMaintenance()`, `maintenanceResponse(req)` | Reads `MAINTENANCE_MODE === "true"` per request. HTML notice (D9's words, no links, no DB) for pages; `503 {"error":"maintenance"}` JSON for `/api/*`, `/.well-known/*`, `/oauth/*`; `Retry-After: 600` and `X-Robots-Tag: noindex` on both | `lib/maintenance.test.ts` **New** |
-| `proxy.ts` | `proxy` (top), `config.matcher` :309 | First branch: in maintenance, every path except `/api/health` and `/_next/static` gets `maintenanceResponse`. The matcher widens to cover them, and the rest of the proxy is unchanged when maintenance is off | `proxy.test.ts` |
+| `lib/maintenance.ts` **New** | `isMaintenance()`, `maintenanceResponse(req)` | Reads `MAINTENANCE_MODE === "true"` per request. HTML notice (D9's words, no links, no DB) for pages; `503 {"error":"maintenance"}` JSON for `/.well-known/*`, `/oauth/*` and bare `/api` (`/api/*` never reaches the proxy: cutover writes stop at the database, decision 9 amendment); `Retry-After: 600` and `X-Robots-Tag: noindex` on both | `lib/maintenance.test.ts` **New** |
+| `proxy.ts` | `proxy` (top), `config.matcher` :309 | First branch: in maintenance, every path the matcher covers (everything but `/api/*` and `/_next/*`) gets `maintenanceResponse`. The matcher widens to cover them, and the rest of the proxy is unchanged when maintenance is off | `proxy.test.ts` |
 | `app/api/health/route.ts` | `GET` | Adds `maintenance: true` while on; still 200 | `app/api/health/route.test.ts` |
-| `scripts/compare-databases.mjs` **New** | `compare(a, b)`, `main` | Takes two connection strings and prints per-table row counts, `drizzle.__drizzle_migrations` hashes, `pg_extension` `vector`, and the HNSW index on `day_embeddings`. Exits 1 on any difference. Read-only (`SET TRANSACTION READ ONLY`) | `scripts/__tests__/compare-databases.test.mjs` **New** (pure diff logic) |
+| `scripts/compare-databases.mjs` **New** | `compare(a, b)`, `main` | Reads two connection strings from `COMPARE_DB_A` and `COMPARE_DB_B` (not argv, so they stay out of `ps`) and prints per-table row counts, `drizzle.__drizzle_migrations` hashes, `pg_extension` `vector`, and the HNSW index on `day_embeddings`. Exits 1 on any difference. Read-only (`SET TRANSACTION READ ONLY`) | `scripts/__tests__/compare-databases.test.mjs` **New** (pure diff logic) |
 | `.env.example` | — | `MAINTENANCE_MODE` documented, unset | — |
 | `docs/ops/coolify-vps.md` | new *Maintenance* section | How to switch it on and off | — |
 
@@ -92,7 +92,7 @@ The test seen red: break `isMaintenance` to always return false, and the proxy t
 503 on `/trips/x` fails.
 
 **Preview walk:** set `MAINTENANCE_MODE=true` on the preview, and open `/`, `/trips/anything` and
-`/api/v1/trips`: the notice appears, and the API answers 503 JSON. `/api/health` shows
+`/.well-known/oauth-authorization-server`: the notice appears, and `/.well-known` answers 503 JSON. `/api/v1/trips` is not in maintenance (it answers as usual; at cutover Neon's read-only role stops its writes). `/api/health` shows
 `"maintenance":true`. Unset it, and the app is back.
 
 ## Part 2 — Umami replaces Plausible (~8 files)
