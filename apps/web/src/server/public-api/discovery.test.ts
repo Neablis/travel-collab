@@ -244,7 +244,7 @@ describe("/agents.md", () => {
   it("never mentions how Caesura is built or run", async () => {
     const { text } = await read();
     for (const word of [
-      "github", "AGENTS.md", "repository", "Neon", "Hetzner", "Coolify", "Vercel", "Next.js",
+      "github", "AGENTS.md", "repository", "Neon", "Hetzner", "Coolify", "OVHcloud", "Umami", "Plausible", "Vercel", "Next.js",
       "Scalar", "Strict-Transport-Security", "Content-Security-Policy",
     ]) {
       expect(text.toLowerCase(), word).not.toContain(word.toLowerCase());

@@ -8,7 +8,7 @@ import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
  * something. These tests read the header out of `headers()` for each
  * environment. Since M59 the policy is the same in preview and production:
  * the Vercel Toolbar's origins are gone, and the one environment-dependent
- * origin is the self-hosted Plausible.
+ * origin is Umami's.
  */
 
 // next.config.ts reads process.env at module scope, so each case needs a fresh
@@ -86,20 +86,25 @@ describe("the CSP names no Vercel origin", () => {
   });
 });
 
-describe("the self-hosted Plausible origin", () => {
-  async function withPlausible(src: string | undefined, nodeEnv: "production" | "development" = "production") {
-    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", src);
+describe("Umami's origin", () => {
+  async function withUmami(src: string | undefined, nodeEnv: "production" | "development" = "production") {
+    vi.stubEnv("NEXT_PUBLIC_UMAMI_SRC", src);
     return cspFor(undefined, nodeEnv);
   }
 
   it("is allowed to load its script and receive events, by origin only, when configured", async () => {
-    const csp = await withPlausible("https://stats.example.com/js/script.js");
+    const csp = await withUmami("https://stats.example.com/script.js");
     expect(directive(csp, "script-src")).toBe("script-src 'self' 'unsafe-inline' https://stats.example.com");
     expect(directive(csp, "connect-src")).toBe("connect-src 'self' https://tiles.openfreemap.org https://stats.example.com");
   });
 
+  it("ignores a leftover Plausible variable: its origin is never allowed", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", "https://plausible.example.com/js/script.js");
+    expect(await withUmami(undefined)).toBe(await cspFor(undefined, "production"));
+  });
+
   it.each([undefined, "", "not a url"])("adds nothing when SRC is %o", async (src) => {
-    expect(await withPlausible(src)).toBe(await cspFor(undefined, "production"));
+    expect(await withUmami(src)).toBe(await cspFor(undefined, "production"));
   });
 });
 
