@@ -1,7 +1,8 @@
 // The cutover's maintenance mode (M64 decision 9, PR 794). One variable,
-// `MAINTENANCE_MODE=true`, turns every page into a static notice and every
-// machine route into a 503 JSON answer, so the old box can stop taking writes
-// while the new one is filled. Unset, nothing here runs.
+// `MAINTENANCE_MODE=true`, turns every page into a static notice and the
+// discovery and OAuth routes into a 503 JSON answer. `/api` is outside it (the
+// proxy would buffer every request body): writes stop by making Neon's role
+// read-only (plan O8 step 2), not here. Unset, nothing here runs.
 //
 // It imports nothing: the notice must come up with the database down and with
 // the rest of the app unloadable, which is the situation it is for. No
@@ -10,8 +11,8 @@
 
 const RETRY_AFTER_SECONDS = "600";
 
-// Routes a machine calls: the API, MCP and cron routes (all under `/api`), the
-// discovery documents, and OAuth's own pages. A browser would be shown a page
+// Routes a machine calls through the proxy: the discovery documents and OAuth's
+// own pages. `/api` stays in the pattern, but the proxy never sends it here. A browser would be shown a page
 // for a JSON client that cannot read one.
 const MACHINE_PATH = /^\/(?:api|\.well-known|oauth)(?:\/|$)/;
 
