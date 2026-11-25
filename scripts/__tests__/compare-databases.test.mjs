@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diff } from "../compare-databases.mjs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { diff, snapshot } from "../compare-databases.mjs";
 
 const base = () => ({ tables: { trips: 3, days: 9 }, migrations: ["h1", "h2"], vector: true, hnsw: true });
 
@@ -34,4 +36,29 @@ test("a missing vector extension or HNSW index is named", () => {
     "vector extension: A has it, B does not",
     "day_embeddings HNSW index: A has it, B does not",
   ]);
+});
+
+// One snapshot per side: under READ COMMITTED each count(*) sees a different
+// moment, so a live database would differ from itself between two tables.
+test("a snapshot reads in one repeatable-read, read-only transaction", async () => {
+  const sent = [];
+  const client = {
+    async query(sql) {
+      sent.push(sql);
+      return { rows: [], rowCount: 0 };
+    },
+  };
+  await snapshot(client);
+  assert.match(sent[0], /^BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY$/);
+  assert.equal(sent.at(-1), "ROLLBACK");
+});
+
+// A side that could not be read is not a side that differs: the cutover gate
+// reads exit 1 as "the copy is wrong".
+test("a database that cannot be reached exits 2, not 1", () => {
+  const script = fileURLToPath(new URL("../compare-databases.mjs", import.meta.url));
+  const dead = "postgres://nobody@127.0.0.1:1/none";
+  const run = spawnSync(process.execPath, [script, dead, dead], { encoding: "utf8" });
+  assert.equal(run.status, 2);
+  assert.match(run.stderr, /could not compare/);
 });

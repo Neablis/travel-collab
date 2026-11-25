@@ -240,13 +240,15 @@ should not run the sweeps.
 
 `MAINTENANCE_MODE=true` on the application, then a restart (seconds), puts the
 site behind one static notice (M64 decision 9). Unset it and restart to end it.
-Pages answer 503 with the notice, `Retry-After: 600` and `noindex`; `/api`,
-`/.well-known` and `/oauth` (MCP and the cron routes included) answer
-`503 {"error":"maintenance"}`. `/api/health` stays 200 and adds
-`"maintenance":true`, so Coolify's rollout and the container healthcheck keep
-passing. The notice reads no database. Used for the cutover to the new box;
+Pages answer 503 with the notice, `Retry-After: 600` and `noindex`; `/.well-known` and `/oauth` answer
+`503 {"error":"maintenance"}`. `/api` is outside the proxy (it would buffer
+every request body), so see the PR 795 notes for how it answers. `/api/health`
+stays 200 and adds `"maintenance":true`, so Coolify's rollout and the
+container healthcheck keep passing. The notice reads no database. Used for the cutover to the new box;
 `scripts/compare-databases.mjs <url-a> <url-b>` compares the two databases
-before and after (read-only, exits 1 on any difference).
+before and after (read-only, one snapshot per side; exits 1 on any
+difference, 2 if it could not compare). Expect equality only with maintenance
+on: a live source keeps taking writes after the dump.
 
 ## Plausible
 

@@ -2,12 +2,17 @@
 // Compare two Postgres databases before and after the M64 cutover (PR 794):
 // every public table's row count, the migrations drizzle recorded, the
 // `vector` extension, and the HNSW index on `day_embeddings`. Prints one line
-// per difference and exits 1 if there is any, 0 if the two match.
+// per difference and exits 1 if there is any, 0 if the two match. Exit 2 means
+// it could not compare (bad usage, an unreachable or half-restored side): that
+// is not a verdict on the copy, and must not read as one.
 //
 //   node scripts/compare-databases.mjs <connection-string-a> <connection-string-b>
 //
-// Read-only: each side runs in a READ ONLY transaction, so a mistyped URL
-// cannot change anything. Row counts are exact (`count(*)`), which is fine at
+// Read-only: each side runs in one REPEATABLE READ, READ ONLY transaction, so
+// a mistyped URL cannot change anything and every count on a side comes from
+// the same moment. The two sides are still read at different moments, so a
+// database that keeps taking writes (the live source) will differ from its
+// copy: expect equality only with maintenance mode on. Row counts are exact (`count(*)`), which is fine at
 // this database's size and is the point: an estimate could not prove the copy.
 
 import { createRequire } from "node:module";
@@ -40,7 +45,7 @@ const quote = (name) => `"${name.replaceAll('"', '""')}"`;
 
 /** Read one database's snapshot over a connected `pg` client. */
 export async function snapshot(client) {
-  await client.query("BEGIN TRANSACTION READ ONLY");
+  await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
   try {
     const out = emptySnapshot();
     const { rows: tables } = await client.query(
@@ -92,4 +97,11 @@ async function main() {
   console.log("The two databases match.");
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) await main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  try {
+    await main();
+  } catch (err) {
+    console.error(`could not compare: ${err instanceof Error ? err.message : err}`);
+    process.exit(2);
+  }
+}
