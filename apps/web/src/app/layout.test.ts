@@ -64,6 +64,9 @@ describe("root layout analytics", () => {
     expect(propsOf(Script)).toEqual([]);
     vi.stubEnv("NEXT_PUBLIC_UMAMI_SRC", "https://stats.example.com/script.js");
     expect(propsOf(Script)).toEqual([]);
+    vi.stubEnv("NEXT_PUBLIC_UMAMI_SRC", "");
+    vi.stubEnv("NEXT_PUBLIC_UMAMI_WEBSITE_ID", "site-id-1");
+    expect(propsOf(Script)).toEqual([]);
   });
 
   it("mounts the Umami script for the configured website id when both are set", () => {
