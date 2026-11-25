@@ -19,7 +19,7 @@ manager, not here.
 - Firewall: 22, 80, 443, 8000.
 - The application is `caesura-web`, built from the repo's `Dockerfile`. Its
   private neighbours, as Coolify services on the same network: Redis with
-  serverless-redis-http (the cache) and Umami (analytics). Neither is
+  serverless-redis-http (the cache) and Plausible (analytics). Neither is
   published to the internet: `caesura-redis-http` has no domain (Coolify generates an sslip.io
   one on create; remove it). It must have *consistent container name* on, because
   `KV_REST_API_URL` names it by its bare resource ID; with it off the container gets a
@@ -27,7 +27,7 @@ manager, not here.
   (KI-2026-11-15-a).
 - DNS is a Cloudflare zone since 2026-11-09 (Vercel DNS stopped taking writes when the
   account was blocked). The domain is a Vercel-resold registration, so its nameservers are
-  set in Vercel's domain dashboard. The apex, `www`, `staging.`, `coolify.`, `umami.` and
+  set in Vercel's domain dashboard. The apex, `www`, `staging.`, `coolify.`, `plausible.` and
   `*.preview.` are A records to the box, all **DNS-only (grey cloud)**: Cloudflare proxies
   nothing, so Let's Encrypt and HSTS are the box's. The email records (SPF, DKIM, DMARC, MX)
   and a CAA for `letsencrypt.org` sit in the same zone. A Cloudflare API token with DNS edit
@@ -91,7 +91,7 @@ Neon branch whose password you can rotate.
 | `PREVIEW_DB_IS_DISPOSABLE` | never set | `true` | Build. Preview scope only, after checking the database is a throwaway branch |
 | `PUBLIC_ORIGIN` | `https://caesura.today`, build and runtime | build and runtime | `lib/deployment/env.ts`. **Build too**: prerendered pages bake `metadataBase` from it, and without it they name `http://localhost:3001` as their canonical (found 2026-11-09). `scripts/check-public-origin.mjs` fails a production build that lacks it |
 | `APP_VERSION` | runtime | runtime | `lib/deployment/env.ts` |
-| `NEXT_PUBLIC_UMAMI_WEBSITE_ID`, `NEXT_PUBLIC_UMAMI_SRC` | build | build | Umami. Both set mounts the script and adds its origin to the CSP |
+| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`, `NEXT_PUBLIC_PLAUSIBLE_SRC` | build | build | Plausible |
 | `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE` | build | build | Sentry, browser side |
 | `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_PROFILE_SESSION_SAMPLE_RATE` | runtime | runtime | Sentry, server side |
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | runtime | runtime | Google sign-in |
@@ -253,14 +253,16 @@ before and after (read-only, one snapshot per side; exits 1 on any
 difference, 2 if it could not compare). Expect equality only with maintenance
 on: a live source keeps taking writes after the dump.
 
-## Umami
+## Plausible
 
-Umami replaced Plausible (M64 decision 4). It is hosted on the new box (plan O4), as a
-Coolify service answering at `https://umami.caesura.today`, with its database `umami` on
-the box's own Postgres. Create the website in Umami's dashboard, then set
-`NEXT_PUBLIC_UMAMI_SRC` (`https://umami.caesura.today/script.js`) and
-`NEXT_PUBLIC_UMAMI_WEBSITE_ID` (the website's id) at build. The script is env-gated, so
-an app with neither set requests nothing; the CSP names only Umami's origin.
+Plausible is a **raw Docker Compose service** in Coolify, not a one-click service:
+Coolify 4.6's API has no `plausible` service type, so it was created from a compose
+file. It answers at `https://plausible.caesura.today`, with Mitchell's account and the
+`caesura.today` site; the app loads its script from `NEXT_PUBLIC_PLAUSIBLE_SRC`.
+
+In that compose file `BASE_URL` must be `$SERVICE_URL_PLAUSIBLE` (the full
+`https://` URL), **not** `$SERVICE_FQDN_PLAUSIBLE`, which is the bare host name
+without a scheme. Plausible needs a full URL in `BASE_URL`.
 
 ## Crons
 
@@ -282,7 +284,7 @@ missing `CRON_SECRET` in the task's environment.
 
 The database is Neon's, so its backups and point-in-time restore are Neon's
 (the project's history window). The box holds no data worth restoring: the Redis
-cache rebuilds itself, Umami's `umami` database is the one thing on it that is not
+cache rebuilds itself, Plausible's database is the one thing on it that is not
 reproducible, and its Coolify service has scheduled backups turned on.
 
 ## Rollback

@@ -100,7 +100,10 @@ describe("Umami's origin", () => {
 
   it("ignores a leftover Plausible variable: its origin is never allowed", async () => {
     vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", "https://plausible.example.com/js/script.js");
-    expect(await withUmami(undefined)).toBe(await cspFor(undefined, "production"));
+    const csp = await withUmami(undefined);
+    // Compared with a run that has no Plausible variable, the two would match
+    // whether or not the code still read it; the origin itself is what must be absent.
+    expect(csp).not.toContain("plausible.example.com");
   });
 
   it.each([undefined, "", "not a url"])("adds nothing when SRC is %o", async (src) => {
