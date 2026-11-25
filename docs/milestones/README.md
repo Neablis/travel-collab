@@ -214,7 +214,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M59 — Self-host Caesura on a Coolify VPS
+Current milestone: M64 — Caesura runs on one cheap box, with its own Postgres
 
 ### Archived decision notes
 

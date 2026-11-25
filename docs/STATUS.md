@@ -21,7 +21,11 @@ general setup.
 
 ## Where the work is right now
 
-**M63 closed 2026-11-22, gate 18 of 18** (*Two pages say Caesura is AI first, and safe to hand to your AI*: `/ai`, `/security`, a *Connect your AI* section on `/developers`, code samples per endpoint, and `/agents.md`; decisions, evidence and retro in `docs/milestones/M63-caesura-works-with-your-ai.md`), by `pnpm milestone close M63 --confirm` on part 0 (PR 783, `ccr-8a6d904d-vhaiet`, prose only), which **merges last**. The five code parts are on `main` through PR 788 (merge `ded937e`). Every clause was checked on production; the last two, the sitemap clause for `/ai` and `/security`, passed only after Mitchell purged Cloudflare's copy of `/sitemap.xml` on 2026-11-22, because it had served a pre-merge file (`s-maxage=86400`). A task to shorten that cache or purge on deploy was suggested and is not filed. ChatGPT was cut by decision 20 (Gemini is the Gemini CLI; Muse is named). Open known issue that recurred: KI-20261111-b. Retro: the orchestrator's share of spend missed its target again (44.5% and 37%, against 15%). **M59 is still current, with 3 gate boxes open.**
+**M64 is current** (*Caesura runs on one cheap box, with its own Postgres*; decisions D1–D14 in `docs/milestones/M64-one-cheap-box-own-postgres.md`, ADR-093). Minted, scoped and placed ahead of M53 by Mitchell on 2026-11-24, every decision answered the same day. Part 0 is `claude/caesura-neon-migration-b5c8f3` (prose only, merges last). Plan: `docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`: two stacks around one cutover, stack A (maintenance mode, the compare script, Umami) merged before it and stack B (GHCR images, the SSH tunnel, Neon removed) merged at it. No code part has started.
+
+**M59 closed 2026-11-24, folded into M64** (gate 9 of 9, two boxes amended out to M64 by Mitchell's decision "Fold M59 into M64": the Vercel pause and PR previews). Production has served from the Hetzner box since 2026-11-09. Evidence, retro and spend are in `docs/milestones/M59-self-host-on-coolify-vps.md`; its old STATUS section is in `docs/retros/2026-11-24-status-archive.md`.
+
+**M63 closed 2026-11-22, gate 18 of 18** (*Two pages say Caesura is AI first, and safe to hand to your AI*: `/ai`, `/security`, a *Connect your AI* section on `/developers`, code samples per endpoint, and `/agents.md`; decisions, evidence and retro in `docs/milestones/M63-caesura-works-with-your-ai.md`), by `pnpm milestone close M63 --confirm` on part 0 (PR 783, `ccr-8a6d904d-vhaiet`, prose only), which **merges last**. The five code parts are on `main` through PR 788 (merge `ded937e`). Every clause was checked on production; the last two, the sitemap clause for `/ai` and `/security`, passed only after Mitchell purged Cloudflare's copy of `/sitemap.xml` on 2026-11-22, because it had served a pre-merge file (`s-maxage=86400`). A task to shorten that cache or purge on deploy was suggested and is not filed. ChatGPT was cut by decision 20 (Gemini is the Gemini CLI; Muse is named). Open known issue that recurred: KI-20261111-b. Retro: the orchestrator's share of spend missed its target again (44.5% and 37%, against 15%).
 
 **M62 closed 2026-11-21, gate 10 of 10, the walk amended** (*An account can ask for a second factor, and you control every one*; decisions, evidence and retro in `docs/milestones/M62-a-second-factor-you-control.md`, ADR-092), by `pnpm milestone close M62 --confirm` on part 0 (PR 773, `ccr-f7b14b1c-can07a`, prose only), **merged as 5db7b06**. All six code parts are on `main`: PRs 774 to 778 through PR 778 (2557e2e, 18:19Z), then PR 779 (301f28e, 18:26Z). `deploy-production` run 44934907812 on 2557e2e applied `0079_mfa`; run 44935504221 on 301f28e is green. Mitchell walked production the same day with no iPhone: an authenticator app, and a biometric passkey on Android and on desktop. He amended the [walk] box for that (Face ID replaced) and it is ticked. **Not walked on production:** removing a factor, turning MFA off, iOS Safari. One known issue: `KI-20261121-m62-early-lock-script-warns-on-client-navigation`.
 
@@ -52,18 +56,6 @@ the merge, because the code deployed before `0076` was applied (inferred, not tr
 issue exists for that ordering yet. Part 0 is PR 722 (`ccr-229c0104-j14ya5`, prose only), waiting
 for Mitchell to merge. The current-milestone markers still say M59.
 
-**M59 is current, production cut over 2026-11-09, gate open** (*Self-host Caesura on a Coolify
-VPS*; decisions and evidence in `docs/milestones/M59-self-host-on-coolify-vps.md`, plan
-`docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`, runbook `docs/ops/coolify-vps.md`).
-Vercel blocked the account on 2026-11-08 and production went down; it now serves from the Hetzner
-box through Coolify, built from `main` (`/api/health` version `5504d935`), with DNS on Cloudflare.
-All five code parts are on `main`: PR 702 (`7b390a21`), then PR 707 (`6f07974d`), which carried
-PRs 703, 704 and 706. Migrations `0070` to `0074` are applied (`migrate-production` run
-42561546021). Gate: 8 of 11. **Open, by Mitchell's choice to keep M59 open rather than defer
-them:** the Vercel project is not paused, Coolify PR previews are not on (the preview Neon branch is
-archived), and the retro waits for those two. Part 0 is PR 701 (`claude/next-milestone-setup-3ccab6`,
-prose only); it merges at the close, not before.
-
 **Next action:**
 0000. **M63:** Mitchell merges PR 783 (part 0, prose only; every code part is on `main` in `ded937e`, so no lower draft is open and no migration is due). Then remove the orchestrator's `tc-orchestrator` guard file. Optional: file the task to shorten the sitemap cache or purge it on deploy.
 000. **M62:** closed and merged (5db7b06). Optional: walk remove-a-factor and turn-off on production, and an iPhone when one is at hand.
@@ -74,17 +66,15 @@ prose only); it merges at the close, not before.
 0a. **M61:** Mitchell merges PR 722. File a known issue for deploy-before-migrate ordering; the
    unwalked *Discover rank* tab and `first_published_at` back-fill are the retro's leftovers. No
    migration is outstanding.
-0. **M59 (current):** Mitchell pauses the Vercel project (never deletes it). Then switch on Coolify
-   PR previews only after the Preview-scope `DATABASE_URL` points at a live preview Neon branch
-   (`docs/ops/coolify-vps.md`, *Previews*, steps 1 to 3), and check one PR's preview. Then tick the
-   last two boxes, write the retro with a spend block, `pnpm milestone close M59`, delete the plan,
-   and Mitchell merges PR 701. Deferred out of the gate: KI-20261109-a (plan retrieval, needs an
-   OpenAI key) and KI-20261109-b (three unread env vars); KI-20261108 (stale Vercel mentions).
-   M53 follows M59.
+0. **M64 (current):** build stack A (parts 1 and 2) by `docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`,
+   merged before the rehearsal (O6); stack B (parts 3 to 5) merges at the cutover (O8). Part 0 is
+   `claude/caesura-neon-migration-b5c8f3` and merges last. Carried from M59: the Vercel pause and
+   PR previews (M64 gate boxes). M59's deferred KIs stay open: KI-20261109-a, KI-20261109-b,
+   KI-20261110-b, KI-20261110, KI-20261114-d. M53 follows M64.
 1. Mitchell merges PR 679 (M44's part 0, prose only). Parts 1 to 5 are merged, so close no lower
    drafts. `migrate-production` is not needed: M44 added no migration.
 2. **M58 closed 2026-11-06, gate 11 of 11**, and `0074` is applied. Follow-ups: KI-20261105-a
-   and -b. **M53 follows M59** (*A search engine reads every public page the way a person does*).
+   and -b. **M53 follows M64** (*A search engine reads every public page the way a person does*).
    It is proposed and not scoped: scope it with Mitchell (`plan-a-milestone`, seven open
    decisions). M48 stays parked.
 3. Open follow-ups from M44: KI-2026-11-03-a, KI-2026-11-02-a (the flaky `TripProvider.suggest`
@@ -129,7 +119,7 @@ Also merged beside it: `docs/guidelines/building-with-judgment.md` (PR 468).
 
 Order: `… M42 ✓ → M45 ✓ → M46 ✓ → M47 ✓ → M50 ✓ → M51 ✓ → M52 ✓ → M49 ✓ → M54 ✓ → M55 ✓ → M56 ✓ → M48 (parked) → M43 ✓ → M44 → M58 → M53`; the M51 reorder is in
 `docs/milestones/README.md`, *2026-10-20 — minted: M51, ahead of M49*. Earlier closed milestones'
-narrative is in `docs/retros/2026-10-16-status-archive.md`, `docs/retros/2026-11-14-status-archive.md`, `docs/retros/2026-11-21-status-archive.md` (M58 back to M52) and each milestone's own file.
+narrative is in `docs/retros/2026-10-16-status-archive.md`, `docs/retros/2026-11-14-status-archive.md`, `docs/retros/2026-11-21-status-archive.md` (M58 back to M52), `docs/retros/2026-11-24-status-archive.md` (M59) and each milestone's own file.
 
 ## Live rules that the code cannot enforce
 
@@ -276,3 +266,4 @@ carries the next step.
 | The M45 close-out, the closed-milestone narrative from M42 back to M14 (lines 61-232 as of `14cda86`), and the stale second *Next action*, moved 2026-10-17 | `docs/retros/2026-10-16-status-archive.md` |
 | The M45, M46, M47, M50 and M51 close-outs, moved 2026-11-14 to bring this file back under its surface budget's headroom | `docs/retros/2026-11-14-status-archive.md` |
 | The M58, M44, M57, M43, M56, M55, M54, M49 and M52 close-outs, moved 2026-11-21 to restore the surface budget's headroom | `docs/retros/2026-11-21-status-archive.md` |
+| M59's section and its *Next action* item, moved 2026-11-24 when M59 closed folded into M64 | `docs/retros/2026-11-24-status-archive.md` |

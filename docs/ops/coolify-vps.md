@@ -2,7 +2,8 @@
 
 How Caesura runs on its own box (M59): the server, the Coolify application, its
 services, its crons and how to roll back. The steps that built it were O1 to O6
-in `docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`.
+in `docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md` (deleted at M59's close on
+2026-11-24; `docs/plans/README.md`, *Retrieving a deleted plan*).
 **Names only. A value never goes in this file**, a PR or a log; values move from
 tool to tool. Tokens and passwords live in Coolify and the operator's password
 manager, not here.
