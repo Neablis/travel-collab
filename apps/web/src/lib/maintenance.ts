@@ -4,7 +4,9 @@
 // while the new one is filled. Unset, nothing here runs.
 //
 // It imports nothing: the notice must come up with the database down and with
-// the rest of the app unloadable, which is the situation it is for.
+// the rest of the app unloadable, which is the situation it is for. No
+// colours of its own (the colour wall): `color-scheme` gives the browser's
+// light and dark defaults.
 
 const RETRY_AFTER_SECONDS = "600";
 
@@ -28,11 +30,11 @@ const NOTICE = `<!doctype html>
 <meta name="robots" content="noindex">
 <title>Caesura</title>
 <style>
-body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:Georgia,serif;background:#faf8f4;color:#1c1b19}
+:root{color-scheme:light dark}
+body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:Georgia,serif}
 main{max-width:30rem;padding:2rem}
 h1{font-size:1.75rem;font-weight:500;margin:0 0 1rem}
 p{font-size:1.125rem;line-height:1.6;margin:0 0 .5rem}
-@media(prefers-color-scheme:dark){body{background:#17160f;color:#ece8de}}
 </style>
 </head>
 <body>

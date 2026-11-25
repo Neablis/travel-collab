@@ -80,26 +80,32 @@ describe("maintenance mode", () => {
     expect(authCalls.count).toBe(0);
   });
 
-  it("answers an unguarded page and the API too, JSON for the API", async () => {
+  it("answers an unguarded page, and a discovery document in JSON", async () => {
     vi.stubEnv("MAINTENANCE_MODE", "true");
     expect(handle(request("/", { session: false, hint: false })).status).toBe(503);
-    const api = handle(request("/api/v1/trips", { session: false, hint: false }));
-    expect(api.status).toBe(503);
-    expect(await api.json()).toEqual({ error: "maintenance" });
+    const doc = handle(request("/.well-known/oauth-authorization-server", { session: false, hint: false }));
+    expect(doc.status).toBe(503);
+    expect(await doc.json()).toEqual({ error: "maintenance" });
   });
 
-  it("lets /api/health through", () => {
-    vi.stubEnv("MAINTENANCE_MODE", "true");
-    const res = handle(request("/api/health", { session: false, hint: false }));
-    expect(res.status).toBe(200);
-    expect(res.headers.get("x-middleware-next")).toBe("1");
+  // The failure D9 exists to prevent: with this entry gone, `/` and `/signin`
+  // keep running through the cutover and the notice shows on eight routes only.
+  // `/api` is deliberately outside it (see `proxy.ts`), as is `/_next`.
+  it("matches every page and discovery path by a catch-all entry, and never /api or /_next", () => {
+    const catchAll = config.matcher.filter((entry) => typeof entry !== "string" && entry.has === undefined);
+    for (const page of ["/", "/signin", "/.well-known/oauth-authorization-server", "/oauth/authorize"]) {
+      expect(nextMatches(catchAll, page)).toBe(true);
+    }
+    for (const other of ["/api/v1/trips", "/api/mcp", "/api/health", "/_next/static/chunk.js", "/_next/image"]) {
+      expect(nextMatches(catchAll, other)).toBe(false);
+    }
   });
 
   // The matcher now reaches every path, so a path it never matched before has
   // to come out as it did then: no auth(), no cookie, not even a ref's.
   it("passes a path the matcher never reached through untouched while off", () => {
     authCalls.count = 0;
-    for (const path of ["/signin", "/api/trips?ref=ShowHN", "/_next/static/a.js?ref=x"]) {
+    for (const path of ["/signin", "/admin.php", "/account.json", "/trips.bak", "/robots.txt"]) {
       const res = handle(request(path, { session: false, hint: false }));
       expect(res.headers.get("x-middleware-next")).toBe("1");
       expect(res.headers.getSetCookie()).toEqual([]);
