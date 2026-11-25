@@ -39,7 +39,7 @@
      label taken off.
 - **Not done, worth deciding:** swap on the box (a few GB would turn the next exhaustion into
   slowness rather than an outage); a memory limit on preview containers; the planned move to
-  a larger, cheaper box (`docs/plans/2026-11-09-move-vps-to-ovhcloud.md`). And a batch of
+  a larger, cheaper box (M64 (`docs/milestones/M64-one-cheap-box-own-postgres.md`, which replaced the 2026-11-09 OVHcloud plan)). And a batch of
   merges still starts one production build each, queued one at a time.
 - **Tripwire:** caesura.today or the Coolify dashboard stops answering while Hetzner says the
   server is running; or more than one preview container up at once.
