@@ -18,7 +18,10 @@ some code has to be on production **before** the cutover and some **only at** it
 
 - **Stack A (parts 1–2) merges before cutover.** The maintenance page has to be on the old box
   before the old box can show it. Umami's script is env-gated, so it is safe on either box. The
-  compare script is needed from the rehearsal onward.
+  compare script is needed from the rehearsal onward. **Stack A merges after O4** (2026-11-25,
+  PR 796's review): set `NEXT_PUBLIC_UMAMI_SRC` and `NEXT_PUBLIC_UMAMI_WEBSITE_ID` on the Hetzner
+  `caesura-web` (pointing at Umami on the new box) in the same deploy, so production's analytics
+  never go dark between the merge and the cutover.
 - **Stack B (parts 3–5) merges at cutover**, in the window between the final restore and the DNS
   flip (O8). Its tunnel and image-deploy workflows point at the new box and cannot work against
   the old one.
@@ -210,7 +213,10 @@ Times are for a rehearsal that took *T* minutes to dump and restore. The window 
    copy, and is about to be overwritten.
 2. **Maintenance on, on the old box** (`MAINTENANCE_MODE=true` on Hetzner's `caesura-web`,
    restart). Check: `curl -s https://caesura.today/api/health` shows `"maintenance":true`, and `/`
-   answers 503. Writes stop here. Pause the old box's scheduled tasks.
+   answers 503. Pause the old box's scheduled tasks. **Then make Neon read-only**
+   (`ALTER ROLE <app role> SET default_transaction_read_only = on`, and end its open sessions
+   with `pg_terminate_backend` so the setting applies). Check: a write through the API fails.
+   Writes stop here (D9's amendment). On rollback, set it back to `off` first.
 3. **Final copy:** `pg_dump -Fc` from Neon, drop and recreate `caesura` on the box, `pg_restore`,
    then `compare-databases` Neon vs box. **If anything differs, stop:** turn maintenance off on the
    old box, and the evening is over with nothing lost.

@@ -95,6 +95,12 @@ the recommendation, it says so.
      Back in a few minutes. Nothing you've saved is lost.* It answers HTTP 503 with
      `Retry-After: 600` and `noindex`. It reads no database, needs no sign-in and has no links.
    - **API, MCP, OAuth and cron routes** answer `503 {"error":"maintenance"}` with `Retry-After`.
+     *Amended 2026-11-25 by Mitchell:* no shared code path covers the ~150 `/api` handlers
+     (PR 795's review), so `/api` stays outside the maintenance page. **Writes are stopped at the
+     database instead:** at cutover step 2, production's Neon role is set to
+     `default_transaction_read_only = on`, so every write fails from any route and the final copy
+     cannot miss one. API writes answer an error for those minutes, not a tidy 503. Mitchell
+     picked this over a Traefik edge rule and over wrapping every handler.
    - **`/api/health`** answers `200 {"ok":true,"maintenance":true,…}`, so deploys and checks
      keep working.
 10. **Public pages: the provider stays unnamed.** `/ai`, `/security` and the API discovery text
