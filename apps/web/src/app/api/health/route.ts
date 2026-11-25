@@ -4,14 +4,17 @@
 // Unauthenticated: `/api` is outside the proxy's matcher, and it reveals
 // nothing. `force-dynamic` so `next build` does not prerender one answer.
 import { sourceCommit } from "@/lib/deployment/env";
+import { isMaintenance } from "@/lib/maintenance";
 
 export const dynamic = "force-dynamic";
 
 /**
  * The liveness answer: `{ ok: true }` while the server is up, and nothing about
  * its dependencies, plus the commit sha of the build so a deploy can be
- * confirmed to be the one pushed. A sha is public in a public repo.
+ * confirmed to be the one pushed. A sha is public in a public repo. While
+ * maintenance mode is on it says so, and stays 200: a deploy and the container
+ * healthcheck must keep seeing a server that is up (PR 794).
  */
 export function GET() {
-  return Response.json({ ok: true, version: sourceCommit() ?? "unknown" });
+  return Response.json({ ok: true, version: sourceCommit() ?? "unknown", ...(isMaintenance() ? { maintenance: true } : {}) });
 }

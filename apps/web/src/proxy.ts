@@ -7,6 +7,7 @@ import {
   normalizePendingAdmission,
   pendingAdmissionCookieOptions,
 } from "@/lib/pendingAdmission";
+import { isMaintenance, maintenanceResponse } from "@/lib/maintenance";
 import { isInternalPlaybooksPath, playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
 import { REQUEST_PATH_HEADER, SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
 import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@/lib/signupRef";
@@ -94,6 +95,13 @@ const guard = (own: URL) => auth((req) => {
 /** The request seam: the library picks its copy, an invite banks its token, anything else matched goes to sign-in, a signed-out request sheds the signed-in hint, and a `?ref=` link banks its channel. */
 export default function proxy(...args: Parameters<ReturnType<typeof guard>>) {
   const [req] = args;
+  // PR 794: the cutover's maintenance mode answers first, for every path the
+  // matcher's catch-all brings in, except the health check a deploy waits on.
+  if (isMaintenance() && req.nextUrl.pathname !== "/api/health") return maintenanceResponse(req.nextUrl.pathname);
+  // The catch-all below exists for maintenance mode alone. A path the matcher
+  // did not reach before it took the same answer then, with no cookie banked
+  // and no `auth()`: the `?ref=` entry's own exclusions are `/api` and `/_next`.
+  if (!isGuardedPath(req.nextUrl.pathname) && !isRefLanding(req)) return NextResponse.next();
   // ADR-079: a path matched only by the `?ref=` entry (the landing, a place
   // page) gets its cookie and nothing else. No `auth()`: the ref is not about
   // a session, and paying for one there would undo what ADR-078 bought.
@@ -147,6 +155,11 @@ function bankSignupRef(req: NextRequest, response: NextResponse): NextResponse {
   response.cookies.set(SIGNUP_REF_COOKIE, ref, signupRefCookieOptions(req.headers.get("host")));
   response.headers.set("Cache-Control", "private, no-store");
   return response;
+}
+
+// The `?ref=` matcher entry, as a predicate: any page but `/api` and `/_next`.
+function isRefLanding(req: NextRequest): boolean {
+  return req.nextUrl.searchParams.has("ref") && !/^\/(?:api|_next)\//.test(req.nextUrl.pathname);
 }
 
 /**
@@ -319,5 +332,9 @@ export const config = {
     "/invite/:path*",
     "/playbooks/:path*",
     { source: "/((?!api/|_next/).*)", has: [{ type: "query", key: "ref" }] },
+    // PR 794: every path, for maintenance mode. An object entry, so `isGuardedPath`
+    // (which reads the string entries) is not widened with it. `_next/static` is
+    // left out: chunks need no answer and are the bulk of requests.
+    { source: "/((?!_next/static).*)" },
   ],
 };

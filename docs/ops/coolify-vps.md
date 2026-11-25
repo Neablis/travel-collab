@@ -236,6 +236,18 @@ Do the same for every other variable whose production value must not reach a
 preview: `STRIPE_*` (test keys only), `FLAG_AI_LIVE`, `CRON_SECRET` if a preview
 should not run the sweeps.
 
+## Maintenance
+
+`MAINTENANCE_MODE=true` on the application, then a restart (seconds), puts the
+site behind one static notice (M64 decision 9). Unset it and restart to end it.
+Pages answer 503 with the notice, `Retry-After: 600` and `noindex`; `/api`,
+`/.well-known` and `/oauth` (MCP and the cron routes included) answer
+`503 {"error":"maintenance"}`. `/api/health` stays 200 and adds
+`"maintenance":true`, so Coolify's rollout and the container healthcheck keep
+passing. The notice reads no database. Used for the cutover to the new box;
+`scripts/compare-databases.mjs <url-a> <url-b>` compares the two databases
+before and after (read-only, exits 1 on any difference).
+
 ## Plausible
 
 Plausible is a **raw Docker Compose service** in Coolify, not a one-click service:
