@@ -242,7 +242,10 @@ should not run the sweeps.
 site behind one static notice (M64 decision 9). Unset it and restart to end it.
 Pages answer 503 with the notice, `Retry-After: 600` and `noindex`; `/.well-known` and `/oauth` answer
 `503 {"error":"maintenance"}`. `/api` is outside the proxy (it would buffer
-every request body), so see the PR 795 notes for how it answers. `/api/health`
+every request body), so maintenance does not stop API writes: at the cutover those
+stop by making Neon's application role read-only
+(`ALTER ROLE <app role> SET default_transaction_read_only = on`, then end its open
+sessions; set it back to `off` first on rollback; cutover runbook step 2). `/api/health`
 stays 200 and adds `"maintenance":true`, so Coolify's rollout and the
 container healthcheck keep passing. The notice reads no database. Used for the cutover to the new box;
 `scripts/compare-databases.mjs <url-a> <url-b>` compares the two databases
