@@ -29,44 +29,40 @@ after(() => server.close());
 
 const common = () => ({ base, token: "t0k", uuid: "app-uuid" });
 
-test("open posts the PR, its head commit and its URL, with the token, and reports a new preview", async () => {
+test("open sets the PR's image tag, then deploys the preview app, with the token", async () => {
   seen.length = 0;
-  respond = () => [201, { message: "Preview created.", deployment_uuid: "dep-1" }];
-  const result = await openPreview({ ...common(), pr: 745, sha: "0277f83f927a", url: "https://github.com/o/r/pull/745" });
-  assert.deepEqual(result, { created: true, deploymentUuid: "dep-1" });
+  respond = ({ method }) =>
+    method === "PATCH" ? [200, { message: "Application updated successfully." }] : [200, { deployments: [{ deployment_uuid: "dep-1" }] }];
+  assert.deepEqual(await openPreview({ ...common(), pr: 745 }), { deploymentUuid: "dep-1" });
   assert.deepEqual(seen, [
-    {
-      method: "POST",
-      url: "/api/v1/applications/app-uuid/previews",
-      auth: "Bearer t0k",
-      body: { pull_request_id: 745, pull_request_html_url: "https://github.com/o/r/pull/745", commit: "0277f83f927a", instant_deploy: true },
-    },
+    // Tag first: the deploy pulls whatever tag the application holds when it starts.
+    { method: "PATCH", url: "/api/v1/applications/app-uuid", auth: "Bearer t0k", body: { docker_registry_image_tag: "pr-745" } },
+    { method: "POST", url: "/api/v1/deploy?uuid=app-uuid&force=false", auth: "Bearer t0k", body: null },
   ]);
 });
 
-test("open on a PR that already has a preview rebuilds it (200, not created)", async () => {
-  respond = () => [200, { message: "Preview updated.", deployment_uuid: "dep-2" }];
-  assert.deepEqual(await openPreview({ ...common(), pr: 745, sha: "abcdef1", url: "u" }), { created: false, deploymentUuid: "dep-2" });
-});
-
-test("open names Coolify's refusal, so a red job says why", async () => {
-  respond = () => [403, { message: "Missing required permissions: write." }];
-  await assert.rejects(openPreview({ ...common(), pr: 9, sha: "abcdef1", url: "u" }), /opening the preview of PR 9: HTTP 403 Missing required permissions: write\./);
-});
-
-test("remove deletes the PR's preview, and a 404 means there was none", async () => {
+test("open names Coolify's refusal, so a red job says why, and deploys nothing after a refused tag", async () => {
   seen.length = 0;
-  respond = () => [200, { message: "Preview deletion request queued." }];
+  respond = () => [403, { message: "Missing required permissions: write." }];
+  await assert.rejects(openPreview({ ...common(), pr: 9 }), /setting the image tag to pr-9: HTTP 403 Missing required permissions: write\./);
+  assert.deepEqual(seen.map((r) => r.method), ["PATCH"]);
+  respond = ({ method }) => (method === "PATCH" ? [200, {}] : [429, { message: "Deployment queue is full." }]);
+  await assert.rejects(openPreview({ ...common(), pr: 9 }), /deploying the preview of PR 9: HTTP 429 Deployment queue is full\./);
+});
+
+test("remove stops the preview app, and a 404 means there was none", async () => {
+  seen.length = 0;
+  respond = () => [200, { message: "Application stopping request queued." }];
   assert.deepEqual(await removePreview({ ...common(), pr: 745 }), { removed: true });
-  assert.equal(seen[0].method, "DELETE");
-  assert.equal(seen[0].url, "/api/v1/applications/app-uuid/previews/745");
-  respond = () => [404, { message: "Preview not found." }];
+  assert.equal(seen[0].method, "POST");
+  assert.equal(seen[0].url, "/api/v1/applications/app-uuid/stop");
+  respond = () => [404, { message: "Application not found." }];
   assert.deepEqual(await removePreview({ ...common(), pr: 745 }), { removed: false });
 });
 
 test("remove fails on any other error", async () => {
   respond = () => [500, { message: "boom" }];
-  await assert.rejects(removePreview({ ...common(), pr: 1 }), /removing the preview of PR 1: HTTP 500 boom/);
+  await assert.rejects(removePreview({ ...common(), pr: 1 }), /stopping the preview for PR 1: HTTP 500 boom/);
 });
 
 test("the CLI refuses to run without its settings, a sha or a known command", async () => {

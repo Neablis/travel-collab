@@ -278,6 +278,42 @@ fails CI if a workflow names it without that step.
 - **Not killed explicitly.** A composite action has no post step; the runner is
   discarded when the job ends.
 
+## Images built in Actions
+
+M64 (D6 and D8). `deploy-production.yml` and `coolify-preview.yml` build the
+Dockerfile on a runner, push `ghcr.io/<repo>/web:<tag>` (`<sha>` for production,
+`pr-<n>` for a preview), and call Coolify, which only pulls and runs the tag
+(`scripts/coolify-deploy.mjs` and `scripts/coolify-preview.mjs` set
+`docker_registry_image_tag` on the application, then deploy). The plan is
+`docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`.
+
+- **Two applications**, both "Docker image" applications with no git source:
+  `caesura-web` (production) and `caesura-preview` at
+  `https://preview.caesura.today`. Each names `ghcr.io/<repo>/web` as its image.
+  Coolify must be able to pull from GHCR: a private package needs a registry
+  login on the box (a read-only token).
+- **`SOURCE_COMMIT`** is baked into the image by the build (a build argument), so
+  `/api/health`'s `version` works with no git source and no *Include Source
+  Commit in Build*.
+- **Actions variables**, per image: the public build variables with a
+  `PRODUCTION_` or `PREVIEW_` prefix (`PRODUCTION_PUBLIC_ORIGIN`,
+  `PRODUCTION_NEXT_PUBLIC_UMAMI_*`, `PRODUCTION_NEXT_PUBLIC_SENTRY_*`, and the
+  same for `PREVIEW_`). `COOLIFY_APP_UUID` stays `caesura-web`'s;
+  **`COOLIFY_PREVIEW_APP_UUID`** is `caesura-preview`'s.
+- **Secrets**: `COOLIFY_API_TOKEN` needs `write` and `deploy`.
+  **`PREVIEW_DATABASE_URL`** is `caesura_preview` on `127.0.0.1:15432` (the
+  tunnel), with a role that owns that database only. `build-steps.mjs` refuses to
+  migrate any other database name, and `PREVIEW_DB_IS_DISPOSABLE=true` is set by
+  the workflow, never by Coolify.
+- **The preview app's runtime variables** (set on `caesura-preview` in Coolify,
+  not in Actions): `DATABASE_URL` for `caesura_preview` on the box's private
+  network, `APP_ENV=preview`, and test keys only for `STRIPE_*`. The image build
+  holds no database URL.
+- **Not yet proven**, until the box is up (O6): that GHCR can be pulled from the
+  box, that Coolify accepts the `docker_registry_image_tag` PATCH and the
+  `/stop` call with the token's permissions, and that a `pr-<n>` tag already
+  present is re-pulled when re-pushed (if not, deploy by digest).
+
 ## Plausible
 
 Plausible is a **raw Docker Compose service** in Coolify, not a one-click service:

@@ -181,32 +181,33 @@ Rules (ADR-004 + M1 retro):
 ## Which pushes build a preview
 
 **`deploy-production` builds `main` to production on every push, after migrating. A PR gets a preview only
-while it carries the `preview` label.** The preview lives at
-`https://<pr number>.preview.caesura.today` (a wildcard A record on the VPS).
-`.github/workflows/coolify-preview.yml` opens it through Coolify's API when the
-label is added, rebuilds it on each push while the label stays on, and removes
-it when the label comes off or the PR closes. Actions → *coolify-preview* → Run
-workflow builds one PR's head the same way and puts the label on it, and with
-*remove* ticked it removes the PR's preview and takes the label off. Setup, the
-Preview-scope variables and the database rule are in `docs/ops/coolify-vps.md`.
+while it carries the `preview` label.** Since M64 (D6 and D8) the preview is one
+Coolify application, `caesura-preview`, at `https://preview.caesura.today`, and
+Actions builds its image: `.github/workflows/coolify-preview.yml` opens a tunnel
+to the box, migrates and seeds the shared `caesura_preview` database, builds and
+pushes `ghcr.io/<repo>/web:pr-<n>`, and tells Coolify to pull that tag. Nothing
+builds on the box. It does this when the label is added and on each push while
+the label stays on, and stops the app when the label comes off or the PR closes.
+Actions → *coolify-preview* → Run workflow does it for one PR's head and puts the
+label on it, and with *remove* ticked it stops the app and takes the label off.
+Setup and the variables are in `docs/ops/coolify-vps.md`, *Images built in Actions*.
 
-**One preview at a time.** Labelling a PR (or dispatching the workflow for one)
-first removes the preview of every other open PR that carries the label and
-takes the label off them, then builds the new one. Two previews up at once
-crashed the server, so a new label replaces the old preview rather than adding
-a second. Labels added together are handled one after another, and the last
-one wins.
+**One preview at a time, by construction.** There is one app, so labelling a PR
+(or dispatching the workflow for one) replaces whichever PR was on it, and takes
+the label off that PR. Labels added together are handled one after another, and
+the last one wins. `/api/health`'s `version` is the head sha of the PR that is
+on it now: the URL is the same for every PR, so that is how a walk knows whose
+preview it is looking at. Taking the label off a PR that no longer owns the app
+stops nothing.
 
 **Why a label again (2026-11-14).** Before M59 the same label gated Vercel
 previews because Vercel billed preview compute. M59 dropped it on the grounds
 that the box has a fixed price, and Coolify then built and kept running a
 preview of every PR. The box's limit is memory, not money: on 2026-11-14
 fifteen open PRs' previews plus ten production builds ran the 8 GB box out of
-memory and took caesura.today down for over an hour (KI-2026-11-14-d). So
-Coolify's own *Preview Deployments* switch is off on `caesura-web`, and the
+memory and took caesura.today down for over an hour (KI-2026-11-14-d). So the
 label is the only way in. **Label the PR you will walk, not every PR in a
-stack, and take the label off when the walk is done.** Labelling it takes the
-preview away from whichever PR had it.
+stack, and take the label off when the walk is done.**
 
 **When the label does nothing, run the workflow (2026-11-15).** Two cases start
 no `coolify-preview` run, both seen on PR 755:
@@ -219,15 +220,16 @@ no `coolify-preview` run, both seen on PR 755:
   at all, so neither the label nor a push does anything until the conflict is
   resolved. Run workflow works on it either way.
 
-- **Concurrent builds are set to 1** on the box (a `next build` needs about 4 GB),
-  so builds queue one after another. Each preview that is up keeps a
+- **The image build runs in Actions** (a runner, not the 8 GB box), so a preview
+  no longer queues behind a production build. The one preview app keeps one
   container running, which is why only one is kept.
 - Once a preview answers, `.github/workflows/preview-link-check.yml` requests
   every link the landing sea draws on it, and its `sea-links` job fails naming
   each one that does not answer 200. It runs on ready PRs that carry the
   `preview` label, not drafts, and it is not a required check.
-- **A preview that failed or went stale**: read the build log in Coolify; a push
-  or Coolify's *Redeploy* rebuilds it.
+- **A preview that failed or went stale**: read the `coolify-preview` run (the
+  build and the migrate are its steps) and Coolify's deployment log for the pull;
+  a push rebuilds it.
 
 ## Testing against a preview deployment
 

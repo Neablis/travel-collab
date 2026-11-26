@@ -2,13 +2,14 @@ name: preview-link-check
 
 # Every link the landing sea draws must open a real day on the PR's preview
 # (M51, "The links stay real"). The preview build seeds `content/`
-# (`apps/web/scripts/build-migrate.mjs`); this requests every
+# (`coolify-preview.yml` runs `apps/web/scripts/build-migrate.mjs`); this requests every
 # `cells[].href` in `landingSea.generated.json` against the built preview and
 # fails, naming each href, on anything but a 200.
 #
-# `pull_request` because Coolify builds the preview from the PR and serves it
-# at `https://<pr number>.preview.caesura.today`; the job waits for the preview
-# to answer its health route rather than being told when it is built. Previews
+# `pull_request` because `coolify-preview.yml` builds the PR's image and the
+# one preview app serves it at `https://preview.caesura.today` (M64); the job
+# waits for the preview's health route to report the PR head rather than being
+# told when it is deployed. Previews
 # are public and NOINDEX (`X-Robots-Tag`), so no secret is involved. Not a required check:
 # `ci-ok` stays the only one.
 #
@@ -43,8 +44,8 @@ jobs:
     # inside this and still name every href.
     timeout-minutes: 25
     env:
-      PREVIEW_URL: https://${{ github.event.pull_request.number }}.preview.caesura.today
-      # `github.sha` is the merge commit on `pull_request`; Coolify builds the head.
+      PREVIEW_URL: https://preview.caesura.today
+      # `github.sha` is the merge commit on `pull_request`; the preview is built from the head.
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v7
@@ -58,9 +59,9 @@ jobs:
         with:
           node-version-file: .nvmrc
       # On `synchronize` the previous push's build keeps answering until the new
-      # one swaps in, so answering is not enough: `/api/health`'s `version` (the
-      # build's commit sha) must be the head. A preview that never appears (PR
-      # previews off, build queued behind concurrency 1, build failed) is a
+      # one swaps in, and another PR's build may be on the one app, so answering is not enough: `/api/health`'s `version` (the
+      # build's commit sha) must be the head. A preview that never appears (the
+      # label was moved to another PR, the build failed) is a
       # warning, not a red check: only a broken link is a failure.
       - name: Wait for the preview to be of the head
         id: wait
