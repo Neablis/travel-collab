@@ -70,8 +70,8 @@ for Mitchell to merge.
    maintenance mode; a code fix so `/api/health`'s `version` is the sha on image applications
    (Coolify overrides `SOURCE_COMMIT`, which also stalls `preview-link-check`); the retro. Then part 0
    (`claude/caesura-neon-migration-b5c8f3`) merges last. Deleting Neon is a follow-up about
-   2026-12-10. Carried from M59: the Vercel pause and
-   PR previews (M64 gate boxes). M59's deferred KIs stay open: KI-20261109-a, KI-20261109-b,
+   2026-12-10. Carried from M59: PR previews (M64 gate box, open on the
+   version fix); the Vercel pause was amended to its free tier. M59's deferred KIs stay open: KI-20261109-a, KI-20261109-b,
    KI-20261110-b, KI-20261110, KI-20261114-d. M53 follows M64.
 1. Mitchell merges PR 679 (M44's part 0, prose only). Parts 1 to 5 are merged, so close no lower
    drafts. `migrate-production` is not needed: M44 added no migration.
