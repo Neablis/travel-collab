@@ -96,14 +96,6 @@ jobs:
         run: |
           find content -name '*.json' -not -name '.*' | sort | sed 's|^|  |'
 
-      # Production's Postgres listens on the box's loopback only (ADR-093): the
-      # tunnel makes it 127.0.0.1:15432 here, where PRODUCTION_DATABASE_URL points.
-      - uses: ./.github/actions/db-tunnel
-        with:
-          ssh-key: ${{ secrets.BOX_SSH_KEY }}
-          known-hosts: ${{ secrets.BOX_SSH_KNOWN_HOSTS }}
-          host: ${{ secrets.BOX_SSH_HOST }}
-
       - name: Import
         run: |
           cd apps/web
@@ -113,6 +105,9 @@ jobs:
             ${{ inputs.prune && '--prune' || '' }} \
             ${{ inputs.skip_trips && '--skip-trips' || '' }}
         env:
+          # The direct connection string, as the migration workflow uses — this
+          # writes through the command pipeline and wants a real session, not a
+          # PgBouncer-pooled one (docs/guidelines/environments-and-deploys.md).
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           # OPTIONAL. Left unset, the demo trips are owned by a service
           # account the importer creates — "Travel Collab AI"

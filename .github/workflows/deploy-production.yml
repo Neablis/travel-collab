@@ -3,9 +3,7 @@ name: deploy-production
 # THE ONLY WAY `main` REACHES PRODUCTION (ADR-091, Mitchell, 2026-11-15): apply
 # pending migrations, then deploy. Coolify's Auto Deploy is OFF on
 # `caesura-web`, so a push to `main` builds nothing on its own; this workflow
-# replaces it. Since M64 (D6) it also builds the image: Actions pushes
-# `ghcr.io/<repo>/web:<sha>` and Coolify only pulls and runs that tag, so no
-# `next build` runs on the box (the plan: docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md).
+# replaces it.
 #
 # Why: production used to deploy on merge (Coolify's own webhook) while
 # migrations waited for a human to dispatch `migrate-production`. PR 752's
@@ -33,8 +31,6 @@ on:
 
 permissions:
   contents: read
-  # write: to push the image to GHCR with the job's own token.
-  packages: write
 
 concurrency:
   group: production
@@ -43,10 +39,10 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Checkout + install (~1 min) + migrate (seconds) + the image build and push
-    # + Coolify pulling it. The wait below gives up at 30 min; this is the
-    # runaway cap above it, and it cannot fire mid-migration, which is done in
-    # the first two minutes.
+    # Checkout + install (~1 min) + migrate (seconds) + a Coolify build (one
+    # `next build` at a time on the box, so it can queue behind a preview).
+    # The wait below gives up at 30 min; this is the runaway cap above it, and
+    # it cannot fire mid-migration, which is done in the first two minutes.
     timeout-minutes: 45
     steps:
       - name: Refuse any ref but main
@@ -68,20 +64,13 @@ jobs:
       - name: Journal shape
         run: node scripts/check-migration-journal.mjs --ref HEAD
 
-      # Production's Postgres listens on the box's loopback only (ADR-093): the
-      # tunnel makes it 127.0.0.1:15432 here, where PRODUCTION_DATABASE_URL points.
-      - uses: ./.github/actions/db-tunnel
-        with:
-          ssh-key: ${{ secrets.BOX_SSH_KEY }}
-          known-hosts: ${{ secrets.BOX_SSH_KNOWN_HOSTS }}
-          host: ${{ secrets.BOX_SSH_HOST }}
-
       # Always run, rather than first asking whether anything is pending: the
       # question costs the same install and one SELECT that drizzle-kit's own
       # no-op costs, and a second code path is a second thing to be wrong.
       - name: Apply pending migrations
         run: pnpm --filter web db:migrate
         env:
+          # The UNPOOLED/direct string: DDL does not go through PgBouncer.
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
 
       # drizzle-kit prints success even when it skipped an entry older than the
@@ -92,9 +81,10 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
 
-      # If main has moved, a newer run is queued behind this one: it will migrate
-      # the newer tree and deploy the newer image. Deploying this commit's image
-      # now would put an older build over it (and skip a build nobody needs).
+      # Coolify builds the head of `main`, not this commit. If main has moved,
+      # a newer run is queued behind this one: it will migrate the newer tree
+      # and then deploy it. Deploying now would serve that newer code before its
+      # migration, which is the bug this workflow exists to end.
       - name: Is this still the head of main?
         id: head
         env:
@@ -109,50 +99,6 @@ jobs:
             echo "main is at ${head:0:7}, past this run's ${GITHUB_SHA:0:7}: migrated, and the newer run deploys." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
 
-      # Lower case: GHCR refuses an upper-case repository path.
-      - name: Name the image
-        if: steps.head.outputs.current == 'true'
-        id: image
-        env:
-          REPO: ${{ github.repository }}
-        run: echo "name=ghcr.io/${REPO,,}/web" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-        if: steps.head.outputs.current == 'true'
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        if: steps.head.outputs.current == 'true'
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      # The Dockerfile's secrets are public build variables (`NEXT_PUBLIC_*`,
-      # `APP_ENV`), kept as Actions variables with a PRODUCTION_ prefix, one set
-      # per image. DATABASE_URL is deliberately not passed: the build needs none,
-      # and the running container gets its own from Coolify.
-      # Only the variables that are set: build-push-action rejects `NAME=` (an
-      # empty secret), which is what an unset Actions variable renders as.
-      - name: List the build secrets
-        id: secrets
-        if: steps.head.outputs.current == 'true'
-        env:
-          VARS: ${{ toJSON(vars) }}
-        run: node scripts/build-secrets.mjs PRODUCTION_ APP_ENV=production
-
-      - name: Build and push the image
-        if: steps.head.outputs.current == 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: .
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
-          build-args: |
-            SOURCE_COMMIT=${{ github.sha }}
-          secrets: ${{ steps.secrets.outputs.secrets }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Deploy caesura-web and wait for it
         if: steps.head.outputs.current == 'true'
         shell: bash
@@ -160,7 +106,6 @@ jobs:
           COOLIFY_URL: https://coolify.caesura.today
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
           COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}
-          COOLIFY_IMAGE_TAG: ${{ github.sha }}
         run: node scripts/coolify-deploy.mjs | tee -a "$GITHUB_STEP_SUMMARY"
 
       # A report, not a gate: a push that lands during the build can make the

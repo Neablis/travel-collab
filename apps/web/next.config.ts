@@ -9,19 +9,19 @@ import { deployEnv } from "./src/lib/deployment/env";
 // console unreadable without protecting anything that ships.
 const isDev = process.env.NODE_ENV !== "production";
 
-// Umami's origin (M64, replacing Plausible), for the two directives its script
-// needs: loading, and posting events back. `NEXT_PUBLIC_UMAMI_SRC` is the
+// The self-hosted Plausible's origin (M59), for the two directives its script
+// needs: loading, and posting events back. `NEXT_PUBLIC_PLAUSIBLE_SRC` is the
 // script's URL; only its origin goes in the policy. Anything that does not
 // parse as a URL adds nothing, so a typo cannot widen the policy to a path
 // or a keyword.
-const umamiOrigin = (() => {
+const plausibleOrigin = (() => {
   try {
-    return process.env.NEXT_PUBLIC_UMAMI_SRC ? new URL(process.env.NEXT_PUBLIC_UMAMI_SRC).origin : "";
+    return process.env.NEXT_PUBLIC_PLAUSIBLE_SRC ? new URL(process.env.NEXT_PUBLIC_PLAUSIBLE_SRC).origin : "";
   } catch {
     return "";
   }
 })();
-const umami = umamiOrigin ? ` ${umamiOrigin}` : "";
+const plausible = plausibleOrigin ? ` ${plausibleOrigin}` : "";
 
 // Project review M2: the app shipped with no security headers at all — no
 // CSP, no frame-ancestors, no Referrer-Policy, no nosniff.
@@ -38,7 +38,7 @@ const umami = umamiOrigin ? ` ${umamiOrigin}` : "";
 // editor the first pass could only reason about.
 //
 // What that walk could not see, and a preview walk now can (KI-66): the
-// deployed environment's own additions. The only one left is Umami's
+// deployed environment's own additions. The only one left is the Plausible
 // origin above; the Vercel Toolbar's origins went with Vercel (M59).
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -54,8 +54,8 @@ const contentSecurityPolicy = [
   //
   // No third-party script is loaded: the fonts are committed files served by
   // next/font/local (app/typefaces.ts), and the one analytics script is our own
-  // Umami. React Refresh needs 'unsafe-eval' in dev.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${umami}`,
+  // Plausible. React Refresh needs 'unsafe-eval' in dev.
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${plausible}`,
 
   // Tailwind ships a linked stylesheet, but inline styles are unavoidable
   // here: Radix positions popovers and dialogs with style attributes,
@@ -87,8 +87,8 @@ const contentSecurityPolicy = [
   // Vector tiles, glyphs and the style JSON, all fetched by maplibre. The
   // geocode and AI calls go through our own /api routes, not the vendor.
   // ws: in dev is the HMR socket.
-  // Umami receives its events by POST from the browser.
-  `connect-src 'self' https://tiles.openfreemap.org${isDev ? " ws:" : ""}${umami}`,
+  // Plausible receives its events by POST from the browser.
+  `connect-src 'self' https://tiles.openfreemap.org${isDev ? " ws:" : ""}${plausible}`,
 
   // maplibre spawns its tile-decoding workers from a blob: URL.
   "worker-src 'self' blob:",

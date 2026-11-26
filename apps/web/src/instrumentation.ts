@@ -3,11 +3,6 @@ import type { Instrumentation } from "next";
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    // Not during `next build`, which runs with a placeholder database.
-    if (process.env.NEXT_PHASE !== "phase-production-build") {
-      const { assertPreviewDatabase } = await import("./lib/deployment/previewDatabase");
-      assertPreviewDatabase(process.env);
-    }
     await import("../sentry.server.config");
     // Not awaited: the server must start answering before the warm-up can ask
     // it anything. Production only, which the warmer checks itself.
