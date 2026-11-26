@@ -1,21 +1,5 @@
 // What `build-migrate.mjs` does, apart from the entry, so the test can
 // import it without migrating anything. The entry's header says why.
-//
-// M64 part 4: this runs in `coolify-preview.yml`, over the SSH tunnel, before
-// the preview's image is deployed. It no longer runs inside the image build:
-// `next build` has no database to migrate, and `Dockerfile` does not call it.
-
-/** The one database a preview may be migrated into (D8): the box's, never production's. */
-const PREVIEW_DATABASE = "caesura_preview";
-
-/** The database name in a Postgres URL, or null when it is not a URL. */
-function databaseName(url) {
-  try {
-    return decodeURIComponent(new URL(url).pathname.slice(1));
-  } catch {
-    return null;
-  }
-}
 
 /**
  * What this build does to its database, decided from the environment alone so
@@ -34,22 +18,12 @@ export function buildSteps(environment) {
         "[build-migrate] REFUSING to migrate: PREVIEW_DB_IS_DISPOSABLE is not " +
         `"true" (got ${JSON.stringify(environment.PREVIEW_DB_IS_DISPOSABLE ?? null)}).\n` +
         "\n" +
-        "This would run the migrations against whatever DATABASE_URL it was given,\n" +
-        "and the flag is how a person says that database is a throwaway.\n" +
+        "This build would run the migrations against whatever DATABASE_URL it\n" +
+        "was given, and nothing here can prove that is a disposable preview branch.\n" +
         "\n" +
-        "To fix: point the PREVIEW_DATABASE_URL secret at caesura_preview, then set\n" +
-        "PREVIEW_DB_IS_DISPOSABLE=true in coolify-preview.yml ONLY. Never on production,\n" +
-        "which deploy-production migrates, before it deploys.",
-    };
-  }
-  // The flag is set by hand; the name is what the URL points at. A production
-  // URL pasted into the preview secret stops here instead of being migrated.
-  const database = databaseName(environment.DATABASE_URL ?? "");
-  if (database !== PREVIEW_DATABASE) {
-    return {
-      refuse:
-        `[build-migrate] REFUSING to migrate: DATABASE_URL names the database ${JSON.stringify(database)}, ` +
-        `and a preview is only ever migrated into ${PREVIEW_DATABASE}.`,
+        "To fix: point the Preview scope's DATABASE_URL at a preview branch, then set\n" +
+        "PREVIEW_DB_IS_DISPOSABLE=true on the Preview scope ONLY. Never set it on\n" +
+        "Production — production is migrated by deploy-production, before it deploys.",
     };
   }
   return {

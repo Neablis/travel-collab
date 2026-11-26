@@ -2,43 +2,44 @@ name: coolify-preview
 
 # The ONLY way a PR gets a preview (2026-11-14): add the `preview` label.
 #
-# M64 (D6 and D8): the preview is ONE Coolify application, `caesura-preview`, at
-# https://preview.caesura.today. Actions builds the labelled PR's image, migrates
-# and seeds the box's `caesura_preview` database over the SSH tunnel, pushes
-# `ghcr.io/<repo>/web:pr-<n>`, and tells Coolify to pull it. Nothing builds on the
-# box. `/api/health`'s `version` is the PR head's sha, so a walk can tell which
-# PR is on it. (The plan: docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md.)
+# Coolify's GitHub App, with Preview Deployments switched on, builds and keeps
+# running a preview of every pull request. On the 8 GB box that is a memory
+# ceiling, not a bill: on 2026-11-14 fifteen previews plus ten production builds
+# ran it out of memory and took caesura.today down for over an hour. So Preview
+# Deployments is OFF on `caesura-web`, and this workflow opens previews through
+# Coolify's API instead, the way the `preview` label opened Vercel previews
+# before M59 (`docs/guidelines/environments-and-deploys.md`, *Which pushes build
+# a preview*).
 #
-# Why one app and one label at a time: on 2026-11-14 fifteen previews plus ten
-# production builds ran the 8 GB box out of memory and took caesura.today down
-# for over an hour. A second preview would also share the one database.
-#
-#   - Add the `preview` label: the PR's head is built and deployed. While the
-#     label stays on, each push rebuilds it.
-#   - Labelling a PR takes the label off every other open PR that has it: the
-#     deploy replaces whatever PR was on the app.
-#   - Take the label off, or close or merge the PR: the preview app is stopped,
-#     unless another open PR holds the label (it owns the app now).
-#   - Actions -> coolify-preview -> Run workflow, with a PR number: the same as
-#     labelling it, and it puts the label on, so the label stays the one record
-#     of which PR has the preview. Agents: `gh api -X POST
+#   - Add the `preview` label: the PR's head is built at
+#     https://<pr number>.preview.caesura.today. While the label stays on, each
+#     push rebuilds it.
+#   - ONE preview at a time: labelling a PR first removes the preview of every
+#     other open PR that carries the label, and takes the label off them. Two
+#     previews on the box at once took the server down, so a new label replaces
+#     the old preview instead of adding a second one.
+#   - Take the label off: the preview is removed (container and record).
+#   - Close or merge the PR: removed too (Coolify's own webhook also does this).
+#   - Actions → coolify-preview → Run workflow, with a PR number: builds its head
+#     the same way, replacing any other preview, and puts the label on it so the
+#     label stays the one record of which PR has the preview. Agents: `gh api -X POST
 #     repos/Neablis/travel-collab/actions/workflows/coolify-preview.yml/dispatches
 #     -f ref=main -f inputs[pr]=<n>`.
-#   - The same Run workflow with `remove` ticked stops the app and takes the
-#     PR's label off. Agents: add `-F inputs[remove]=true`.
+#   - The same Run workflow with `remove` ticked removes the PR's preview and takes
+#     its label off. Agents: add `-F inputs[remove]=true`.
 # Opening a PR, marking it ready and pushing to it build nothing on their own.
 #
 # Use Run workflow, not the label, when a label event starts no run:
 #   - A label added or removed by an agent through the Claude GitHub App starts
 #     no workflow run (seen 2026-11-15 on PR 755).
 #   - A PR with a merge conflict gets no `pull_request` runs at all, so its label
-#     changes do nothing until the conflict is resolved (also PR 755).
+#     changes do nothing until the conflict is resolved (also PR 755, 2026-11-15).
+#     Run workflow works on it either way.
 #
-# Needs the `COOLIFY_API_TOKEN` secret (`write` and `deploy`), the
-# `COOLIFY_PREVIEW_APP_UUID` variable (the `caesura-preview` application), the
-# tunnel secrets and `PREVIEW_DATABASE_URL` (docs/ops/coolify-vps.md, *Images built
-# in Actions*). Without the Coolify ones, including on Dependabot PRs, which get no
-# secrets, the job warns and passes, and the PR has no preview.
+# Needs the `COOLIFY_API_TOKEN` repository secret (a Coolify API token with
+# `write`, `deploy` and `delete`) and the `COOLIFY_APP_UUID` repository variable
+# (the `caesura-web` application's uuid). Without them, including on Dependabot
+# PRs, which get no secrets, the job warns and passes, and the PR has no preview.
 on:
   pull_request:
     types: [labeled, unlabeled, synchronize, closed]
@@ -49,255 +50,95 @@ on:
         required: true
         type: number
       remove:
-        description: Stop the preview app and take this PR's label off, instead of building it
+        description: Remove this PR's preview and take its label off, instead of building it
         required: false
         default: false
         type: boolean
 
-# Each job asks for what it uses: `pull-requests: write` takes the label off a
-# PR, and only `preview` pushes an image to GHCR with the job's own token.
 permissions:
   contents: read
-
-# The two tokens are not here: a workflow-level env reaches every step, including
-# `pnpm install` and the build, which run the PR's own code. Each step that needs
-# one names it.
-env:
-  COOLIFY_URL: https://coolify.caesura.today
-  COOLIFY_APP_UUID: ${{ vars.COOLIFY_PREVIEW_APP_UUID }}
-  REPO: ${{ github.repository }}
-  PR: ${{ github.event.pull_request.number || inputs.pr }}
-  ACTION: ${{ github.event.action || (inputs.remove && 'dispatch-remove' || 'dispatch') }}
+  # write: to take the label off the PR whose preview a new one replaces.
+  pull-requests: write
 
 jobs:
-  # Stops the preview app. Quick: no build, no database.
-  remove:
+  preview:
     # Forks never: they get no secrets, and their code is not ours to run on the box.
     if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.remove) ||
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       (github.event.action == 'unlabeled' && github.event.label.name == 'preview' ||
-        github.event.action == 'closed' && contains(github.event.pull_request.labels.*.name, 'preview')))
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       ((github.event.action == 'labeled' && github.event.label.name == 'preview') ||
+        (github.event.action == 'unlabeled' && github.event.label.name == 'preview') ||
+        (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'preview')) ||
+        (github.event.action == 'closed' && contains(github.event.pull_request.labels.*.name, 'preview'))))
+    # A run that opens a preview (a label, a dispatch) joins one group for the
+    # whole repo and is never cancelled, so two PRs labelled together run one
+    # after the other: the second replaces the first, instead of each removing
+    # the other's. Any other run is per PR, and a newer one supersedes an older.
+    # On the job, so a run whose `if` skips never joins a group.
     concurrency:
-      group: ${{ github.workflow }}-remove-${{ github.event.pull_request.number || inputs.pr }}
-      cancel-in-progress: true
+      group: ${{ github.workflow }}-${{ (github.event_name == 'workflow_dispatch' || github.event.action == 'labeled') && 'open' || github.event.pull_request.number }}
+      cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.event.action != 'labeled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: write
+    env:
+      COOLIFY_URL: https://coolify.caesura.today
+      COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+      COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number || inputs.pr }}
+      ACTION: ${{ github.event.action || (inputs.remove && 'dispatch-remove' || 'dispatch') }}
     steps:
-      # The default branch, not the PR's merge ref: this job holds
-      # COOLIFY_API_TOKEN, and a same-repo PR could edit coolify-preview.mjs.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
           sparse-checkout: |
             .nvmrc
             scripts/coolify-preview.mjs
-            scripts/coolify-api.mjs
           sparse-checkout-cone-mode: false
-          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-      - name: Stop the preview app
+      - name: Open, rebuild or remove the preview
         # `shell: bash` adds pipefail, so a failed request is not hidden by `tee`.
         shell: bash
-        env:
-          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -z "$COOLIFY_API_TOKEN" ] || [ -z "$COOLIFY_APP_UUID" ]; then
-            msg="COOLIFY_API_TOKEN or COOLIFY_PREVIEW_APP_UUID is not set, so the preview is not stopped (docs/ops/coolify-vps.md, Images built in Actions)"
+            msg="COOLIFY_API_TOKEN or COOLIFY_APP_UUID is not set, so PR $PR gets no preview (docs/ops/coolify-vps.md, Previews)"
             echo "::warning::$msg"; echo "$msg" >> "$GITHUB_STEP_SUMMARY"; exit 0
           fi
-          if [ "$ACTION" = dispatch-remove ]; then
-            # The label is the record of which PR has the preview, so it comes off too.
-            # A 404 means the PR did not carry it.
-            gh api -X DELETE "repos/$REPO/issues/$PR/labels/preview" > /dev/null 2>&1 || true
-          fi
-          # Another open PR with the label owns the app now (its deploy replaced
-          # this PR's); stopping it would take that PR's preview away.
-          others=$(gh api --paginate "repos/$REPO/issues?state=open&labels=preview&per_page=100" \
-            --jq ".[] | select(.pull_request) | .number | select(. != $PR)")
-          if [ -n "$others" ]; then
-            echo "PR $(echo $others | tr '\n' ' ')holds the \`preview\` label, so the preview app is theirs; not stopping it for PR $PR." | tee -a "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          node scripts/coolify-preview.mjs remove "$PR" | tee -a "$GITHUB_STEP_SUMMARY"
-
-  # Builds the PR's image and deploys it. Opens share one group for the whole
-  # repo and are never cancelled: a migration must not be killed mid-apply, and
-  # two PRs labelled together run one after the other, the second replacing the
-  # first. GitHub keeps only one PENDING run per group, so with three events
-  # queued the middle one is dropped; the last still runs, and it re-reads the
-  # label and the head at run time, so the app ends on the newest state.
-  preview:
-    if: >-
-      (github.event_name == 'workflow_dispatch' && !inputs.remove) ||
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       ((github.event.action == 'labeled' && github.event.label.name == 'preview') ||
-        (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'preview'))))
-    concurrency:
-      group: ${{ github.workflow }}-open
-      cancel-in-progress: false
-    runs-on: ubuntu-latest
-    # Install (~1 min) + migrate and seed + the image build and push + Coolify
-    # pulling it and starting (the script waits for the deployment to end).
-    timeout-minutes: 40
-    permissions:
-      contents: read
-      pull-requests: write
-      packages: write
-    steps:
-      - name: Read the PR
-        id: pr
-        shell: bash
-        env:
-          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ -z "$COOLIFY_API_TOKEN" ] || [ -z "$COOLIFY_APP_UUID" ]; then
-            msg="COOLIFY_API_TOKEN or COOLIFY_PREVIEW_APP_UUID is not set, so PR $PR gets no preview (docs/ops/coolify-vps.md, Images built in Actions)"
-            echo "::warning::$msg"; echo "$msg" >> "$GITHUB_STEP_SUMMARY"; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          # A dispatch knows only the number; read the head and state from the PR.
-          pr_json=$(gh api "repos/$REPO/pulls/$PR")
-          if [ "$(echo "$pr_json" | jq -r .state)" != open ]; then
-            echo "::warning::PR $PR is not open; no preview built"; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if [ "$(echo "$pr_json" | jq -r .head.repo.full_name)" != "$REPO" ]; then
-            echo "::warning::PR $PR is from a fork; no preview built"; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          # The label is judged now, not when the event fired: the group queues
-          # runs, so by the time this one starts the label may have been taken
-          # off (the remove job has already stopped the app) or moved to another
-          # PR. A dispatch has not labelled the PR yet; the next step does.
-          if [ "$ACTION" != dispatch ] && ! echo "$pr_json" | jq -e '.labels | map(.name) | index("preview")' > /dev/null; then
-            echo "::warning::PR $PR no longer carries the \`preview\` label; no preview built"; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          echo "go=true" >> "$GITHUB_OUTPUT"
-          echo "sha=$(echo "$pr_json" | jq -r .head.sha)" >> "$GITHUB_OUTPUT"
-          echo "name=ghcr.io/${REPO,,}/web" >> "$GITHUB_OUTPUT"
-
-      - name: Take the label off every other PR
-        if: steps.pr.outputs.go == 'true' && env.ACTION != 'synchronize'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # One preview at a time: the deploy below replaces the previous PR's, so
-          # the label comes off it. A label change made with GITHUB_TOKEN starts no run.
-          others=$(gh api --paginate "repos/$REPO/issues?state=open&labels=preview&per_page=100" \
-            --jq ".[] | select(.pull_request) | .number | select(. != $PR)")
-          for other in $others; do
-            gh api -X DELETE "repos/$REPO/issues/$other/labels/preview" > /dev/null
-            echo "PR $PR's preview replaces PR $other's; took the \`preview\` label off PR $other." | tee -a "$GITHUB_STEP_SUMMARY"
-          done
-          # A dispatch labels the PR, so the label stays the one record of which
-          # PR has the preview.
-          if [ "$ACTION" = dispatch ]; then
-            gh api -X POST "repos/$REPO/issues/$PR/labels" -f 'labels[]=preview' > /dev/null
-          fi
-
-      # The PR's head, not the merge commit `pull_request` checks out: the image
-      # and `/api/health`'s `version` are both the head. No token in `.git/config`:
-      # `pnpm install` runs this PR's code (zizmor `artipacked`).
-      - uses: actions/checkout@v7
-        if: steps.pr.outputs.go == 'true'
-        with:
-          ref: ${{ steps.pr.outputs.sha }}
-          persist-credentials: false
-      - uses: ./.github/actions/setup-workspace
-        if: steps.pr.outputs.go == 'true'
-
-      # `caesura_preview` is in the box's Postgres, which listens on loopback only:
-      # the tunnel makes it 127.0.0.1:15432 here, where PREVIEW_DATABASE_URL points.
-      - uses: ./.github/actions/db-tunnel
-        if: steps.pr.outputs.go == 'true'
-        with:
-          ssh-key: ${{ secrets.BOX_SSH_KEY }}
-          known-hosts: ${{ secrets.BOX_SSH_KNOWN_HOSTS }}
-          host: ${{ secrets.BOX_SSH_HOST }}
-
-      # Migrate and seed (the content import, without --prune) BEFORE the new image
-      # runs, as production does. `build-steps.mjs` refuses any database but
-      # `caesura_preview`, whatever the secret holds.
-      - name: Migrate and seed caesura_preview
-        if: steps.pr.outputs.go == 'true'
-        run: pnpm --filter web exec node scripts/build-migrate.mjs
-        env:
-          APP_ENV: preview
-          PREVIEW_DB_IS_DISPOSABLE: "true"
-          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
-
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-        if: steps.pr.outputs.go == 'true'
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        if: steps.pr.outputs.go == 'true'
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      # Public build variables for the preview image, as Actions variables with a
-      # PREVIEW_ prefix. No DATABASE_URL: the container's own comes from Coolify.
-      # Only the variables that are set: build-push-action rejects `NAME=` (an
-      # empty secret), which is what an unset Actions variable renders as.
-      - name: List the build secrets
-        id: secrets
-        if: steps.pr.outputs.go == 'true'
-        env:
-          VARS: ${{ toJSON(vars) }}
-        run: node scripts/build-secrets.mjs PREVIEW_ APP_ENV=preview PUBLIC_ORIGIN=https://preview.caesura.today
-
-      - name: Build and push the image
-        if: steps.pr.outputs.go == 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: .
-          platforms: linux/amd64
-          push: true
-          # One tag per push, so the application's tag changes on every deploy
-          # and Coolify has no unchanged tag to skip pulling.
-          tags: ${{ steps.pr.outputs.name }}:pr-${{ env.PR }}-${{ steps.pr.outputs.sha }}
-          build-args: |
-            SOURCE_COMMIT=${{ steps.pr.outputs.sha }}
-          secrets: ${{ steps.secrets.outputs.secrets }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # Judged again here: the remove job runs in its own group, so the label
-      # may have come off, or the PR closed, during the build; deploying now
-      # would bring a preview of an unlabelled or closed PR back. This narrows
-      # the race and does not close it: a remove can still land after this
-      # check, while the deploy step waits for its deployment.
-      - name: Check the label is still on
-        id: label
-        if: steps.pr.outputs.go == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ "$ACTION" != dispatch ]; then
-            # Its own statement, so a failed API call fails the step under
-            # `bash -e` instead of reading as "label lost" and skipping green.
-            pr_json=$(gh api "repos/$REPO/pulls/$PR")
-            if ! jq -e '.state == "open" and (.labels | map(.name) | index("preview"))' <<< "$pr_json" > /dev/null; then
-              echo "::warning::PR $PR lost the \`preview\` label or was closed during the build; not deploying it"
-              echo "still=false" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-
-      - name: Deploy the image to caesura-preview
-        if: steps.pr.outputs.go == 'true' && steps.label.outputs.still != 'false'
-        # `shell: bash` adds pipefail, so a failed request is not hidden by `tee`.
-        shell: bash
-        env:
-          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
-        run: |
-          node scripts/coolify-preview.mjs open "$PR" "${{ steps.pr.outputs.sha }}" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "Preview: https://preview.caesura.today (\`/api/health\` reports \`version\` = ${{ steps.pr.outputs.sha }})" >> "$GITHUB_STEP_SUMMARY"
+          case "$ACTION" in
+            unlabeled|closed)
+              node scripts/coolify-preview.mjs remove "$PR" | tee -a "$GITHUB_STEP_SUMMARY" ;;
+            dispatch-remove)
+              node scripts/coolify-preview.mjs remove "$PR" | tee -a "$GITHUB_STEP_SUMMARY"
+              # The label is the record of which PR has the preview, so it comes off too.
+              # A 404 means the PR did not carry it.
+              gh api -X DELETE "repos/$REPO/issues/$PR/labels/preview" > /dev/null 2>&1 || true ;;
+            *)
+              # A dispatch knows only the number; read the head and URL from the PR.
+              pr_json=$(gh api "repos/${{ github.repository }}/pulls/$PR")
+              if [ "$(echo "$pr_json" | jq -r .state)" != open ]; then
+                echo "::warning::PR $PR is not open; no preview built"; exit 0
+              fi
+              if [ "$ACTION" != synchronize ]; then
+                # One preview at a time: remove every other labelled PR's preview
+                # first, so the box never holds two. A label change made with
+                # GITHUB_TOKEN starts no workflow run, so the removal is done here.
+                others=$(gh api --paginate "repos/$REPO/issues?state=open&labels=preview&per_page=100" \
+                  --jq ".[] | select(.pull_request) | .number | select(. != $PR)")
+                for other in $others; do
+                  node scripts/coolify-preview.mjs remove "$other" | tee -a "$GITHUB_STEP_SUMMARY"
+                  gh api -X DELETE "repos/$REPO/issues/$other/labels/preview" > /dev/null
+                  echo "PR $PR's preview replaces PR $other's; took the \`preview\` label off PR $other." | tee -a "$GITHUB_STEP_SUMMARY"
+                done
+                # A dispatch labels the PR, so the label stays the one record of
+                # which PR has the preview.
+                if [ "$ACTION" = dispatch ]; then
+                  gh api -X POST "repos/$REPO/issues/$PR/labels" -f 'labels[]=preview' > /dev/null
+                fi
+              fi
+              sha=$(echo "$pr_json" | jq -r .head.sha)
+              url=$(echo "$pr_json" | jq -r .html_url)
+              node scripts/coolify-preview.mjs open "$PR" "$sha" "$url" | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "Preview: https://$PR.preview.caesura.today (building; \`/api/health\` reports \`version\` = $sha when it is live)" >> "$GITHUB_STEP_SUMMARY" ;;
+          esac

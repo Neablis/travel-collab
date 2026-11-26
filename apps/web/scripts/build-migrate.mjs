@@ -1,6 +1,6 @@
-// Runs drizzle migrations, then imports `content/` — PREVIEW ONLY, only against
-// a database the operator has explicitly marked disposable, and (M64 part 4)
-// only from `coolify-preview.yml`: the image build no longer calls it.
+// Runs drizzle migrations, then imports `content/`, during the build —
+// PREVIEW ONLY, and only against a database the operator has explicitly marked
+// disposable.
 // Production is migrated by .github/workflows/deploy-production.yml, as an
 // explicit CI step before it deploys (ADR-004's "never implicitly at cold
 // start", ADR-091's "before the code that needs it"), never by a build.

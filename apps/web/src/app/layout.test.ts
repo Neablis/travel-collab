@@ -53,29 +53,26 @@ function propsOf(component: unknown): Array<Record<string, unknown>> {
   return found;
 }
 
-// M59: analytics is Umami (hosted on the M64 box), loaded only when both of its
+// M59: analytics is a self-hosted Plausible, loaded only when both of its
 // public variables name it. Nothing is mounted otherwise, so a build with no
-// Umami configured (local, CI, a fork) makes no request for a script that
+// Plausible configured (local, CI, a fork) makes no request for a script that
 // would 404 on every page (KI-2026-09-05-y / F-G06).
 describe("root layout analytics", () => {
-  it("mounts no analytics script when Umami is not configured, or only half of it is", () => {
-    vi.stubEnv("NEXT_PUBLIC_UMAMI_SRC", "");
-    vi.stubEnv("NEXT_PUBLIC_UMAMI_WEBSITE_ID", "");
+  it("mounts no analytics script when Plausible is not configured, or only half of it is", () => {
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", "");
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_DOMAIN", "");
     expect(propsOf(Script)).toEqual([]);
-    vi.stubEnv("NEXT_PUBLIC_UMAMI_SRC", "https://stats.example.com/script.js");
-    expect(propsOf(Script)).toEqual([]);
-    vi.stubEnv("NEXT_PUBLIC_UMAMI_SRC", "");
-    vi.stubEnv("NEXT_PUBLIC_UMAMI_WEBSITE_ID", "site-id-1");
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", "https://stats.example.com/js/script.js");
     expect(propsOf(Script)).toEqual([]);
   });
 
-  it("mounts the Umami script for the configured website id when both are set", () => {
-    vi.stubEnv("NEXT_PUBLIC_UMAMI_SRC", "https://stats.example.com/script.js");
-    vi.stubEnv("NEXT_PUBLIC_UMAMI_WEBSITE_ID", "site-id-1");
+  it("mounts the Plausible script for the configured domain when both are set", () => {
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_SRC", "https://stats.example.com/js/script.js");
+    vi.stubEnv("NEXT_PUBLIC_PLAUSIBLE_DOMAIN", "trips.example.com");
     expect(propsOf(Script)).toEqual([
       expect.objectContaining({
-        src: "https://stats.example.com/script.js",
-        "data-website-id": "site-id-1",
+        src: "https://stats.example.com/js/script.js",
+        "data-domain": "trips.example.com",
         defer: true,
       }),
     ]);

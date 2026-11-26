@@ -108,8 +108,8 @@ export const viewport: Viewport = {
 const LOOK = "ledger";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const umamiSrc = process.env.NEXT_PUBLIC_UMAMI_SRC;
-  const umamiWebsiteId = process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID;
+  const plausibleSrc = process.env.NEXT_PUBLIC_PLAUSIBLE_SRC;
+  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
   return (
     // `suppressHydrationWarning` for the one attribute React does not render
     // here: `LAUNCH_SCRIPT` adds `data-launch` before hydration on a home-screen
@@ -164,12 +164,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </SaveLightProvider>
         <ServiceWorkerRegistration />
         <InstallPromptRegistration />
-        {/* Umami (M64), only when both public variables name
+        {/* Self-hosted Plausible (M59), only when both public variables name
             it: with none set, local, CI and forks request no script that
             would 404 on every page (KI-2026-09-05-y / F-G06). Read per
             render so layout.test.ts can exercise both branches. */}
-        {umamiSrc && umamiWebsiteId ? (
-          <Script defer src={umamiSrc} data-website-id={umamiWebsiteId} strategy="afterInteractive" />
+        {plausibleSrc && plausibleDomain ? (
+          <Script defer src={plausibleSrc} data-domain={plausibleDomain} strategy="afterInteractive" />
         ) : null}
       </body>
     </html>
