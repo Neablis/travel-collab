@@ -125,10 +125,15 @@ function sparseLists(text) {
   return lists;
 }
 
+/** The relative specifiers `source` imports: `from`, side-effect and dynamic. */
+function relativeImports(source) {
+  return [...source.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*["'](\.[^"']+)["']/g)].map((m) => m[1]);
+}
+
 /** Repo-relative paths of the relative imports of `file`, and of theirs. */
 function importClosure(file, seen = new Set()) {
-  for (const m of readFileSync(join(ROOT, file), "utf8").matchAll(/from\s+["'](\.[^"']+)["']/g)) {
-    const dep = join(dirname(file), m[1]);
+  for (const spec of relativeImports(readFileSync(join(ROOT, file), "utf8"))) {
+    const dep = join(dirname(file), spec);
     if (!seen.has(dep)) importClosure(dep, seen.add(dep));
   }
   return seen;
@@ -145,3 +150,23 @@ for (const workflow of readdirSync(WORKFLOWS).filter((f) => f.endsWith(".yml")))
     }
   });
 }
+
+test("relativeImports follows from, side-effect and dynamic imports, and ignores bare ones", () => {
+  const source = [
+    'import { a } from "./a.mjs";',
+    'import "./b.mjs";',
+    'const c = await import("./c.mjs");',
+    'import { readFileSync } from "node:fs";',
+    'await import("node:path");',
+  ].join("\n");
+  assert.deepEqual(relativeImports(source).sort(), ["./a.mjs", "./b.mjs", "./c.mjs"]);
+});
+
+test("the sparse-list scan finds the lists it is meant to judge", () => {
+  const found = readdirSync(WORKFLOWS)
+    .filter((f) => f.endsWith(".yml"))
+    .flatMap((f) => sparseLists(readFileSync(join(WORKFLOWS, f), "utf8")));
+  // A renamed YAML key would otherwise leave every workflow test passing on nothing.
+  assert.ok(found.length > 0, "no sparse-checkout list found in any workflow");
+  assert.ok(found.some((list) => list.some((p) => /^scripts\/.+\.mjs$/.test(p))), "no list names a script");
+});
