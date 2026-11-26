@@ -38,7 +38,7 @@ description: Review policy for one milestone part in travel-collab — a part-re
    **Mitchell's walk is on the PR's Coolify preview**, which exists only while the PR carries the
    `preview` label (`coolify-preview.yml`; open it for the PR being walked, not every part, by
    running the workflow with that PR's number; an agent's own label change starts no run):
-   `https://<pr number>.preview.caesura.today` (public, NOINDEX). The top PR's body's
+   `https://preview.caesura.today` (public, NOINDEX; the one preview app, so the URL is the same for every PR and `/api/health`'s `version` says which PR is on it). The top PR's body's
    "Ready to merge" section carries that **URL**; confirm `GET /api/health` on it answers
    before you write it down. If the build failed, read it in Coolify's deployment log and fix
    the cause; a push rebuilds it.

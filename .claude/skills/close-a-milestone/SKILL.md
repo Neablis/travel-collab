@@ -32,7 +32,7 @@ call.
    PR (the box has 8 GB) by running `coolify-preview` with that PR's number, not by adding the
    label yourself (an agent's label change starts no run; `environments-and-deploys.md`); if none answers yet, read the
    build in Coolify (`docs/ops/coolify-vps.md`). Remove it once the walk is done (the same run with `remove` ticked). Before asking for the walk,
-   confirm `https://<pr>.preview.caesura.today/api/health` reports the head sha; a green
+   confirm `https://preview.caesura.today/api/health` reports the head sha; a green
    preview-link-check proves nothing (KI-20261110). His comments reach you
    directly or on the PR. Each fix goes on the lowest part it touches and is merged up
    (`build-a-part`), with a reply naming the commit. He resolves the threads.
