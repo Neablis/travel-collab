@@ -1,5 +1,11 @@
 # Running Caesura as cheaply as possible
 
+> **History, 2026-11-26 (M64).** Its Neon and Vercel prices, and everything about
+> Neon's pooler, scale-to-zero, minimum compute and branches (§1.2, §3.1, §4), no
+> longer apply: the database is Postgres on the box, with no pooler and nothing to
+> put to sleep (`docs/ops/coolify-vps.md`, ADR-093). Read the figures below as the
+> analysis written on 2026-10-25, not as a current price list.
+
 > **Superseded as a description of hosting (M59).** The app now runs on a
 > Coolify-managed VPS (`docs/ops/coolify-vps.md`): crons are Coolify scheduled
 > tasks (`/api/cron/embed-days` 04:00 UTC, `/api/cron/tier-rollup` 04:30 UTC,

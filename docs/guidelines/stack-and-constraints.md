@@ -5,7 +5,7 @@
 - **TypeScript strict everywhere**; pnpm workspaces monorepo.
 - **Next.js all-in-one** (App Router), self-hosted in a Docker container on a Coolify VPS (M59) — UI and server in one app,
   separated by the lint wall (`src/server/**` only may import `@tc/domain`).
-- **Postgres** — Docker locally, Neon in prod; **Drizzle** ORM + migrations.
+- **Postgres** — Docker locally, Postgres on the box in prod (ADR-093); **Drizzle** ORM + migrations.
 - **Auth.js** with Google OAuth (no other providers until asked).
 - **Zod** in `packages/contracts` for every cross-boundary type.
 - **MapLibre GL** + OSM/Protomaps tiles (M3+). **Tailwind CSS** design tokens
@@ -21,7 +21,7 @@
    daemons or in-app timers (scheduled work is a Coolify scheduled task that calls a cron route); projection updates must complete within the request. Long-running
    work is a design problem to escalate, not a `setInterval` to hide.
    **No edge runtime** — the command pipeline needs interactive transactions;
-   node runtime + `pg` driver + Neon pooled connection string only (ADR-004).
+   node runtime + `pg` driver + a plain Postgres connection string only (ADR-004, ADR-093).
 3. **No new runtime dependencies without justification.** Each new package
    gets one sentence in the PR: what it does, why not stdlib/existing deps.
    Prefer boring, popular, typed libraries.
@@ -36,15 +36,15 @@
 
 ## Local development and promotion (ADR-004)
 
-- **Local:** `docker compose up -d` (Postgres, pinned to Neon's major
-  version) → copy `.env.example` to `.env.local` → `pnpm dev`. The app runs
+- **Local:** `docker compose up -d` (Postgres, pinned to production's
+  major version) → copy `.env.example` to `.env.local` → `pnpm dev`. The app runs
   natively; only stateful dependencies live in Docker.
 - **DB resets are cheap and encouraged:** dropping projection tables and
   replaying the event log is a standard workflow, not an emergency.
 - **CI is the referee:** the identical suite runs against a Postgres service
   container on every PR.
-- **Preview deployments are the parity environment:** every PR gets a Coolify
-  preview URL (`<pr>.preview.caesura.today`); anything deployment-shaped (the
+- **Preview deployments are the parity environment:** a PR labelled `preview` gets the one
+  preview app (`preview.caesura.today`); anything deployment-shaped (the
   container build, connection reuse, request lifetime, headers a proxy adds) is
   verified there, never assumed from localhost.
 - **Migrations** run as an explicit drizzle-kit step in CI/deploy — never

@@ -39,9 +39,9 @@ describe("assertLocalHost", () => {
     }
   });
 
-  it("refuses a remote host, so it can never drop a Neon branch", () => {
+  it("refuses a remote host, so it can never drop the preview or production database", () => {
     expect(() =>
-      assertLocalHost("postgres://user:pw@ep-cool-name-123.eu-central-1.aws.neon.tech/travel"),
+      assertLocalHost("postgres://user:pw@db.example.com/travel"),
     ).toThrow(/refusing to provision/);
   });
 

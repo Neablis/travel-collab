@@ -7,9 +7,8 @@ import { consumeQuota, linkPreviewQuota, memoryCounters, quotaRefusal, registrat
 // Postgres counter `quota.ts` keeps, on the reasoning that a CDN in front of
 // the app answered repeat fetches, so only cache misses ever reached it. Since
 // M59 nothing fronts the app (`libraryCache.ts`), so every unfurl, Applebot's
-// included, reached it, and each was an upsert: a database that had nothing
-// else to do was woken for a limiter. Neon never got the five idle minutes it
-// needs to scale to zero (production compute active about 20 hours a day).
+// included, reached it, and each was an upsert: a database write per
+// unfurl for a limiter that a long-lived server can hold in memory.
 // One long-lived server now holds the count; `memoryCounters` says what that
 // costs. Never the shared Redis: ADR-059 keeps it an expendable cache, and a
 // limiter spends a command per request.

@@ -164,7 +164,7 @@ What each tool does, why it exists and what it measured:
   `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again —
   `phase-verifier` drives the PR's Coolify preview, so the browser walk needs no
   local infra. A PR carrying the `preview` label gets a preview at
-  `https://<pr number>.preview.caesura.today`, public and NOINDEX; nothing else
+  `https://preview.caesura.today`, public and NOINDEX; nothing else
   builds one, and only one PR has a preview at a time — labelling a PR replaces
   the previous preview (`environments-and-deploys.md`, *Which pushes build a preview*).
 - **Skills** (`.claude/skills/`): `github-rest`, `minimal-check-subset`,

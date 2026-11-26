@@ -13,12 +13,16 @@ import {
 
 const ENTRY = fileURLToPath(new URL("./build-migrate.mjs", import.meta.url));
 
+const PREVIEW_DB = "postgres://u:p@127.0.0.1:15432/caesura_preview";
+
 // M51 part 7: a preview's database holds the library the landing sea links
-// into, so a preview build imports `content/` after migrating. Production's
-// content is dispatched by hand (`import-content-production.yml`), never here.
-describe("the build's database steps", () => {
+// into, so the preview's migrate step imports `content/` after migrating.
+// Production's content is dispatched by hand (`import-content-production.yml`).
+// M64 part 4: the step runs in `coolify-preview.yml`, never in the image build,
+// and the only database it will touch is the box's `caesura_preview`.
+describe("the preview's database steps", () => {
   it("imports content on a disposable preview, after migrating and without pruning", () => {
-    const steps = buildSteps({ VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" });
+    const steps = buildSteps({ VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true", DATABASE_URL: PREVIEW_DB });
     expect(steps.run).toEqual([
       "node scripts/preview-migrate.mjs",
       expect.stringMatching(/scripts\/import-content-production\.ts --lock$/),
@@ -26,7 +30,7 @@ describe("the build's database steps", () => {
   });
 
   it("never prunes a preview: the database is shared by every open PR", () => {
-    const steps = buildSteps({ VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" });
+    const steps = buildSteps({ VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true", DATABASE_URL: PREVIEW_DB });
     expect(steps.run?.filter((command) => command.includes("--prune"))).toEqual([]);
   });
 
@@ -48,7 +52,7 @@ describe("the build's database steps", () => {
 
   // A self-hosted box sets APP_ENV and no VERCEL_ENV (M59).
   it("migrates a disposable preview that names itself by APP_ENV alone", () => {
-    expect(buildSteps({ APP_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("run");
+    expect(buildSteps({ APP_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true", DATABASE_URL: PREVIEW_DB })).toHaveProperty("run");
   });
 
   it("lets APP_ENV win over VERCEL_ENV, as the env module does", () => {
@@ -60,17 +64,28 @@ describe("the build's database steps", () => {
   // `||`, not `??`: Coolify can hold APP_ENV as an empty string, and
   // `deployEnv()` treats that as unset and falls back to VERCEL_ENV.
   it("falls back to VERCEL_ENV when APP_ENV is empty, as the env module does", () => {
-    expect(buildSteps({ APP_ENV: "", VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("run");
+    expect(buildSteps({ APP_ENV: "", VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true", DATABASE_URL: PREVIEW_DB })).toHaveProperty("run");
     expect(buildSteps({ APP_ENV: "", VERCEL_ENV: "production", PREVIEW_DB_IS_DISPOSABLE: "true" })).toHaveProperty("skip");
   });
 
   it("refuses a preview whose database nobody has marked disposable", () => {
-    expect(buildSteps({ APP_ENV: "preview" })).toHaveProperty("refuse");
+    expect(buildSteps({ APP_ENV: "preview", DATABASE_URL: PREVIEW_DB })).toHaveProperty("refuse");
+  });
+
+  // The flag is set by hand and says "I checked"; the name is what the URL
+  // actually points at. A production URL pasted into the preview secret fails here.
+  it("refuses any database but caesura_preview, even when marked disposable", () => {
+    const env = { APP_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" };
+    for (const url of ["postgres://u:p@127.0.0.1:15432/caesura", "postgres://u:p@127.0.0.1:15432/caesura_preview_old", undefined, "not a url"]) {
+      const steps = buildSteps({ ...env, DATABASE_URL: url });
+      expect({ url, refused: "refuse" in steps }).toEqual({ url, refused: true });
+    }
+    expect(buildSteps({ ...env, DATABASE_URL: "postgres://u:p@127.0.0.1:15432/caesura_preview?sslmode=disable" })).toHaveProperty("run");
   });
 
   it("runs every step it decided on, in order", () => {
     const ran: string[] = [];
-    const environment = { VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true" };
+    const environment = { VERCEL_ENV: "preview", PREVIEW_DB_IS_DISPOSABLE: "true", DATABASE_URL: PREVIEW_DB };
     expect(runBuildSteps(environment, (command: string) => ran.push(command))).toBe(0);
     expect(ran).toEqual(buildSteps(environment).run);
   });
@@ -83,7 +98,7 @@ describe("the build's database steps", () => {
     try {
       const link = join(dir, "build-migrate.mjs");
       symlinkSync(ENTRY, link);
-      const env: NodeJS.ProcessEnv = { ...process.env, APP_ENV: "preview" };
+      const env: NodeJS.ProcessEnv = { ...process.env, APP_ENV: "preview", DATABASE_URL: PREVIEW_DB };
       delete env.PREVIEW_DB_IS_DISPOSABLE;
       const result = spawnSync(process.execPath, [link], { env, encoding: "utf8" });
       expect({ status: result.status, refused: result.stderr.includes("REFUSING") }).toEqual({
@@ -96,7 +111,7 @@ describe("the build's database steps", () => {
   });
 });
 
-// KI-2026-10-17-c: every preview migrates one shared Neon branch, and drizzle
+// KI-2026-10-17-c: every preview migrates one shared preview database, and drizzle
 // applies whatever is newer than the newest applied row. A migration applied by
 // its preview and then regenerated under a newer number runs twice.
 describe("the preview migrate's check of the applied rows", () => {

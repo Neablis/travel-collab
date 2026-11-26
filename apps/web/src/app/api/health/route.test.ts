@@ -33,6 +33,14 @@ describe("GET /api/health", () => {
     expect((await GET().json()).version).toBe("unknown");
   });
 
+  it("says maintenance: true while maintenance mode is on, still 200, and omits it otherwise", async () => {
+    expect((await GET().json()).maintenance).toBeUndefined();
+    vi.stubEnv("MAINTENANCE_MODE", "true");
+    const res = GET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, maintenance: true });
+  });
+
   it("is never prerendered, or `next build` would freeze the answer", () => {
     expect(dynamic).toBe("force-dynamic");
   });

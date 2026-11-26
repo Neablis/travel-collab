@@ -42,7 +42,7 @@ known-issue numbers only after that merge.** Each of the three is "the next free
 own view of the tree, and a stale view picks one `main` already took. The suggester role hit all
 three in one stack: migration `0035` became `0036`, its ADR-063 became ADR-064 (main already had
 two), and KI-20261003-b became `-g`. The renamed migration also left stale tables in the shared
-Neon preview branch, and a preview build failed until they were dropped by hand
+shared preview database, and a preview build failed until they were dropped by hand
 (`docs/retros/2026-10-04-suggester-role-retro.md`, §6). `pnpm lint` now catches a shared KI id,
 a shared ADR number and an out-of-order migration — but only once both numbers are in one tree,
 which is after the merge, so merge first.

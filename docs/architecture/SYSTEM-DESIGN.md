@@ -55,7 +55,7 @@ Standing constraints that explain most decisions below: one developer plus agent
 
 ## 3. Shape
 
-One Next.js app (`apps/web`: UI, internal BFF routes, public API, server modules) on Vercel, one Postgres, and a
+One Next.js app (`apps/web`: UI, internal BFF routes, public API, server modules) in one container on the box, with one Postgres on it (ADR-093), and a
 few workspace packages. The dependency direction is the design:
 
 ```
@@ -297,7 +297,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 
 | Service | Used for | Seam | When it fails |
 |---|---|---|---|
-| Neon Postgres | everything durable, rate-limit counters, external-data cache | `db/client.ts` | errors propagate |
+| Postgres on the box (ADR-093) | everything durable, rate-limit counters, external-data cache | `db/client.ts` | errors propagate |
 | Vercel AI Gateway | model calls | `aiModel()`, reachable only from `modelSelection.ts` | falls closed to `simulatedModel.ts` |
 | Vercel AI Gateway, embeddings | plan-example day and request embeddings (`openai/text-embedding-3-small`) | `ai/embeddings.ts`, its own gateway client (ADR-075) | returns null; the turn plans without examples |
 | Stripe | subscriptions | `billing/stripeApi.ts`, own HMAC verify in `signature.ts` | webhook 500 → Stripe retries |
@@ -423,7 +423,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 
 - Which runtime `proxy.ts` actually executes in under Next 16. The file's comments say Edge; nobody checked the
   build output.
-- Neon and Vercel project settings and env values.
+- The box's Coolify settings and env values.
 - Which string ends up in `users.id` for Google accounts (`google-<sub>` or the bare `sub`); the schema comment
   and `authConfig.ts` were not reconciled.
 - How `import-content-production` writes to production.

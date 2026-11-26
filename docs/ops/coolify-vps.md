@@ -1,49 +1,75 @@
-# Running Caesura on the Coolify VPS (M59)
+# Running Caesura on the box (M59, M64)
 
-How Caesura runs on its own box (M59): the server, the Coolify application, its
-services, its crons and how to roll back. The steps that built it were O1 to O6
-in `docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md` (deleted at M59's close on
-2026-11-24; `docs/plans/README.md`, *Retrieving a deleted plan*).
+How Caesura runs on its one box: the server, Coolify, Postgres and its backups,
+the SSH tunnel, Umami, the two applications (production and the one preview),
+the crons, the costs and how to roll back. M59 built the first box
+(`docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`, deleted at M59's close on
+2026-11-24; `docs/plans/README.md`, *Retrieving a deleted plan*); M64 moved the
+database onto it, off Neon, and replaced the box
+(`docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`, ADR-093).
 **Names only. A value never goes in this file**, a PR or a log; values move from
 tool to tool. Tokens and passwords live in Coolify and the operator's password
 manager, not here.
 
 ## The box
 
-- Provider and size: Hetzner `cpx31` in Ashburn (4 vCPU, 8 GB), `linux/amd64`, Ubuntu 24.04,
-  **73.49/mo**. That's about 3.5x the same box in Hetzner's EU regions, and over the ~$20 target. M64
-  (`docs/milestones/M64-one-cheap-box-own-postgres.md`) moves it to OVHcloud Vint Hill, with
-  Postgres on the box. The address is in Coolify, not here.
-- Coolify answers on `http://<the box>:8000` (the dashboard, `coolify.caesura.today`
-  once its DNS record is up). Concurrent builds are set to 1: a `next build` of this
-  app needs about 4 GB, and a stack of PRs builds one after another.
-- Firewall: 22, 80, 443, 8000.
-- The application is `caesura-web`, built from the repo's `Dockerfile`. Its
-  private neighbours, as Coolify services on the same network: Redis with
-  serverless-redis-http (the cache) and Plausible (analytics). Neither is
-  published to the internet: `caesura-redis-http` has no domain (Coolify generates an sslip.io
-  one on create; remove it). It must have *consistent container name* on, because
+- **Provider: Netcup (2026-11-26).** A Netcup VPS 1000 G12 in Manassas, VA:
+  4 vCPU, 8 GB, 128 GB SSD, `linux/amd64`, Ubuntu 24.04, EUR 16.11 a month at
+  checkout. M64 first picked an OVHcloud VPS-2, but OVHcloud had no US stock, so
+  it was ruled out. This is the one place a provider is named: every other doc
+  says "the box". The address is in Coolify, not here.
+- **Coolify** answers on `http://<the box>:8000` (the dashboard, `coolify.caesura.today`
+  once its DNS record is up). Concurrent builds are set to 1. Nothing builds on
+  the box once production is on images (*Images built in Actions*), so the old
+  4 GB `next build` spike (KI-2026-11-14-d) is gone.
+- **Firewall (`ufw`):** 22, 80, 443, 8000. Postgres has no public port.
+- **Swap:** a 2 GB swap file, a cushion and not a plan: memory is sized for
+  production, one preview, Postgres, Redis and Umami together.
+- **What runs on it**, as Coolify resources on one private network:
+  `caesura-web` (production), `caesura-preview` (the one preview), Postgres 17
+  with pgvector (*Postgres*), Redis with serverless-redis-http (the cache) and
+  Umami (*Umami*). Redis and Umami's database are not published to the internet:
+  `caesura-redis-http` has no domain (Coolify generates an sslip.io one on
+  create; remove it). It must have *consistent container name* on, because
   `KV_REST_API_URL` names it by its bare resource ID; with it off the container gets a
   timestamp suffix, the name does not resolve, and the cache fails open silently
   (KI-2026-11-15-a).
-- DNS is a Cloudflare zone since 2026-11-09 (Vercel DNS stopped taking writes when the
+- **DNS** is a Cloudflare zone since 2026-11-09 (Vercel DNS stopped taking writes when the
   account was blocked). The domain is a Vercel-resold registration, so its nameservers are
-  set in Vercel's domain dashboard. The apex, `www`, `staging.`, `coolify.`, `plausible.` and
-  `*.preview.` are A records to the box, all **DNS-only (grey cloud)**: Cloudflare proxies
+  set in Vercel's domain dashboard. The apex, `www`, `staging.`, `coolify.`, `umami.`
+  and `preview.` are A records to the box, all **DNS-only (grey cloud)**: Cloudflare proxies
   nothing, so Let's Encrypt and HSTS are the box's. The email records (SPF, DKIM, DMARC, MX)
   and a CAA for `letsencrypt.org` sit in the same zone. A Cloudflare API token with DNS edit
   on the zone lives with the operator, not here.
 
+## Costs
+
+The target was a bill under about $20 a month for everything. Measured, not
+asserted (M64 decision 14): the gate records the monthly bill before and after.
+
+| Line | Before M64 | After |
+|---|---|---|
+| The box | Hetzner `cpx31`, Ashburn: 73.49/mo | about 8.50 to 10/mo (Netcup, above) |
+| Database | Neon: its last invoice (the gate records it) | none: Postgres is on the box |
+| Backups | none beyond Neon's history window | Cloudflare R2, a 14-day nightly dump: cents |
+| Analytics | Plausible, on the old box | Umami, on the new one: none |
+| Builds | on the box | GitHub Actions minutes (`docs/guidelines/ci-cost-and-capacity.md`) |
+
+The old box (Hetzner `caesura-1`, with its IPs and firewall) is deleted after a
+day with no rollback. Neon is suspended or dropped to its free plan, not deleted,
+for two weeks after the cutover. Deleting the Neon project is a follow-up on
+Mitchell's OK. `docs/ops/cheap-operations.md` is the 2026-10-25 analysis and its
+Neon and Vercel prices are history.
+
 ## The image
 
-The root `Dockerfile`, built from the repo root with Coolify's Dockerfile build pack.
-It installs with pnpm (the version in the root `package.json`), runs
-`pnpm --filter web build:container` (build-time migrate step, the map worker
-copy, `next build`) and ships only the standalone server, as a non-root user on
-port 3000. Locally: `docker build --platform linux/amd64 .` (the placeholder
-`DATABASE_URL` is enough for a build that does not migrate). A preview-style
-build passes the real one as a secret, never as a build argument:
-`DATABASE_URL=<url> docker build --secret id=DATABASE_URL,env=DATABASE_URL .`
+The root `Dockerfile`, built from the repo root, **in GitHub Actions** (*Images
+built in Actions*). It installs with pnpm (the version in the root
+`package.json`), runs the public-origin check, copies the map worker, runs
+`next build`, and ships only the standalone server, as a non-root user on port
+3000. It migrates nothing: `next build` has no database to migrate. Locally:
+`docker build --platform linux/amd64 .` (the placeholder `DATABASE_URL` is
+enough).
 
 The image has a `HEALTHCHECK` that runs `node` against `GET /api/health`, which
 answers `{"ok":true}` without a session and without the database, so Docker's
@@ -51,48 +77,35 @@ container health reads "healthy" only once the server is serving. **Coolify's ow
 healthcheck is off** for the application: the Dockerfile's governs. (Two checkers
 disagreeing about the same container is how a healthy deploy gets rolled back.)
 
-The application's build pack is *Dockerfile*, with **"Use Docker Build Secrets" on**,
-which needs Dockerfile syntax 1.10 or newer (the `# syntax=` pin is 1.12). The
-image's port is 3000.
+Both applications are Coolify "Docker image" applications (*Images built in
+Actions*); the image's port is 3000. The Dockerfile still reads its build
+variables as BuildKit secrets (`--mount=type=secret,id=<NAME>,required=false`,
+`# syntax=` pin 1.12), which is how the workflow passes them.
 
 ## Environment variables, by name
 
-Set in Coolify per environment. "Build" means a variable the Dockerfile's build
-stage reads, because Next inlines it into the browser bundle or the migrate step
-reads it while building; the rest are runtime. Every build variable, and
-`DATABASE_URL`, reaches the build as a BuildKit **secret**
-(`--mount=type=secret,id=<NAME>,required=false`), never a build argument, so
-none is in a layer, an `ENV`, `docker history` or a build log. Keep Coolify's
-"Use Docker Build Secrets" on for the application. Verified against Coolify
-4.6.0 (`ApplicationDeploymentJob.php`, lines 5440-5441): with it on, Coolify
-calls `generate_build_secrets` and sets `build_args` to empty, so each variable
-arrives only as `--secret id=<NAME>,env=<NAME>` and no `ARG` has a value. It
-also rewrites **every** `RUN` in the Dockerfile (even `RUN corepack enable`) to
-prepend `--mount=type=secret,id=<NAME>,env=<NAME>` for each variable, and `env=`
-on a secret mount needs Dockerfile frontend 1.10 or newer, so the `# syntax=`
-pin is `1.12` (the first real build failed on 1.7 with `unexpected key 'env'`).
-The Dockerfile's own `--mount=type=secret,id=<NAME>,required=false` lines on the
-build `RUN` repeat those ids; BuildKit accepts that (tested), and the own mount
-is what supplies the `/run/secrets/<NAME>` file the loop reads, and what a
-laptop `--secret` build needs. The build log
-prints one `[docker] <NAME>: from build secret | from build arg | unset` line per
-name (never a value), so a first build shows which path each took. A new
-build-time variable needs a `--mount` line and a name in the loop in the
-Dockerfile, or it is silently absent. The `ARG`s there are only the fallback for
-a laptop `docker build --build-arg`. If Coolify's toggle is ever off, the only
-way to get `DATABASE_URL` in is an `ARG DATABASE_URL` (a comment in the
-Dockerfile marks where), which leaves the URL in that stage's history and the
-build log on the box (never in the shipped image): do that knowingly, and for a
-Neon branch whose password you can rotate.
+Runtime variables are set in Coolify on each application. The **build**
+variables (the public ones Next inlines into the browser bundle: `PUBLIC_ORIGIN`,
+`APP_ENV`, `NEXT_PUBLIC_*`) are **not** set in Coolify any more: they are Actions
+variables with a `PRODUCTION_` or `PREVIEW_` prefix, passed to the image build as
+BuildKit **secrets** (`--mount=type=secret,id=<NAME>,required=false`), never as
+build arguments, so none is in a layer, an `ENV`, `docker history` or a build
+log. The image build holds no `DATABASE_URL`: `next build` only needs one to
+exist, and the Dockerfile stands in a placeholder. The build log prints one
+`[docker] <NAME>: from build secret | from build arg | unset` line per name
+(never a value). A new build-time variable needs a `--mount` line and a name in
+the loop in the Dockerfile, or it is silently absent, and an Actions variable
+for each image. The Dockerfile's `ARG`s are only the fallback for a laptop
+`docker build --build-arg`.
 
 | Name | Production | Preview | Note |
 |---|---|---|---|
-| `DATABASE_URL` | build and runtime | build and runtime | Needed by **every** build: `next build` throws without it. Build secret, see above. Preview: set it explicitly on the **Preview scope** to the shared preview Neon branch, never production's (see Previews) |
-| `APP_ENV` | `production` | `preview` | Build and runtime. Gates the build-time migrate |
-| `PREVIEW_DB_IS_DISPOSABLE` | never set | `true` | Build. Preview scope only, after checking the database is a throwaway branch |
+| `DATABASE_URL` | runtime | runtime | Runtime only: the image build has no database. Production: the `caesura` database on the box's private network (`sslmode=disable`, no pooler). `caesura-preview`: `caesura_preview`, never production's (see *Previews*) |
+| `APP_ENV` | `production` | `preview` | Runtime on the application, and an Actions variable for the build (`PRODUCTION_APP_ENV` and `PREVIEW_APP_ENV`) |
+| `PREVIEW_DB_IS_DISPOSABLE` | never set | set by `coolify-preview.yml` | Not a Coolify variable: the workflow sets it for the migrate step, which also refuses any database not named `caesura_preview` |
 | `PUBLIC_ORIGIN` | `https://caesura.today`, build and runtime | build and runtime | `lib/deployment/env.ts`. **Build too**: prerendered pages bake `metadataBase` from it, and without it they name `http://localhost:3001` as their canonical (found 2026-11-09). `scripts/check-public-origin.mjs` fails a production build that lacks it |
 | `APP_VERSION` | runtime | runtime | `lib/deployment/env.ts` |
-| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`, `NEXT_PUBLIC_PLAUSIBLE_SRC` | build | build | Plausible |
+| `NEXT_PUBLIC_UMAMI_SRC`, `NEXT_PUBLIC_UMAMI_WEBSITE_ID` | build | build | Umami. The script is absent when either is unset |
 | `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE` | build | build | Sentry, browser side |
 | `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_PROFILE_SESSION_SAMPLE_RATE` | runtime | runtime | Sentry, server side |
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | runtime | runtime | Google sign-in |
@@ -116,26 +129,28 @@ delete them.
 `caesura-web` from the copy out of Vercel and nothing reads them (the app reads
 `LOCATIONIQ_API_KEY` and `UNSPLASH_ACCESS_KEY`); they are to be deleted (`KI-20261109-b`).
 
-**Embeddings live in Neon.** `day_embeddings` is a pgvector table in the app's own
-database. There is no Upstash Vector, and no index to move.
+**Embeddings live in the app's own Postgres.** `day_embeddings` is a pgvector table in it
+(the `vector` extension, migration `0054`). There is no Upstash Vector, and no index to move.
 
 ## Deploy
 
 `main` deploys to production through `.github/workflows/deploy-production.yml`,
 on every push (ADR-091): it applies pending migrations, checks production has
-them all, then deploys `caesura-web` through Coolify's API and waits for the
-deployment to finish. A failed migration deploys nothing. Production's build
-never migrates: `build-migrate.mjs` prints `skipped (APP_ENV=production)`.
+them all, builds the image in Actions and deploys it to `caesura-web` through
+Coolify's API, and waits for the deployment to finish. A failed migration deploys
+nothing. No build migrates: the image build has no database (*Images built in
+Actions*).
 
-**Required setting: Auto Deploy is OFF on `caesura-web`** (Configuration →
-Advanced). With it on, Coolify's GitHub webhook deploys the push before the
-workflow has migrated it, which is how PR 752's code served for 20 hours
-without migration 0078 (KI-2026-11-15-b). Check it after any change to the
-application's Git source.
+**`caesura-web` is an image application, with no Git source,** so no GitHub
+webhook can deploy a push ahead of the workflow's migration (the way PR 752's
+code served for 20 hours without migration 0078, KI-2026-11-15-b). If it is ever
+recreated from a Git repository, turn Auto Deploy OFF (Configuration → Advanced)
+before the first push.
 
-What the workflow needs: the `COOLIFY_API_TOKEN` repository secret with `deploy`
-(to queue it) and `read` (to follow it to finished), alongside the `write` and
-`delete` previews use; the `COOLIFY_APP_UUID` variable; `PRODUCTION_DATABASE_URL`.
+What the workflow needs: the `COOLIFY_API_TOKEN` repository secret, the one token
+for production and previews, with `read` (to follow a deployment to finished),
+`write` (to set the image tag) and `deploy` (to queue it), never `root`; the
+`COOLIFY_APP_UUID` variable; `PRODUCTION_DATABASE_URL`.
 The call is `POST /api/v1/deploy?uuid=<app>&force=false` (`GET` answers "use
 POST" on v4.7.5), then `GET /api/v1/deployments/<deployment uuid>` until its
 `status` is `finished`, `failed` or `cancelled-by-user`
@@ -148,7 +163,7 @@ change clears the library's lists (amendment 2026-11-21, logged as `[warm-up] th
 lists were cleared; reading them again in 60 s`). Its log shows `[warm-up] read <ok> of <n> public pages`
 a few minutes after the deploy, or `[warm-up] skipped: <why>`. After that, each
 library read that still reaches Postgres logs `[library] cache miss: <what was read>`
-(2026-11-20): a steady run of them is what keeps Neon awake, and the key names the
+(2026-11-20): a steady run of them is a steady load of reads, and the key names the
 page kind, filter or page number a crawler asked for. Since 2026-11-22 a stranger's lists come
 from one entry, `snapshot`, so its misses should be one after each deploy or clear; a
 `library snapshot too large to cache` line means the library outgrew one entry and the lists
@@ -184,69 +199,191 @@ visitor whose address was lost: visitors log their own address.
 
 ## Previews
 
-**On demand only, since 2026-11-14.** On `caesura-web` → Configuration →
-*Preview Deployments*, the switch is **off**, so the GitHub App builds no
-preview on its own (it still tears one down when its PR closes). A PR gets a
-preview only through `.github/workflows/coolify-preview.yml`, when it carries
-the `preview` label (`docs/guidelines/environments-and-deploys.md`, *Which pushes
-build a preview*, has the why: KI-2026-11-14-d). Only one PR has a preview at a
-time: labelling a PR removes the preview, and the label, of any other. The
-workflow calls Coolify's
-API (`POST`/`DELETE /api/v1/applications/{uuid}/previews`, Coolify 4.4.0 or
-later) and needs, on the GitHub repository:
+**On demand only, and one at a time.** There is one preview application,
+`caesura-preview`, at `https://preview.caesura.today` (M64 decisions 6 and 8;
+*Images built in Actions* has its setup). A PR gets the preview only through
+`.github/workflows/coolify-preview.yml`, when it carries the `preview` label
+(`docs/guidelines/environments-and-deploys.md`, *Which pushes build a preview*,
+has the why: KI-2026-11-14-d). Labelling a PR builds its image, migrates and seeds
+the preview database, then deploys `web:pr-<n>` to that one application,
+replacing the previous PR's, and takes the label off any other PR. Unlabelling or
+closing the PR stops the app. Coolify's own git previews are not used, and no
+per-PR URL exists.
 
-- **`COOLIFY_API_TOKEN`**, an Actions secret: a Coolify API token (Keys &
-  Tokens → API tokens) with `write`, `deploy` and `delete`. Not `root`.
-- **`COOLIFY_APP_UUID`**, an Actions variable: the `caesura-web` application's
-  uuid (in its URL in the dashboard).
+- **The preview's database** is `caesura_preview`, one database in the box's
+  Postgres shared by every PR in turn, never production's. The workflow migrates
+  it and imports `content/` into it, without `--prune`, over the tunnel, before the
+  new image is deployed (`apps/web/scripts/lib/build-steps.mjs`). The step refuses
+  any database not named `caesura_preview`, and refuses to run without
+  `PREVIEW_DB_IS_DISPOSABLE=true`, which the workflow sets. The role in
+  `PREVIEW_DATABASE_URL` owns that database only.
+- **A preview cannot inherit production's `DATABASE_URL`**, because it is a
+  separate application with its own variables (the KI-2026-09-06-h failure came
+  from Coolify filling a preview scope from production's). Still check, when
+  creating `caesura-preview`: its `DATABASE_URL` names `caesura_preview`.
+  The same goes for every other variable whose production value must not reach a
+  preview: `STRIPE_*` (test keys only), `FLAG_AI_LIVE`, `CRON_SECRET` if a preview
+  should not run the sweeps.
+- **`version` in `GET /api/health`** is the commit baked into the image as
+  `SOURCE_COMMIT`. `phase-verifier` and `preview-link-check` wait for it to equal
+  the PR head sha.
+- **The preview is public** and carries `X-Robots-Tag: noindex, nofollow` on every
+  response. The app sends it itself (`next.config.ts`) when `APP_ENV` is
+  `preview`, read at build time, so `PREVIEW_APP_ENV=preview` is an Actions
+  variable; no Traefik label is needed. It has no password and holds nothing
+  secret.
+- **The workflow needs**, on the GitHub repository: `COOLIFY_API_TOKEN` (an
+  Actions secret, permissions as under *Deploys*), `COOLIFY_PREVIEW_APP_UUID`
+  (an Actions variable) and the tunnel and database secrets listed under *Images
+  built in Actions*. Without them it warns and passes, and no preview is built.
 
-Without either, the workflow warns and passes and no preview is built.
+## Maintenance
 
-The labelled pull request's preview is built by Coolify. Its build, with `APP_ENV=preview`
-and `PREVIEW_DB_IS_DISPOSABLE=true`, migrates and imports `content/` into the
-one shared preview Neon branch, without `--prune`
-(`apps/web/scripts/lib/build-steps.mjs`). With the second variable missing the
-build refuses and goes red, by design.
+`MAINTENANCE_MODE=true` on the application, then a restart (seconds), puts the
+site behind one static notice (M64 decision 9). Unset it and restart to end it.
+Pages answer 503 with the notice, `Retry-After: 600` and `noindex`; `/.well-known` and `/oauth` answer
+`503 {"error":"maintenance"}`. `/api` is outside the proxy (it would buffer
+every request body), so maintenance does not stop API writes: at the cutover those
+stop by making the old database's application role read-only
+(`ALTER ROLE <app role> SET default_transaction_read_only = on`, then end its open
+sessions; set it back to `off` first on rollback; cutover runbook step 2). Until
+then, and after, API, MCP, cron and sign-in requests still run and fail on the
+read-only database, so clients see a server error (likely 500, no `Retry-After`),
+not a 503. `/api/health`
+stays 200 and adds `"maintenance":true`, so Coolify's rollout and the
+container healthcheck keep passing. The notice reads no database. Used for the cutover to the new box;
+`COMPARE_DB_A=<url> COMPARE_DB_B=<url> node scripts/compare-databases.mjs` compares the two databases
+before and after (read-only, one snapshot per side; exits 1 on any
+difference, 2 if it could not compare). It checks table row counts, migrations,
+the `vector` extension and the HNSW index, not row contents or sequences. Expect equality only with maintenance
+on: a live source keeps taking writes after the dump.
 
-The app reports the build's commit as `version` in `GET /api/health`, read from
-`SOURCE_COMMIT`, which Coolify sets in the container's runtime environment (no
-Dockerfile change: it is read per request). If `version` reads `unknown`, that
-variable is missing; switch on **Include Source Commit in Build** on the
-application (Advanced) and redeploy. `phase-verifier` and `preview-link-check`
-wait for `version` to equal the PR head sha.
+## Postgres
 
-A preview is public at `https://<pr number>.preview.caesura.today` and carries
-`X-Robots-Tag: noindex, nofollow` on every response. The app sends it itself
-(`next.config.ts`) when `APP_ENV` is `preview`, read at build time, so `APP_ENV=preview`
-must be a build variable in the Preview scope; no Traefik label is needed. It has no password and holds nothing secret.
+Postgres 17 with pgvector (`pgvector/pgvector:pg17`, the image CI and
+`docker-compose.yml` use), a Coolify database resource on the box (M64 decision 1,
+ADR-093). The only extension is `vector` (migration `0054`).
 
-**A preview must not inherit production's `DATABASE_URL`.** Coolify keeps a preview
-copy of **every** environment variable and fills it from the production value
-unless the Preview scope overrides it, and the gate trusts the operator's flag alone: a preview that
-inherited production's URL with `PREVIEW_DB_IS_DISPOSABLE=true` would migrate
-and import into production (the KI-2026-09-06-h failure). So, in this order:
+- **No public port.** The applications reach it on Coolify's private network, by
+  the resource's internal name, with `sslmode=disable` (the traffic never leaves
+  the box). Its host port is bound to `127.0.0.1` only, which is what the tunnel
+  forwards to. Check after any change to the resource: `nc -vz <public ip> 5432`
+  from outside must fail.
+- **Databases and roles**, one role each, none a superuser: `caesura` (production),
+  `caesura_preview` (the preview, a role that owns that database only) and
+  `umami`. No application role can read another's database.
+- **One pool per server.** `server/db/client.ts` sets `max: 10`, an idle timeout
+  and a connect timeout. There is no pooler (no PgBouncer), so a connection string
+  is the same for the app, a migration and a dump: DDL is safe from any of them.
+- **Connection budget**, against Postgres's `max_connections` (default 100), worst
+  case about 70: 10 per app process, two apps (`caesura-web`, `caesura-preview`)
+  doubled during a rolling deploy (40), Umami's pool (about 5 by Prisma's default,
+  not measured), the preview import (up to 11) and Actions sessions through the
+  tunnel (migrate, state, compare; a few). Re-add this before raising a pool's `max`.
+- **The ops database commands** (`db:migrate`, `db:state`, the compare script) run
+  from Actions over the tunnel, never from a laptop shell with production's URL.
+  The one other allowed production read path is a read-only query in Coolify's
+  Terminal on the Postgres resource (needs Mitchell's Coolify login): the
+  `ai-usage` skill's `ledger.sql` goes this way. Anything that needs a
+  `DATABASE_URL` on a laptop, such as the paid evals, has no allowed path.
 
-1. Set `DATABASE_URL` on the **Preview scope** to the disposable Neon preview
-   branch's connection string.
-2. Check it: open the preview's variables and confirm the host and database
-   name are the preview branch's, not production's.
-3. Only then set `PREVIEW_DB_IS_DISPOSABLE=true`, on the Preview scope.
+## Tunnel
 
-All of this is done **before PR previews are switched on** for the application.
-Do the same for every other variable whose production value must not reach a
-preview: `STRIPE_*` (test keys only), `FLAG_AI_LIVE`, `CRON_SECRET` if a preview
-should not run the sweeps.
+Postgres listens on the box's loopback only (ADR-093). Actions
+reaches it through an SSH tunnel that `.github/actions/db-tunnel` opens before
+any step that names `PRODUCTION_DATABASE_URL`; `scripts/check-workflow-tunnel.mjs`
+fails CI if a workflow names it without that step.
 
-## Plausible
+- **The user.** `tunnel` on the box, with no shell privileges beyond forwarding.
+  Its `authorized_keys` line is restricted:
+  `restrict,port-forwarding,permitopen="127.0.0.1:5432" ssh-ed25519 <deploy key>`,
+  so the key can open that one forward and nothing else.
+- **The forward.** `ssh -N -L 15432:127.0.0.1:5432 tunnel@<host>`, so on the
+  runner the database is `127.0.0.1:15432`. `PRODUCTION_DATABASE_URL` carries
+  that host and port, not the box's address.
+- **The secrets, by name.** `BOX_SSH_KEY` (the private deploy key),
+  `BOX_SSH_KNOWN_HOSTS` (the box's host key line, from `ssh-keyscan` checked
+  against the box's own fingerprint) and `BOX_SSH_HOST`. The host key is pinned
+  and `StrictHostKeyChecking` stays on. Run `ssh-keyscan` against the exact
+  `BOX_SSH_HOST` value (name or IP, as written there): the pinned line is matched
+  by that string, and a mismatch fails closed with a bare "Host key verification
+  failed". The tunnel connects on port 22.
+- **The order at cutover.** The tunnel step runs unconditionally on every
+  deploy, so (1) set the three secrets, (2) merge, (3) re-point
+  `PRODUCTION_DATABASE_URL`. Merging first fails every push-to-main deploy at
+  the tunnel step; re-pointing first fails it at connect time.
+- **sslmode.** The re-pointed URL must name it: `sslmode=disable`. `client.ts`
+  applies `withExplicitSslMode`, and under pg@8 `require` means `verify-full`,
+  which fails against the box's self-signed certificate and against `127.0.0.1`.
+- **Not killed explicitly.** A composite action has no post step; the runner is
+  discarded when the job ends. The action assumes ephemeral runners: on a
+  self-hosted one it would leak the tunnel process. The private key is deleted
+  once the forward is up, so later steps cannot read it.
 
-Plausible is a **raw Docker Compose service** in Coolify, not a one-click service:
-Coolify 4.6's API has no `plausible` service type, so it was created from a compose
-file. It answers at `https://plausible.caesura.today`, with Mitchell's account and the
-`caesura.today` site; the app loads its script from `NEXT_PUBLIC_PLAUSIBLE_SRC`.
+## Images built in Actions
 
-In that compose file `BASE_URL` must be `$SERVICE_URL_PLAUSIBLE` (the full
-`https://` URL), **not** `$SERVICE_FQDN_PLAUSIBLE`, which is the bare host name
-without a scheme. Plausible needs a full URL in `BASE_URL`.
+M64 (D6 and D8). `deploy-production.yml` and `coolify-preview.yml` build the
+Dockerfile on a runner, push `ghcr.io/<repo>/web:<tag>` (`<sha>` for production,
+`pr-<n>-<sha>` for a preview, so each push is a new tag; GHCR keeps them all, prune by hand), and call Coolify, which only pulls and runs the tag
+(`scripts/coolify-deploy.mjs` and `scripts/coolify-preview.mjs` set
+`docker_registry_image_tag` on the application, then deploy). The plan is
+`docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`.
+
+- **Two applications**, both "Docker image" applications with no git source:
+  `caesura-web` (production) and `caesura-preview` at
+  `https://preview.caesura.today`. Each names `ghcr.io/<repo>/web` as its image.
+  Coolify must be able to pull from GHCR: a private package needs a registry
+  login on the box (a read-only token).
+- **`SOURCE_COMMIT`** is baked into the image by the build (a build argument), so
+  `/api/health`'s `version` works with no git source and no *Include Source
+  Commit in Build*.
+- **Actions variables**, per image: the public build variables with a
+  `PRODUCTION_` or `PREVIEW_` prefix (`PRODUCTION_PUBLIC_ORIGIN`,
+  `PRODUCTION_NEXT_PUBLIC_UMAMI_*`, `PRODUCTION_NEXT_PUBLIC_SENTRY_*`, and the
+  same for `PREVIEW_`). `COOLIFY_APP_UUID` stays `caesura-web`'s;
+  **`COOLIFY_PREVIEW_APP_UUID`** is `caesura-preview`'s. An unset or empty
+  variable is left out of the build (`scripts/build-secrets.mjs` filters the
+  list, because build-push-action rejects an empty secret), so the build never
+  fails on one. Only `PRODUCTION_PUBLIC_ORIGIN` is required:
+  `scripts/check-public-origin.mjs` refuses a production build without it.
+- **Secrets**: `COOLIFY_API_TOKEN`, permissions as under *Deploys*.
+  **`PREVIEW_DATABASE_URL`** is `caesura_preview` on `127.0.0.1:15432` (the
+  tunnel), with a role that owns that database only. `build-steps.mjs` refuses to
+  migrate any other database name, and `PREVIEW_DB_IS_DISPOSABLE=true` is set by
+  the workflow, never by Coolify.
+- **The preview app's runtime variables** (set on `caesura-preview` in Coolify,
+  not in Actions): `DATABASE_URL` for `caesura_preview` on the box's private
+  network, `APP_ENV=preview`, and test keys only for `STRIPE_*`. The image build
+  holds no database URL.
+- **`APP_ENV=preview` at runtime is the guard's only trigger.** The image's
+  build secret is not in the running container, so `assertPreviewDatabase`
+  (`apps/web/src/instrumentation.ts`) is a no-op on `caesura-preview` unless
+  `APP_ENV=preview` is set there by hand. Check it at O6.
+- **Trust.** After the tunnel opens, the PR head's own code runs on the runner
+  (`build-migrate.mjs`, the Docker build) with the tunnel key's reach: the whole
+  Postgres on the box, production's database included, not only
+  `caesura_preview`. Forks are excluded, so the trust is push access, which can
+  already edit the workflow; this is an accepted risk. The `remove` job checks
+  out the default branch, not the PR, because it holds `COOLIFY_API_TOKEN`.
+- **Not yet proven**, until the box is up (O6): that `APP_ENV=preview` is set on the
+  preview app, that GHCR can be pulled from the
+  box, that Coolify accepts the `docker_registry_image_tag` PATCH and the
+  `/stop` call with the token's permissions, and that the preview's runtime
+  `DATABASE_URL` names `caesura_preview` (the server refuses to start a preview
+  that names another database).
+
+## Umami
+
+Umami replaced Plausible (M64 decision 4). It is a Coolify service on the box with
+its own database and role (`umami`) in the box's Postgres, answering at
+`https://umami.caesura.today`. The app loads its script from
+`NEXT_PUBLIC_UMAMI_SRC` and names the site by `NEXT_PUBLIC_UMAMI_WEBSITE_ID`
+(both build variables; the script is absent unless both are set), and the CSP in
+`next.config.ts` allows Umami's origin. It counts pageviews only: the app sends
+no custom events.
+
+Plausible's history starts 2026-11-09 and Umami cannot import it. A CSV export of
+Plausible's data was put in the backup bucket before Plausible was switched off.
 
 ## Crons
 
@@ -266,27 +403,67 @@ missing `CRON_SECRET` in the task's environment.
 
 ## Backups
 
-The database is Neon's, so its backups and point-in-time restore are Neon's
-(the project's history window). The box holds no data worth restoring: the Redis
-cache rebuilds itself, Plausible's database is the one thing on it that is not
-reproducible, and its Coolify service has scheduled backups turned on.
+A **nightly `pg_dump` to Cloudflare R2**, at 03:30 UTC, kept 14 days, from
+Coolify's scheduled S3 backup on the Postgres resource (bucket `caesura-backups`,
+with an S3 token scoped to it; the credentials live in Coolify). There is no
+point-in-time restore: the worst case is losing up to a day of writes, which
+Mitchell accepted (M64 decision 5). Umami's database is in the same Postgres, so
+the same backup covers it. The Redis cache rebuilds itself and holds nothing worth
+restoring.
+
+**Restore drill** (gate box 3, repeat after any change to the backup): fetch one
+dump from R2, restore it into a scratch database on the box, run
+`COMPARE_DB_A=<source> COMPARE_DB_B=<scratch> node scripts/compare-databases.mjs`
+and expect equality, then drop the scratch database. A backup nobody has restored
+is not a backup.
+
+**Restoring over `caesura`** (the cutover, or after losing the box's data):
+
+1. Stop `caesura-web` and pause its scheduled tasks. Otherwise the drop fails with
+   `55006 database "caesura" is being accessed by other users`, and a running app
+   (or a cron) reconnects mid-restore. Check
+   `SELECT count(*) FROM pg_stat_activity WHERE datname = 'caesura'` is `0`; end
+   any straggler with `pg_terminate_backend(pid)` as the superuser.
+2. `DROP DATABASE caesura;` then `CREATE DATABASE caesura OWNER caesura;`, and
+   `CREATE EXTENSION vector;` in it as the superuser if the restore does not.
+3. `pg_restore --no-owner --no-privileges --role=caesura -d caesura <dump>`,
+   connected as the superuser so extensions can be created; `--role` makes every
+   object be created as `caesura`. A dump from another provider carries that
+   provider's owner and grants, which do not exist on the box; without these flags
+   the tables stay owned by the superuser and the non-superuser `caesura` role gets
+   `permission denied` on every query. Expect one non-fatal error, `must be owner of
+   extension vector` from `COMMENT ON EXTENSION`: `pg_restore` still exits non-zero,
+   so read the error list, and anything else is a stop. Fallback if objects came
+   out owned by the superuser: as the superuser in `caesura`, `ALTER TABLE ...
+   OWNER TO caesura` for each table in `pg_tables` (`public`) and `ALTER SEQUENCE
+   ... OWNER TO caesura` for each sequence, or the coarser `GRANT ALL ON ALL TABLES
+   IN SCHEMA public TO caesura` and the same `ON ALL SEQUENCES`. (`REASSIGN OWNED BY`
+   the bootstrap superuser is not an option: it refuses roles Postgres needs.)
+   The O6 rehearsal confirms which of these the box needs.
+4. Check the app role can use it: connected as `caesura`, `SELECT count(*)` from a
+   real table, then in a rolled-back transaction `INSERT` or `UPDATE` one row. A
+   superuser's check passes even when the role cannot read, so never use one.
+5. Compare with the app role's URL, then start `caesura-web` and its tasks.
+
+The drill's scratch restore takes the same flags.
 
 ## Rollback
 
-Production is DNS. Before the cutover, `caesura.today` and `www` pointed at Vercel;
-the Vercel project is kept (to be **paused, not deleted**), so it can serve again.
-**While the Vercel account is blocked (since 2026-11-08), it cannot serve**, and the
-only rollback is the first one below.
+Production is DNS. The cutover to this box kept the old one, and Neon, untouched:
 
 - **The new deploy is bad, the box is fine:** Coolify → `caesura-web` → Deployments
-  → redeploy the previous one. Minutes. The schema stays where it is: migrations
-  are forward-only, and expand/contract (ADR-091) is what keeps older code working
-  against it. The next push to `main` deploys its head again through
-  `deploy-production`.
-- **The box is bad:** un-pause the Vercel project, then repoint the apex and
-  `www` A records in the Cloudflare zone back to Vercel (`76.76.21.21`, or the
-  values Vercel's domain page gives). The preview and staging hosts can stay
-  where they are. DNS is the whole switch, so the time to rollback is the record's TTL.
-- Vercel's project settings and environment still hold the old variables, so
-  nothing needs rebuilding. Delete the project only after the gate has been
-  closed for a while with no rollback.
+  → redeploy the previous one (an older image tag). Minutes. The schema stays where
+  it is: migrations are forward-only, and expand/contract (ADR-091) is what keeps
+  older code working against it. The next push to `main` deploys its head again
+  through `deploy-production`.
+- **The cutover failed, before any real user wrote:** point the apex and `www`
+  A records back at the old box and turn maintenance off there (the runbook in the
+  plan, O8). Neon was not written to after step 2, so nothing is lost. **After real
+  writes**, the new box's rows have to be copied to Neon by hand first, which is why
+  the window was short and walked straight away.
+- **The box is bad later:** there is no second box. Order a new one, restore the
+  latest R2 dump (*Backups*), point DNS at it, and accept losing up to a day.
+  The old box and Neon are gone by then (the old box a day after cutover, Neon two
+  weeks), so this is the cost of the single box M64 chose.
+- **Vercel** stays paused, not deleted, for the same period; while its account is
+  blocked (since 2026-11-08) it cannot serve.

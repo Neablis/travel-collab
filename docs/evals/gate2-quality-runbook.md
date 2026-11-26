@@ -12,12 +12,20 @@ stack — the flag stays off.
 
 ## Running it
 
-Mitchell runs paid evals himself. The eval refuses without confirmation:
+Mitchell runs paid evals himself. The eval refuses without confirmation.
+
+**Production mode has no allowed path today.** The box's Postgres listens on
+loopback only, the one tunnel key is the Actions deploy key, and
+`docs/ops/coolify-vps.md` (*Postgres*) forbids running production database
+commands from a laptop. Production mode runs from a checkout with `DATABASE_URL`
+pointed at the database, so it cannot run against production until Mitchell
+decides how (a dispatched workflow, or a read-only operator key). Use fixture
+mode meanwhile.
 
 ```sh
 # From the repo root, on the Part 5 branch (or main once merged):
 GATE2_PRODUCTION=1 GATE2_USER_ID=<your-user-id> GATE2_CONFIRM=1 \
-  TRAVEL_COLLAB_EVAL_KEY=<your-gateway-key> DATABASE_URL=<neon-url> \
+  TRAVEL_COLLAB_EVAL_KEY=<your-gateway-key> DATABASE_URL=<production-url> \
   RAG_PLAN_RETRIEVAL=1 \
   pnpm --filter web eval:run -- planRetrieval.gate2
 ```
@@ -25,7 +33,7 @@ GATE2_PRODUCTION=1 GATE2_USER_ID=<your-user-id> GATE2_CONFIRM=1 \
 Notes:
 - `RAG_PLAN_RETRIEVAL=1` is required: `getPlanExamples` is flag-gated, and the
   eval measures the flag-on path against the flag-off baseline.
-- Production mode uses the already-backfilled Neon. Fixture mode (default)
+- Production mode uses the already-backfilled production database. Fixture mode (default)
   seeds and embeds first — slower, for development.
 - 10 queries × 3 arms (strong, strong+examples, mid+examples) + 20 judge calls
   (cheap tier). Expect dollars, not cents. The run prints the plan first.

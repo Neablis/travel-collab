@@ -28,8 +28,7 @@ import { ratingOf, readableSavedDay } from "../savedDays";
 // cleared by the same tags; 2026-11-17). They were not, on the reasoning that
 // a CDN in front of the app answered every repeat. Since M59 nothing does, so
 // every unfurl ran these reads, and crawlers unfurl all day: with the
-// limiter's upsert (`limit.ts`) that kept Neon's compute from ever idling the
-// five minutes it needs to scale to zero. A card is as fresh as the page it
+// limiter's upsert (`limit.ts`) that was a steady load of reads and writes. A card is as fresh as the page it
 // previews: a day's goes with `dayTag` and every card with `LIBRARY_TAG`,
 // which a publish, an unpublish, a moderation and a renamed author all clear.
 // Not Redis, unlike the invite and referral cards: ADR-059 budgets it per use,

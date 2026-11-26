@@ -2,7 +2,7 @@
 
 **Status:** **Accepted — 2026-10-18.** Mitchell approved the move that day, knowing the measured
 cost it removes (below).
-Amends **ADR-023** and **ADR-024**'s description of `/` (the proxy no longer sees it), and the SEO
+Amends **ADR-023** and **ADR-024**'s description of `/` (the proxy no longer sees it for a session; PR 794 amends this, below), and the SEO
 pass's **D9** (`docs/specs/2026-10-02-seo-pass-design.md`): the landing is still served at `/`,
 but to everybody, and `/welcome` now redirects there instead of being canonical to it.
 **Deciders:** Mitchell (product); Claude — drafted
@@ -36,7 +36,7 @@ That made the most-visited URL the most expensive one:
 2. **The landing is `(front)/page.tsx`, at `/`, and is static** — `○` in `next build`. It reads
    no cookie and no header. The proxy's matcher is `["/home", "/trips/:path*", "/invite/:path*", "/playbooks/:path*"]`
    (the last for ADR-077's copy, never a sign-in);
-   `/` is not on it, and the rewrite and its `no-store` are gone. A signed-out `/home` takes the
+   `/` is not on it for a session, and the rewrite and its `no-store` are gone. *Amended 2026-11-24 (M64, PR 794):* the matcher gained a catch-all entry for every page and a `?ref=` entry (ADR-079), so `/` enters the proxy again. It runs no `auth()` and sets nothing: with `MAINTENANCE_MODE` off it returns `next()` at once, and with it on it answers the notice. A signed-out `/home` takes the
    existing branch: `/signin?callbackUrl=%2Fhome`.
 
 3. **`/welcome` is a 308 to `/`**, from `next.config.ts` `redirects()`, not the proxy. Links to

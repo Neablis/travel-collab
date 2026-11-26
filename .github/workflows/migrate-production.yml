@@ -43,7 +43,7 @@ jobs:
     # unrecoverable state `cancel-in-progress: false` above exists to avoid —
     # so it sits far above any plausible migration (this job is checkout +
     # install + `drizzle-kit migrate`, ~1 min in the sampled runs). Without it
-    # a wedged connection to Neon would bill the 360-minute default.
+    # a wedged tunnel to the box would bill the 360-minute default.
     timeout-minutes: 15
     steps:
       # Two rails against the two ways a dispatch goes wrong: the wrong branch
@@ -78,8 +78,14 @@ jobs:
       - name: Migrations present in this tree
         run: ls -1 apps/web/drizzle/*.sql
 
+      # Production's Postgres listens on the box's loopback only (ADR-093): the
+      # tunnel makes it 127.0.0.1:15432 here, where PRODUCTION_DATABASE_URL points.
+      - uses: ./.github/actions/db-tunnel
+        with:
+          ssh-key: ${{ secrets.BOX_SSH_KEY }}
+          known-hosts: ${{ secrets.BOX_SSH_KNOWN_HOSTS }}
+          host: ${{ secrets.BOX_SSH_HOST }}
+
       - run: pnpm --filter web db:migrate
         env:
-          # The UNPOOLED/direct connection string — DDL should not run through
-          # PgBouncer (see docs/guidelines/environments-and-deploys.md).
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}

@@ -12,7 +12,7 @@ Walk it once before M14's weather gate box is ticked, and again whenever
 ## Before you start
 
 - A Coolify **preview** for the branch, with `EXTERNAL_DATA_CONTACT` set in the
-  application's Preview scope: an operator's address, never a user's (ADR-052
+  `caesura-preview` application's variables: an operator's address, never a user's (ADR-052
   decision 6). Without it the forecast is off by design and step 2 cannot pass.
 - `EXTERNAL_DATA_OFFLINE` must **not** be set on the preview. It is an e2e switch.
 - Access to the preview's container logs (Coolify's Logs tab for that preview).

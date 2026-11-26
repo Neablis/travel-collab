@@ -1,13 +1,13 @@
-// Runs drizzle migrations, then imports `content/`, during the build —
-// PREVIEW ONLY, and only against a database the operator has explicitly marked
-// disposable.
+// Runs drizzle migrations, then imports `content/` — PREVIEW ONLY, only against
+// a database the operator has explicitly marked disposable, and (M64 part 4)
+// only from `coolify-preview.yml`: the image build no longer calls it.
 // Production is migrated by .github/workflows/deploy-production.yml, as an
 // explicit CI step before it deploys (ADR-004's "never implicitly at cold
 // start", ADR-091's "before the code that needs it"), never by a build.
 //
 // **Why there are two conditions and not one.** For six weeks the only check
 // here was `VERCEL_ENV === "preview"`, which asks where the BUILD is running
-// and not what the DATABASE is. The Neon integration injected one
+// and not what the DATABASE is. The hosting integration injected one
 // `DATABASE_URL` scoped "Production and Preview" — the same value for both —
 // so every preview build ran `drizzle-kit migrate` against production. Four
 // migrations (0015-0018) reached the live database that way, while the
@@ -18,8 +18,8 @@
 // `PREVIEW_DB_IS_DISPOSABLE` is the second condition because it is the one a
 // misconfiguration cannot satisfy by accident. `VERCEL_ENV` is set by the
 // platform and says nothing about the connection string; this variable is set
-// by hand, on the Preview scope only, and means "I have checked that this
-// database is a throwaway branch". A shared or production connection string
+// by `coolify-preview.yml` for its migrate step alone, and means "this
+// database is the preview's own, a throwaway". A shared or production connection string
 // cannot acquire it by drifting.
 //
 // Fail-closed, following `matchesSuperCode`'s reasoning in server/admission.ts:
