@@ -200,7 +200,7 @@ for his word in chat.
 | O3 | **Mitchell** | Coolify admin account; the new instance added to Coolify's GitHub App; a Coolify API token for the session; GHCR pull credentials in Coolify (a fine-grained token with `read:packages`) | token works |
 | O4 | agent | Postgres 17 + pgvector, with no public port and its host port bound to `127.0.0.1`; databases and roles `caesura`, `caesura_preview`, `umami`; scheduled S3 backup to R2 nightly at 03:30 UTC, keeping 14; the `tunnel` user (no shell, `permitopen=127.0.0.1:5432`). Redis with serverless-redis-http (consistent container name on, KI-2026-11-15-a). Umami at `umami.caesura.today`. `caesura-web`, built on the box from the Dockerfile for now (nothing else runs there yet), with production's env copied by name (KI-2026-11-09-b's three dropped) and `DATABASE_URL` set to the internal Postgres. `caesura-preview` empty. The four scheduled tasks (embed-days, tier-rollup, discover-rank and any others in the runbook's table) | each service healthy; `nc -vz <public ip> 5432` from the laptop fails |
 | O5 | agent | **Restore drill:** wait for (or trigger) one R2 backup, restore it into a scratch database, then `compare-databases` against the source. Then drop the scratch database | compare equal (gate box 3) |
-| O6 | agent | **Rehearsal:** `pg_dump -Fc` Neon production, `pg_restore --no-owner --no-privileges` into `caesura` as the `caesura` role (with the app stopped, as in O8 step 3), `compare-databases` Neon vs box, recording each step's time. Point `staging.` at the new box and walk it (gate box 5). Try maintenance on and off on the new box (gate box 4). Run part 3's tunnel from the branch (`migration-pending`). Retarget stack B's top to `main`, mark it ready, read CI green. Measure memory with production plus one preview (gate box 11). Export Plausible's CSV to R2 | all four gate boxes ticked with evidence |
+| O6 | agent | **Rehearsal:** `pg_dump -Fc` Neon production, `pg_restore --no-owner --no-privileges --role=caesura` into `caesura` as the superuser (with the app stopped, as in O8 step 3), `compare-databases` Neon vs box, recording each step's time. Point `staging.` at the new box and walk it (gate box 5). Try maintenance on and off on the new box (gate box 4). Run part 3's tunnel from the branch (`migration-pending`). Retarget stack B's top to `main`, mark it ready, read CI green. Measure memory with production plus one preview (gate box 11). Export Plausible's CSV to R2 | all four gate boxes ticked with evidence |
 | O7 | agent, on Mitchell's go | Lowers the Cloudflare TTL on the apex, `www`, `staging.`, `coolify.` and `*.preview.` (plus new `preview.` and `umami.` records) to 60 s, a day ahead. Agrees the evening with Mitchell | TTLs read 60 |
 | O8 | agent, on Mitchell's go | **Cutover**, in the runbook below | production serves from the box (gate box 6) |
 | O9 | agent, each on Mitchell's OK | After a day with no rollback: deletes Hetzner `caesura-1` and its IPs and firewall (Plausible goes with it). Suspends Neon or drops it to the free plan, not deleting it. Mitchell pauses the Vercel project. Records the bills (gate box 13). Deleting Neon two weeks later is a follow-up | gate box 12 |
@@ -225,11 +225,20 @@ Times are for a rehearsal that took *T* minutes to dump and restore. The window 
    2. `pg_dump -Fc` from Neon, then drop and recreate `caesura` on the box, owned by the `caesura`
       role: `DROP DATABASE caesura`, `CREATE DATABASE caesura OWNER caesura`. Recreate the
       extensions the dump expects (`vector`) as the superuser if the restore does not.
-   3. `pg_restore --no-owner --no-privileges` connected **as the `caesura` role**, so every object
-      is owned by it. If the restore ran as the superuser, instead run `REASSIGN OWNED BY <superuser>
-      IN DATABASE caesura TO caesura` and `GRANT ALL ON ALL TABLES IN SCHEMA public TO caesura`
-      (and the same for sequences) before going on. Without these the tables stay owned by the
-      superuser and the app gets `permission denied` after the DNS flip.
+   3. `pg_restore --no-owner --no-privileges --role=caesura -d caesura`, connected as the
+      superuser (so extensions can be created), with `--role` making every object be created as
+      `caesura` and so owned by it. Expect one non-fatal error, `must be owner of extension vector`
+      from `COMMENT ON EXTENSION` (the extension belongs to the superuser, not `caesura`); it is
+      harmless, and `pg_restore` still exits non-zero, so read the error list rather than the exit
+      code. Anything other than that error is a stop. If the restore ran without `--role`, or
+      objects came out owned by the superuser, fix ownership before going on, as the superuser in
+      `caesura`: generate `ALTER TABLE ... OWNER TO caesura` for each table from `pg_tables`
+      (`schemaname = 'public'`), `ALTER SEQUENCE ... OWNER TO caesura` for each sequence from
+      `pg_class` (`relkind = 'S'`), and run the output. (`REASSIGN OWNED BY` the bootstrap superuser
+      is not an option: it refuses roles Postgres needs.) Or, as a coarser fallback,
+      `GRANT ALL ON ALL TABLES IN SCHEMA public TO caesura` and the same `ON ALL SEQUENCES`.
+      **Confirm in the O6 rehearsal** which of these the box needs. Without ownership or grants
+      the app gets `permission denied` after the DNS flip.
    4. **Check the app role can use it, before DNS:** connected as `caesura`, `SELECT count(*)` from a
       real table, then in a transaction that is rolled back, `INSERT` or `UPDATE` one row in it
       (or `SELECT has_table_privilege('caesura', 'public.<table>', 'SELECT,INSERT,UPDATE')`
