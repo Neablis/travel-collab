@@ -22,12 +22,22 @@ describe("GET /api/health", () => {
 
   // The preview check waits until this equals the PR head sha, so a stale
   // build from the previous push cannot be mistaken for the head.
-  it("reports the build's commit sha as version, from Coolify's SOURCE_COMMIT", async () => {
+  it("reports the build's commit sha as version, from SOURCE_COMMIT when the image sets none", async () => {
+    vi.stubEnv("IMAGE_COMMIT", undefined);
     vi.stubEnv("SOURCE_COMMIT", "0123456789abcdef");
     expect((await GET().json()).version).toBe("0123456789abcdef");
   });
 
+  // Coolify sets SOURCE_COMMIT=HEAD in every container of a Docker-image
+  // application, over the sha the image baked in, so the image's own name wins.
+  it("prefers the image's IMAGE_COMMIT over the SOURCE_COMMIT Coolify injects", async () => {
+    vi.stubEnv("IMAGE_COMMIT", "fedcba9876543210");
+    vi.stubEnv("SOURCE_COMMIT", "HEAD");
+    expect((await GET().json()).version).toBe("fedcba9876543210");
+  });
+
   it("reports version 'unknown' when no commit is known", async () => {
+    vi.stubEnv("IMAGE_COMMIT", undefined);
     vi.stubEnv("SOURCE_COMMIT", undefined);
     vi.stubEnv("VERCEL_GIT_COMMIT_SHA", undefined);
     expect((await GET().json()).version).toBe("unknown");

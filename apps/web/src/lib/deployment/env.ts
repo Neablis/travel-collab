@@ -51,11 +51,13 @@ export function deploymentVersion(): string {
 }
 
 /**
- * The commit this build was made from: Coolify's `SOURCE_COMMIT` (set in the
- * container's runtime environment), else Vercel's, else `undefined`. The
+ * The commit this build was made from: the image's own `IMAGE_COMMIT` (baked in
+ * by the Dockerfile), else `SOURCE_COMMIT`, else Vercel's, else `undefined`.
+ * `IMAGE_COMMIT` comes first because Coolify sets `SOURCE_COMMIT=HEAD` in every
+ * container of a Docker-image application, over the sha the image carries. The
  * health route reports it so a preview check can tell the head's build from
  * the previous push's, which is still answering until the new one swaps in.
  */
 export function sourceCommit(): string | undefined {
-  return read("SOURCE_COMMIT") ?? read("VERCEL_GIT_COMMIT_SHA");
+  return read("IMAGE_COMMIT") ?? read("SOURCE_COMMIT") ?? read("VERCEL_GIT_COMMIT_SHA");
 }
