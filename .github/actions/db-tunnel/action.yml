@@ -7,7 +7,8 @@ description: >-
 
 # A composite action cannot declare a post step, and cannot read `secrets`
 # itself, so the caller passes the three secrets in as inputs. The tunnel is
-# not killed here: the runner is discarded when the job ends, which ends it.
+# not killed here: the runner is discarded when the job ends, which ends it, so
+# this action assumes ephemeral (GitHub-hosted) runners.
 # The host key is pinned from BOX_SSH_KNOWN_HOSTS and StrictHostKeyChecking
 # stays on, so a swapped host fails the connection rather than being trusted.
 inputs:
@@ -47,7 +48,11 @@ runs:
           "tunnel@${BOX_SSH_HOST}"
         # ssh -f returns once the forward is set up, so this is a short belt-and-braces wait.
         for _ in $(seq 1 30); do
-          if (exec 3<>/dev/tcp/127.0.0.1/15432) 2>/dev/null; then exit 0; fi
+          if (exec 3<>/dev/tcp/127.0.0.1/15432) 2>/dev/null; then
+            # ssh has read the key once the forward is up; later steps (a 30 min deploy, repo scripts) need not see it.
+            rm -f ~/.ssh/box_tunnel
+            exit 0
+          fi
           sleep 1
         done
         echo "db-tunnel: nothing listening on 127.0.0.1:15432 after 30s; the tunnel never opened" >&2

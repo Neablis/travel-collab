@@ -274,7 +274,10 @@ fails CI if a workflow names it without that step.
 - **The secrets, by name.** `BOX_SSH_KEY` (the private deploy key),
   `BOX_SSH_KNOWN_HOSTS` (the box's host key line, from `ssh-keyscan` checked
   against the box's own fingerprint) and `BOX_SSH_HOST`. The host key is pinned
-  and `StrictHostKeyChecking` stays on.
+  and `StrictHostKeyChecking` stays on. Run `ssh-keyscan` against the exact
+  `BOX_SSH_HOST` value (name or IP, as written there): the pinned line is matched
+  by that string, and a mismatch fails closed with a bare "Host key verification
+  failed". The tunnel connects on port 22.
 - **The order at cutover.** The tunnel step runs unconditionally on every
   deploy, so (1) set the three secrets, (2) merge, (3) re-point
   `PRODUCTION_DATABASE_URL`. Merging first fails every push-to-main deploy at
@@ -283,7 +286,9 @@ fails CI if a workflow names it without that step.
   `withExplicitSslMode`, and the old Neon URL said `sslmode=require`; if the
   box's Postgres has no TLS, use `sslmode=disable`.
 - **Not killed explicitly.** A composite action has no post step; the runner is
-  discarded when the job ends.
+  discarded when the job ends. The action assumes ephemeral runners: on a
+  self-hosted one it would leak the tunnel process. The private key is deleted
+  once the forward is up, so later steps cannot read it.
 
 ## Plausible
 
