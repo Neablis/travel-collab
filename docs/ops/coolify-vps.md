@@ -284,6 +284,10 @@ ADR-093). The only extension is `vector` (migration `0054`).
   tunnel (migrate, state, compare; a few). Re-add this before raising a pool's `max`.
 - **The ops database commands** (`db:migrate`, `db:state`, the compare script) run
   from Actions over the tunnel, never from a laptop shell with production's URL.
+  The one other allowed production read path is a read-only query in Coolify's
+  Terminal on the Postgres resource (needs Mitchell's Coolify login): the
+  `ai-usage` skill's `ledger.sql` goes this way. Anything that needs a
+  `DATABASE_URL` on a laptop, such as the paid evals, has no allowed path.
 
 ## Tunnel
 
@@ -419,19 +423,29 @@ is not a backup.
 
 1. Stop `caesura-web` and pause its scheduled tasks. Otherwise the drop fails with
    `55006 database "caesura" is being accessed by other users`, and a running app
-   (or a cron) reconnects mid-restore. `DROP DATABASE caesura WITH (FORCE)` also
-   works once they are stopped.
+   (or a cron) reconnects mid-restore. Check
+   `SELECT count(*) FROM pg_stat_activity WHERE datname = 'caesura'` is `0`; end
+   any straggler with `pg_terminate_backend(pid)` as the superuser.
 2. `DROP DATABASE caesura;` then `CREATE DATABASE caesura OWNER caesura;`, and
-   `CREATE EXTENSION vector;` in it as the superuser.
-3. `pg_restore --no-owner --no-privileges --role=caesura -d caesura <dump>`. A dump
-   from another provider carries that provider's owner and grants, which do not
-   exist on the box; restored as the superuser without these flags, the tables
-   stay owned by the superuser and the non-superuser `caesura` role gets
-   `permission denied` on every query. (Fix an already-done restore with
-   `REASSIGN OWNED BY <superuser> TO caesura` in that database, then the grants.)
-4. Compare with the app role's URL, not a superuser's: a superuser's passes even
-   when the role cannot read.
-5. Start `caesura-web` and its tasks.
+   `CREATE EXTENSION vector;` in it as the superuser if the restore does not.
+3. `pg_restore --no-owner --no-privileges --role=caesura -d caesura <dump>`,
+   connected as the superuser so extensions can be created; `--role` makes every
+   object be created as `caesura`. A dump from another provider carries that
+   provider's owner and grants, which do not exist on the box; without these flags
+   the tables stay owned by the superuser and the non-superuser `caesura` role gets
+   `permission denied` on every query. Expect one non-fatal error, `must be owner of
+   extension vector` from `COMMENT ON EXTENSION`: `pg_restore` still exits non-zero,
+   so read the error list, and anything else is a stop. Fallback if objects came
+   out owned by the superuser: as the superuser in `caesura`, `ALTER TABLE ...
+   OWNER TO caesura` for each table in `pg_tables` (`public`) and `ALTER SEQUENCE
+   ... OWNER TO caesura` for each sequence, or the coarser `GRANT ALL ON ALL TABLES
+   IN SCHEMA public TO caesura` and the same `ON ALL SEQUENCES`. (`REASSIGN OWNED BY`
+   the bootstrap superuser is not an option: it refuses roles Postgres needs.)
+   The O6 rehearsal confirms which of these the box needs.
+4. Check the app role can use it: connected as `caesura`, `SELECT count(*)` from a
+   real table, then in a rolled-back transaction `INSERT` or `UPDATE` one row. A
+   superuser's check passes even when the role cannot read, so never use one.
+5. Compare with the app role's URL, then start `caesura-web` and its tasks.
 
 The drill's scratch restore takes the same flags.
 

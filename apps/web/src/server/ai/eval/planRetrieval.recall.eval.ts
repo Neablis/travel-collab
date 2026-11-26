@@ -23,8 +23,12 @@
 //   RECALL_EVAL_PRODUCTION=1 RECALL_EVAL_USER_ID=<your-user-id> \
 //     RECALL_EVAL_CONFIRM=1 TRAVEL_COLLAB_EVAL_KEY=<your-key> \
 //     RECALL_EVAL_JAPAN_TRIP_ID=<your-japan-trip-id> \
-//     DATABASE_URL=<production-url> \
+//     DATABASE_URL=<database> \
 //     pnpm --filter web eval:run -- planRetrieval.recall
+//
+// Production mode has no allowed path today: the box's Postgres is loopback
+// only and `docs/ops/coolify-vps.md` forbids a laptop `DATABASE_URL` for it
+// (`docs/evals/gate1-recall-runbook.md`). Use fixture mode meanwhile.
 //
 // (`eval:run` bypasses the `with-test-db` wrapper, which refuses non-local
 // hosts; an exported DATABASE_URL wins over `.env.local`.)

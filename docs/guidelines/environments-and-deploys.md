@@ -346,8 +346,8 @@ so `FLAG_AI_LIVE` stays the sole source of truth.
 
 Since M59 Part 4 the assistant calls Anthropic directly, on our own
 `ANTHROPIC_API_KEY`, and embeddings go straight to OpenAI on `OPENAI_API_KEY`:
-no AI Gateway sits between. The models are four environment variables, set per
-Coolify scope (Production and Preview): `AI_MODEL_CHEAP`, `AI_MODEL_MID`,
+no AI Gateway sits between. The models are four environment variables, set in each
+Coolify application's environment (`caesura-web` and `caesura-preview`): `AI_MODEL_CHEAP`, `AI_MODEL_MID`,
 `AI_MODEL_STRONG` and `AI_CLASSIFIER_MODEL` (`apps/web/src/server/config.ts`).
 Each holds an id of the form `anthropic/<model>`; `resolveChatModel`
 (`apps/web/src/server/ai/modelId.ts`) turns the dotted version
