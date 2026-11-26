@@ -44,10 +44,13 @@ export async function main(env, deps = {}) {
   await setImageTag({ base, token, uuid, tag, ...deps });
   const queued = await queueDeploy({ base, token, uuid, ...deps });
   if (queued.skipped) {
-    // Somebody started a deployment outside this workflow (the dashboard's
-    // Redeploy). It pulls the tag set just above; waiting on a deployment this
-    // run cannot name buys nothing.
-    return `Coolify already has a deployment in flight (${queued.message}); not starting a second one.`;
+    // The tag was PATCHed above, but the deployment already in flight (a
+    // dashboard Redeploy, an earlier run) may have pulled the previous tag.
+    // Green here would leave production on the old sha, so fail and let a
+    // re-run deploy once it ends (the preview does the same).
+    throw new Error(
+      `queueing the production deploy: Coolify already has a deployment queued (${queued.message}); it may have pulled the previous tag. Re-run the workflow once it ends.`,
+    );
   }
   const status = await waitForDeployment({ base, token, deploymentUuid: queued.deploymentUuid, ...deps });
   if (status !== "finished") throw new Error(`deployment ${queued.deploymentUuid} ended ${status}; see Coolify → caesura-web → Deployments`);

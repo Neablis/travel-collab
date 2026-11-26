@@ -54,12 +54,10 @@ on:
         default: false
         type: boolean
 
+# Each job asks for what it uses: `pull-requests: write` takes the label off a
+# PR, and only `preview` pushes an image to GHCR with the job's own token.
 permissions:
   contents: read
-  # write: to take the label off the PR whose preview a new one replaces, and
-  # to push the image to GHCR with the job's own token.
-  pull-requests: write
-  packages: write
 
 # The two tokens are not here: a workflow-level env reaches every step, including
 # `pnpm install` and the build, which run the PR's own code. Each step that needs
@@ -86,9 +84,15 @@ jobs:
       cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
+      # The default branch, not the PR's merge ref: this job holds
+      # COOLIFY_API_TOKEN, and a same-repo PR could edit coolify-preview.mjs.
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.repository.default_branch }}
           sparse-checkout: |
             .nvmrc
             scripts/coolify-preview.mjs
@@ -143,6 +147,10 @@ jobs:
     # Install (~1 min) + migrate and seed + the image build and push + Coolify
     # pulling it and starting (the script waits for the deployment to end).
     timeout-minutes: 40
+    permissions:
+      contents: read
+      pull-requests: write
+      packages: write
     steps:
       - name: Read the PR
         id: pr
@@ -225,9 +233,9 @@ jobs:
           PREVIEW_DB_IS_DISPOSABLE: "true"
           DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         if: steps.pr.outputs.go == 'true'
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         if: steps.pr.outputs.go == 'true'
         with:
           registry: ghcr.io
@@ -236,9 +244,18 @@ jobs:
 
       # Public build variables for the preview image, as Actions variables with a
       # PREVIEW_ prefix. No DATABASE_URL: the container's own comes from Coolify.
+      # Only the variables that are set: build-push-action rejects `NAME=` (an
+      # empty secret), which is what an unset Actions variable renders as.
+      - name: List the build secrets
+        id: secrets
+        if: steps.pr.outputs.go == 'true'
+        env:
+          VARS: ${{ toJSON(vars) }}
+        run: node scripts/build-secrets.mjs PREVIEW_ APP_ENV=preview PUBLIC_ORIGIN=https://preview.caesura.today
+
       - name: Build and push the image
         if: steps.pr.outputs.go == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           platforms: linux/amd64
@@ -248,21 +265,27 @@ jobs:
           tags: ${{ steps.pr.outputs.name }}:pr-${{ env.PR }}-${{ steps.pr.outputs.sha }}
           build-args: |
             SOURCE_COMMIT=${{ steps.pr.outputs.sha }}
-          secrets: |
-            APP_ENV=preview
-            PUBLIC_ORIGIN=https://preview.caesura.today
-            NEXT_PUBLIC_UMAMI_WEBSITE_ID=${{ vars.PREVIEW_NEXT_PUBLIC_UMAMI_WEBSITE_ID }}
-            NEXT_PUBLIC_UMAMI_SRC=${{ vars.PREVIEW_NEXT_PUBLIC_UMAMI_SRC }}
-            NEXT_PUBLIC_SENTRY_DSN=${{ vars.PREVIEW_NEXT_PUBLIC_SENTRY_DSN }}
-            NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE=${{ vars.PREVIEW_NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE }}
-            NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE=${{ vars.PREVIEW_NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE }}
-            NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE=${{ vars.PREVIEW_NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE }}
-            NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=${{ vars.PREVIEW_NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE }}
+          secrets: ${{ steps.secrets.outputs.secrets }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Deploy the image to caesura-preview
+      # Judged again here: the remove job runs in its own group, so the label
+      # may have come off during the build, after it stopped the app; deploying
+      # now would bring a preview of an unlabelled PR back.
+      - name: Check the label is still on
+        id: label
         if: steps.pr.outputs.go == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$ACTION" != dispatch ] && ! gh api "repos/$REPO/pulls/$PR" | jq -e '.labels | map(.name) | index("preview")' > /dev/null; then
+            echo "::warning::PR $PR lost the \`preview\` label during the build; not deploying it"
+            echo "still=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy the image to caesura-preview
+        if: steps.pr.outputs.go == 'true' && steps.label.outputs.still != 'false'
         # `shell: bash` adds pipefail, so a failed request is not hidden by `tee`.
         shell: bash
         env:

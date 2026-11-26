@@ -22,7 +22,10 @@ function fixture(files) {
   return dir;
 }
 
-const TUNNEL = `      - uses: ./.github/actions/db-tunnel\n`;
+const TUNNEL_BARE = `      - uses: ./.github/actions/db-tunnel\n`;
+const TUNNEL =
+  TUNNEL_BARE +
+  `        with:\n          ssh-key: x\n          known-hosts: y\n          host: z\n`;
 const USE = `      - run: pnpm --filter web db:state\n        env:\n          DATABASE_URL: \${{ secrets.PRODUCTION_DATABASE_URL }}\n`;
 const wf = (steps) => `name: x\non: push\njobs:\n  j:\n    steps:\n${steps}`;
 
@@ -58,6 +61,16 @@ test("a tunnel in another job does not cover a use in this one", () => {
   assert.equal(r.status, 1);
   assert.match(r.stderr, /two\.yml \(job b,/);
   assert.doesNotMatch(r.stderr, /job a/);
+});
+
+test("a tunnel step that does not pass all three inputs does not count", () => {
+  const partial = TUNNEL_BARE + `        with:\n          ssh-key: x\n          host: z\n`;
+  const dir = fixture({ "bare.yml": wf(TUNNEL_BARE + USE), "partial.yml": wf(partial + USE) });
+  const r = run(dir);
+  rmSync(dir, { recursive: true });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /bare\.yml/);
+  assert.match(r.stderr, /partial\.yml/);
 });
 
 test("PREVIEW_DATABASE_URL is guarded the same way", () => {

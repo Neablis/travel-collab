@@ -296,7 +296,10 @@ fails CI if a workflow names it without that step.
 - **The secrets, by name.** `BOX_SSH_KEY` (the private deploy key),
   `BOX_SSH_KNOWN_HOSTS` (the box's host key line, from `ssh-keyscan` checked
   against the box's own fingerprint) and `BOX_SSH_HOST`. The host key is pinned
-  and `StrictHostKeyChecking` stays on.
+  and `StrictHostKeyChecking` stays on. Run `ssh-keyscan` against the exact
+  `BOX_SSH_HOST` value (name or IP, as written there): the pinned line is matched
+  by that string, and a mismatch fails closed with a bare "Host key verification
+  failed". The tunnel connects on port 22.
 - **The order at cutover.** The tunnel step runs unconditionally on every
   deploy, so (1) set the three secrets, (2) merge, (3) re-point
   `PRODUCTION_DATABASE_URL`. Merging first fails every push-to-main deploy at
@@ -305,7 +308,9 @@ fails CI if a workflow names it without that step.
   `withExplicitSslMode`, and the old Neon URL said `sslmode=require`; if the
   box's Postgres has no TLS, use `sslmode=disable`.
 - **Not killed explicitly.** A composite action has no post step; the runner is
-  discarded when the job ends.
+  discarded when the job ends. The action assumes ephemeral runners: on a
+  self-hosted one it would leak the tunnel process. The private key is deleted
+  once the forward is up, so later steps cannot read it.
 
 ## Images built in Actions
 
@@ -328,7 +333,11 @@ Dockerfile on a runner, push `ghcr.io/<repo>/web:<tag>` (`<sha>` for production,
   `PRODUCTION_` or `PREVIEW_` prefix (`PRODUCTION_PUBLIC_ORIGIN`,
   `PRODUCTION_NEXT_PUBLIC_UMAMI_*`, `PRODUCTION_NEXT_PUBLIC_SENTRY_*`, and the
   same for `PREVIEW_`). `COOLIFY_APP_UUID` stays `caesura-web`'s;
-  **`COOLIFY_PREVIEW_APP_UUID`** is `caesura-preview`'s.
+  **`COOLIFY_PREVIEW_APP_UUID`** is `caesura-preview`'s. An unset or empty
+  variable is left out of the build (`scripts/build-secrets.mjs` filters the
+  list, because build-push-action rejects an empty secret), so the build never
+  fails on one. Only `PRODUCTION_PUBLIC_ORIGIN` is required:
+  `scripts/check-public-origin.mjs` refuses a production build without it.
 - **Secrets**: `COOLIFY_API_TOKEN` needs `write` and `deploy`.
   **`PREVIEW_DATABASE_URL`** is `caesura_preview` on `127.0.0.1:15432` (the
   tunnel), with a role that owns that database only. `build-steps.mjs` refuses to
@@ -338,7 +347,18 @@ Dockerfile on a runner, push `ghcr.io/<repo>/web:<tag>` (`<sha>` for production,
   not in Actions): `DATABASE_URL` for `caesura_preview` on the box's private
   network, `APP_ENV=preview`, and test keys only for `STRIPE_*`. The image build
   holds no database URL.
-- **Not yet proven**, until the box is up (O6): that GHCR can be pulled from the
+- **`APP_ENV=preview` at runtime is the guard's only trigger.** The image's
+  build secret is not in the running container, so `assertPreviewDatabase`
+  (`apps/web/src/instrumentation.ts`) is a no-op on `caesura-preview` unless
+  `APP_ENV=preview` is set there by hand. Check it at O6.
+- **Trust.** After the tunnel opens, the PR head's own code runs on the runner
+  (`build-migrate.mjs`, the Docker build) with the tunnel key's reach: the whole
+  Postgres on the box, production's database included, not only
+  `caesura_preview`. Forks are excluded, so the trust is push access, which can
+  already edit the workflow; this is an accepted risk. The `remove` job checks
+  out the default branch, not the PR, because it holds `COOLIFY_API_TOKEN`.
+- **Not yet proven**, until the box is up (O6): that `APP_ENV=preview` is set on the
+  preview app, that GHCR can be pulled from the
   box, that Coolify accepts the `docker_registry_image_tag` PATCH and the
   `/stop` call with the token's permissions, and that the preview's runtime
   `DATABASE_URL` names `caesura_preview` (the server refuses to start a preview

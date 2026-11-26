@@ -48,9 +48,11 @@ COPY . .
 # mounted, wins. NEXT_PUBLIC_* are inlined into the browser bundle by `next
 # build`, so they must exist here and cannot be set on the running container;
 # they are public, but go through the same path as the rest. APP_ENV is read by
-# `next.config.ts` and the check below. A secret mounted with an empty value (an
-# unset Actions variable becomes `NAME=`) is treated as unset: the loop tests
-# `-s`, so it falls back to the build arg, then to "unset".
+# `next.config.ts` and the check below. The workflows
+# leave an unset variable out of the secrets list (`scripts/build-secrets.mjs`),
+# because build-push-action rejects an empty secret (`NAME=`) before buildx runs.
+# The loop below tests `-s` anyway, so an empty mounted secret from another
+# caller falls back to the build arg, then to "unset".
 ARG APP_ENV
 # The public origin, read by `app/layout.tsx`'s `metadataBase` when `next build`
 # prerenders a page: without it every static page names http://localhost:3001
