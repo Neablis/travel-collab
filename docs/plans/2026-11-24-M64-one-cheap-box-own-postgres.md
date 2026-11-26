@@ -200,10 +200,10 @@ for his word in chat.
 | O3 | **Mitchell** | Coolify admin account; the new instance added to Coolify's GitHub App; a Coolify API token for the session; GHCR pull credentials in Coolify (a fine-grained token with `read:packages`) | token works |
 | O4 | agent | Postgres 17 + pgvector, with no public port and its host port bound to `127.0.0.1`; databases and roles `caesura`, `caesura_preview`, `umami`; scheduled S3 backup to R2 nightly at 03:30 UTC, keeping 14; the `tunnel` user (no shell, `permitopen=127.0.0.1:5432`). Redis with serverless-redis-http (consistent container name on, KI-2026-11-15-a). Umami at `umami.caesura.today`. `caesura-web`, built on the box from the Dockerfile for now (nothing else runs there yet), with production's env copied by name (KI-2026-11-09-b's three dropped) and `DATABASE_URL` set to the internal Postgres. `caesura-preview` empty. The four scheduled tasks (embed-days, tier-rollup, discover-rank and any others in the runbook's table) | each service healthy; `nc -vz <public ip> 5432` from the laptop fails |
 | O5 | agent | **Restore drill:** wait for (or trigger) one R2 backup, restore it into a scratch database, then `compare-databases` against the source. Then drop the scratch database | compare equal (gate box 3) |
-| O6 | agent | **Rehearsal:** `pg_dump -Fc` Neon production, `pg_restore --no-owner --no-privileges --role=caesura` into `caesura` as the superuser (with the app stopped, as in O8 step 3), `compare-databases` Neon vs box, recording each step's time. Point `staging.` at the new box and walk it (gate box 5). Try maintenance on and off on the new box (gate box 4). Run part 3's tunnel from the branch (`migration-pending`). Retarget stack B's top to `main`, mark it ready, read CI green. Measure memory with production plus one preview (gate box 11). Export Plausible's CSV to R2 | all four gate boxes ticked with evidence |
+| O6 | agent | **Rehearsal:** `pg_dump -Fc` Neon production, `pg_restore --no-owner --no-privileges --role=caesura` into `caesura` as the superuser (with the app stopped, as in O8 step 3), `compare-databases` Neon vs box, recording each step's time. Point `staging.` at the new box and walk it (gate box 5). Try maintenance on and off on the new box (gate box 4). Run part 3's tunnel from the branch (`migration-pending`). Retarget stack B's top to `main`, mark it ready, read CI green. Measure memory with production plus one preview (gate box 11). ~~Export Plausible's CSV to R2~~ (dropped by Mitchell 2026-11-26: Umami starts from scratch) | all four gate boxes ticked with evidence |
 | O7 | agent, on Mitchell's go | Lowers the Cloudflare TTL on the apex, `www`, `staging.`, `coolify.` and `*.preview.` (plus new `preview.` and `umami.` records) to 60 s, a day ahead. Agrees the evening with Mitchell | TTLs read 60 |
 | O8 | agent, on Mitchell's go | **Cutover**, in the runbook below | production serves from the box (gate box 6) |
-| O9 | agent, each on Mitchell's OK | After a day with no rollback: deletes Hetzner `caesura-1` and its IPs and firewall (Plausible goes with it). Suspends Neon or drops it to the free plan, not deleting it. Mitchell pauses the Vercel project. Records the bills (gate box 13). Deleting Neon two weeks later is a follow-up | gate box 12 |
+| O9 | agent, each on Mitchell's OK | After a day with no rollback (*done the same evening on Mitchell's word, 2026-11-26*): deletes Hetzner `caesura-1` and its IPs and firewall (Plausible goes with it). Suspends Neon or drops it to the free plan, not deleting it. Mitchell pauses the Vercel project. Records the bills (gate box 13). Deleting Neon two weeks later is a follow-up | gate box 12 |
 
 ### The cutover runbook (O8)
 
@@ -259,6 +259,32 @@ Times are for a rehearsal that took *T* minutes to dump and restore. The window 
    pageview in Umami. Fire one cron by hand.
 7. **After:** the old box stays in maintenance (anyone on stale DNS sees the notice, not stale
    data) until O9 deletes it. Raise the TTLs back.
+
+**What the cutover found (2026-11-26).** The runbook held; these are the corrections, for the
+next move:
+
+- **Blockers it did not list.** (a) `caesura-web` had to be a *Docker image* application before
+  the merge: `coolify-deploy.mjs` retags `docker_registry_image_tag`, which a Dockerfile/GitHub
+  application ignores. It was recreated and its env copied by name. (b) `COOLIFY_URL` is written
+  into `deploy-production.yml` and `coolify-preview.yml`, so `coolify.` had to move to the new box
+  (and its instance domain be set) *before* step 4, not at step 5, together with
+  `COOLIFY_API_TOKEN` and `COOLIFY_APP_UUID`. From then until the merge, any other push to `main`
+  would fail its deploy, so merges were held. (c) The `PRODUCTION_*` and `PREVIEW_*` Actions
+  variables, `COOLIFY_PREVIEW_APP_UUID` and `PREVIEW_DATABASE_URL` had to exist first;
+  `PRODUCTION_PUBLIC_ORIGIN` is required by the build.
+- **The apex and `www` are proxied** (orange), with SSL Full (strict) and Always Use HTTPS, not
+  grey as step 5 says. Their TTL is moot. Let's Encrypt tried at deploy time, while DNS still
+  named the old box, and failed; after the flip it does not retry by itself. What worked: SSL to
+  Full for the flip, `docker restart coolify-proxy` (both certificates within 15 s; the HTTP-01
+  challenge passes through Cloudflare unredirected), then SSL back to strict.
+- **`PRODUCTION_DATABASE_URL` was re-pointed after step 3 and before the merge.** The *Tunnel*
+  order in `coolify-vps.md` (secrets, merge, re-point) would have let step 4's migrate step check
+  Neon instead of the box.
+- **`/api/health`'s `version` reads `HEAD`** on image applications: Coolify sets `SOURCE_COMMIT`
+  at runtime. Step 4's check used the container's image tag instead.
+- **Timings:** maintenance on (restart) 174 s; Neon read-only and box apps stopped under a minute;
+  dump 13 s, restore 1 s, compare 6 s; merge to deployed about 5 minutes; site down about 16
+  minutes in all.
 
 **Rollback**, if step 6 fails **before any real user has written**: point the DNS back at the old
 box's IP, turn maintenance off there, and resume its scheduled tasks. Neon was never written to
