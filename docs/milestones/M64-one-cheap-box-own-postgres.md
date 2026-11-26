@@ -236,14 +236,15 @@ the recommendation, it says so.
       MiB, `caesura-preview` 165, `coolify` 287, Umami 120, Postgres 116, proxy 79, redis-http 43,
       Redis 9. Swap held 332 MB left over from the earlier on-box Dockerfile build, with 5.6 GB
       free, so not swapping. After cutover (no on-box builds), 2123 MB used.)*
-- [ ] **Neon is out, and the old hosts are wound down.** No code, script or workflow names Neon
+- [x] **Neon is out, and the old hosts are wound down.** No code, script or workflow names Neon
       (historical docs aside). The Neon project is suspended or on its free plan, not deleted.
-      Hetzner `caesura-1` is deleted. The Vercel project is paused, not deleted (from M59).
+      Hetzner `caesura-1` is deleted. ~~The Vercel project is paused, not deleted (from M59).~~
+      *Amended 2026-11-26 by Mitchell ("Yes, amend it"):* the Vercel project stays on Vercel's
+      free tier, costing nothing, rather than paused.
       *(2026-11-26: Hetzner `caesura-1` with its two primary IPs and firewall deleted at 22:25Z;
       `hcloud` lists nothing. Neon org moved Launch to Free at 22:42Z, the project and data kept
-      (`production` still read-only). Neon's code removal is part 5. **Open:** the Vercel project is
-      on Vercel's free tier, not paused; Mitchell says that costs nothing. Ticking this needs his
-      call on amending the box or pausing it.)*
+      (`production` still read-only). Neon's code removal is part 5. The Vercel project is on the
+      free tier, per the amendment above.)*
 - [x] **The monthly bill, before and after, is recorded here** (D14).
       *(2026-11-26, list prices and metered charges, not invoices: Mitchell, "I really dont think
       we need actual invoices". **Before: about $87/mo.** Hetzner `cpx31` in Ashburn $73.49 (its
