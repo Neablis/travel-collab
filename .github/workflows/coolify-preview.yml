@@ -96,6 +96,7 @@ jobs:
           sparse-checkout: |
             .nvmrc
             scripts/coolify-preview.mjs
+            scripts/coolify-api.mjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - uses: actions/setup-node@v7
@@ -270,8 +271,10 @@ jobs:
           cache-to: type=gha,mode=max
 
       # Judged again here: the remove job runs in its own group, so the label
-      # may have come off during the build, after it stopped the app; deploying
-      # now would bring a preview of an unlabelled PR back.
+      # may have come off, or the PR closed, during the build; deploying now
+      # would bring a preview of an unlabelled or closed PR back. This narrows
+      # the race and does not close it: a remove can still land after this
+      # check, while the deploy step waits for its deployment.
       - name: Check the label is still on
         id: label
         if: steps.pr.outputs.go == 'true'
@@ -279,9 +282,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$ACTION" != dispatch ] && ! gh api "repos/$REPO/pulls/$PR" | jq -e '.labels | map(.name) | index("preview")' > /dev/null; then
-            echo "::warning::PR $PR lost the \`preview\` label during the build; not deploying it"
-            echo "still=false" >> "$GITHUB_OUTPUT"
+          if [ "$ACTION" != dispatch ]; then
+            # Its own statement, so a failed API call fails the step under
+            # `bash -e` instead of reading as "label lost" and skipping green.
+            pr_json=$(gh api "repos/$REPO/pulls/$PR")
+            if ! jq -e '.state == "open" and (.labels | map(.name) | index("preview"))' <<< "$pr_json" > /dev/null; then
+              echo "::warning::PR $PR lost the \`preview\` label or was closed during the build; not deploying it"
+              echo "still=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Deploy the image to caesura-preview

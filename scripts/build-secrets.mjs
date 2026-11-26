@@ -33,7 +33,8 @@ export function buildSecrets(vars, prefix, fixed = []) {
   const fixedNames = new Set(fixed.map((l) => l.split("=")[0]));
   const fromVars = NAMES.filter((n) => !fixedNames.has(n))
     .map((n) => `${n}=${vars[`${prefix}${n}`] ?? ""}`);
-  return [...fixed, ...fromVars].filter((l) => !l.endsWith("="));
+  // Judge the value, split at the first `=`: a real value may itself end in `=`.
+  return [...fixed, ...fromVars].filter((l) => l.slice(l.indexOf("=") + 1) !== "");
 }
 
 if (process.argv[1] === new URL(import.meta.url).pathname) {
