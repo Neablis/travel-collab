@@ -200,7 +200,7 @@ for his word in chat.
 | O3 | **Mitchell** | Coolify admin account; the new instance added to Coolify's GitHub App; a Coolify API token for the session; GHCR pull credentials in Coolify (a fine-grained token with `read:packages`) | token works |
 | O4 | agent | Postgres 17 + pgvector, with no public port and its host port bound to `127.0.0.1`; databases and roles `caesura`, `caesura_preview`, `umami`; scheduled S3 backup to R2 nightly at 03:30 UTC, keeping 14; the `tunnel` user (no shell, `permitopen=127.0.0.1:5432`). Redis with serverless-redis-http (consistent container name on, KI-2026-11-15-a). Umami at `umami.caesura.today`. `caesura-web`, built on the box from the Dockerfile for now (nothing else runs there yet), with production's env copied by name (KI-2026-11-09-b's three dropped) and `DATABASE_URL` set to the internal Postgres. `caesura-preview` empty. The four scheduled tasks (embed-days, tier-rollup, discover-rank and any others in the runbook's table) | each service healthy; `nc -vz <public ip> 5432` from the laptop fails |
 | O5 | agent | **Restore drill:** wait for (or trigger) one R2 backup, restore it into a scratch database, then `compare-databases` against the source. Then drop the scratch database | compare equal (gate box 3) |
-| O6 | agent | **Rehearsal:** `pg_dump -Fc` Neon production, `pg_restore` into `caesura`, `compare-databases` Neon vs box, recording each step's time. Point `staging.` at the new box and walk it (gate box 5). Try maintenance on and off on the new box (gate box 4). Run part 3's tunnel from the branch (`migration-pending`). Retarget stack B's top to `main`, mark it ready, read CI green. Measure memory with production plus one preview (gate box 11). Export Plausible's CSV to R2 | all four gate boxes ticked with evidence |
+| O6 | agent | **Rehearsal:** `pg_dump -Fc` Neon production, `pg_restore --no-owner --no-privileges` into `caesura` as the `caesura` role (with the app stopped, as in O8 step 3), `compare-databases` Neon vs box, recording each step's time. Point `staging.` at the new box and walk it (gate box 5). Try maintenance on and off on the new box (gate box 4). Run part 3's tunnel from the branch (`migration-pending`). Retarget stack B's top to `main`, mark it ready, read CI green. Measure memory with production plus one preview (gate box 11). Export Plausible's CSV to R2 | all four gate boxes ticked with evidence |
 | O7 | agent, on Mitchell's go | Lowers the Cloudflare TTL on the apex, `www`, `staging.`, `coolify.` and `*.preview.` (plus new `preview.` and `umami.` records) to 60 s, a day ahead. Agrees the evening with Mitchell | TTLs read 60 |
 | O8 | agent, on Mitchell's go | **Cutover**, in the runbook below | production serves from the box (gate box 6) |
 | O9 | agent, each on Mitchell's OK | After a day with no rollback: deletes Hetzner `caesura-1` and its IPs and firewall (Plausible goes with it). Suspends Neon or drops it to the free plan, not deleting it. Mitchell pauses the Vercel project. Records the bills (gate box 13). Deleting Neon two weeks later is a follow-up | gate box 12 |
@@ -217,9 +217,27 @@ Times are for a rehearsal that took *T* minutes to dump and restore. The window 
    (`ALTER ROLE <app role> SET default_transaction_read_only = on`, and end its open sessions
    with `pg_terminate_backend` so the setting applies). Check: a write through the API fails.
    Writes stop here (D9's amendment). On rollback, set it back to `off` first.
-3. **Final copy:** `pg_dump -Fc` from Neon, drop and recreate `caesura` on the box, `pg_restore`,
-   then `compare-databases` Neon vs box. **If anything differs, stop:** turn maintenance off on the
-   old box, and the evening is over with nothing lost.
+3. **Final copy:** on the new box, `caesura-web` and its crons hold connections to `caesura`, so
+   `DROP DATABASE` would fail inside the window. In order:
+   1. **Stop `caesura-web` and pause its scheduled tasks on the new box** (Coolify). Check:
+      `SELECT count(*) FROM pg_stat_activity WHERE datname = 'caesura'` is `0`. If something still
+      holds a session, end it with `pg_terminate_backend(pid)` as the superuser.
+   2. `pg_dump -Fc` from Neon, then drop and recreate `caesura` on the box, owned by the `caesura`
+      role: `DROP DATABASE caesura`, `CREATE DATABASE caesura OWNER caesura`. Recreate the
+      extensions the dump expects (`vector`) as the superuser if the restore does not.
+   3. `pg_restore --no-owner --no-privileges` connected **as the `caesura` role**, so every object
+      is owned by it. If the restore ran as the superuser, instead run `REASSIGN OWNED BY <superuser>
+      IN DATABASE caesura TO caesura` and `GRANT ALL ON ALL TABLES IN SCHEMA public TO caesura`
+      (and the same for sequences) before going on. Without these the tables stay owned by the
+      superuser and the app gets `permission denied` after the DNS flip.
+   4. **Check the app role can use it, before DNS:** connected as `caesura`, `SELECT count(*)` from a
+      real table, then in a transaction that is rolled back, `INSERT` or `UPDATE` one row in it
+      (or `SELECT has_table_privilege('caesura', 'public.<table>', 'SELECT,INSERT,UPDATE')`
+      for each table of a small set). Both must succeed.
+   5. `compare-databases` Neon vs box. **If anything differs, stop:** turn maintenance off on the
+      old box, and the evening is over with nothing lost.
+   6. **Start `caesura-web` and resume its crons on the new box** (or leave that to step 4's
+      deploy, which starts it). Step 4 checks it answers.
 4. **Merge stack B's top PR.** `deploy-production` runs. Its migrate step finds nothing pending
    through the tunnel, it builds the image, and it deploys the image to the new box's
    `caesura-web` (whose secrets `COOLIFY_URL`, `COOLIFY_APP_UUID`, `COOLIFY_API_TOKEN` and the
