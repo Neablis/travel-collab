@@ -92,11 +92,11 @@ test("Coolify's refusal is named: a full queue, a token without read, a missing 
   await assert.rejects(queueDeploy({ base, token: "t", uuid: "app-uuid" }), /HTTP 404 No resources found\./);
 });
 
-test("a deploy Coolify skips because one is already in flight succeeds without following a uuid that was never stored", async () => {
+test("a deploy Coolify skips because one is already in flight fails: it may have pulled the previous tag", async () => {
   seen.length = 0;
   respond = ({ method }) =>
     method === "PATCH" ? [200, {}] : method === "POST" ? queued("Deployment already queued for this commit.") : [404, { message: "Deployment not found." }];
-  assert.match(await main(env(), noWait), /already has a deployment in flight/);
+  await assert.rejects(main(env(), noWait), /already has a deployment queued.*may have pulled the previous tag/);
   assert.deepEqual(seen.map((r) => r.method), ["PATCH", "POST"]);
 });
 
