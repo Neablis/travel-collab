@@ -19,8 +19,8 @@ import { join, relative, resolve } from "node:path";
 // success over the top of it. Two branches make that happen without anybody
 // doing anything strange:
 //
-//   * Preview. PR A's preview build migrates the one shared Neon `preview`
-//     branch. PR B was generated before A and does not contain it; B's build
+//   * Preview. PR A's preview build migrates the one shared `preview`
+//     database. PR B was generated before A and does not contain it; B's build
 //     runs next, B's migration is skipped, and B's preview 500s on exactly the
 //     feature under review — reading as a code bug (KI-2026-09-05-k, F-D03).
 //   * Production. B merges and is dispatched (ADR-004: production migrations

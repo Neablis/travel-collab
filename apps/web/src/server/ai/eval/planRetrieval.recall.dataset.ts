@@ -5,7 +5,7 @@
 // tuple. `sourceName` is the human-readable playbook name (`saved_days.name`)
 // or trip name — NOT a database id. The eval resolves names to ids at runtime
 // against the database it's pointed at (fixture-seeded throwaway, or
-// production Neon in `RECALL_EVAL_PRODUCTION=1` mode), and FAILS LOUD if a
+// production in `RECALL_EVAL_PRODUCTION=1` mode), and FAILS LOUD if a
 // name doesn't resolve to exactly one row. This keeps the dataset portable:
 // the same labels run against fixtures and against Mitchell's real corpus.
 //

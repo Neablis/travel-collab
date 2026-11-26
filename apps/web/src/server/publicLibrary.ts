@@ -100,7 +100,7 @@ export async function dayPageView(
 // (2026-11-22). Discover, and the place, tag, length and author pages, were
 // each an entry per search, cursor and `?page=N`, and a crawler walking them
 // found a key nobody had asked for almost every time: a database read for
-// each, a few a minute through the night, so Neon never slept. The snapshot is
+// each, a few a minute through the night. The snapshot is
 // every published day in one entry, and any of those URLs is a filter over it
 // (`librarySnapshot.ts`), read once a day or after a list is cleared.
 

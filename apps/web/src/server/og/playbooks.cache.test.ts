@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // is the key and the tags each card is cached under, because the tags are how
 // a publish, an unpublish, a moderation or a renamed author takes a card out
 // (`libraryCache.ts`). 2026-11-17: the cards were read on every unfurl, which
-// kept Neon's compute awake.
+// was a database read per unfurl.
 const unstable_cache = vi.fn(
   (_read: () => Promise<unknown>, _keyParts: string[], _options: { tags: string[] }) => () =>
     Promise.resolve({ kind: "generic" }),

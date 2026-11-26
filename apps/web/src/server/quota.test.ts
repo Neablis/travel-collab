@@ -656,7 +656,7 @@ describe("what a reservation settles and refuses (PR #178)", () => {
 });
 
 // The link-preview limiter's store (og/limit.ts, 2026-11-17): pgCounters' rules
-// with no database, so an unfurl no longer wakes Neon. These pin the rules it
+// with no database, so an unfurl no longer writes. These pin the rules it
 // must share with the Postgres store, and the bound an IP-keyed map needs.
 describe("memoryCounters", () => {
   const AT = new Date("2031-01-01T12:00:00Z");

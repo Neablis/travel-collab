@@ -3,12 +3,15 @@
 # The image Coolify builds and runs (M59; docs/ops/coolify-vps.md). Build from
 # the repo root: `docker build --platform linux/amd64 .`
 #
-# Three stages. `build` is the only one with the toolchain: it migrates the
-# preview database when, and only when, `apps/web/scripts/build-migrate.mjs`
-# says so (APP_ENV=preview and PREVIEW_DB_IS_DISPOSABLE=true; production is
-# migrated by deploy-production.yml before it deploys, never here, ADR-091), copies the
-# map worker, and runs `next build`. `runtime` is the standalone server and
-# nothing else.
+# Three stages. `build` is the only one with the toolchain: it checks the public
+# origin, copies the map worker, and runs `next build`. It migrates nothing:
+# production is migrated by deploy-production.yml before it deploys (ADR-091)
+# and a preview by coolify-preview.yml, both before the image is deployed (M64).
+# `runtime` is the standalone server and nothing else.
+#
+# Built in GitHub Actions (`docker/build-push-action`), pushed to GHCR, and only
+# pulled by Coolify: no `next build` runs on the box. Build secrets come from
+# Actions, `SOURCE_COMMIT` as a build argument.
 
 ARG NODE_VERSION=24
 
@@ -44,18 +47,20 @@ COPY . .
 # plain `docker build --build-arg NAME=value` on a laptop; a secret, when
 # mounted, wins. NEXT_PUBLIC_* are inlined into the browser bundle by `next
 # build`, so they must exist here and cannot be set on the running container;
-# they are public, but go through the same path as the rest. APP_ENV and
-# PREVIEW_DB_IS_DISPOSABLE gate the build-time migrate: unset, it prints that it
-# skipped and the build carries on, which is what a production build does.
+# they are public, but go through the same path as the rest. APP_ENV is read by
+# `next.config.ts` and the check below. The workflows
+# leave an unset variable out of the secrets list (`scripts/build-secrets.mjs`),
+# because build-push-action rejects an empty secret (`NAME=`) before buildx runs.
+# The loop below tests `-s` anyway, so an empty mounted secret from another
+# caller falls back to the build arg, then to "unset".
 ARG APP_ENV
-ARG PREVIEW_DB_IS_DISPOSABLE
 # The public origin, read by `app/layout.tsx`'s `metadataBase` when `next build`
 # prerenders a page: without it every static page names http://localhost:3001
 # as its canonical address. `scripts/check-public-origin.mjs` refuses a
 # production build that lacks it.
 ARG PUBLIC_ORIGIN
-ARG NEXT_PUBLIC_PLAUSIBLE_DOMAIN
-ARG NEXT_PUBLIC_PLAUSIBLE_SRC
+ARG NEXT_PUBLIC_UMAMI_WEBSITE_ID
+ARG NEXT_PUBLIC_UMAMI_SRC
 ARG NEXT_PUBLIC_SENTRY_DSN
 ARG NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE
 ARG NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE
@@ -70,11 +75,10 @@ ENV NODE_OPTIONS=--max-old-space-size=4096 \
     NEXT_TELEMETRY_DISABLED=1
 # The values are exported inside this one RUN only, so they are in no layer, no
 # ENV, no `docker history` and no build-log command line. DATABASE_URL is needed
-# in EVERY build, not only a preview's: `next build` evaluates `server/config.ts`
-# while collecting page data, and that throws without it. Production's build
-# only needs it to exist (the migrate gate decides whether it is used), so
-# without the secret a placeholder stands in; a preview that lost its secret
-# then fails loudly at the first connection, not silently on the wrong database.
+# in EVERY build: `next build` evaluates `server/config.ts` while collecting
+# page data, and that throws without it. It only needs to exist, so without the
+# secret a placeholder stands in; Actions passes none, and the running
+# container's own DATABASE_URL (set on the Coolify application) is what is used.
 # The echo names which branch was taken, never a value.
 #
 # Fallback if a Coolify without build secrets must be used (leaves the URL in
@@ -84,10 +88,9 @@ ENV NODE_OPTIONS=--max-old-space-size=4096 \
 # keeps the ARG.
 RUN --mount=type=secret,id=DATABASE_URL,required=false \
     --mount=type=secret,id=APP_ENV,required=false \
-    --mount=type=secret,id=PREVIEW_DB_IS_DISPOSABLE,required=false \
     --mount=type=secret,id=PUBLIC_ORIGIN,required=false \
-    --mount=type=secret,id=NEXT_PUBLIC_PLAUSIBLE_DOMAIN,required=false \
-    --mount=type=secret,id=NEXT_PUBLIC_PLAUSIBLE_SRC,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_UMAMI_WEBSITE_ID,required=false \
+    --mount=type=secret,id=NEXT_PUBLIC_UMAMI_SRC,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_SENTRY_DSN,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,required=false \
@@ -96,13 +99,13 @@ RUN --mount=type=secret,id=DATABASE_URL,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_VERCEL_ENV,required=false \
     --mount=type=secret,id=NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,required=false \
     set -eu; \
-    for name in DATABASE_URL APP_ENV PREVIEW_DB_IS_DISPOSABLE PUBLIC_ORIGIN NEXT_PUBLIC_PLAUSIBLE_DOMAIN NEXT_PUBLIC_PLAUSIBLE_SRC NEXT_PUBLIC_SENTRY_DSN NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE NEXT_PUBLIC_VERCEL_ENV NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA; do \
+    for name in DATABASE_URL APP_ENV PUBLIC_ORIGIN NEXT_PUBLIC_UMAMI_WEBSITE_ID NEXT_PUBLIC_UMAMI_SRC NEXT_PUBLIC_SENTRY_DSN NEXT_PUBLIC_SENTRY_PROFILE_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE NEXT_PUBLIC_VERCEL_ENV NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA; do \
       if [ -s "/run/secrets/$name" ]; then export "$name=$(cat "/run/secrets/$name")"; echo "[docker] $name: from build secret"; \
       elif [ -n "$(printenv "$name" || true)" ]; then echo "[docker] $name: from build arg"; \
       else echo "[docker] $name: unset"; fi; \
     done; \
     if [ -z "${DATABASE_URL:-}" ]; then export DATABASE_URL=postgres://build:build@localhost:5432/build; echo "[docker] DATABASE_URL: placeholder"; fi; \
-    pnpm --filter web build:container
+    pnpm --filter web exec node scripts/check-public-origin.mjs && pnpm --filter web build
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 ENV NODE_ENV=production \
@@ -119,6 +122,12 @@ RUN groupadd --gid 1001 app && useradd --uid 1001 --gid app --no-create-home --s
 COPY --from=build --chown=app:app /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=app:app /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build --chown=app:app /repo/apps/web/public ./apps/web/public
+
+# The commit this image was built from, read by `/api/health` as `version`.
+# Declared here and not in `build`, so a new sha does not bust the build cache.
+# Coolify has no git source to set it from (M64 D6).
+ARG SOURCE_COMMIT
+ENV SOURCE_COMMIT=${SOURCE_COMMIT}
 
 USER app
 EXPOSE 3000

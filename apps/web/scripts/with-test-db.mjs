@@ -136,7 +136,7 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 /**
  * The one safety rail that matters. This file issues CREATE DATABASE and DROP
- * DATABASE; pointed at the Neon preview or production branch it would be a
+ * DATABASE; pointed at the preview or production database it would be a
  * destructive tool aimed at real data. Preview and production are migrated by
  * automation against a URL nobody types (see
  * docs/guidelines/environments-and-deploys.md), so refusing every non-local
@@ -148,7 +148,7 @@ export function assertLocalHost(url) {
     throw new Error(
       `with-test-db: refusing to provision databases on '${hostname}'.\n` +
         "           This creates and drops databases, so it runs against a local\n" +
-        "           Postgres only — never a Neon preview or production branch.",
+        "           Postgres only — never a preview or production database.",
     );
   }
 }

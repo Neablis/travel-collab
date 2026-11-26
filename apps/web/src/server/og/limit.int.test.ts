@@ -17,8 +17,8 @@ afterEach(() => {
 const from = (ip: string) => new Request("http://test/x", { headers: { "x-forwarded-for": ip } });
 
 describe("limitLinkPreview", () => {
-  // 2026-11-17: every unfurl was an upsert, and Applebot's alone kept Neon's
-  // compute from ever idling five minutes. The limiter counts in memory now;
+  // 2026-11-17: every unfurl was an upsert, and Applebot's alone made a
+  // database write a few times a minute. The limiter counts in memory now;
   // this pins that it still refuses, and that it wrote nothing doing it.
   it("refuses past the per-IP ceiling without writing a counter row", async () => {
     // Pinned mid-minute: the windows are epoch-aligned, see routes.int.test.ts.

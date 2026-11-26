@@ -52,7 +52,7 @@ export function renumberedMessage(renumbered) {
     "build shares this database, so every branch's preview fails until it is repaired.\n" +
     "\n" +
     "Recovery (KI-2026-10-17-c; needs Mitchell's approval, the branch is shared):\n" +
-    "  1. On the preview Neon branch, undo what the stale migration created\n" +
+    "  1. On the preview database, undo what the stale migration created\n" +
     "     (e.g. DROP TABLE <table>, or ALTER TABLE <t> DROP COLUMN <c>).\n" +
     `  2. DELETE FROM drizzle.__drizzle_migrations WHERE id IN (${renumbered.map(({ row }) => row.id).join(", ")});\n` +
     "  3. Redeploy one failing preview; the renumbered migration then applies once."

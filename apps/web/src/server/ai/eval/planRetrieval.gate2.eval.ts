@@ -25,7 +25,7 @@
 //
 // **Modes:**
 // - **Production (`GATE2_PRODUCTION=1`):** uses the already-backfilled database
-//   (Mitchell's Neon). Retrieval runs against real data. This is the supported
+//   (Mitchell's production). Retrieval runs against real data. This is the supported
 //   path — Mitchell runs it.
 // - **Fixture (default, not yet implemented):** would seed the 19 content
 //   bundles + Japan fixture trip and embed via the real sweep, like Gate 1's
@@ -40,8 +40,12 @@
 //
 // Usage:
 //   GATE2_PRODUCTION=1 GATE2_USER_ID=<id> GATE2_CONFIRM=1 \
-//     TRAVEL_COLLAB_EVAL_KEY=<key> DATABASE_URL=<neon-url> \
+//     TRAVEL_COLLAB_EVAL_KEY=<key> DATABASE_URL=<database> \
 //     pnpm --filter web eval:run -- planRetrieval.gate2
+//
+// Production mode has no allowed path today: the box's Postgres is loopback
+// only and `docs/ops/coolify-vps.md` forbids a laptop `DATABASE_URL` for it
+// (`docs/evals/gate2-quality-runbook.md`). Use fixture mode meanwhile.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";

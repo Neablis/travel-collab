@@ -16,7 +16,7 @@
 // proxy names PRODUCTION's callback (the one URI registered with Google);
 // one without names its own (which Google has never heard of).
 //
-//   node scripts/check-auth-proxy.mjs https://<pr>.preview.caesura.today
+//   node scripts/check-auth-proxy.mjs https://preview.caesura.today
 //
 // It then asks GOOGLE whether it accepts that redirect_uri, which is the only
 // question KI-50 was ever about. That step needs no credentials — an

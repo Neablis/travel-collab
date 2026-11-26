@@ -2,9 +2,10 @@
 --
 -- Read-only. Each query is self-contained and starts with the same `window`
 -- CTE. Change `since` there, and nothing else, to move the window. Run one
--- query at a time through the Neon MCP `run_sql` on the branch you mean
--- (production's, for live traffic), or all of them with
--- `psql "$DATABASE_URL" -f .claude/skills/ai-usage/ledger.sql`.
+-- query at a time in Coolify's Postgres Terminal (production's, for live
+-- traffic; needs Mitchell's Coolify login, and is the one allowed production
+-- read path, `docs/ops/coolify-vps.md`), or all of them against a local
+-- database with `psql "$DATABASE_URL" -f .claude/skills/ai-usage/ledger.sql`.
 --
 -- Simulated turns (ai-live off, `turn_model = 'simulated/no-op'`) are
 -- excluded everywhere: they spend nothing and their tool calls are scripted.

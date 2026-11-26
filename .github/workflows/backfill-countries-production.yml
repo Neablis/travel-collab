@@ -54,6 +54,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # Production's Postgres listens on the box's loopback only (ADR-093): the
+      # tunnel makes it 127.0.0.1:15432 here, where PRODUCTION_DATABASE_URL points.
+      - uses: ./.github/actions/db-tunnel
+        with:
+          ssh-key: ${{ secrets.BOX_SSH_KEY }}
+          known-hosts: ${{ secrets.BOX_SSH_KNOWN_HOSTS }}
+          host: ${{ secrets.BOX_SSH_HOST }}
+
       - name: Backfill
         run: |
           cd apps/web

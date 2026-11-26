@@ -9,7 +9,7 @@
 //    ended `[⣷] applying migrations...` and nothing else. Here the failure is
 //    caught and printed with its Postgres code and detail.
 // 2. **A named refusal for a renumbered migration.** Every preview shares one
-//    Neon branch. When a part's migration is applied by its preview and then
+//    preview database. When a part's migration is applied by its preview and then
 //    regenerated under a newer number, drizzle runs the same SQL again and every
 //    preview build fails. Before migrating, this compares the applied rows with
 //    the journal and refuses with the recovery steps when that is about to

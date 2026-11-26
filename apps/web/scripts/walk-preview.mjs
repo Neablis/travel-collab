@@ -7,7 +7,7 @@
  *
  *   pnpm --filter web walk:preview <url> [path ...]
  *
- * `<url>` is a preview URL (`https://<pr>.preview.caesura.today`). Paths
+ * `<url>` is a preview URL (`https://preview.caesura.today`). Paths
  * default to `/`. Previews are public and NOINDEX, so no credential is needed
  * or sent.
  *

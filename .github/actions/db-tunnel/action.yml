@@ -1,0 +1,73 @@
+name: db-tunnel
+description: >-
+  Opens an SSH tunnel from 127.0.0.1:15432 on the runner to Postgres on the box
+  (127.0.0.1:5432 there), so a step can use PRODUCTION_DATABASE_URL, whose host
+  is 127.0.0.1:15432. Put it before the first step that names that secret
+  (scripts/check-workflow-tunnel.mjs fails CI if it is missing).
+
+# A composite action cannot declare a post step, and cannot read `secrets`
+# itself, so the caller passes the three secrets in as inputs. The tunnel is
+# not killed here: the runner is discarded when the job ends, which ends it, so
+# this action assumes ephemeral (GitHub-hosted) runners.
+# The host key is pinned from BOX_SSH_KNOWN_HOSTS and StrictHostKeyChecking
+# stays on, so a swapped host fails the connection rather than being trusted.
+inputs:
+  ssh-key:
+    description: Deploy key for the box's tunnel user (secrets.BOX_SSH_KEY).
+    required: true
+  known-hosts:
+    description: Pinned host key line(s) for the box (secrets.BOX_SSH_KNOWN_HOSTS).
+    required: true
+  host:
+    description: The box's address (secrets.BOX_SSH_HOST).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Open the tunnel
+      shell: bash
+      env:
+        BOX_SSH_KEY: ${{ inputs.ssh-key }}
+        BOX_SSH_KNOWN_HOSTS: ${{ inputs.known-hosts }}
+        BOX_SSH_HOST: ${{ inputs.host }}
+      run: |
+        set -euo pipefail
+        install -d -m 700 ~/.ssh
+        umask 077
+        printf '%s\n' "$BOX_SSH_KEY" > ~/.ssh/box_tunnel
+        printf '%s\n' "$BOX_SSH_KNOWN_HOSTS" > ~/.ssh/box_known_hosts
+        ssh -N -f \
+          -i ~/.ssh/box_tunnel \
+          -o IdentitiesOnly=yes \
+          -o UserKnownHostsFile="$HOME/.ssh/box_known_hosts" \
+          -o StrictHostKeyChecking=yes \
+          -o ExitOnForwardFailure=yes \
+          -o ServerAliveInterval=30 \
+          -L 15432:127.0.0.1:5432 \
+          "tunnel@${BOX_SSH_HOST}"
+        # ssh -f returns once the forward is set up, so this is a short belt-and-braces wait.
+        for _ in $(seq 1 30); do
+          if (exec 3<>/dev/tcp/127.0.0.1/15432) 2>/dev/null; then
+            # ssh has read the key once the forward is up; later steps (a 30 min deploy, repo scripts) need not see it.
+            rm -f ~/.ssh/box_tunnel
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "db-tunnel: nothing listening on 127.0.0.1:15432 after 30s; the tunnel never opened" >&2
+        exit 1
+
+    - name: Check Postgres answers through the tunnel
+      shell: bash
+      run: |
+        set -euo pipefail
+        PG_ISREADY="$(command -v pg_isready || true)"
+        if [ -z "$PG_ISREADY" ]; then
+          PG_ISREADY="$(ls /usr/lib/postgresql/*/bin/pg_isready 2>/dev/null | head -n1 || true)"
+        fi
+        if [ -z "$PG_ISREADY" ]; then
+          echo "db-tunnel: pg_isready not found on this runner" >&2
+          exit 1
+        fi
+        "$PG_ISREADY" -h 127.0.0.1 -p 15432 -t 10

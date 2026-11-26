@@ -148,7 +148,7 @@ true there:
 - **The detector is the container, not `process.env.CI`.**
 
 **The Coolify preview is reachable from here.** A PR carrying the `preview` label is
-built to `https://<pr number>.preview.caesura.today` (M59; the label since 2026-11-14). Previews are public and
+built to `https://preview.caesura.today` (M59; the label since 2026-11-14). Previews are public and
 NOINDEX, so there is no gate to get past: no bypass secret, no share link. (Until
 M59 they sat behind Vercel Authentication, whose 302 to `vercel.com/sso-api`
 stopped three runs from testing where the bug was, and whose anti-bot checkpoint

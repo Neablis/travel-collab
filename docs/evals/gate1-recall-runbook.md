@@ -10,11 +10,23 @@ reports macro-averaged recall@5.
   miss pattern is understood.
 
 Two modes: **fixture** (default — seeds fixtures into a throwaway DB) and
-**production** (`RECALL_EVAL_PRODUCTION=1` — runs against your live Neon
-database with real data). The production path is recommended: it measures
-recall on the corpus that will actually serve.
+**production** (`RECALL_EVAL_PRODUCTION=1` — runs against the live database
+with real data). Production measures recall on the corpus that will actually
+serve, but see the note below: it has no allowed path from a laptop today.
 
-## Production mode (recommended)
+## Production mode (no allowed path today)
+
+**Production mode has no allowed path today.** The box's Postgres listens on
+loopback only, the one tunnel key is the Actions deploy key, and
+`docs/ops/coolify-vps.md` (*Postgres*) forbids running production database
+commands from a laptop. This eval runs from a checkout with `DATABASE_URL`
+pointed at the database, so it cannot run against production until Mitchell
+decides how (a dispatched workflow, or a read-only operator key). Use fixture
+mode meanwhile.
+
+The steps below are what it would do. The SQL runs in the Postgres resource's
+Coolify *Terminal* (`psql -U caesura -d caesura`); the sweep is the `curl`
+below, which needs no database access.
 
 Prerequisites: branch `sunny/rag-part3-gate1`, Node 22, pnpm, and
 `TRAVEL_COLLAB_EVAL_KEY` (an Anthropic key) and, for the embedding calls,
@@ -26,7 +38,7 @@ backfill script only *queues* rows — the sweep does the paid embedding:
 
 ```sh
 # 1. Queue every playbook/trip day for embedding:
-DATABASE_URL=<your-neon-url> pnpm --filter web db:backfill-embeddings
+DATABASE_URL=<production-url> pnpm --filter web db:backfill-embeddings
 
 # 2. Drain the queue through the production sweep. Either wait for the
 #    daily 04:00 UTC Coolify scheduled task, or trigger it manually (repeat until the queue
@@ -45,7 +57,7 @@ The sweep is idempotent, so re-running either step is safe.
 
 **Step 1 — find your user id.** The eval reads as `RECALL_EVAL_USER_ID` so
 trip-day labels pass the privacy filter (the fixture default `eval-actor`
-owns no production trips). In Neon's SQL editor:
+owns no production trips). In the Postgres resource's Terminal:
 
 ```sql
 SELECT id, email FROM users WHERE email = '<your-email>';
@@ -58,7 +70,7 @@ non-local hosts); `eval:run` reads the exported `DATABASE_URL` directly.
 RECALL_EVAL_PRODUCTION=1 RECALL_EVAL_USER_ID=<your-user-id> \
   RECALL_EVAL_CONFIRM=1 TRAVEL_COLLAB_EVAL_KEY=<your-key> \
   RECALL_EVAL_JAPAN_TRIP_ID=<your-japan-trip-id> \
-  DATABASE_URL=<your-neon-url> \
+  DATABASE_URL=<production-url> \
   pnpm --filter web eval:run -- planRetrieval.recall
 ```
 
@@ -66,7 +78,7 @@ RECALL_EVAL_PRODUCTION=1 RECALL_EVAL_USER_ID=<your-user-id> \
 Trip titles are **not** unique — two real users can name trips the same, and
 production already has two trips titled `"Japan: Tokyo → Kyoto → Osaka"`.
 Name lookup fails loud on ambiguity; the id pin skips the lookup entirely.
-Find the id in Neon's SQL editor:
+Find the id in the same Terminal:
 
 ```sql
 SELECT trip_id, doc->>'name' AS name FROM trip_details
@@ -133,7 +145,7 @@ Postgres, and the database is a throwaway the lane provisions and drops.
   Point `DATABASE_URL` at it (the lane reads `.env.local` first, then the
   environment; `postgresql://postgres:postgres@127.0.0.1:5433/travel` matches
   the repo's default port). The lane refuses non-local hosts — this never
-  touches Neon.
+  touches production.
 
 - `TRAVEL_COLLAB_EVAL_KEY` — an Anthropic key kept for evals, so eval
   spend never lands on production's key (the eval lane's convention;
@@ -201,8 +213,8 @@ misses from the report either way.
 - **`CREATE EXTENSION vector` fails / migration 0054 errors.** The local
   Postgres is not the pgvector image. `docker ps` should show
   `pgvector/pgvector:pg17`; the repo's `docker-compose.yml` postgres is plain
-  `postgres:17` and will not work. (On Neon this step was already done —
-  `CREATE EXTENSION vector;` in the SQL editor.)
+  `postgres:17` and will not work. (The box's Postgres is the
+  pgvector image and migration 0054 creates the extension.)
 - **`TRAVEL_COLLAB_EVAL_KEY is not set.`** The lane refuses before anything is
   sent — set the key and re-run. (An *invalid* key surfaces later: every
   query "would not embed" and the run fails loudly rather than scoring zeros.)

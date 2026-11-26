@@ -72,7 +72,7 @@ describe("the container build's public origin", () => {
     );
   });
 
-  // The script is what `build:container` runs, so its exit code is the gate.
+  // The script is what the Dockerfile's build `RUN` runs, so its exit code is the gate.
   it("exits non-zero for a production build with no origin, and zero with one", () => {
     const run = (env: Record<string, string>) =>
       spawnSync(process.execPath, [ENTRY], {

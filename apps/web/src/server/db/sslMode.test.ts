@@ -2,7 +2,7 @@ import { Client } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withExplicitSslMode } from "./sslMode";
 
-const NEON = "postgresql://user:p%40ss@ep-x.eu-central-1.aws.neon.tech/neondb?sslmode=require";
+const REQUIRE_URL = "postgresql://user:p%40ss@db.example.com/travel?sslmode=require";
 
 describe("withExplicitSslMode (KI-2026-10-03-b)", () => {
   afterEach(() => {
@@ -11,9 +11,9 @@ describe("withExplicitSslMode (KI-2026-10-03-b)", () => {
 
   // First in the file on purpose: pg-connection-string warns once per process,
   // so this has to be the first string pg parses here to be able to fail.
-  it("lets pg parse Neon's string without the SECURITY WARNING, and with the same ssl config", () => {
+  it("lets pg parse a `sslmode=require` string without the SECURITY WARNING, and with the same ssl config", () => {
     const warn = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
-    const client = new Client({ connectionString: withExplicitSslMode(NEON) });
+    const client = new Client({ connectionString: withExplicitSslMode(REQUIRE_URL) });
     expect(warn).not.toHaveBeenCalled();
     // `{}` is pg's "TLS on, verify the server": what `require` already meant.
     // `connectionParameters` is real but missing from @types/pg.

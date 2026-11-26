@@ -44,8 +44,8 @@ each run is a ~90 ms `CREATE DATABASE … TEMPLATE` clone called
 `tc_test_<epoch>_<rand>`, and a run that was SIGKILLed is swept by the next
 one after two hours. `KEEP_TEST_DB=1 pnpm --filter web test:int` keeps the
 database and prints its URL. The wrapper refuses to run against any host that
-is not loopback, so it can never issue `CREATE`/`DROP DATABASE` against a Neon
-branch.
+is not loopback, so it can never issue `CREATE`/`DROP DATABASE` against a remote
+database.
 
 Running more than one worktree's dev server at once: each needs its own
 port. `WEB_PORT=3010 pnpm --filter web dev` (or set `WEB_PORT` in that
@@ -57,24 +57,24 @@ coordination between worktrees.
 |---|---|---|---|
 | Local | `pnpm dev` (port 3001) | Docker Postgres (port 5433), or a native cluster on the same port in a web session | `apps/web/src/server/config.ts` default / `.env.local` |
 | CI | GitHub Actions | PG service container | `ci.yml` workflow env |
-| Preview | Coolify per-PR previews on the VPS | **A disposable Neon branch** (pooled), never production's | Coolify env, Preview scope — plus `PREVIEW_DB_IS_DISPOSABLE=true` |
-| Production | Coolify, the same VPS | The Neon branch the live site reads (pooled) | Coolify env, Production scope |
+| Preview | One preview app on the box (`preview.caesura.today`), the labelled PR's image | **`caesura_preview`**, a disposable database on the box's Postgres, never production's | The `caesura-preview` application's Coolify env. `coolify-preview.yml` sets `PREVIEW_DB_IS_DISPOSABLE=true` for its migrate step; it is not a Coolify variable |
+| Production | Coolify, the same box | The box's Postgres, database the live site reads | The `caesura-web` application's Coolify env |
 
-> **The Neon project and branch names are deliberately not written above.** They
-> have been wrong in this file before: it named a `preview` branch that had been
-> archived since 2026-08-28 and a `main` branch in a project that was not the one
-> the `PRODUCTION_DATABASE_URL` secret pointed at. Two Neon projects existed with
-> near-identical connection strings differing only in host, and the branch *named*
+> **The database's host and name are deliberately not written above.** They
+> have been wrong in this file before, when production and preview were two
+> managed projects with near-identical connection strings and the branch *named*
 > `production` was not production. Identify a database by connecting to it and
-> looking, never by the name on it — `KI-2026-09-06-h` has the method.
+> looking, never by the name on it: `KI-2026-09-06-h` has the method. On the box
+> the preview database is `caesura_preview` and `build-steps.mjs` refuses to
+> migrate any other name.
 
 Rules (ADR-004 + M1 retro):
 - Preview and Production `DATABASE_URL` are **never** the same value.
-  **This rule was silently violated from 2026-07-21 to 2026-09-06** (fixed since; KI resolved 2026-09-24) — the Neon
-  Vercel integration injected one `DATABASE_URL` scoped "Production and Preview",
-  which is one value for both, and nothing checked. Coolify has the same trap: it
-  keeps a preview copy of every production variable, so the Preview scope's
-  `DATABASE_URL` is set explicitly (`docs/ops/coolify-vps.md`, *Previews*). Read
+  **This rule was silently violated from 2026-07-21 to 2026-09-06** (fixed since; KI resolved 2026-09-24) — the managed-
+  database Vercel integration injected one `DATABASE_URL` scoped "Production and Preview",
+  which is one value for both, and nothing checked. The preview is now its own
+  application (`caesura-preview`) with its own `DATABASE_URL`, set explicitly
+  (`docs/ops/coolify-vps.md`, *Previews*), so it shares no variable with `caesura-web`. Read
   `docs/known-issues/resolved/KI-20260906-h-preview-and-production-shared-one-database.md`
   before changing anything in this section; the rail below is what now enforces
   the half of it that automation can enforce.
@@ -83,8 +83,8 @@ Rules (ADR-004 + M1 retro):
 - Production migrations: **applied automatically, before every deploy**
   (ADR-091, 2026-11-15). `.github/workflows/deploy-production.yml` runs on
   every push to `main`: journal shape, `db:migrate` against the
-  `PRODUCTION_DATABASE_URL` repo secret (the UNPOOLED/direct connection string —
-  DDL should not run through PgBouncer), `db:state` to confirm production has
+  `PRODUCTION_DATABASE_URL` repo secret (through the SSH tunnel, ADR-093: a direct
+  connection, nothing pooled in between), `db:state` to confirm production has
   every migration in the tree, and only then a Coolify deploy of `caesura-web`,
   which it waits on. **A failed migration deploys nothing.** Coolify's Auto
   Deploy is off on `caesura-web` (`docs/ops/coolify-vps.md`, *Deploy*), so this
@@ -154,22 +154,23 @@ Rules (ADR-004 + M1 retro):
   refuses deleting one that `main` already has, or rewriting the `when` of one
   already applied.
 - Preview migrations: `apps/web/scripts/build-migrate.mjs` runs
-  `drizzle-kit migrate` during the image build (`pnpm --filter web build:container`),
-  and needs **both** conditions:
-  `APP_ENV=preview` **and** `PREVIEW_DB_IS_DISPOSABLE=true`. The first says
-  where the build runs; only the second says anything about which database it is
-  pointed at, and it is set by hand on the Preview scope alone. Without it the
-  build **fails** rather than skipping — a preview that cannot prove its database
+  `drizzle-kit migrate` in `coolify-preview.yml`, over the SSH tunnel, before the
+  preview's image is deployed (M64 part 4; the image build migrates nothing). It
+  needs **both** conditions: `APP_ENV=preview` **and**
+  `PREVIEW_DB_IS_DISPOSABLE=true`, and it migrates only the database named
+  `caesura_preview`. The first says where the build runs; only the second says
+  anything about which database it is pointed at, and the workflow sets it, never
+  Coolify. Without it the step **fails** rather than skipping — a preview that cannot prove its database
   is disposable must not migrate, and a red build is the cheap failure here.
   `VERCEL_ENV=preview` alone was the only check until 2026-09-06, which is how
   migrations 0015-0018 were applied to production by preview builds.
-  After migrating, a preview build also imports `content/` through
+  After migrating, the workflow also imports `content/` through
   `import-content-production.ts`, never with `--prune`, into the preview
   database that every open PR shares, so the last build to run wins a day's
   content. A bundle or import error fails that build. Two builds importing at
   once wait for each other on the importer's advisory lock.
-- Resetting the preview branch (or local db):
-  `DATABASE_URL=<preview pooled url> pnpm --filter web db:reset`
+- Resetting the preview database (or local db):
+  `DATABASE_URL=<preview url, through the tunnel> pnpm --filter web db:reset`
   — see the header of `apps/web/scripts/db-reset.mjs`. For local dev, `pnpm
   --filter web db:reseed` wipes and refills with realistic data in one shot
   (`db:reset --yes` + `db:seed` + `content:import`, `.env.local`'s
@@ -181,32 +182,33 @@ Rules (ADR-004 + M1 retro):
 ## Which pushes build a preview
 
 **`deploy-production` builds `main` to production on every push, after migrating. A PR gets a preview only
-while it carries the `preview` label.** The preview lives at
-`https://<pr number>.preview.caesura.today` (a wildcard A record on the VPS).
-`.github/workflows/coolify-preview.yml` opens it through Coolify's API when the
-label is added, rebuilds it on each push while the label stays on, and removes
-it when the label comes off or the PR closes. Actions → *coolify-preview* → Run
-workflow builds one PR's head the same way and puts the label on it, and with
-*remove* ticked it removes the PR's preview and takes the label off. Setup, the
-Preview-scope variables and the database rule are in `docs/ops/coolify-vps.md`.
+while it carries the `preview` label.** Since M64 (D6 and D8) the preview is one
+Coolify application, `caesura-preview`, at `https://preview.caesura.today`, and
+Actions builds its image: `.github/workflows/coolify-preview.yml` opens a tunnel
+to the box, migrates and seeds the shared `caesura_preview` database, builds and
+pushes `ghcr.io/<repo>/web:pr-<n>-<sha>`, and tells Coolify to pull that tag. Nothing
+builds on the box. It does this when the label is added and on each push while
+the label stays on, and stops the app when the label comes off or the PR closes.
+Actions → *coolify-preview* → Run workflow does it for one PR's head and puts the
+label on it, and with *remove* ticked it stops the app and takes the label off.
+Setup and the variables are in `docs/ops/coolify-vps.md`, *Images built in Actions*.
 
-**One preview at a time.** Labelling a PR (or dispatching the workflow for one)
-first removes the preview of every other open PR that carries the label and
-takes the label off them, then builds the new one. Two previews up at once
-crashed the server, so a new label replaces the old preview rather than adding
-a second. Labels added together are handled one after another, and the last
-one wins.
+**One preview at a time, by construction.** There is one app, so labelling a PR
+(or dispatching the workflow for one) replaces whichever PR was on it, and takes
+the label off that PR. Labels added together are handled one after another, and
+the last one wins. `/api/health`'s `version` is the head sha of the PR that is
+on it now: the URL is the same for every PR, so that is how a walk knows whose
+preview it is looking at. Taking the label off a PR that no longer owns the app
+stops nothing.
 
 **Why a label again (2026-11-14).** Before M59 the same label gated Vercel
 previews because Vercel billed preview compute. M59 dropped it on the grounds
 that the box has a fixed price, and Coolify then built and kept running a
 preview of every PR. The box's limit is memory, not money: on 2026-11-14
 fifteen open PRs' previews plus ten production builds ran the 8 GB box out of
-memory and took caesura.today down for over an hour (KI-2026-11-14-d). So
-Coolify's own *Preview Deployments* switch is off on `caesura-web`, and the
+memory and took caesura.today down for over an hour (KI-2026-11-14-d). So the
 label is the only way in. **Label the PR you will walk, not every PR in a
-stack, and take the label off when the walk is done.** Labelling it takes the
-preview away from whichever PR had it.
+stack, and take the label off when the walk is done.**
 
 **When the label does nothing, run the workflow (2026-11-15).** Two cases start
 no `coolify-preview` run, both seen on PR 755:
@@ -219,15 +221,16 @@ no `coolify-preview` run, both seen on PR 755:
   at all, so neither the label nor a push does anything until the conflict is
   resolved. Run workflow works on it either way.
 
-- **Concurrent builds are set to 1** on the box (a `next build` needs about 4 GB),
-  so builds queue one after another. Each preview that is up keeps a
+- **The image build runs in Actions** (a runner, not the 8 GB box), so a preview
+  no longer queues behind a production build. The one preview app keeps one
   container running, which is why only one is kept.
 - Once a preview answers, `.github/workflows/preview-link-check.yml` requests
   every link the landing sea draws on it, and its `sea-links` job fails naming
   each one that does not answer 200. It runs on ready PRs that carry the
   `preview` label, not drafts, and it is not a required check.
-- **A preview that failed or went stale**: read the build log in Coolify; a push
-  or Coolify's *Redeploy* rebuilds it.
+- **A preview that failed or went stale**: read the `coolify-preview` run (the
+  build and the migrate are its steps) and Coolify's deployment log for the pull;
+  a push rebuilds it.
 
 ## Testing against a preview deployment
 
@@ -299,7 +302,7 @@ The project's flag is `ai-live`, variable `FLAG_AI_LIVE`: whether
 | Environment | Where the value lives |
 |---|---|
 | Local / CI | `AI_LIVE` in `.env.local` / the CI env — `false` by default, checked by `aiLive()` (`apps/web/src/server/ai/modelSelection.ts`) before the flag is ever consulted. **Never set this in a deployment** (see below). |
-| Preview | `FLAG_AI_LIVE` on the Coolify Preview scope. Unset means simulated; set it to `true` on the preview you want to try live AI on. |
+| Preview | `FLAG_AI_LIVE` on the `caesura-preview` application. Unset means simulated; set it to `true` on the preview you want to try live AI on. |
 | Production | `FLAG_AI_LIVE` on the Production scope. **`false` until release; `true` from release onward**, at which point it is the emergency disable — ADR-019's 2026-09-13 amendment. Do not flip it before M20's entitlement gate is live in production: between the flip and the gate there is no spend control at all. |
 
 **Flipping `ai-live` for everyone:** set `FLAG_AI_LIVE` on the Production scope
@@ -343,8 +346,8 @@ so `FLAG_AI_LIVE` stays the sole source of truth.
 
 Since M59 Part 4 the assistant calls Anthropic directly, on our own
 `ANTHROPIC_API_KEY`, and embeddings go straight to OpenAI on `OPENAI_API_KEY`:
-no AI Gateway sits between. The models are four environment variables, set per
-Coolify scope (Production and Preview): `AI_MODEL_CHEAP`, `AI_MODEL_MID`,
+no AI Gateway sits between. The models are four environment variables, set in each
+Coolify application's environment (`caesura-web` and `caesura-preview`): `AI_MODEL_CHEAP`, `AI_MODEL_MID`,
 `AI_MODEL_STRONG` and `AI_CLASSIFIER_MODEL` (`apps/web/src/server/config.ts`).
 Each holds an id of the form `anthropic/<model>`; `resolveChatModel`
 (`apps/web/src/server/ai/modelId.ts`) turns the dotted version
