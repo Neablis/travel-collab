@@ -186,7 +186,7 @@ while it carries the `preview` label.** Since M64 (D6 and D8) the preview is one
 Coolify application, `caesura-preview`, at `https://preview.caesura.today`, and
 Actions builds its image: `.github/workflows/coolify-preview.yml` opens a tunnel
 to the box, migrates and seeds the shared `caesura_preview` database, builds and
-pushes `ghcr.io/<repo>/web:pr-<n>`, and tells Coolify to pull that tag. Nothing
+pushes `ghcr.io/<repo>/web:pr-<n>-<sha>`, and tells Coolify to pull that tag. Nothing
 builds on the box. It does this when the label is added and on each push while
 the label stays on, and stops the app when the label comes off or the PR closes.
 Actions → *coolify-preview* → Run workflow does it for one PR's head and puts the

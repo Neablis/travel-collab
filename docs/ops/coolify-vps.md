@@ -297,6 +297,13 @@ fails CI if a workflow names it without that step.
   `BOX_SSH_KNOWN_HOSTS` (the box's host key line, from `ssh-keyscan` checked
   against the box's own fingerprint) and `BOX_SSH_HOST`. The host key is pinned
   and `StrictHostKeyChecking` stays on.
+- **The order at cutover.** The tunnel step runs unconditionally on every
+  deploy, so (1) set the three secrets, (2) merge, (3) re-point
+  `PRODUCTION_DATABASE_URL`. Merging first fails every push-to-main deploy at
+  the tunnel step; re-pointing first fails it at connect time.
+- **sslmode.** The re-pointed URL must name it. `client.ts` applies
+  `withExplicitSslMode`, and the old Neon URL said `sslmode=require`; if the
+  box's Postgres has no TLS, use `sslmode=disable`.
 - **Not killed explicitly.** A composite action has no post step; the runner is
   discarded when the job ends.
 
@@ -304,7 +311,7 @@ fails CI if a workflow names it without that step.
 
 M64 (D6 and D8). `deploy-production.yml` and `coolify-preview.yml` build the
 Dockerfile on a runner, push `ghcr.io/<repo>/web:<tag>` (`<sha>` for production,
-`pr-<n>` for a preview), and call Coolify, which only pulls and runs the tag
+`pr-<n>-<sha>` for a preview, so each push is a new tag; GHCR keeps them all, prune by hand), and call Coolify, which only pulls and runs the tag
 (`scripts/coolify-deploy.mjs` and `scripts/coolify-preview.mjs` set
 `docker_registry_image_tag` on the application, then deploy). The plan is
 `docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`.
@@ -333,8 +340,9 @@ Dockerfile on a runner, push `ghcr.io/<repo>/web:<tag>` (`<sha>` for production,
   holds no database URL.
 - **Not yet proven**, until the box is up (O6): that GHCR can be pulled from the
   box, that Coolify accepts the `docker_registry_image_tag` PATCH and the
-  `/stop` call with the token's permissions, and that a `pr-<n>` tag already
-  present is re-pulled when re-pushed (if not, deploy by digest).
+  `/stop` call with the token's permissions, and that the preview's runtime
+  `DATABASE_URL` names `caesura_preview` (the server refuses to start a preview
+  that names another database).
 
 ## Umami
 

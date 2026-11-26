@@ -14,7 +14,7 @@ name: preview-link-check
 # `ci-ok` stays the only one.
 #
 # Only a PR carrying the `preview` label has a preview (`coolify-preview.yml`,
-# since 2026-11-14), so only such a PR is checked: waiting 15 minutes on every
+# since 2026-11-14), so only such a PR is checked: waiting 30 minutes on every
 # other ready PR for a preview that will never come would only spend minutes.
 on:
   pull_request:
@@ -26,6 +26,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   sea-links:
@@ -39,14 +40,17 @@ jobs:
           contains(github.event.pull_request.labels.*.name, 'preview') &&
           (github.event.action != 'labeled' || github.event.label.name == 'preview') }}
     runs-on: ubuntu-latest
-    # Room for the preview's build (up to 15 min of waiting) plus a preview that
+    # Room for the preview's run (it can queue behind another PR's, then installs,
+    # migrates, builds and deploys: up to 30 min of waiting) plus a preview that
     # answers nothing: the script's per-request timeout is sized to finish
     # inside this and still name every href.
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       PREVIEW_URL: https://preview.caesura.today
       # `github.sha` is the merge commit on `pull_request`; the preview is built from the head.
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -60,21 +64,27 @@ jobs:
           node-version-file: .nvmrc
       # On `synchronize` the previous push's build keeps answering until the new
       # one swaps in, and another PR's build may be on the one app, so answering is not enough: `/api/health`'s `version` (the
-      # build's commit sha) must be the head. A preview that never appears (the
-      # label was moved to another PR, the build failed) is a
-      # warning, not a red check: only a broken link is a failure.
+      # build's commit sha) must be the head. A preview that never appears is a red
+      # check, not a green one that checked nothing, unless the label has left this
+      # PR (it was moved to another, which owns the app now).
       - name: Wait for the preview to be of the head
         id: wait
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          for _ in $(seq 1 90); do
+          for _ in $(seq 1 180); do
             version=$(curl -fsS --max-time 10 "$PREVIEW_URL/api/health" 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).version??"")}catch{}})') || true
             if [ "$version" = "$HEAD_SHA" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; fi
             sleep 10
           done
-          msg="$PREVIEW_URL/api/health did not report version $HEAD_SHA in 15 minutes (last: ${version:-no answer}); sea links not checked"
-          echo "::warning::$msg"
+          msg="$PREVIEW_URL/api/health did not report version $HEAD_SHA in 30 minutes (last: ${version:-no answer}); sea links not checked"
+          if gh api "repos/$REPO/pulls/$PR" --jq '.labels | map(.name) | index("preview")' | grep -qx null; then
+            echo "::warning::PR $PR no longer carries the \`preview\` label, so another PR owns the preview; $msg"
+            echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "::error::$msg"
           echo "$msg" >> "$GITHUB_STEP_SUMMARY"
-          echo "ready=false" >> "$GITHUB_OUTPUT"
+          exit 1
       - name: Request every sea link on the preview
         if: steps.wait.outputs.ready == 'true'
         run: node scripts/check-preview-links.mjs

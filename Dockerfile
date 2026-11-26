@@ -47,8 +47,10 @@ COPY . .
 # plain `docker build --build-arg NAME=value` on a laptop; a secret, when
 # mounted, wins. NEXT_PUBLIC_* are inlined into the browser bundle by `next
 # build`, so they must exist here and cannot be set on the running container;
-# they are public, but go through the same path as the rest. APP_ENV and
-# APP_ENV is read by `next.config.ts` and the check below.
+# they are public, but go through the same path as the rest. APP_ENV is read by
+# `next.config.ts` and the check below. A secret mounted with an empty value (an
+# unset Actions variable becomes `NAME=`) is treated as unset: the loop tests
+# `-s`, so it falls back to the build arg, then to "unset".
 ARG APP_ENV
 # The public origin, read by `app/layout.tsx`'s `metadataBase` when `next build`
 # prerenders a page: without it every static page names http://localhost:3001

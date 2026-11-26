@@ -27,63 +27,9 @@
 // CLI (prints no secret; the token goes only into the Authorization header):
 //   COOLIFY_URL=https://coolify.caesura.today COOLIFY_API_TOKEN=… COOLIFY_APP_UUID=… \
 //   COOLIFY_IMAGE_TAG=<sha> node scripts/coolify-deploy.mjs
-import { failed, setImageTag } from "./coolify-preview.mjs";
+import { queueDeploy, setImageTag, waitForDeployment } from "./coolify-api.mjs";
 
-const DONE = new Set(["finished", "failed", "cancelled-by-user"]);
-// Coolify's own wording for the skip above. Matched loosely: the message is the
-// only thing that tells a skip apart, and a skip returns a deployment uuid that
-// was never stored, so following it would 404.
-const ALREADY_QUEUED = /already queued/i;
-
-/**
- * Queues a deployment of the application's configured image tag.
- * @returns {Promise<{ deploymentUuid: string | null, message: string, skipped: boolean }>}
- *   `skipped` when Coolify already has a deployment of that branch in flight.
- */
-export async function queueDeploy({ base, token, uuid, fetchImpl = fetch }) {
-  const res = await fetchImpl(`${base}/api/v1/deploy?uuid=${encodeURIComponent(uuid)}&force=false`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}`, accept: "application/json" },
-  });
-  if (res.status !== 200) await failed(res, "queueing the production deploy");
-  const json = await res.json().catch(() => ({}));
-  const entry = (json.deployments ?? []).find((d) => d.resource_uuid === uuid) ?? json.deployments?.[0];
-  if (!entry) throw new Error("queueing the production deploy: Coolify answered 200 with no deployment");
-  const message = String(entry.message ?? "");
-  if (ALREADY_QUEUED.test(message)) return { deploymentUuid: null, message, skipped: true };
-  if (!entry.deployment_uuid) throw new Error(`queueing the production deploy: ${message || "no deployment uuid returned"}`);
-  return { deploymentUuid: entry.deployment_uuid, message, skipped: false };
-}
-
-/**
- * Polls one deployment until Coolify reports it finished, failed or cancelled.
- * @returns {Promise<string>} the final status.
- * @throws when the poll itself fails or `timeoutMs` passes first.
- */
-export async function waitForDeployment({
-  base,
-  token,
-  deploymentUuid,
-  intervalMs = 15_000,
-  timeoutMs = 30 * 60_000,
-  fetchImpl = fetch,
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  now = Date.now,
-}) {
-  const deadline = now() + timeoutMs;
-  for (;;) {
-    const res = await fetchImpl(`${base}/api/v1/deployments/${encodeURIComponent(deploymentUuid)}`, {
-      headers: { authorization: `Bearer ${token}`, accept: "application/json" },
-    });
-    if (res.status !== 200) await failed(res, `reading deployment ${deploymentUuid}`);
-    const { status } = await res.json().catch(() => ({}));
-    if (DONE.has(status)) return status;
-    if (now() >= deadline) {
-      throw new Error(`deployment ${deploymentUuid} was still ${status ?? "unknown"} after ${Math.round(timeoutMs / 60_000)} min`);
-    }
-    await sleep(intervalMs);
-  }
-}
+export { queueDeploy, waitForDeployment };
 
 /**
  * The CLI: set the image tag, queue, wait, and throw unless the deployment finished.
