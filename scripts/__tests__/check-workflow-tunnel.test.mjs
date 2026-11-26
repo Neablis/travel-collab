@@ -50,6 +50,26 @@ test("a tunnel opened after the secret is used does not count", () => {
   assert.match(r.stderr, /late\.yml/);
 });
 
+test("a tunnel in another job does not cover a use in this one", () => {
+  const two = `name: x\non: push\njobs:\n  a:\n    steps:\n${TUNNEL}${USE}  b:\n    steps:\n${USE}`;
+  const dir = fixture({ "two.yml": two });
+  const r = run(dir);
+  rmSync(dir, { recursive: true });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /two\.yml \(job b,/);
+  assert.doesNotMatch(r.stderr, /job a/);
+});
+
+test("PREVIEW_DATABASE_URL is guarded the same way", () => {
+  const preview = USE.replace("PRODUCTION_DATABASE_URL", "PREVIEW_DATABASE_URL");
+  const dir = fixture({ "p.yml": wf(preview), "q.yml": wf(TUNNEL + preview) });
+  const r = run(dir);
+  rmSync(dir, { recursive: true });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /p\.yml/);
+  assert.doesNotMatch(r.stderr, /q\.yml/);
+});
+
 test("a workflow that only mentions the secret in a comment is not checked", () => {
   const dir = fixture({ "c.yml": wf(`      # PRODUCTION_DATABASE_URL lives elsewhere\n      - run: echo hi\n`) });
   const r = run(dir);

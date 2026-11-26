@@ -275,6 +275,13 @@ fails CI if a workflow names it without that step.
   `BOX_SSH_KNOWN_HOSTS` (the box's host key line, from `ssh-keyscan` checked
   against the box's own fingerprint) and `BOX_SSH_HOST`. The host key is pinned
   and `StrictHostKeyChecking` stays on.
+- **The order at cutover.** The tunnel step runs unconditionally on every
+  deploy, so (1) set the three secrets, (2) merge, (3) re-point
+  `PRODUCTION_DATABASE_URL`. Merging first fails every push-to-main deploy at
+  the tunnel step; re-pointing first fails it at connect time.
+- **sslmode.** The re-pointed URL must name it. `client.ts` applies
+  `withExplicitSslMode`, and the old Neon URL said `sslmode=require`; if the
+  box's Postgres has no TLS, use `sslmode=disable`.
 - **Not killed explicitly.** A composite action has no post step; the runner is
   discarded when the job ends.
 
