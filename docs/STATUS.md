@@ -21,7 +21,7 @@ general setup.
 
 ## Where the work is right now
 
-**M64 is current** (*Caesura runs on one cheap box, with its own Postgres*; decisions D1–D14 in `docs/milestones/M64-one-cheap-box-own-postgres.md`, ADR-093). Minted, scoped and placed ahead of M53 by Mitchell on 2026-11-24, every decision answered the same day. Part 0 is `claude/caesura-neon-migration-b5c8f3` (prose only, merges last). Plan: `docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`: two stacks around one cutover, stack A (maintenance mode, the compare script, Umami) merged before it and stack B (GHCR images, the SSH tunnel, Neon removed) merged at it. **Cut over 2026-11-26:** production serves from the Netcup box on its own Postgres since 22:06Z (PR 799, `fb30cf02`); Hetzner deleted, Neon on its free plan and read-only. Gate 10 of 15 ticked; open boxes and evidence in the milestone doc.
+**M64 is current** (*Caesura runs on one cheap box, with its own Postgres*; decisions D1–D14 in `docs/milestones/M64-one-cheap-box-own-postgres.md`, ADR-093). Minted, scoped and placed ahead of M53 by Mitchell on 2026-11-24, every decision answered the same day. Part 0 is `claude/caesura-neon-migration-b5c8f3` (prose only, merges last). Plan: `docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`: two stacks around one cutover, stack A (maintenance mode, the compare script, Umami) merged before it and stack B (GHCR images, the SSH tunnel, Neon removed) merged at it. **Cut over 2026-11-26:** production serves from the Netcup box on its own Postgres since 22:06Z (PR 799, `fb30cf02`); Hetzner deleted, Neon on its free plan and read-only. Gate 11 of 15 ticked (monthly cost about $87 before, €16.11 after); open boxes and evidence in the milestone doc.
 
 **M59 closed 2026-11-24, folded into M64** (gate 9 of 9, two boxes amended out to M64 by Mitchell's decision "Fold M59 into M64": the Vercel pause and PR previews). Production has served from the Hetzner box since 2026-11-09. Evidence, retro and spend are in `docs/milestones/M59-self-host-on-coolify-vps.md`; its old STATUS section is in `docs/retros/2026-11-24-status-archive.md`.
 
@@ -69,7 +69,7 @@ for Mitchell to merge.
 0. **M64 (current), cut over 2026-11-26.** Left to close: part 1's red-then-green evidence for
    maintenance mode; a code fix so `/api/health`'s `version` is the sha on image applications
    (Coolify overrides `SOURCE_COMMIT`, which also stalls `preview-link-check`); Mitchell's call on
-   the Vercel box (free tier, not paused); the bills (gate 13); the retro. Then part 0
+   the Vercel box (free tier, not paused); the retro. Then part 0
    (`claude/caesura-neon-migration-b5c8f3`) merges last. Deleting Neon is a follow-up about
    2026-12-10. Carried from M59: the Vercel pause and
    PR previews (M64 gate boxes). M59's deferred KIs stay open: KI-20261109-a, KI-20261109-b,

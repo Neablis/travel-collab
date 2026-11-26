@@ -244,7 +244,15 @@ the recommendation, it says so.
       (`production` still read-only). Neon's code removal is part 5. **Open:** the Vercel project is
       on Vercel's free tier, not paused; Mitchell says that costs nothing. Ticking this needs his
       call on amending the box or pausing it.)*
-- [ ] **The monthly bill, before and after, is recorded here** (D14).
+- [x] **The monthly bill, before and after, is recorded here** (D14).
+      *(2026-11-26, list prices and metered charges, not invoices: Mitchell, "I really dont think
+      we need actual invoices". **Before: about $87/mo.** Hetzner `cpx31` in Ashburn $73.49 (its
+      list price there; the same type is $20.49 in Nuremberg), plus Neon Launch about $13.70
+      (November's metered $11.88 over 26 days: 111.76 CU-hours $11.85, storage $0.03), plus Vercel
+      $0. **After: €16.11/mo.** Netcup VPS 1000 G12 at Mitchell's checkout; R2 $0 (the backup
+      bucket holds 6.96 MB per night, about 100 MB at 14 kept, inside R2's free 10 GB); Neon Free
+      $0; Vercel free tier $0. Saved: roughly $70 a month. One-off: Neon's November $11.88 and
+      Hetzner's hours up to its deletion.)*
 - [x] **[walk]** On production after cutover: sign in with Google, open a trip, ask the
       assistant, watch a cron fire, see the pageview in Umami.
       *(2026-11-26: Mitchell, "Walk passed". It found the assistant simulated: `FLAG_AI_LIVE` had
