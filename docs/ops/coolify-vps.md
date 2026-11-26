@@ -224,7 +224,7 @@ per-PR URL exists.
   preview: `STRIPE_*` (test keys only), `FLAG_AI_LIVE`, `CRON_SECRET` if a preview
   should not run the sweeps.
 - **`version` in `GET /api/health`** is the commit baked into the image as
-  `SOURCE_COMMIT`. `phase-verifier` and `preview-link-check` wait for it to equal
+  `IMAGE_COMMIT`. `phase-verifier` and `preview-link-check` wait for it to equal
   the PR head sha.
 - **The preview is public** and carries `X-Robots-Tag: noindex, nofollow` on every
   response. The app sends it itself (`next.config.ts`) when `APP_ENV` is
@@ -333,9 +333,12 @@ Dockerfile on a runner, push `ghcr.io/<repo>/web:<tag>` (`<sha>` for production,
   `https://preview.caesura.today`. Each names `ghcr.io/<repo>/web` as its image.
   Coolify must be able to pull from GHCR: a private package needs a registry
   login on the box (a read-only token).
-- **`SOURCE_COMMIT`** is baked into the image by the build (a build argument), so
-  `/api/health`'s `version` works with no git source and no *Include Source
-  Commit in Build*.
+- **`IMAGE_COMMIT`** is baked into the image by the build (from the
+  `SOURCE_COMMIT` build argument), so `/api/health`'s `version` works with no git
+  source and no *Include Source Commit in Build*. It is not baked as
+  `SOURCE_COMMIT`: Coolify sets `SOURCE_COMMIT=HEAD` in every Docker-image
+  application's container, over the image's value, and health then reported
+  `HEAD`.
 - **Actions variables**, per image: the public build variables with a
   `PRODUCTION_` or `PREVIEW_` prefix (`PRODUCTION_PUBLIC_ORIGIN`,
   `PRODUCTION_NEXT_PUBLIC_UMAMI_*`, `PRODUCTION_NEXT_PUBLIC_SENTRY_*`, and the
