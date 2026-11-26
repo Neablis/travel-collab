@@ -12,14 +12,11 @@ manager, not here.
 
 ## The box
 
-- **Provider: pending (2026-11-26).** M64 picked an OVHcloud VPS-2 in Vint Hill,
-  VA, but it was out of stock when ordering; Netcup or Hetzner are the candidates.
-  This is the one place a provider is named: every other doc says "the box".
-  Whichever it is, it needs 4 vCPU, 8 GB, about 75 GB of disk, `linux/amd64`,
-  Ubuntu 24.04, and a US east region (nothing decides the region now that the
-  database is on the box). Read the checkout total before paying; the figure
-  below is a tracker's estimate until the first invoice. Update this bullet when
-  the box exists. The address is in Coolify, not here.
+- **Provider: Netcup (2026-11-26).** A Netcup VPS 1000 G12 in Manassas, VA:
+  4 vCPU, 8 GB, 128 GB SSD, `linux/amd64`, Ubuntu 24.04, EUR 16.11 a month at
+  checkout. M64 first picked an OVHcloud VPS-2, but OVHcloud had no US stock, so
+  it was ruled out. This is the one place a provider is named: every other doc
+  says "the box". The address is in Coolify, not here.
 - **Coolify** answers on `http://<the box>:8000` (the dashboard, `coolify.caesura.today`
   once its DNS record is up). Concurrent builds are set to 1. Nothing builds on
   the box once production is on images (*Images built in Actions*), so the old
@@ -51,7 +48,7 @@ asserted (M64 decision 14): the gate records the monthly bill before and after.
 
 | Line | Before M64 | After |
 |---|---|---|
-| The box | Hetzner `cpx31`, Ashburn: 73.49/mo | about 8.50 to 10/mo (pending the provider, above) |
+| The box | Hetzner `cpx31`, Ashburn: 73.49/mo | about 8.50 to 10/mo (Netcup, above) |
 | Database | Neon: its last invoice (the gate records it) | none: Postgres is on the box |
 | Backups | none beyond Neon's history window | Cloudflare R2, a 14-day nightly dump: cents |
 | Analytics | Plausible, on the old box | Umami, on the new one: none |

@@ -206,6 +206,7 @@ describe("AiScreen", () => {
       "Hetzner",
       "Coolify",
       "OVHcloud",
+      "Netcup",
       "Umami",
       "Plausible",
       "Vercel",

@@ -157,6 +157,7 @@ describe("SecurityScreen", () => {
       "hetzner",
       "coolify",
       "ovhcloud",
+      "netcup",
       "umami",
       "plausible",
       "vercel",
