@@ -45,15 +45,13 @@ the recommendation, it says so.
    it only through an SSH tunnel (D7). The app needs no driver change. It uses plain `pg` and
    drizzle (`server/db/client.ts:7`), and the only extension is `vector`, from migration
    `0054_rag_day_embeddings`.
-2. **Box: OVHcloud VPS-2**, 4 vCore, 8 GB, 75 GB NVMe, unlimited traffic, about **$8.50–10/mo**.
-   The price comes from third-party trackers (vpsbenchmarks, Valebyte, devvpscompare, Oct–Nov
-   2026), so **read the checkout total before paying**. Mitchell picked it over the recommended
-   VPS-1 (4 GB, ~$5), and over Contabo's 8 GB plan (~$6–7, oversold CPU and weak support, on
-   the box that will now hold the database). Hetzner EU's CX33 (€8.49–9.99) was ruled out. It is
-   no cheaper, it adds ~100 ms per page for US users, and new Hetzner orders were restricted in
-   2026. OVHcloud upgrades a VPS in place but never downgrades one.
-3. **Region: US east, Vint Hill, VA.** Neon no longer decides the region. US east is closer to
-   most US users and to Europe, at the same price as Hillsboro.
+2. **Box: Netcup VPS 1000 G12, Manassas, VA**, specs as ordered, **€16.11/mo** as shown at
+   Mitchell's checkout, 128 GB SSD (the earlier research's €10 / 256 GB figure was wrong).
+   Ordered and paid 2026-11-26, the box is up and the `caesura-vps` key is installed. Its IP
+   address is not in the repo; it lives in the `BOX_SSH_HOST` secret. Ruled out: OVHcloud (no US
+   stock), OVHcloud Singapore (too far), Hetzner EU CX33 (Germany, ~100 ms extra per page).
+3. **Region: US east, Manassas, VA.** Neon no longer decides the region. US east is closer to
+   most US users and to Europe.
 4. **Analytics: Umami replaces Plausible.** Umami runs as a Coolify service with its own database
    and its own role (`umami`) in the box's Postgres. `NEXT_PUBLIC_UMAMI_SRC` and
    `NEXT_PUBLIC_UMAMI_WEBSITE_ID` replace the two Plausible variables in `app/layout.tsx:111`.
@@ -106,8 +104,8 @@ the recommendation, it says so.
 10. **Public pages: the provider stays unnamed.** `/ai`, `/security` and the API discovery text
     name no host or database today. Their tests bar `Neon`, `Hetzner`, `Coolify`, `Vercel`
     (`components/front/AiScreen.test.tsx:205`, `SecurityScreen.test.tsx:156`,
-    `server/public-api/discovery.test.ts:247`). `OVHcloud`, `Umami` and `Plausible` are added
-    to those barred lists. No page copy changes. Mitchell picked this over naming OVHcloud.
+    `server/public-api/discovery.test.ts:247`). `Netcup`, `Umami` and `Plausible` are added
+    to those barred lists. No page copy changes. Mitchell picked this over naming Netcup.
 11. **M59 is folded in.** M59 closes now (2026-11-24). Its three open boxes are amended there and
     carried here: *Vercel paused* is part of gate box 12, *Coolify previews* is gate box 9
     (amended from "a disposable Neon branch" to "the box's preview database"), and M59's retro
@@ -120,7 +118,7 @@ the recommendation, it says so.
     rollback. **Neon is suspended (or dropped to its free plan), not deleted**, for two weeks
     after cutover; deleting it is a follow-up on Mitchell's OK, not a gate box.
 14. **Cost is measured, not asserted.** The gate records the monthly bill before (Hetzner 73.49
-    plus Neon's last invoice) and after (the OVHcloud invoice plus R2).
+    plus Neon's last invoice) and after (the Netcup invoice plus R2).
 
 ## Scope
 
@@ -145,8 +143,8 @@ the recommendation, it says so.
 ## Exit gate
 
 - [x] **Decisions D1–D14 are answered and recorded here.** (2026-11-24)
-- [ ] **The new box runs Coolify, Postgres 17 with pgvector, Redis and Umami** (OVHcloud VPS-2,
-      Vint Hill), and **Postgres is unreachable from the internet**: a connection to port 5432 on
+- [ ] **The new box runs Coolify, Postgres 17 with pgvector, Redis and Umami** (Netcup VPS 1000 G12,
+      Manassas), and **Postgres is unreachable from the internet**: a connection to port 5432 on
       the box's public address from outside it fails.
 - [ ] **A nightly backup reached R2, and a restore drill from it** into a scratch database
       matched the source on the compare script (every table's row count, the migration journal,
@@ -168,7 +166,7 @@ the recommendation, it says so.
       `caesura-preview` on the box, using `caesura_preview` and never production's database, and
       the part-reviewer's, phase-verifier's and close-a-milestone's walk instructions point at it.
 - [ ] **Umami counts `caesura.today` pageviews, and Plausible is gone.** The CSP names Umami
-      only, and `OVHcloud`, `Umami` and `Plausible` are barred on `/ai`, `/security` and in API
+      only, and `Netcup`, `Umami` and `Plausible` are barred on `/ai`, `/security` and in API
       discovery.
 - [ ] **Memory headroom is measured** on the new box with production and one preview running
       (`free -m` and `docker stats`, recorded here), and is not swapping.

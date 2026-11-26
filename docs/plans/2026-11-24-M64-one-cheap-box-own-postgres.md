@@ -106,7 +106,7 @@ sets the variables, the script is absent, so this part is safe to merge before t
 | `apps/web/next.config.ts` | `plausibleOrigin` :12-24, CSP :57-58, :90-91 | Becomes `umamiOrigin`, and script-src/connect-src name Umami only | `apps/web/next.config.test.ts` |
 | `Dockerfile` | :57-58, :89-90 | Build ARGs and secret mounts renamed | — |
 | `.env.example` | :448-449 | Umami variables replace Plausible's | — |
-| `components/front/AiScreen.test.tsx` | :197-210 | `OVHcloud`, `Umami` and `Plausible` added to the barred words | itself |
+| `components/front/AiScreen.test.tsx` | :197-210 | `Netcup`, `Umami` and `Plausible` added to the barred words | itself |
 | `components/front/SecurityScreen.test.tsx` | :148-160 | Same | itself |
 | `server/public-api/discovery.test.ts` | :244-250 | Same | itself |
 
@@ -177,7 +177,7 @@ the pool getting explicit limits.
 | `apps/web/scripts/with-test-db.mjs` | :139-151 | Wording | `apps/web/scripts/with-test-db.test.ts:42-66` |
 | comments only | `server/warmPublicPages.ts:3,9-20`, `server/publicLibrary.ts:103`, `server/librarySnapshot.ts:20`, `server/og/limit.ts:11`, `server/og/playbooks.ts:31`, `server/db/schema.ts:2230`, `server/ai/eval/planRetrieval.*`, `scripts/check-migration-journal.mjs:22`, `apps/web/scripts/build-migrate.mjs:10`, `apps/web/scripts/preview-migrate.mjs:12` | "keeps Neon awake" becomes "saves a database read". The behavior stays: fewer reads are still cheaper | — |
 | `.claude/skills/ai-usage/SKILL.md`, `ledger.sql` | :54, :5 | Production reads through the tunnel, not the Neon MCP | — |
-| `docs/ops/coolify-vps.md` | whole | Rewritten for the OVHcloud box: Postgres, backups, tunnel, Umami, previews, costs | — |
+| `docs/ops/coolify-vps.md` | whole | Rewritten for the Netcup box: Postgres, backups, tunnel, Umami, previews, costs | — |
 | `docs/guidelines/environments-and-deploys.md`, `stack-and-constraints.md`, `stacked-prs.md`, `billing-without-spending-money.md` | survey lines | Neon references updated | — |
 | `docs/ops/cheap-operations.md` | top | A dated note: its Neon and Vercel prices are history | — |
 | `docs/architecture/SYSTEM-DESIGN.md`, `README.md` :14 | — | The database is Postgres on the box (ADR-093) | — |
@@ -195,7 +195,7 @@ for his word in chat.
 
 | Step | Who | What | Done when |
 |---|---|---|---|
-| O1 | **Mitchell** | Orders OVHcloud VPS-2 in Vint Hill, VA, with plain Ubuntu 24.04, no backup add-on, and the `caesura-vps` public key; reads the checkout total first. Creates an R2 bucket `caesura-backups` and an S3 API token scoped to it. Sends the IPv4 address | `ssh` with the key answers |
+| O1 | **Mitchell** | **Done 2026-11-26**, except the R2 part. Ordered and paid Netcup VPS 1000 G12 in Manassas, VA (€16.11/mo at checkout, 128 GB SSD, specs as ordered) with the `caesura-vps` key installed; the box is up and its IP goes in the `BOX_SSH_HOST` secret, not the repo. **Still to confirm with Mitchell:** the R2 bucket `caesura-backups` and its scoped S3 API token | `ssh` with the key answers (done) |
 | O2 | agent | `ufw` 22/80/443/8000, a 2 GB swap file, Coolify by its official script, concurrent builds 1 | dashboard answers on `:8000` |
 | O3 | **Mitchell** | Coolify admin account; the new instance added to Coolify's GitHub App; a Coolify API token for the session; GHCR pull credentials in Coolify (a fine-grained token with `read:packages`) | token works |
 | O4 | agent | Postgres 17 + pgvector, with no public port and its host port bound to `127.0.0.1`; databases and roles `caesura`, `caesura_preview`, `umami`; scheduled S3 backup to R2 nightly at 03:30 UTC, keeping 14; the `tunnel` user (no shell, `permitopen=127.0.0.1:5432`). Redis with serverless-redis-http (consistent container name on, KI-2026-11-15-a). Umami at `umami.caesura.today`. `caesura-web`, built on the box from the Dockerfile for now (nothing else runs there yet), with production's env copied by name (KI-2026-11-09-b's three dropped) and `DATABASE_URL` set to the internal Postgres. `caesura-preview` empty. The four scheduled tasks (embed-days, tier-rollup, discover-rank and any others in the runbook's table) | each service healthy; `nc -vz <public ip> 5432` from the laptop fails |
