@@ -45,14 +45,24 @@ runs:
           -o ServerAliveInterval=30 \
           -L 15432:127.0.0.1:5432 \
           "tunnel@${BOX_SSH_HOST}"
+        # ssh -f returns once the forward is set up, so this is a short belt-and-braces wait.
         for _ in $(seq 1 30); do
-          if (exec 3<>/dev/tcp/127.0.0.1/15432) 2>/dev/null; then break; fi
+          if (exec 3<>/dev/tcp/127.0.0.1/15432) 2>/dev/null; then exit 0; fi
           sleep 1
         done
+        echo "db-tunnel: nothing listening on 127.0.0.1:15432 after 30s; the tunnel never opened" >&2
+        exit 1
 
     - name: Check Postgres answers through the tunnel
       shell: bash
       run: |
         set -euo pipefail
-        PG_ISREADY="$(command -v pg_isready || ls /usr/lib/postgresql/*/bin/pg_isready | head -n1)"
+        PG_ISREADY="$(command -v pg_isready || true)"
+        if [ -z "$PG_ISREADY" ]; then
+          PG_ISREADY="$(ls /usr/lib/postgresql/*/bin/pg_isready 2>/dev/null | head -n1 || true)"
+        fi
+        if [ -z "$PG_ISREADY" ]; then
+          echo "db-tunnel: pg_isready not found on this runner" >&2
+          exit 1
+        fi
         "$PG_ISREADY" -h 127.0.0.1 -p 15432 -t 10
