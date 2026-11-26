@@ -236,6 +236,27 @@ Do the same for every other variable whose production value must not reach a
 preview: `STRIPE_*` (test keys only), `FLAG_AI_LIVE`, `CRON_SECRET` if a preview
 should not run the sweeps.
 
+## Maintenance
+
+`MAINTENANCE_MODE=true` on the application, then a restart (seconds), puts the
+site behind one static notice (M64 decision 9). Unset it and restart to end it.
+Pages answer 503 with the notice, `Retry-After: 600` and `noindex`; `/.well-known` and `/oauth` answer
+`503 {"error":"maintenance"}`. `/api` is outside the proxy (it would buffer
+every request body), so maintenance does not stop API writes: at the cutover those
+stop by making Neon's application role read-only
+(`ALTER ROLE <app role> SET default_transaction_read_only = on`, then end its open
+sessions; set it back to `off` first on rollback; cutover runbook step 2). Until
+then, and after, API, MCP, cron and sign-in requests still run and fail on the
+read-only database, so clients see a server error (likely 500, no `Retry-After`),
+not a 503. `/api/health`
+stays 200 and adds `"maintenance":true`, so Coolify's rollout and the
+container healthcheck keep passing. The notice reads no database. Used for the cutover to the new box;
+`COMPARE_DB_A=<url> COMPARE_DB_B=<url> node scripts/compare-databases.mjs` compares the two databases
+before and after (read-only, one snapshot per side; exits 1 on any
+difference, 2 if it could not compare). It checks table row counts, migrations,
+the `vector` extension and the HNSW index, not row contents or sequences. Expect equality only with maintenance
+on: a live source keeps taking writes after the dump.
+
 ## Plausible
 
 Plausible is a **raw Docker Compose service** in Coolify, not a one-click service:

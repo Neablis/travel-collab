@@ -7,6 +7,7 @@ import {
   normalizePendingAdmission,
   pendingAdmissionCookieOptions,
 } from "@/lib/pendingAdmission";
+import { isMaintenance, maintenanceResponse } from "@/lib/maintenance";
 import { isInternalPlaybooksPath, playbooksReaderFor, playbooksRoute } from "@/lib/playbooksReader";
 import { REQUEST_PATH_HEADER, SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
 import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@/lib/signupRef";
@@ -30,9 +31,10 @@ import { SIGNUP_REF_COOKIE, normalizeSignupRef, signupRefCookieOptions } from "@
 // stays cheap to construct in front of every matched request.
 const { auth } = NextAuth(authConfig);
 
-// Every route this file matches by path is one a signed-out visitor should not
-// be shown as-is; the one matched by query instead, `?ref=`, only banks a
-// cookie (ADR-079, below). History, because the reasons are still the reasons:
+// Every route this file matches by a path of its own is one a signed-out
+// visitor should not be shown as-is; the one matched by query instead,
+// `?ref=`, only banks a cookie (ADR-079, below), and the catch-all entry at
+// the end of the matcher only answers maintenance mode (PR 794). History, because the reasons are still the reasons:
 //
 // CodeRabbit (PR 56, finding 1): the matcher used to be scoped to exactly
 // `/`, so a signed-out visitor hitting `/trips/:tripId`, or the notebook
@@ -47,7 +49,7 @@ const { auth } = NextAuth(authConfig);
 // for a specific thing, so sign-in should return them to it. AuthScreen
 // already honours `callbackUrl` via lib/safeCallbackUrl.ts.
 //
-// ADR-078: `/` is NOT matched. It was — a signed-out `/` was rewritten to the
+// ADR-078: `/` is NOT matched for a session. It was — a signed-out `/` was rewritten to the
 // landing and a signed-in one served Home, so `/` was two pages and answered
 // `private, no-store`, and every visit to the bare domain paid for a proxy
 // `auth()`. Home moved to `/home` (`HOME_PATH`), `/` became a static page, and
@@ -94,6 +96,13 @@ const guard = (own: URL) => auth((req) => {
 /** The request seam: the library picks its copy, an invite banks its token, anything else matched goes to sign-in, a signed-out request sheds the signed-in hint, and a `?ref=` link banks its channel. */
 export default function proxy(...args: Parameters<ReturnType<typeof guard>>) {
   const [req] = args;
+  // PR 794: the cutover's maintenance mode answers first, for every page and
+  // discovery path the matcher's catch-all brings in. `/api` is not among them.
+  if (isMaintenance()) return maintenanceResponse(req.nextUrl.pathname);
+  // The catch-all entry exists for maintenance mode alone. A page the matcher
+  // did not reach before it gets the answer it got then: no cookie banked and
+  // no `auth()`.
+  if (!isGuardedPath(req.nextUrl.pathname) && !isRefLanding(req)) return NextResponse.next();
   // ADR-079: a path matched only by the `?ref=` entry (the landing, a place
   // page) gets its cookie and nothing else. No `auth()`: the ref is not about
   // a session, and paying for one there would undo what ADR-078 bought.
@@ -149,6 +158,11 @@ function bankSignupRef(req: NextRequest, response: NextResponse): NextResponse {
   return response;
 }
 
+// The `?ref=` matcher entry, as a predicate: any page but `/api` and `/_next`.
+function isRefLanding(req: NextRequest): boolean {
+  return req.nextUrl.searchParams.has("ref") && !/^\/(?:api|_next)\//.test(req.nextUrl.pathname);
+}
+
 /**
  * Could one of the matcher's string entries, which need `auth()`, have let
  * this path in? Read from `config.matcher` rather than listed again, so a
@@ -158,13 +172,13 @@ function bankSignupRef(req: NextRequest, response: NextResponse): NextResponse {
  * It fails closed: the ref branch skips `auth()`, so only a path proven to be
  * matched by none of them may take it. Each entry is compiled by Next's own
  * path-to-regexp wrapper, case-insensitive as Vercel matches it, and loosened
- * to any `.` suffix, which covers the `.rsc` and `.segments/…` transport forms
- * Next adds to every entry (`getMiddlewareMatchers`). Matching more than Next
- * only costs an `auth()` the request did not need.
+ * to the `.rsc` and `.segments/…` transport forms Next adds to every entry
+ * (`getMiddlewareMatchers`). Not to any `.` suffix: every request reaches this
+ * since PR 794, and `/admin.php` is not a form Next adds.
  */
 function isGuardedPath(pathname: string): boolean {
   guardedEntries ??= config.matcher.flatMap((entry) =>
-    typeof entry === "string" ? [getPathMatch(entry, { regexModifier: (source) => source.replace(/\$$/, "(?:\\..*)?$") })] : [],
+    typeof entry === "string" ? [getPathMatch(entry, { regexModifier: (source) => source.replace(/\$$/, "(?:\\.rsc|\\.segments(?:/.*)?)?$") })] : [],
   );
   return guardedEntries.some((matches) => matches(pathname) !== false);
 }
@@ -270,11 +284,13 @@ function tripInviteToken(pathname: string): string | null {
   }
 }
 
-// An explicit matcher list, not a catch-all negative-lookahead: a broad
-// `"/((?!api|_next).*)"` pattern risks guarding API routes, static assets,
-// and the front-door routes (`/`, `/signin`, `/signup`) themselves,
-// none of which should ever hit this file. An explicit list matches
-// exactly the `(app)` routes that need a session, plus the invite links:
+// An explicit list for the routes that need a session, with one catch-all
+// entry beside it for maintenance mode. A broad negative-lookahead pattern
+// alone would guard static assets and the front-door routes (`/`, `/signin`,
+// `/signup`) themselves, so the catch-all is an object entry that
+// `isGuardedPath` (which reads the string entries) does not see: a request it
+// alone brought in is answered by `proxy` before `auth()`. The string entries
+// match exactly the `(app)` routes that need a session, plus the invite links:
 //   - `/home`             — Home (apps/web/src/app/(app)/home/page.tsx). Not
 //     `/home/:path*`: nothing lives under it.
 //   - `/plans`            — the plan chooser (`(app)/plans/page.tsx`). It reads
@@ -302,10 +318,16 @@ function tripInviteToken(pathname: string): string | null {
 //     route, a signed-out request sheds a stale signed-in hint (ADR-078), the
 //     cached copy included; the live copy's shell is what sets it.
 //   - any page with a `ref` query parameter (ADR-079), `/` included, to bank
-//     the channel a launch link names. A `has` condition rather than a path,
-//     so a request for `/` without one still never enters this file and the
-//     landing stays static (ADR-078). Not `/api` or `/_next`: no launch link
+//     the channel a launch link names. Not `/api` or `/_next`: no launch link
 //     points there.
+//   - every page and discovery path, for maintenance mode alone (PR 794). With
+//     it off a request it alone matched is passed on untouched, and the landing
+//     stays static (ADR-078). NOT `/api`: a matched request with a body is held
+//     by Next until the whole body has arrived (up to `proxyClientMaxBodySize`,
+//     10 MB, buffered in memory), which would undo `readCapped`'s early
+//     cancel on every API write. API maintenance answers in the routes' own
+//     seams instead. `/_next` is left out: chunks, images and data need no
+//     answer and are the bulk of requests.
 export const config = {
   matcher: [
     "/home",
@@ -319,5 +341,8 @@ export const config = {
     "/invite/:path*",
     "/playbooks/:path*",
     { source: "/((?!api/|_next/).*)", has: [{ type: "query", key: "ref" }] },
+    // PR 794: every page, for maintenance mode. An object entry, so `isGuardedPath`
+    // (which reads the string entries) is not widened with it.
+    { source: "/((?!api/|_next/).*)" },
   ],
 };

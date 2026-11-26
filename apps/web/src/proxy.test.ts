@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import type { Session } from "next-auth";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SIGNED_IN_HINT_COOKIE } from "@/lib/sessionHint";
 import { SIGNUP_REF_COOKIE } from "@/lib/signupRef";
 
@@ -64,6 +64,55 @@ function hintSetCookie(res: Response): string | undefined {
 function refSetCookie(res: Response): string | undefined {
   return res.headers.getSetCookie().find((line) => line.startsWith(`${SIGNUP_REF_COOKIE}=`));
 }
+
+// PR 794: maintenance mode needs the proxy in front of every path, and the
+// proxy's other branches must not notice while it is off.
+describe("maintenance mode", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("answers a page with the 503 notice, before auth()", async () => {
+    vi.stubEnv("MAINTENANCE_MODE", "true");
+    authCalls.count = 0;
+    const res = handle(request("/trips/x", { session: true, hint: true }));
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("600");
+    expect(await res.text()).toContain("We're moving to a new home.");
+    expect(authCalls.count).toBe(0);
+  });
+
+  it("answers an unguarded page, and a discovery document in JSON", async () => {
+    vi.stubEnv("MAINTENANCE_MODE", "true");
+    expect(handle(request("/", { session: false, hint: false })).status).toBe(503);
+    const doc = handle(request("/.well-known/oauth-authorization-server", { session: false, hint: false }));
+    expect(doc.status).toBe(503);
+    expect(await doc.json()).toEqual({ error: "maintenance" });
+  });
+
+  // The failure D9 exists to prevent: with this entry gone, `/` and `/signin`
+  // keep running through the cutover and the notice shows on eight routes only.
+  // `/api` is deliberately outside it (see `proxy.ts`), as is `/_next`.
+  it("matches every page and discovery path by a catch-all entry, and never /api or /_next", () => {
+    const catchAll = config.matcher.filter((entry) => typeof entry !== "string" && entry.has === undefined);
+    for (const page of ["/", "/signin", "/.well-known/oauth-authorization-server", "/oauth/authorize"]) {
+      expect(nextMatches(catchAll, page)).toBe(true);
+    }
+    for (const other of ["/api/v1/trips", "/api/mcp", "/api/health", "/_next/static/chunk.js", "/_next/image"]) {
+      expect(nextMatches(catchAll, other)).toBe(false);
+    }
+  });
+
+  // The matcher now reaches every path, so a path it never matched before has
+  // to come out as it did then: no auth(), no cookie, not even a ref's.
+  it("passes a path the matcher never reached through untouched while off", () => {
+    authCalls.count = 0;
+    for (const path of ["/signin", "/admin.php", "/account.json", "/trips.bak", "/robots.txt"]) {
+      const res = handle(request(path, { session: false, hint: false }));
+      expect(res.headers.get("x-middleware-next")).toBe("1");
+      expect(res.headers.getSetCookie()).toEqual([]);
+    }
+    expect(authCalls.count).toBe(0);
+  });
+});
 
 // ADR-078: `/` is static, so it leaves the matcher, and of the hint the
 // landing reads, the proxy only ever takes it away.
@@ -255,7 +304,7 @@ describe("proxy", () => {
   // ADR-079: a launch link's `?ref=` is banked for signup, first touch only.
   describe("a ?ref= link", () => {
     it("is matched on any page by a query condition, never under /api or /_next", () => {
-      const refEntry = config.matcher.filter((entry) => typeof entry !== "string");
+      const refEntry = config.matcher.filter((entry) => typeof entry !== "string" && entry.has !== undefined);
       expect(refEntry).toEqual([expect.objectContaining({ has: [{ type: "query", key: "ref" }] })]);
       expect(config.matcher).not.toContain("/");
       for (const page of ["/", "/signin", "/places/kyoto"]) expect(nextMatches(refEntry, page)).toBe(true);
