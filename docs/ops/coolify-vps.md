@@ -102,7 +102,7 @@ for each image. The Dockerfile's `ARG`s are only the fallback for a laptop
 
 | Name | Production | Preview | Note |
 |---|---|---|---|
-| `DATABASE_URL` | build and runtime | build and runtime | Runtime only. Production: the `caesura` database on the box's private network (`sslmode=disable`, no pooler). `caesura-preview`: `caesura_preview`, never production's (see *Previews*) |
+| `DATABASE_URL` | runtime | runtime | Runtime only: the image build has no database. Production: the `caesura` database on the box's private network (`sslmode=disable`, no pooler). `caesura-preview`: `caesura_preview`, never production's (see *Previews*) |
 | `APP_ENV` | `production` | `preview` | Runtime on the application, and an Actions variable for the build (`PRODUCTION_APP_ENV` and `PREVIEW_APP_ENV`) |
 | `PREVIEW_DB_IS_DISPOSABLE` | never set | set by `coolify-preview.yml` | Not a Coolify variable: the workflow sets it for the migrate step, which also refuses any database not named `caesura_preview` |
 | `PUBLIC_ORIGIN` | `https://caesura.today`, build and runtime | build and runtime | `lib/deployment/env.ts`. **Build too**: prerendered pages bake `metadataBase` from it, and without it they name `http://localhost:3001` as their canonical (found 2026-11-09). `scripts/check-public-origin.mjs` fails a production build that lacks it |
@@ -143,15 +143,16 @@ Coolify's API, and waits for the deployment to finish. A failed migration deploy
 nothing. No build migrates: the image build has no database (*Images built in
 Actions*).
 
-**Required setting: Auto Deploy is OFF on `caesura-web`** (Configuration →
-Advanced). With it on, Coolify's GitHub webhook deploys the push before the
-workflow has migrated it, which is how PR 752's code served for 20 hours
-without migration 0078 (KI-2026-11-15-b). Check it after any change to the
-application's Git source.
+**`caesura-web` is an image application, with no Git source,** so no GitHub
+webhook can deploy a push ahead of the workflow's migration (the way PR 752's
+code served for 20 hours without migration 0078, KI-2026-11-15-b). If it is ever
+recreated from a Git repository, turn Auto Deploy OFF (Configuration → Advanced)
+before the first push.
 
-What the workflow needs: the `COOLIFY_API_TOKEN` repository secret with `deploy`
-(to queue it) and `read` (to follow it to finished), alongside the `write` and
-`delete` previews use; the `COOLIFY_APP_UUID` variable; `PRODUCTION_DATABASE_URL`.
+What the workflow needs: the `COOLIFY_API_TOKEN` repository secret, the one token
+for production and previews, with `read` (to follow a deployment to finished),
+`write` (to set the image tag) and `deploy` (to queue it), never `root`; the
+`COOLIFY_APP_UUID` variable; `PRODUCTION_DATABASE_URL`.
 The call is `POST /api/v1/deploy?uuid=<app>&force=false` (`GET` answers "use
 POST" on v4.7.5), then `GET /api/v1/deployments/<deployment uuid>` until its
 `status` is `finished`, `failed` or `cancelled-by-user`
@@ -234,7 +235,7 @@ per-PR URL exists.
   variable; no Traefik label is needed. It has no password and holds nothing
   secret.
 - **The workflow needs**, on the GitHub repository: `COOLIFY_API_TOKEN` (an
-  Actions secret with `write` and `deploy`, not `root`), `COOLIFY_PREVIEW_APP_UUID`
+  Actions secret, permissions as under *Deploys*), `COOLIFY_PREVIEW_APP_UUID`
   (an Actions variable) and the tunnel and database secrets listed under *Images
   built in Actions*. Without them it warns and passes, and no preview is built.
 
@@ -273,9 +274,14 @@ ADR-093). The only extension is `vector` (migration `0054`).
 - **Databases and roles**, one role each, none a superuser: `caesura` (production),
   `caesura_preview` (the preview, a role that owns that database only) and
   `umami`. No application role can read another's database.
-- **One pool per server.** `server/db/client.ts` sets `max: 10` and explicit idle
-  and connect timeouts. There is no pooler (no PgBouncer), so a connection string
+- **One pool per server.** `server/db/client.ts` sets `max: 10`, an idle timeout
+  and a connect timeout. There is no pooler (no PgBouncer), so a connection string
   is the same for the app, a migration and a dump: DDL is safe from any of them.
+- **Connection budget**, against Postgres's `max_connections` (default 100), worst
+  case about 70: 10 per app process, two apps (`caesura-web`, `caesura-preview`)
+  doubled during a rolling deploy (40), Umami's pool (about 5 by Prisma's default,
+  not measured), the preview import (up to 11) and Actions sessions through the
+  tunnel (migrate, state, compare; a few). Re-add this before raising a pool's `max`.
 - **The ops database commands** (`db:migrate`, `db:state`, the compare script) run
   from Actions over the tunnel, never from a laptop shell with production's URL.
 
@@ -304,9 +310,9 @@ fails CI if a workflow names it without that step.
   deploy, so (1) set the three secrets, (2) merge, (3) re-point
   `PRODUCTION_DATABASE_URL`. Merging first fails every push-to-main deploy at
   the tunnel step; re-pointing first fails it at connect time.
-- **sslmode.** The re-pointed URL must name it. `client.ts` applies
-  `withExplicitSslMode`, and the old Neon URL said `sslmode=require`; if the
-  box's Postgres has no TLS, use `sslmode=disable`.
+- **sslmode.** The re-pointed URL must name it: `sslmode=disable`. `client.ts`
+  applies `withExplicitSslMode`, and under pg@8 `require` means `verify-full`,
+  which fails against the box's self-signed certificate and against `127.0.0.1`.
 - **Not killed explicitly.** A composite action has no post step; the runner is
   discarded when the job ends. The action assumes ephemeral runners: on a
   self-hosted one it would leak the tunnel process. The private key is deleted
@@ -338,7 +344,7 @@ Dockerfile on a runner, push `ghcr.io/<repo>/web:<tag>` (`<sha>` for production,
   list, because build-push-action rejects an empty secret), so the build never
   fails on one. Only `PRODUCTION_PUBLIC_ORIGIN` is required:
   `scripts/check-public-origin.mjs` refuses a production build without it.
-- **Secrets**: `COOLIFY_API_TOKEN` needs `write` and `deploy`.
+- **Secrets**: `COOLIFY_API_TOKEN`, permissions as under *Deploys*.
   **`PREVIEW_DATABASE_URL`** is `caesura_preview` on `127.0.0.1:15432` (the
   tunnel), with a role that owns that database only. `build-steps.mjs` refuses to
   migrate any other database name, and `PREVIEW_DB_IS_DISPOSABLE=true` is set by
@@ -408,6 +414,26 @@ dump from R2, restore it into a scratch database on the box, run
 `COMPARE_DB_A=<source> COMPARE_DB_B=<scratch> node scripts/compare-databases.mjs`
 and expect equality, then drop the scratch database. A backup nobody has restored
 is not a backup.
+
+**Restoring over `caesura`** (the cutover, or after losing the box's data):
+
+1. Stop `caesura-web` and pause its scheduled tasks. Otherwise the drop fails with
+   `55006 database "caesura" is being accessed by other users`, and a running app
+   (or a cron) reconnects mid-restore. `DROP DATABASE caesura WITH (FORCE)` also
+   works once they are stopped.
+2. `DROP DATABASE caesura;` then `CREATE DATABASE caesura OWNER caesura;`, and
+   `CREATE EXTENSION vector;` in it as the superuser.
+3. `pg_restore --no-owner --no-privileges --role=caesura -d caesura <dump>`. A dump
+   from another provider carries that provider's owner and grants, which do not
+   exist on the box; restored as the superuser without these flags, the tables
+   stay owned by the superuser and the non-superuser `caesura` role gets
+   `permission denied` on every query. (Fix an already-done restore with
+   `REASSIGN OWNED BY <superuser> TO caesura` in that database, then the grants.)
+4. Compare with the app role's URL, not a superuser's: a superuser's passes even
+   when the role cannot read.
+5. Start `caesura-web` and its tasks.
+
+The drill's scratch restore takes the same flags.
 
 ## Rollback
 

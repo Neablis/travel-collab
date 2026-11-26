@@ -51,9 +51,11 @@ queries mix surfaces, so filter `u.endpoint` to read one.
 Each starts with a `window_` CTE; change `since` there. Simulated turns are
 excluded.
 
-- **Production:** open the SSH tunnel to the box (`docs/ops/coolify-vps.md`, *Tunnel*) and run
-  `psql` against production through it, one query at a time. These are reads;
-  never run a write through this skill.
+- **Production:** the box's Postgres is not reachable from a laptop, and the one tunnel key
+  is Actions' (`docs/ops/coolify-vps.md`, *Postgres*, *Tunnel*). Run the queries on the box:
+  Coolify → the Postgres resource → *Terminal*, then `psql -U caesura -d caesura`, pasting
+  one query at a time. These are reads; never run a write through this skill. The `ai.ask`
+  log records in the app's container logs need no database at all.
 - **Locally:** `psql "$DATABASE_URL" -f .claude/skills/ai-usage/ledger.sql`.
 
 **There are no dollars in SQL.** Price is the token counts joined to the dated

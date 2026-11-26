@@ -18,8 +18,8 @@
 // `PREVIEW_DB_IS_DISPOSABLE` is the second condition because it is the one a
 // misconfiguration cannot satisfy by accident. `VERCEL_ENV` is set by the
 // platform and says nothing about the connection string; this variable is set
-// by hand, on the Preview scope only, and means "I have checked that this
-// database is a throwaway branch". A shared or production connection string
+// by `coolify-preview.yml` for its migrate step alone, and means "this
+// database is the preview's own, a throwaway". A shared or production connection string
 // cannot acquire it by drifting.
 //
 // Fail-closed, following `matchesSuperCode`'s reasoning in server/admission.ts:

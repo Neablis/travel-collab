@@ -4,10 +4,12 @@ import { DATABASE_URL } from "../config";
 import * as schema from "./schema";
 import { withExplicitSslMode } from "./sslMode";
 
-// Limits set out loud rather than left to pg's defaults (no timeouts): one
-// server holds this pool, so 10 connections is its whole share of a small
-// Postgres, an idle one is let go after 30s, and a connect that stalls fails in
-// 10s instead of hanging a request.
+// `max: 10` is pg's own default, spelled out because the connection budget in
+// docs/ops/coolify-vps.md adds it up. The real changes are the idle timeout (30s,
+// pg's default is 10s) and `connectionTimeoutMillis`, which pg's default leaves
+// off: it fails a stalled connect in 10s, and also bounds a request's wait in the
+// pool's queue, so with all 10 clients busy for 10s a request throws `timeout
+// exceeded when trying to connect` rather than waiting on.
 const pool = new Pool({
   connectionString: withExplicitSslMode(DATABASE_URL),
   max: 10,

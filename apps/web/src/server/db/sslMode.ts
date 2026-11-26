@@ -1,8 +1,8 @@
 /**
  * Spell out the SSL mode `pg@8` already applies, so it stops warning about it.
  *
- * A managed Postgres hands out a string with `sslmode=require`, and a box's
- * own may be set to it. `pg-connection-string@2` treats `prefer`, `require`
+ * A managed Postgres hands out a string with `sslmode=require`.
+ * `pg-connection-string@2` treats `prefer`, `require`
  * and `verify-ca` as aliases for `verify-full`, and says so with a `SECURITY
  * WARNING` through `process.emitWarning` the first time each process parses
  * one. Node writes that to stderr, and Vercel (the host until M59) ranked the

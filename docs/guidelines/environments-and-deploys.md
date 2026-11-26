@@ -57,8 +57,8 @@ coordination between worktrees.
 |---|---|---|---|
 | Local | `pnpm dev` (port 3001) | Docker Postgres (port 5433), or a native cluster on the same port in a web session | `apps/web/src/server/config.ts` default / `.env.local` |
 | CI | GitHub Actions | PG service container | `ci.yml` workflow env |
-| Preview | One preview app on the box (`preview.caesura.today`), the labelled PR's image | **`caesura_preview`**, a disposable database on the box's Postgres, never production's | Coolify env, Preview scope — plus `PREVIEW_DB_IS_DISPOSABLE=true` |
-| Production | Coolify, the same box | The box's Postgres, database the live site reads | Coolify env, Production scope |
+| Preview | One preview app on the box (`preview.caesura.today`), the labelled PR's image | **`caesura_preview`**, a disposable database on the box's Postgres, never production's | The `caesura-preview` application's Coolify env. `coolify-preview.yml` sets `PREVIEW_DB_IS_DISPOSABLE=true` for its migrate step; it is not a Coolify variable |
+| Production | Coolify, the same box | The box's Postgres, database the live site reads | The `caesura-web` application's Coolify env |
 
 > **The database's host and name are deliberately not written above.** They
 > have been wrong in this file before, when production and preview were two
@@ -72,9 +72,9 @@ Rules (ADR-004 + M1 retro):
 - Preview and Production `DATABASE_URL` are **never** the same value.
   **This rule was silently violated from 2026-07-21 to 2026-09-06** (fixed since; KI resolved 2026-09-24) — the managed-
   database Vercel integration injected one `DATABASE_URL` scoped "Production and Preview",
-  which is one value for both, and nothing checked. Coolify has the same trap: it
-  keeps a preview copy of every production variable, so the Preview scope's
-  `DATABASE_URL` is set explicitly (`docs/ops/coolify-vps.md`, *Previews*). Read
+  which is one value for both, and nothing checked. The preview is now its own
+  application (`caesura-preview`) with its own `DATABASE_URL`, set explicitly
+  (`docs/ops/coolify-vps.md`, *Previews*), so it shares no variable with `caesura-web`. Read
   `docs/known-issues/resolved/KI-20260906-h-preview-and-production-shared-one-database.md`
   before changing anything in this section; the rail below is what now enforces
   the half of it that automation can enforce.
@@ -302,7 +302,7 @@ The project's flag is `ai-live`, variable `FLAG_AI_LIVE`: whether
 | Environment | Where the value lives |
 |---|---|
 | Local / CI | `AI_LIVE` in `.env.local` / the CI env — `false` by default, checked by `aiLive()` (`apps/web/src/server/ai/modelSelection.ts`) before the flag is ever consulted. **Never set this in a deployment** (see below). |
-| Preview | `FLAG_AI_LIVE` on the Coolify Preview scope. Unset means simulated; set it to `true` on the preview you want to try live AI on. |
+| Preview | `FLAG_AI_LIVE` on the `caesura-preview` application. Unset means simulated; set it to `true` on the preview you want to try live AI on. |
 | Production | `FLAG_AI_LIVE` on the Production scope. **`false` until release; `true` from release onward**, at which point it is the emergency disable — ADR-019's 2026-09-13 amendment. Do not flip it before M20's entitlement gate is live in production: between the flip and the gate there is no spend control at all. |
 
 **Flipping `ai-live` for everyone:** set `FLAG_AI_LIVE` on the Production scope

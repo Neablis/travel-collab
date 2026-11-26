@@ -242,8 +242,8 @@ against a real deployment with the real CSP. It works, and there is exactly one
 thing that makes it different from local.
 
 **The database is safe.** A preview points at a disposable database (`caesura_preview`), never
-production (`environments-and-deploys.md`), and its build applies pending
-migrations itself when `PREVIEW_DB_IS_DISPOSABLE=true` — so `0021` and `0022`
+production (`environments-and-deploys.md`), and `coolify-preview.yml` applies pending
+migrations to it before the deploy (it sets `PREVIEW_DB_IS_DISPOSABLE=true` for that step) — so `0021` and `0022`
 are already there. Test-mode subscription rows land somewhere throwaway.
 
 ### The webhook can reach a preview
@@ -262,7 +262,7 @@ broken product and is really an endpoint that was never registered.
 Two ways to get the event to a preview:
 
 **1. A dashboard endpoint** at the preview's `/api/stripe/webhook`, in Stripe's
-test mode. Its `whsec_` is the preview scope's `STRIPE_WEBHOOK_SECRET`. A test-mode
+test mode. Its `whsec_` is the `caesura-preview` application's `STRIPE_WEBHOOK_SECRET`. A test-mode
 event applies only on the deployment its checkout began on (the
 `deploymentOrigin` metadata `startCheckout` writes), so a second endpoint hearing
 the same event records it as `unattributable` and grants nothing.
@@ -275,7 +275,7 @@ stripe listen --forward-to https://preview.caesura.today/api/stripe/webhook
 
 **The catch is the signing secret.** `stripe listen` mints a NEW `whsec_` each
 run, and the deployment reads `STRIPE_WEBHOOK_SECRET` when it starts, so every
-restart of the CLI means updating the Preview scope and restarting the preview.
+restart of the CLI means updating `caesura-preview`'s variable and restarting the preview.
 Fine for one proving run; miserable as a loop. Iterate locally, and spend a
 preview only on the thing local cannot show.
 
@@ -287,7 +287,7 @@ real user would see if the endpoint were down, and worth seeing once on purpose.
 
 ### Setting it up
 
-1. **Set the keys in Coolify's Preview scope** — `STRIPE_SECRET_KEY` (`sk_test_`,
+1. **Set the keys on the `caesura-preview` application in Coolify** (not `caesura-web`) — `STRIPE_SECRET_KEY` (`sk_test_`,
    and read *The one rule* again before you paste) and `STRIPE_WEBHOOK_SECRET`.
 2. **Point Stripe at whichever route you chose.** With `stripe listen` there is
    nothing to register; otherwise it is a dashboard endpoint.
