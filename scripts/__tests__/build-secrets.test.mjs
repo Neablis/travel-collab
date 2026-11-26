@@ -23,6 +23,10 @@ test("a fixed line wins over a variable of the same name", () => {
   assert.deepEqual(lines, ["PUBLIC_ORIGIN=https://preview.caesura.today"]);
 });
 
+test("a value that ends in `=` is passed whole", () => {
+  assert.deepEqual(buildSecrets({ P_NEXT_PUBLIC_SENTRY_DSN: "abc==" }, "P_"), ["NEXT_PUBLIC_SENTRY_DSN=abc=="]);
+});
+
 for (const file of ["deploy-production.yml", "coolify-preview.yml"]) {
   test(`${file} passes the filtered list, not Actions variables, as the build secrets`, () => {
     const text = readFileSync(join(ROOT, ".github", "workflows", file), "utf8");

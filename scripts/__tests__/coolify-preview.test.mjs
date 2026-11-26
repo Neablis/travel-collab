@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 import { main, openPreview, previewTag, removePreview } from "../coolify-preview.mjs";
 
@@ -97,3 +100,48 @@ test("the CLI refuses to run without its settings, a sha or a known command", as
   await assert.rejects(main(["open", "0", "abcdef1", "u"], env), /positive integer/);
   await assert.rejects(main(["build", "1"], env), /unknown command/);
 });
+
+// A sparse checkout holds only the files it lists, so a listed script that
+// imports a sibling dies with ERR_MODULE_NOT_FOUND on the runner. The remove
+// job missed `coolify-api.mjs` that way, and a preview was never stopped.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const WORKFLOWS = join(ROOT, ".github", "workflows");
+
+/** The paths each `sparse-checkout:` step lists, inline or as a `|` block. */
+function sparseLists(text) {
+  const lines = text.split("\n");
+  const lists = [];
+  lines.forEach((line, i) => {
+    const m = /^(\s*)sparse-checkout:[ \t]*(.*)$/.exec(line);
+    if (!m) return;
+    if (m[2] !== "|") return lists.push([m[2].trim()]);
+    const block = [];
+    for (const next of lines.slice(i + 1)) {
+      if (next.trim() === "" || next.length - next.trimStart().length <= m[1].length) break;
+      block.push(next.trim());
+    }
+    lists.push(block);
+  });
+  return lists;
+}
+
+/** Repo-relative paths of the relative imports of `file`, and of theirs. */
+function importClosure(file, seen = new Set()) {
+  for (const m of readFileSync(join(ROOT, file), "utf8").matchAll(/from\s+["'](\.[^"']+)["']/g)) {
+    const dep = join(dirname(file), m[1]);
+    if (!seen.has(dep)) importClosure(dep, seen.add(dep));
+  }
+  return seen;
+}
+
+for (const workflow of readdirSync(WORKFLOWS).filter((f) => f.endsWith(".yml"))) {
+  test(`${workflow}: every file a sparse-checked-out script imports is in the sparse list`, () => {
+    for (const list of sparseLists(readFileSync(join(WORKFLOWS, workflow), "utf8"))) {
+      for (const script of list.filter((p) => /^scripts\/.+\.mjs$/.test(p))) {
+        for (const dep of importClosure(script)) {
+          assert.ok(list.includes(dep), `${workflow} checks out ${script} but not ${dep}, which it imports`);
+        }
+      }
+    }
+  });
+}
