@@ -257,6 +257,27 @@ difference, 2 if it could not compare). It checks table row counts, migrations,
 the `vector` extension and the HNSW index, not row contents or sequences. Expect equality only with maintenance
 on: a live source keeps taking writes after the dump.
 
+## Tunnel
+
+Production's Postgres listens on the box's loopback only (ADR-093). Actions
+reaches it through an SSH tunnel that `.github/actions/db-tunnel` opens before
+any step that names `PRODUCTION_DATABASE_URL`; `scripts/check-workflow-tunnel.mjs`
+fails CI if a workflow names it without that step.
+
+- **The user.** `tunnel` on the box, with no shell privileges beyond forwarding.
+  Its `authorized_keys` line is restricted:
+  `restrict,port-forwarding,permitopen="127.0.0.1:5432" ssh-ed25519 <deploy key>`,
+  so the key can open that one forward and nothing else.
+- **The forward.** `ssh -N -L 15432:127.0.0.1:5432 tunnel@<host>`, so on the
+  runner the database is `127.0.0.1:15432`. `PRODUCTION_DATABASE_URL` carries
+  that host and port, not the box's address.
+- **The secrets, by name.** `BOX_SSH_KEY` (the private deploy key),
+  `BOX_SSH_KNOWN_HOSTS` (the box's host key line, from `ssh-keyscan` checked
+  against the box's own fingerprint) and `BOX_SSH_HOST`. The host key is pinned
+  and `StrictHostKeyChecking` stays on.
+- **Not killed explicitly.** A composite action has no post step; the runner is
+  discarded when the job ends.
+
 ## Plausible
 
 Plausible is a **raw Docker Compose service** in Coolify, not a one-click service:

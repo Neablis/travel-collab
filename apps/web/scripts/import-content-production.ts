@@ -470,9 +470,9 @@ export async function importTrips(bundle: ContentBundleV1, ownerId: string, { dr
  * for a run to die part-way.
  *
  * It is a transaction-scoped advisory lock held by a transaction that stays
- * open for the run, rather than a session lock, because a preview reaches its
- * database through a pooler: a session lock could be taken on one server
- * connection and released on another, and a transaction is pinned to one.
+ * open for the run, rather than a session lock, because a transaction is
+ * pinned to one server connection and a session lock is only as good as the
+ * connection that took it: if that one is dropped, the lock goes with it.
  * The writes run on other pool connections; the lock's transaction does
  * nothing but wait, and ending it, however the run ends, releases the lock.
  * Waiting idle in a transaction is what `idle_in_transaction_session_timeout`
