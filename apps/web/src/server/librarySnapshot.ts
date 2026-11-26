@@ -16,8 +16,8 @@ import type { DiscoverQuery } from "./playbooks";
 // worked out of it** (ADR-063, amended 2026-11-22). Discover and the place,
 // tag, length and author pages were each cached per URL: one entry per
 // search, cursor and `?page=N`. A crawler that walks those URLs finds a new
-// key almost every time, and every new key was a database read, which woke
-// Neon from its sleep a few times a minute through the night. One entry
+// key almost every time, and every new key was a database read, a few
+// times a minute through the night. One entry
 // holding every published day answers all of them, so a URL nobody has asked
 // for before is a filter over memory, not a query.
 //

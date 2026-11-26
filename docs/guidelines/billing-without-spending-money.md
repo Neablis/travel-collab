@@ -241,7 +241,7 @@ thing local cannot show you: Stripe's hosted Checkout page, in a real browser,
 against a real deployment with the real CSP. It works, and there is exactly one
 thing that makes it different from local.
 
-**The database is safe.** A preview points at a disposable Neon branch, never
+**The database is safe.** A preview points at a disposable database (`caesura_preview`), never
 production (`environments-and-deploys.md`), and its build applies pending
 migrations itself when `PREVIEW_DB_IS_DISPOSABLE=true` — so `0021` and `0022`
 are already there. Test-mode subscription rows land somewhere throwaway.
@@ -249,7 +249,7 @@ are already there. Test-mode subscription rows land somewhere throwaway.
 ### The webhook can reach a preview
 
 Previews are public (M59), so Stripe's server-to-server POST reaches
-`https://<pr number>.preview.caesura.today/api/stripe/webhook` with no credential
+`https://preview.caesura.today/api/stripe/webhook` with no credential
 in the way. (On Vercel the preview sat behind Authentication, which 302'd the
 POST and needed a bypass secret in a header or a custom domain. None of that
 workaround survives; this section used to be a page about it.)
@@ -270,7 +270,7 @@ the same event records it as `unattributable` and grants nothing.
 **2. `stripe listen` forwarding to the preview**, which needs no registration:
 
 ```bash
-stripe listen --forward-to https://<pr number>.preview.caesura.today/api/stripe/webhook
+stripe listen --forward-to https://preview.caesura.today/api/stripe/webhook
 ```
 
 **The catch is the signing secret.** `stripe listen` mints a NEW `whsec_` each

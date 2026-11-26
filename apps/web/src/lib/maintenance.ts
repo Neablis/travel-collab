@@ -1,8 +1,8 @@
 // The cutover's maintenance mode (M64 decision 9, PR 794). One variable,
 // `MAINTENANCE_MODE=true`, turns every page into a static notice and the
 // discovery and OAuth routes into a 503 JSON answer. `/api` is outside it (the
-// proxy would buffer every request body): writes stop by making Neon's role
-// read-only (plan O8 step 2), not here. Unset, nothing here runs.
+// proxy would buffer every request body): writes stop by making the app's database
+// role read-only (plan O8 step 2), not here. Unset, nothing here runs.
 //
 // It imports nothing: the notice must come up with the database down and with
 // the rest of the app unloadable, which is the situation it is for. No

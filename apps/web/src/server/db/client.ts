@@ -4,7 +4,16 @@ import { DATABASE_URL } from "../config";
 import * as schema from "./schema";
 import { withExplicitSslMode } from "./sslMode";
 
-const pool = new Pool({ connectionString: withExplicitSslMode(DATABASE_URL) });
+// Limits set out loud rather than left to pg's defaults (no timeouts): one
+// server holds this pool, so 10 connections is its whole share of a small
+// Postgres, an idle one is let go after 30s, and a connect that stalls fails in
+// 10s instead of hanging a request.
+const pool = new Pool({
+  connectionString: withExplicitSslMode(DATABASE_URL),
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 10_000,
+});
 export const db = drizzle(pool, { schema });
 export type Db = typeof db;
 

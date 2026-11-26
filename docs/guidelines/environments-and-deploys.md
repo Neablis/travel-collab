@@ -44,8 +44,8 @@ each run is a ~90 ms `CREATE DATABASE … TEMPLATE` clone called
 `tc_test_<epoch>_<rand>`, and a run that was SIGKILLed is swept by the next
 one after two hours. `KEEP_TEST_DB=1 pnpm --filter web test:int` keeps the
 database and prints its URL. The wrapper refuses to run against any host that
-is not loopback, so it can never issue `CREATE`/`DROP DATABASE` against a Neon
-branch.
+is not loopback, so it can never issue `CREATE`/`DROP DATABASE` against a remote
+database.
 
 Running more than one worktree's dev server at once: each needs its own
 port. `WEB_PORT=3010 pnpm --filter web dev` (or set `WEB_PORT` in that
@@ -57,21 +57,21 @@ coordination between worktrees.
 |---|---|---|---|
 | Local | `pnpm dev` (port 3001) | Docker Postgres (port 5433), or a native cluster on the same port in a web session | `apps/web/src/server/config.ts` default / `.env.local` |
 | CI | GitHub Actions | PG service container | `ci.yml` workflow env |
-| Preview | Coolify per-PR previews on the VPS | **A disposable Neon branch** (pooled), never production's | Coolify env, Preview scope — plus `PREVIEW_DB_IS_DISPOSABLE=true` |
-| Production | Coolify, the same VPS | The Neon branch the live site reads (pooled) | Coolify env, Production scope |
+| Preview | One preview app on the box (`preview.caesura.today`), the labelled PR's image | **`caesura_preview`**, a disposable database on the box's Postgres, never production's | Coolify env, Preview scope — plus `PREVIEW_DB_IS_DISPOSABLE=true` |
+| Production | Coolify, the same box | The box's Postgres, database the live site reads | Coolify env, Production scope |
 
-> **The Neon project and branch names are deliberately not written above.** They
-> have been wrong in this file before: it named a `preview` branch that had been
-> archived since 2026-08-28 and a `main` branch in a project that was not the one
-> the `PRODUCTION_DATABASE_URL` secret pointed at. Two Neon projects existed with
-> near-identical connection strings differing only in host, and the branch *named*
+> **The database's host and name are deliberately not written above.** They
+> have been wrong in this file before, when production and preview were two
+> managed projects with near-identical connection strings and the branch *named*
 > `production` was not production. Identify a database by connecting to it and
-> looking, never by the name on it — `KI-2026-09-06-h` has the method.
+> looking, never by the name on it: `KI-2026-09-06-h` has the method. On the box
+> the preview database is `caesura_preview` and `build-steps.mjs` refuses to
+> migrate any other name.
 
 Rules (ADR-004 + M1 retro):
 - Preview and Production `DATABASE_URL` are **never** the same value.
-  **This rule was silently violated from 2026-07-21 to 2026-09-06** (fixed since; KI resolved 2026-09-24) — the Neon
-  Vercel integration injected one `DATABASE_URL` scoped "Production and Preview",
+  **This rule was silently violated from 2026-07-21 to 2026-09-06** (fixed since; KI resolved 2026-09-24) — the managed-
+  database Vercel integration injected one `DATABASE_URL` scoped "Production and Preview",
   which is one value for both, and nothing checked. Coolify has the same trap: it
   keeps a preview copy of every production variable, so the Preview scope's
   `DATABASE_URL` is set explicitly (`docs/ops/coolify-vps.md`, *Previews*). Read
@@ -83,8 +83,8 @@ Rules (ADR-004 + M1 retro):
 - Production migrations: **applied automatically, before every deploy**
   (ADR-091, 2026-11-15). `.github/workflows/deploy-production.yml` runs on
   every push to `main`: journal shape, `db:migrate` against the
-  `PRODUCTION_DATABASE_URL` repo secret (the UNPOOLED/direct connection string —
-  DDL should not run through PgBouncer), `db:state` to confirm production has
+  `PRODUCTION_DATABASE_URL` repo secret (through the SSH tunnel, ADR-093: a direct
+  connection, nothing pooled in between), `db:state` to confirm production has
   every migration in the tree, and only then a Coolify deploy of `caesura-web`,
   which it waits on. **A failed migration deploys nothing.** Coolify's Auto
   Deploy is off on `caesura-web` (`docs/ops/coolify-vps.md`, *Deploy*), so this
@@ -154,22 +154,23 @@ Rules (ADR-004 + M1 retro):
   refuses deleting one that `main` already has, or rewriting the `when` of one
   already applied.
 - Preview migrations: `apps/web/scripts/build-migrate.mjs` runs
-  `drizzle-kit migrate` during the image build (`pnpm --filter web build:container`),
-  and needs **both** conditions:
-  `APP_ENV=preview` **and** `PREVIEW_DB_IS_DISPOSABLE=true`. The first says
-  where the build runs; only the second says anything about which database it is
-  pointed at, and it is set by hand on the Preview scope alone. Without it the
-  build **fails** rather than skipping — a preview that cannot prove its database
+  `drizzle-kit migrate` in `coolify-preview.yml`, over the SSH tunnel, before the
+  preview's image is deployed (M64 part 4; the image build migrates nothing). It
+  needs **both** conditions: `APP_ENV=preview` **and**
+  `PREVIEW_DB_IS_DISPOSABLE=true`, and it migrates only the database named
+  `caesura_preview`. The first says where the build runs; only the second says
+  anything about which database it is pointed at, and the workflow sets it, never
+  Coolify. Without it the step **fails** rather than skipping — a preview that cannot prove its database
   is disposable must not migrate, and a red build is the cheap failure here.
   `VERCEL_ENV=preview` alone was the only check until 2026-09-06, which is how
   migrations 0015-0018 were applied to production by preview builds.
-  After migrating, a preview build also imports `content/` through
+  After migrating, the workflow also imports `content/` through
   `import-content-production.ts`, never with `--prune`, into the preview
   database that every open PR shares, so the last build to run wins a day's
   content. A bundle or import error fails that build. Two builds importing at
   once wait for each other on the importer's advisory lock.
-- Resetting the preview branch (or local db):
-  `DATABASE_URL=<preview pooled url> pnpm --filter web db:reset`
+- Resetting the preview database (or local db):
+  `DATABASE_URL=<preview url, through the tunnel> pnpm --filter web db:reset`
   — see the header of `apps/web/scripts/db-reset.mjs`. For local dev, `pnpm
   --filter web db:reseed` wipes and refills with realistic data in one shot
   (`db:reset --yes` + `db:seed` + `content:import`, `.env.local`'s

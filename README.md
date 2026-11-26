@@ -11,7 +11,7 @@ anyone does is ever lost.
 
 ## What it does today
 
-The full single-player product is live (a Coolify VPS + Neon, Google sign-in), plus
+The full single-player product is live (one box running Coolify and its own Postgres, Google sign-in), plus
 the first slices of what comes after:
 
 - **Plan a trip as days and stops.** A drag-to-plan day-column board with an

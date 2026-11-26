@@ -2227,7 +2227,7 @@ export const tierWeekly = pgTable(
   (t) => [uniqueIndex("tier_weekly_week_plan").on(t.weekStart, t.planId)],
 );
 
-// Retrieval-augmented plan generation, part 1 (Neon pgvector).
+// Retrieval-augmented plan generation, part 1 (pgvector).
 //
 // The corpus: one row per EMBEDDABLE DAY — a playbook day (`saved_days` row)
 // or a trip day. Day-level, not trip- and not stop-level: a 6-day Tokyo plan

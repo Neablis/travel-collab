@@ -51,8 +51,9 @@ queries mix surfaces, so filter `u.endpoint` to read one.
 Each starts with a `window_` CTE; change `since` there. Simulated turns are
 excluded.
 
-- **Production:** run one query at a time with the Neon MCP `run_sql` against the
-  production branch. These are reads; never run a write through this skill.
+- **Production:** open the SSH tunnel to the box (`docs/ops/coolify-vps.md`, *Tunnel*) and run
+  `psql` against production through it, one query at a time. These are reads;
+  never run a write through this skill.
 - **Locally:** `psql "$DATABASE_URL" -f .claude/skills/ai-usage/ledger.sql`.
 
 **There are no dollars in SQL.** Price is the token counts joined to the dated

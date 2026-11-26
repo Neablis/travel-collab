@@ -1,23 +1,21 @@
 // Read every public page once, right after the server starts and once a day
 // after that, so a crawler's visit finds the page already cached and the
-// database stays asleep (2026-11-19).
+// database is read once, not a trickle (2026-11-19).
 //
 // Why: the data cache (`libraryCache.ts`) starts empty on every deploy, by
 // design (its key carries the deployment), and its entries last a day. The
 // library is several hundred URLs (every published day, place, tag and length
 // page in `/sitemap.xml`), and crawlers walk it one URL every few minutes.
-// Each first visit read Postgres, so Neon never saw the five idle minutes it
-// needs to suspend: awake about 23 of 24 hours on 2026-11-17 and 11-18.
-// Once the cache had filled, with no deploy for a day, it slept about three
-// hours. Reading the whole sitemap in one go spends a few minutes of database
-// time at start instead of a trickle all day.
+// Each first visit read Postgres, a trickle of reads all day. Reading the
+// whole sitemap in one go spends a few minutes of database time at start
+// instead, and once the cache has filled, a crawler's visit costs no read.
 //
 // It asks this server, not the public origin: through Cloudflare a page the
 // edge already holds would answer without reaching the server, and the
 // server's own cache would stay empty for the next edge location that asks.
 // No cookie is sent, so every page is read as a signed-out visitor reads it,
 // which is the copy that is cached. Production only (`APP_ENV`): a preview or
-// staging database has nobody to keep asleep for, and the test lanes read live.
+// staging server has no crawler to save reads for, and the test lanes read live.
 //
 // It also runs a minute after a write clears the library's lists (a publish,
 // an unpublish, a rename, a rank change), for the same reason as at start: on

@@ -7,7 +7,7 @@
 //
 // **Why there are two conditions and not one.** For six weeks the only check
 // here was `VERCEL_ENV === "preview"`, which asks where the BUILD is running
-// and not what the DATABASE is. The Neon integration injected one
+// and not what the DATABASE is. The hosting integration injected one
 // `DATABASE_URL` scoped "Production and Preview" — the same value for both —
 // so every preview build ran `drizzle-kit migrate` against production. Four
 // migrations (0015-0018) reached the live database that way, while the

@@ -111,7 +111,7 @@ describe("the preview's database steps", () => {
   });
 });
 
-// KI-2026-10-17-c: every preview migrates one shared Neon branch, and drizzle
+// KI-2026-10-17-c: every preview migrates one shared preview database, and drizzle
 // applies whatever is newer than the newest applied row. A migration applied by
 // its preview and then regenerated under a newer number runs twice.
 describe("the preview migrate's check of the applied rows", () => {
