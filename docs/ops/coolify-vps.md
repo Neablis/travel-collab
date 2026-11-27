@@ -6,7 +6,8 @@ the crons, the costs and how to roll back. M59 built the first box
 (`docs/plans/2026-11-06-M59-self-host-on-coolify-vps.md`, deleted at M59's close on
 2026-11-24; `docs/plans/README.md`, *Retrieving a deleted plan*); M64 moved the
 database onto it, off Neon, and replaced the box
-(`docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`, ADR-093).
+(`docs/milestones/M64-one-cheap-box-own-postgres.md`, ADR-093; its plan was deleted at the
+close, 2026-11-27).
 **Names only. A value never goes in this file**, a PR or a log; values move from
 tool to tool. Tokens and passwords live in Coolify and the operator's password
 manager, not here.
@@ -326,8 +327,8 @@ M64 (D6 and D8). `deploy-production.yml` and `coolify-preview.yml` build the
 Dockerfile on a runner, push `ghcr.io/<repo>/web:<tag>` (`<sha>` for production,
 `pr-<n>-<sha>` for a preview, so each push is a new tag; GHCR keeps them all, prune by hand), and call Coolify, which only pulls and runs the tag
 (`scripts/coolify-deploy.mjs` and `scripts/coolify-preview.mjs` set
-`docker_registry_image_tag` on the application, then deploy). The plan is
-`docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`.
+`docker_registry_image_tag` on the application, then deploy). The milestone is
+`docs/milestones/M64-one-cheap-box-own-postgres.md`.
 
 - **Two applications**, both "Docker image" applications with no git source:
   `caesura-web` (production) and `caesura-preview` at

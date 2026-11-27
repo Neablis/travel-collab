@@ -1,12 +1,13 @@
 # M64 — Caesura runs on one cheap box, with its own Postgres
 
-**Status (2026-11-26): cut over.** Production has served from the Netcup box on its own Postgres
-since 2026-11-26 22:06Z (PR 799 merged as `fb30cf02`). Hetzner is deleted and Neon is on its free
-plan. Open: the code boxes' red-then-green evidence, the Vercel box (see the gate), the bills, and
-the retro. The cutover's evidence log is on Mitchell's laptop (`~/caesura-m64-box/log.md`); what
-the gate needs from it is quoted below. **Scoped 2026-11-24.** Minted, scoped and placed by Mitchell on 2026-11-24, with every
+**Status (2026-11-27): closed, gate 14 of 14, one box amended out (PR previews).** Production has
+served from the Netcup box on its own Postgres since 2026-11-26 22:06Z (PR 799 merged as
+`fb30cf02`). Hetzner is deleted and Neon is on its free plan. The cutover's evidence log is on
+Mitchell's laptop (`~/caesura-m64-box/log.md`); what the gate needs from it is quoted below.
+**Scoped 2026-11-24.** Minted, scoped and placed by Mitchell on 2026-11-24, with every
 decision answered the same day (see *Decisions*). Plan:
-`docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`. Part 0 is
+`docs/plans/2026-11-24-M64-one-cheap-box-own-postgres.md`, deleted at the close (2026-11-27;
+`docs/plans/README.md`, *Retrieving a deleted plan*). Part 0 is
 `claude/caesura-neon-migration-b5c8f3`. ADR-093. **M59 is folded in** (D11): M59 closes with its
 three open boxes moved here.
 
@@ -173,14 +174,23 @@ the recommendation, it says so.
       is the evidence). The `caesura` dump downloaded from R2, restored into `caesura_drill`
       (only the expected `must be owner of extension vector` error), compare-databases: "58
       tables, 80 migrations … The two databases match." Scratch database dropped.)*
-- [ ] **Maintenance mode behaves as D9 sketches**: tests seen red then green, and switched on
+- [x] **Maintenance mode behaves as D9 sketches**: tests seen red then green, and switched on
       and off once on the new box before cutover.
       *(Box half 2026-11-26, O6: on, `/` and `/trips/…` answered 503 with `Retry-After: 600` and
       `X-Robots-Tag: noindex` and the notice with no links, `/.well-known/…` answered
       `503 {"error":"maintenance"}`, `/api/v1/trips` 401 (outside, per D9's amendment),
       `/api/health` `"maintenance":true`; off, everything back. An env change takes effect on a
-      Coolify restart, about 50 s. Used for real on the old box at cutover. Open: the red-then-green
-      test evidence from part 1.)*
+      Coolify restart, about 50 s. Used for real on the old box at cutover. Tests half, from PR
+      795's *Verification actually performed*: deleting the catch-all matcher entry
+      `/((?!api/|_next/).*)` failed `proxy.test.ts` with `AssertionError: expected false to be true`;
+      the earlier catch-all `/((?!_next/static).*)` failed the `/api`-excluded case with `expected
+      true to be false`; loosening the still-any-`.`-suffix rule failed with `expected null to be
+      '1'`; a plain `BEGIN TRANSACTION READ ONLY` failed `compare-databases.test.mjs`'s isolation
+      check; removing the try/catch around `main` failed its exit-2 test with `actual: 1, expected:
+      2`; the first push's table covers `isMaintenance`, the health flag and the row-count diff.
+      Each restored and seen green: vitest on `proxy.test.ts`, `maintenance.test.ts` and
+      `app/api/health` 61 passed, `node --test` on the compare test 7 passed. Recorded 2026-11-27 on
+      Mitchell's word, "Record 1, we already did it".)*
 - [x] **The rehearsal is done**: Neon's production dump restored on the new box, the compare
       script equal, the dump-to-restore time recorded, and `staging.` walked on the new box
       (Google sign-in, open a trip, ask the assistant, a pageview in Umami).
@@ -214,14 +224,20 @@ the recommendation, it says so.
       applied, "80/80 migrations applied", then build and deploy. `PRODUCTION_DATABASE_URL` is
       `caesura@127.0.0.1:15432/caesura?sslmode=disable`, set at cutover just before the merge.
       `scripts/check-workflow-tunnel.mjs` (part 3) keeps every other workflow on the tunnel.)*
-- [ ] **PR previews work** (from M59): a labelled PR gets its image deployed to
+- [ ] ~~**PR previews work** (from M59): a labelled PR gets its image deployed to
       `caesura-preview` on the box, using `caesura_preview` and never production's database, and
-      the part-reviewer's, phase-verifier's and close-a-milestone's walk instructions point at it.
+      the part-reviewer's, phase-verifier's and close-a-milestone's walk instructions point at it.~~
+      *Amended 2026-11-27 by Mitchell ("skip #2"):* the deploy half stands as evidenced below; the
+      green `preview-link-check` on a labelled PR after PR 803 is not waited for at the close.
       *(2026-11-26: PR 799 labelled `preview`, run 45899608400: image `pr-799-db94a69d…` deployed
       to `caesura-preview`, healthy at `https://preview.caesura.today`; its `DATABASE_URL` names
       the `caesura_preview` role and database. `phase-verifier.md`, `review-a-part` and
-      `close-a-milestone` name that URL. Not ticked: `preview-link-check` waits for `version` to
-      equal the sha and so times out (the `HEAD` finding above).)*
+      `close-a-milestone` name that URL. `preview-link-check` timed out waiting for `version` to
+      equal the sha, because Coolify sets `SOURCE_COMMIT=HEAD` at runtime. PR 803 (`97a385c2`,
+      merged as `216b4960`) bakes the sha as `IMAGE_COMMIT`; production's `/api/health` now reports
+      `216b4960e3cd91e6bad66b484026f47bcde7fda3`. PR 803's own `preview-link-check` (run
+      45909916097) still failed, "last: no answer", so a preview after PR 803 is unproven; see the
+      retro's *Leftovers*.)*
 - [x] **Umami counts `caesura.today` pageviews, and Plausible is gone.** The CSP names Umami
       only, and `Netcup`, `Umami` and `Plausible` are barred on `/ai`, `/security` and in API
       discovery.
@@ -261,4 +277,183 @@ the recommendation, it says so.
       `ai_usage` was silent from early November). Set to `true` on the box at 22:16Z, then
       `/api/health/ai-mode` read `"live":true`. `discover-rank` executed by hand at 22:07Z:
       `200 {"ok":true,"cleared":true}`. Umami pageviews as above.)*
-- [ ] A retro is appended at gate close.
+- [x] A retro is appended at gate close. (2026-11-27, below)
+
+## What the cutover found
+
+*Moved here from the plan at the close (2026-11-27), for the next move of the box.*
+
+The runbook held (2026-11-26); these are the corrections, for the
+next move:
+
+- **Blockers it did not list.** (a) `caesura-web` had to be a *Docker image* application before
+  the merge: `coolify-deploy.mjs` retags `docker_registry_image_tag`, which a Dockerfile/GitHub
+  application ignores. It was recreated and its env copied by name. (b) `COOLIFY_URL` is written
+  into `deploy-production.yml` and `coolify-preview.yml`, so `coolify.` had to move to the new box
+  (and its instance domain be set) *before* step 4, not at step 5, together with
+  `COOLIFY_API_TOKEN` and `COOLIFY_APP_UUID`. From then until the merge, any other push to `main`
+  would fail its deploy, so merges were held. (c) The `PRODUCTION_*` and `PREVIEW_*` Actions
+  variables, `COOLIFY_PREVIEW_APP_UUID` and `PREVIEW_DATABASE_URL` had to exist first;
+  `PRODUCTION_PUBLIC_ORIGIN` is required by the build.
+- **The apex and `www` are proxied** (orange), with SSL Full (strict) and Always Use HTTPS, not
+  grey as step 5 says. Their TTL is moot. Let's Encrypt tried at deploy time, while DNS still
+  named the old box, and failed; after the flip it does not retry by itself. What worked: SSL to
+  Full for the flip, `docker restart coolify-proxy` (both certificates within 15 s; the HTTP-01
+  challenge passes through Cloudflare unredirected), then SSL back to strict.
+- **`PRODUCTION_DATABASE_URL` was re-pointed after step 3 and before the merge.** The *Tunnel*
+  order in `coolify-vps.md` (secrets, merge, re-point) would have let step 4's migrate step check
+  Neon instead of the box.
+- **`/api/health`'s `version` reads `HEAD`** on image applications: Coolify sets `SOURCE_COMMIT`
+  at runtime. Step 4's check used the container's image tag instead.
+- **Timings:** maintenance on (restart) 174 s; Neon read-only and box apps stopped under a minute;
+  dump 13 s, restore 1 s, compare 6 s; merge to deployed about 5 minutes; site down about 16
+  minutes in all.
+
+## Retro — written 2026-11-27 (14 of 14 boxes ticked, one amended out)
+
+### What went well
+
+- **The cutover took about 16 minutes of downtime and lost nothing.** Neon was made read-only at
+  21:50:52Z, the final dump took 13 s and the restore 1 s, and the compare script said "The two
+  databases match" at 21:52:31Z, before DNS flipped at 22:06Z (gate box 6). About 8 of the 16
+  minutes were waiting on PR 799's merge and image build.
+- **The rehearsal took the risk out of the evening.** The O6 rehearsal ran the same dump, restore
+  and compare against Neon's production data, and found that `--role=caesura` left every object
+  owned correctly, so the ownership fallback was dropped before the cutover (commit `e405e5f4`).
+- **Making the database read-only replaced 150 handler wrappers.** PR 795's review found no shared
+  seam over `/api`; Mitchell's D9 amendment stopped writes with
+  `default_transaction_read_only = on` instead, and a test `UPDATE` was refused on both Neon
+  endpoints at cutover.
+- **The bill dropped by about $70 a month**, from about $87 (Hetzner $73.49, Neon about $13.70) to
+  €16.11 (gate box 13). R2 holds the backups inside its free tier.
+- **No build runs on the box any more.** `deploy-production` run 45901870874 built the image in
+  Actions and Coolify only pulled it, which removes the ~4 GB `next build` spike behind
+  KI-2026-11-14-d; the box ran at 2123 MB used after cutover.
+- **Production's walk found a month-old silent fault.** `FLAG_AI_LIVE` had been unset since M59
+  made flags env variables, so the assistant ran simulated and `ai_usage` was empty from early
+  November. It was set at 22:16Z and `/api/health/ai-mode` read `"live":true`.
+
+### What could be better
+
+- **Stack B merged early, and had to be reverted.** Parts 2–4 (PRs 796–798) merged to `main`
+  before the box existed, so `deploy-production` failed at the SSH tunnel step; PR 801 reverted
+  them and the cutover reverted the revert (commit `9b65b733`). The plan said stack B merges at
+  cutover, but nothing enforced it. The change that would have prevented it: keep stack B's PRs as
+  drafts, or labelled do-not-merge, until O8.
+- **The runbook missed four blockers** (*What the cutover found*, above): the Docker-image
+  application, `COOLIFY_URL` having to move before the merge, the Actions variables that had to
+  exist first, and re-pointing `PRODUCTION_DATABASE_URL` before the merge. Each was found live on
+  the evening, and merges to `main` were held while `coolify.` pointed at the new box. A dry run of
+  `deploy-production` against the new Coolify during the rehearsal would have caught the first
+  three.
+- **`/api/health`'s `version` read `HEAD` on image applications**, so `preview-link-check` could
+  never pass and the previews box could not be ticked. PR 803 fixed it the next day, but its own
+  preview run still failed, and the box was amended rather than proven.
+- **Coolify's ports 6001/6002 were public** because Docker-published ports skip `ufw`. They were
+  closed after cutover by a `DOCKER-USER` drop; the O4 check only tested 5432.
+- **Spend was mostly the orchestrators.** 78% of the measured units (below), against a target
+  under 15%. The Netcup setup and the cutover were run inline by two sessions with no subagents,
+  because each step needed Mitchell's console or approval. That is the nature of ops work, but
+  the two sessions peaked at 353k and 366k context.
+
+### Leftovers
+
+- **A preview after PR 803 is unproven.** Label a PR `preview` and read its `preview-link-check`;
+  PR 803's run 45909916097 ended "last: no answer", and `preview.caesura.today` answered a
+  not-found page on 2026-11-27. Mitchell's call (he skipped it at the close).
+- **Deleting the Neon project** after two weeks with no rollback (from 2026-12-10): D13's
+  follow-up, on Mitchell's OK.
+- **Umami saw no pageviews from Mitchell's laptop browser** (likely a blocker); his phone's views
+  counted. Not tracked; Mitchell's call.
+- **The state digest reports `0079_mfa` as not applied in production.** It was: run 44934907812
+  applied it on 2026-11-21, and the cutover's run 45901870874 read "80/80 migrations applied". The
+  digest's journal check still reads from before the cutover. Not tracked.
+- **PR 794's `ci-monitor-event` turn is unclassified** in `session-metrics` (`TURN_CLASSES` has no
+  row for it; see session 1 in the spend).
+
+## Spend
+
+Five sessions worked this milestone, and all five were measured. **The builders of parts 3–5 left
+no transcripts on this laptop** (session 1 dispatched part 1 and 2's builders and reviewers only),
+so every total here is a floor. **No session recorded dollars or cost by model, so none is given
+and `$ per 1,000 lines` is not measurable.** Lines added: 1,744 (`git diff --numstat
+b3184b82^1 216b4960`, without `docs/`, generated JSON and the lockfile; 449 deleted).
+
+| Session | What it did | Agents | Calls | Units | Orchestrator |
+|---|---|---|---|---|---|
+| 1 | plan, parts 1–2, M59's close | 8 | 309 | 7.02M | 2.64M (37.6%, peak 294k) |
+| 2 | Netcup box setup (O2, O4–O6) | 1 | 222 | 5.97M | 5.97M (100%, peak 353k) |
+| 3 | cutover (O7–O9) | 1 | 203 | 5.82M | 5.82M (100%, peak 366k) |
+| 4 | PR 803, the `version` fix | 1 | 29 | 721k | 721k (100%, peak 168k) |
+| 5 | this close | 1 | 34 | 753k | 753k (100%, peak 204k) |
+| All | | 12 | 797 | 20.28M | 15.90M (78.4%) |
+
+Session 1's agents: orchestrator 2.64M, `phase-implementer` 1.48M (3 agents, peak 102k),
+`part-reviewer` 1.44M (2, peak 115k), `general-purpose` 861k (M59's close), `Explore` 591k.
+
+**Session 5 (this close, generated):**
+
+<!-- session-metrics:milestone v1 -->
+
+1 agents, 34 API calls, 753k units. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | Share |
+|---|---|---|---|---|---|---|
+| `orchestrator` | 1 | 34 | 168k | 204k | 753k | 100.0% |
+
+**Costliest agents**
+
+No subagent transcripts found.
+
+**Orchestrator turns, by what started them**
+
+| What started the turn | Turns | Units | Share of orchestrator | Idle |
+|---|---|---|---|---|
+| GitHub / trigger notification | 0 | 0 | 0.0% | 0 of 0 (0 units) |
+| Subagent report | 0 | 0 | 0.0% | – |
+| Subagent finished | 0 | 0 | 0.0% | – |
+| Harness | 0 | 0 | 0.0% | – |
+| Human | 4 | 753k | 100.0% | – |
+| Other (unrecognised frame) | 0 | 0 | 0.0% | – |
+
+**Follow-ups and cache re-writes**
+
+| Measure | Count | Tokens |
+|---|---|---|
+| `SendMessage` calls by the orchestrator | 0 | – |
+| Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
+| Full cache re-writes in subagents | 0 | 0 |
+| — directly after a coordinator message | 0 | 0 |
+
+**Guard hooks**
+
+| Hook | deny | note |
+|---|---|---|
+| `implementer-brief-check` | 6 | 0 |
+| `orchestrator-context-limit` | 0 | 69 |
+| `reviewer-report-check` | 1 | 0 |
+
+**Targets**
+
+| Target | Result | Measured |
+|---|---|---|
+| Orchestrator share of units < 15% | missed | 100.0% |
+| No phase-implementer averaging > 250k context | not measurable | no phase-implementer transcripts |
+| GitHub wakes per merged part < 5 | met | 0 / 5 = 0.0 |
+| Dollars per 1k lines added < 20 | not measurable | needs --cost-usd and --lines-added |
+| Coordinator-message re-writes <= 2 | met | 0 |
+
+### Spend against the last milestone
+
+- **Orchestrator share under 15%: missed.** 78.4% over all five sessions (M60: 52.2%). Sessions 2
+  and 3 were ops run inline with Mitchell at the console, with no subagents; session 1, the one
+  that built, was 37.6%.
+- **Builder context under 250k: met** where measured (part 1's fixer averaged 80k, peak 102k).
+  Parts 3–5's builders were not measured.
+- **Dollars per 1,000 lines: not measurable.** No session recorded dollars (M60: not measurable
+  either). In units, M64 spent 11.6M per 1,000 lines against M60's 1.29M; M64 was mostly
+  operations, not code.
+- **GitHub wakes per merged part under 5: met** (0 in every session).
+- **Cache re-writes after a coordinator message: met** (0).
