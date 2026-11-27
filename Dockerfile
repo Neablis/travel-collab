@@ -125,9 +125,11 @@ COPY --from=build --chown=app:app /repo/apps/web/public ./apps/web/public
 
 # The commit this image was built from, read by `/api/health` as `version`.
 # Declared here and not in `build`, so a new sha does not bust the build cache.
-# Coolify has no git source to set it from (M64 D6).
+# Baked as `IMAGE_COMMIT`, not `SOURCE_COMMIT`: Coolify sets `SOURCE_COMMIT=HEAD`
+# in the container of a Docker-image application, which overrides an image ENV
+# of that name (M64). The build argument keeps its name.
 ARG SOURCE_COMMIT
-ENV SOURCE_COMMIT=${SOURCE_COMMIT}
+ENV IMAGE_COMMIT=${SOURCE_COMMIT}
 
 USER app
 EXPOSE 3000
